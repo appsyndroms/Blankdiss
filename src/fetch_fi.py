@@ -87,6 +87,12 @@ def normalize_percent(
         "3,42 %" -> 3.42
         "3.42%"  -> 3.42
         3.42     -> 3.42
+
+    pandas kan tolka svenska decimaler från FI:s HTML-tabell
+    felaktigt. Exempelvis kan "4,16" bli 416 i stället för
+    4.16. Eftersom aggregerad blankning anges som procent och
+    inte kan vara större än 100 %, korrigeras värden över 100
+    genom att dividera med 100.
     """
 
     if value is None:
@@ -128,10 +134,17 @@ def normalize_percent(
         return None
 
     try:
-        return float(text)
+        result = float(text)
 
     except ValueError:
         return None
+
+    # FI:s värden är procenttal, exempelvis 4,16 %.
+    # pandas kan dock läsa "4,16" som 416.
+    if result > 100:
+        result /= 100
+
+    return result
 
 
 def normalize_date(
