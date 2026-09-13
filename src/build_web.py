@@ -6,6 +6,7 @@ Webben är den primära presentationen.
 
 from __future__ import annotations
 
+import html
 import json
 from datetime import datetime
 from pathlib import Path
@@ -16,32 +17,23 @@ ROOT = Path(__file__).resolve().parents[1]
 ANALYSIS_DIR = ROOT / "data" / "analysis"
 EVENT_DIR = ROOT / "data" / "events"
 
-TEMPLATE = (
-    ROOT
-    / "web"
-    / "templates"
-    / "index.html"
-)
-
-STATIC_DIR = (
-    ROOT
-    / "web"
-    / "static"
-)
+TEMPLATE = ROOT / "web" / "templates" / "index.html"
+STATIC_DIR = ROOT / "web" / "static"
 
 OUTPUT_DIR = ROOT / "web_site"
 
 
 def read_latest_analysis() -> dict:
+    """Läser den senast genererade analysen."""
+
     files = sorted(
-        ANALYSIS_DIR.glob(
-            "analysis_*.json"
-        )
+        ANALYSIS_DIR.glob("analysis_*.json")
     )
 
     if not files:
         return {
-            "results": []
+            "generated_at": None,
+            "results": [],
         }
 
     return json.loads(
@@ -52,18 +44,23 @@ def read_latest_analysis() -> dict:
 
 
 def read_events() -> list[dict]:
-    records = []
+    """Läser samtliga genererade event-filer."""
 
-    for path in sorted(
-        EVENT_DIR.glob(
-            "short_events_*.jsonl"
-        )
-    ):
+    records: list[dict] = []
+
+    files = sorted(
+        EVENT_DIR.glob("short_events_*.jsonl")
+    )
+
+    for path in files:
         with path.open(
             encoding="utf-8"
         ) as handle:
+
             for line in handle:
-                if line.strip():
+                line = line.strip()
+
+                if line:
                     records.append(
                         json.loads(line)
                     )
@@ -72,32 +69,266 @@ def read_events() -> list[dict]:
 
 
 def format_pct(value) -> str:
+    """Formaterar avkastning som procent."""
+
     if value is None:
         return "—"
 
     return f"{value * 100:.1f} %"
 
 
+def format_pp(value) -> str:
+    """Formaterar blankningsförändring i procentenheter."""
+
+    if value is None:
+        return "—"
+
+    sign = "+" if value > 0 else ""
+
+    return f"{sign}{value:.2f} pp"
+
+
+def format_short_interest(value) -> str:
+    """Formaterar aktuell blankning."""
+
+    if value is None:
+        return "—"
+
+    return f"{value:.2f} %"
+
+
+def build_event_rows(
+    events: list[dict],
+) -> str:
+    """
+    Bygger HTML-rader för katalogen Aktuella fynd.
+
+    De senaste händelserna visas först.
+    """
+
+    if not events:
+        return """
+        <tr>
+            <td colspan="7" class="empty">
+                Inga fynd ännu.
+            </td>
+        </tr>
+        """
+
+    sorted_events = sorted(
+        events,
+        key=lambda event: (
+            event.get("event_date") or ""
+        ),
+        reverse=True,
+    )
+
+    rows: list[str] = []
+
+    for event in sorted_events[:100]:
+
+        issuer = html.escape(
+            str(
+                event.get(
+                    "issuer",
+                    "Okänd aktie",
+                )
+            )
+        )
+
+        short_interest = format_short_interest(
+            event.get(
+                "short_interest_pct"
+            )
+        )
+
+        change = event.get(
+            "change_pp"
+        )
+
+        change_class = ""
+
+        if change is not None:
+            if change > 0:
+                change_class = "increase"
+            elif change < 0:
+                change_class = "decrease"
+
+        change_html = (
+            f'<span class="{change_class}">'
+            f'{format_pp(change)}'
+            f'</span>'
+        )
+
+        return_1d = format_pct(
+            event.get("return_1d")
+        )
+
+        return_5d = format_pct(
+            event.get("return_5d")
+        )
+
+        return_20d = format_pct(
+            event.get("return_20d")
+        )
+
+        return_60d = format_pct(
+            event.get("return_60d")
+        )
+
+        rows.append(
+            f"""
+            <tr>
+                <td>
+                    <strong>{issuer}</strong>
+                </td>
+
+                <td>
+                    {short_interest}
+                </td>
+
+                <td>
+                    {change_html}
+                </td>
+
+                <td>
+                    {return_1d}
+                </td>
+
+                <td>
+                    {return_5d}
+                </td>
+
+                <td>
+                    {return_20d}
+                </td>
+
+                <td>
+                    {return_60d}
+                </td>
+            </tr>
+            """
+        )
+
+    return "\n".join(rows)
+
+
+def build_analysis_rows(
+    analysis: dict,
+) -> str:
+    """Bygger HTML-rader för den historiska analysen."""
+
+    results = analysis.get(
+        "results",
+        [],
+    )
+
+    if not results:
+        return """
+        <tr>
+            <td colspan="6" class="empty">
+                Ingen analysdata ännu.
+            </td>
+        </tr>
+        """
+
+    rows: list[str] = []
+
+    for item in results:
+
+        bucket = html.escape(
+            str(
+                item.get(
+                    "bucket",
+                    "Okänd",
+                )
+            )
+        )
+
+        events = item.get(
+            "events",
+            0,
+        )
+
+        median_1d = format_pct(
+            item.get(
+                "median_1d"
+            )
+        )
+
+        median_5d = format_pct(
+            item.get(
+                "median_5d"
+            )
+        )
+
+        median_20d = format_pct(
+            item.get(
+                "median_20d"
+            )
+        )
+
+        median_60d = format_pct(
+            item.get(
+                "median_60d"
+            )
+        )
+
+        rows.append(
+            f"""
+            <tr>
+                <td>
+                    <strong>{bucket}</strong>
+                </td>
+
+                <td>
+                    {events}
+                </td>
+
+                <td>
+                    {median_1d}
+                </td>
+
+                <td>
+                    {median_5d}
+                </td>
+
+                <td>
+                    {median_20d}
+                </td>
+
+                <td>
+                    {median_60d}
+                </td>
+            </tr>
+            """
+        )
+
+    return "\n".join(rows)
+
+
 def build_payload() -> dict:
+    """Bygger den data som används av webbplatsen."""
+
     analysis = read_latest_analysis()
     events = read_events()
 
     return {
-        "generated_at":
-            datetime.now().isoformat(),
-
-        "event_count":
-            len(events),
-
-        "analysis":
-            analysis.get(
-                "results",
-                [],
-            ),
+        "generated_at": datetime.now().isoformat(
+            timespec="seconds"
+        ),
+        "event_count": len(events),
+        "events": events,
+        "analysis": analysis.get(
+            "results",
+            [],
+        ),
     }
 
 
 def build() -> None:
+    """Genererar hela den statiska webbplatsen."""
+
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -109,35 +340,38 @@ def build() -> None:
         encoding="utf-8"
     )
 
-    html = template.replace(
+    event_rows = build_event_rows(
+        payload["events"]
+    )
+
+    analysis_rows = build_analysis_rows(
+        {
+            "results": payload["analysis"]
+        }
+    )
+
+    html_output = template
+
+    html_output = html_output.replace(
         "{{GENERATED_AT}}",
         payload["generated_at"],
     )
 
-    html = html.replace(
+    html_output = html_output.replace(
         "{{EVENT_COUNT}}",
-        str(payload["event_count"]),
+        str(
+            payload["event_count"]
+        ),
     )
 
-    rows = []
+    html_output = html_output.replace(
+        "{{EVENT_ROWS}}",
+        event_rows,
+    )
 
-    for item in payload["analysis"]:
-        rows.append(
-            f"""
-            <tr>
-                <td>{item["bucket"]}</td>
-                <td>{item["events"]}</td>
-                <td>{format_pct(item.get("median_1d"))}</td>
-                <td>{format_pct(item.get("median_5d"))}</td>
-                <td>{format_pct(item.get("median_20d"))}</td>
-                <td>{format_pct(item.get("median_60d"))}</td>
-            </tr>
-            """
-        )
-
-    html = html.replace(
+    html_output = html_output.replace(
         "{{ANALYSIS_ROWS}}",
-        "\n".join(rows),
+        analysis_rows,
     )
 
     static_source = (
@@ -161,7 +395,7 @@ def build() -> None:
         OUTPUT_DIR
         / "index.html"
     ).write_text(
-        html,
+        html_output,
         encoding="utf-8",
     )
 
@@ -178,9 +412,13 @@ def build() -> None:
     )
 
     print(
-        f"Webb: {OUTPUT_DIR}"
+        f"Webb byggd: {OUTPUT_DIR}"
     )
 
 
-if __name__ == "__main__":
+def main() -> None:
     build()
+
+
+if __name__ == "__main__":
+    main()
