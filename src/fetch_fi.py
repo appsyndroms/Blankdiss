@@ -93,12 +93,19 @@ def normalize_percent(
         return None
 
     try:
+
         if pd.isna(value):
             return None
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         pass
 
-    text = normalize_text(value)
+    text = normalize_text(
+        value
+    )
 
     if not text:
         return None
@@ -122,6 +129,7 @@ def normalize_percent(
 
     try:
         return float(text)
+
     except ValueError:
         return None
 
@@ -135,16 +143,39 @@ def normalize_date(
         return None
 
     try:
+
         if pd.isna(value):
             return None
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         pass
 
-    parsed = pd.to_datetime(
-        value,
-        errors="coerce",
-        dayfirst=True,
+    text = normalize_text(
+        value
     )
+
+    if not text:
+        return None
+
+    # FI:s aktuella tabell använder normalt
+    # ISO-format YYYY-MM-DD.
+    parsed = pd.to_datetime(
+        text,
+        errors="coerce",
+        dayfirst=False,
+    )
+
+    # Fallback för eventuella svenska datumformat.
+    if pd.isna(parsed):
+
+        parsed = pd.to_datetime(
+            text,
+            errors="coerce",
+            dayfirst=True,
+        )
 
     if pd.isna(parsed):
         return None
@@ -163,18 +194,22 @@ def fetch_html() -> str:
     """
 
     try:
+
         response = requests.get(
             FI_URL,
             headers=HEADERS,
             timeout=30,
         )
+
     except requests.RequestException as exc:
+
         raise FetchFIError(
-            f"HTTP-fel vid hämtning från FI: "
+            "HTTP-fel vid hämtning från FI: "
             f"{type(exc).__name__}"
         ) from exc
 
     if response.status_code != 200:
+
         raise FetchFIError(
             "FI svarade med HTTP "
             f"{response.status_code}."
@@ -183,6 +218,7 @@ def fetch_html() -> str:
     html = response.text
 
     if not html.strip():
+
         raise FetchFIError(
             "FI returnerade ett tomt HTML-svar."
         )
@@ -280,23 +316,25 @@ def find_target_table(
 
 
 def fetch_current() -> list[dict]:
-    """
-    Hämtar aktuella aggregerade blankningsnivåer från FI.
-    """
+    """Hämtar aktuella aggregerade blankningsnivåer från FI."""
 
     html = fetch_html()
 
     try:
+
         tables = pd.read_html(
             StringIO(html)
         )
+
     except Exception as exc:
+
         raise FetchFIError(
             "Kunde inte tolka FI:s HTML "
             "som tabeller."
         ) from exc
 
     if not tables:
+
         raise FetchFIError(
             "FI-sidan innehöll inga HTML-tabeller."
         )
@@ -339,21 +377,25 @@ def fetch_current() -> list[dict]:
     )
 
     if not issuer_column:
+
         raise FetchFIError(
             "Kolumnen för emittent saknas."
         )
 
     if not lei_column:
+
         raise FetchFIError(
             "LEI-kolumnen saknas."
         )
 
     if not position_date_column:
+
         raise FetchFIError(
             "Kolumnen för positionsdatum saknas."
         )
 
     if not short_interest_column:
+
         raise FetchFIError(
             "Kolumnen för Summa blankning % saknas."
         )
@@ -409,14 +451,19 @@ def fetch_current() -> list[dict]:
                 "snapshot_date": (
                     snapshot_date
                 ),
+
                 "position_date": (
                     position_date
                 ),
+
                 "lei": lei,
+
                 "issuer": issuer,
+
                 "short_interest_pct": (
                     short_interest_pct
                 ),
+
                 "source": FI_URL,
             }
         )
@@ -490,9 +537,11 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
+
         records = fetch_current()
 
         if args.sample is not None:
+
             records = records[
                 :args.sample
             ]
