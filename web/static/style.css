@@ -46,10 +46,11 @@ body {
 }
 
 .brand {
-    font-size: 14px;
+    font-size: 42px;
     font-weight: 800;
-    letter-spacing: 0.18em;
-    color: #8d8d8d;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: #f2f2f2;
     margin-bottom: 28px;
 }
 
@@ -280,6 +281,10 @@ footer {
     .hero {
         padding-top: 40px;
         padding-bottom: 54px;
+    }
+
+    .brand {
+        font-size: 34px;
     }
 
     .lead {
