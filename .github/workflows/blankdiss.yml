@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   run:
+    name: Kör Blankdiss
     runs-on: ubuntu-latest
 
     steps:
@@ -47,14 +48,16 @@ jobs:
         run: |
           python -m src.build_web
 
-      - name: Commit generated data
+      - name: Commit generated files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data/ web_site/
 
-          git diff --cached --quiet || \
+          if git diff --cached --quiet; then
+            echo "Inga förändringar att committa."
+          else
             git commit -m "Update Blankdiss data"
-
-          git push
+            git push
+          fi
