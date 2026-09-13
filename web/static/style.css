@@ -71,11 +71,11 @@ h1 {
 
 .cards {
     display: grid;
-    grid-template-columns:
-        repeat(3, 1fr);
-
+    grid-template-columns: repeat(3, 1fr);
     gap: 18px;
-    margin-top: -30px;
+
+    /* Kortens tidigare -30px överlappning är borttagen. */
+    margin-top: 36px;
 }
 
 .card {
@@ -99,13 +99,6 @@ h1 {
 .card .timestamp {
     font-size: 20px;
     letter-spacing: -0.01em;
-}
-
-.timezone {
-    display: block;
-    margin-top: 6px;
-    color: var(--muted);
-    font-size: 12px;
 }
 
 .label {
@@ -224,9 +217,7 @@ tbody tr:hover {
 
 .method {
     display: grid;
-    grid-template-columns:
-        repeat(2, 1fr);
-
+    grid-template-columns: repeat(2, 1fr);
     gap: 1px;
     margin-top: 20px;
 
@@ -293,6 +284,10 @@ footer {
 
     .lead {
         font-size: 18px;
+    }
+
+    .cards {
+        margin-top: 28px;
     }
 
     .panel {
