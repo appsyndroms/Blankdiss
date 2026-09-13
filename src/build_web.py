@@ -10,6 +10,7 @@ import html
 import json
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,8 @@ TEMPLATE = ROOT / "web" / "templates" / "index.html"
 STATIC_DIR = ROOT / "web" / "static"
 
 OUTPUT_DIR = ROOT / "pages"
+
+STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 
 def read_latest_analysis() -> dict:
@@ -101,7 +104,7 @@ def build_event_rows(
     events: list[dict],
 ) -> str:
     """
-    Bygger HTML-rader för katalogen Aktuella fynd.
+    Bygger HTML-rader för katalogen Senaste händelser.
 
     De senaste händelserna visas först.
     """
@@ -110,7 +113,7 @@ def build_event_rows(
         return """
         <tr>
             <td colspan="7" class="empty">
-                Inga fynd ännu.
+                Inga händelser ännu.
             </td>
         </tr>
         """
@@ -313,16 +316,34 @@ def build_payload() -> dict:
     analysis = read_latest_analysis()
     events = read_events()
 
+    generated_at = datetime.now(
+        STOCKHOLM
+    )
+
+    analysis_results = analysis.get(
+        "results",
+        [],
+    )
+
+    analysis_event_count = sum(
+        int(
+            item.get(
+                "events",
+                0
+            ) or 0
+        )
+        for item in analysis_results
+    )
+
     return {
-        "generated_at": datetime.now().isoformat(
-            timespec="seconds"
+        "generated_at": generated_at.strftime(
+            "%Y-%m-%d %H:%M:%S"
         ),
+        "timezone": "Europe/Stockholm",
         "event_count": len(events),
+        "analysis_event_count": analysis_event_count,
         "events": events,
-        "analysis": analysis.get(
-            "results",
-            [],
-        ),
+        "analysis": analysis_results,
     }
 
 
@@ -361,6 +382,15 @@ def build() -> None:
         "{{EVENT_COUNT}}",
         str(
             payload["event_count"]
+        ),
+    )
+
+    html_output = html_output.replace(
+        "{{ANALYSIS_EVENT_COUNT}}",
+        str(
+            payload[
+                "analysis_event_count"
+            ]
         ),
     )
 
@@ -413,6 +443,11 @@ def build() -> None:
 
     print(
         f"Webb byggd: {OUTPUT_DIR}"
+    )
+
+    print(
+        "Svensk tid:",
+        payload["generated_at"],
     )
 
 
