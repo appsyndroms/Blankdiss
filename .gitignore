@@ -8,3 +8,6 @@ venv/
 
 # Local configuration
 .env
+
+# GitHub Pages build output
+pages/
