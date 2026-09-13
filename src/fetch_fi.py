@@ -4,15 +4,18 @@ Hämtar aktuella blankningspositioner från Finansinspektionen.
 Datakälla:
     https://www.fi.se/sv/vara-register/blankningsregistret/
 
-FI-sidan hämtas först med requests.
-Därefter analyseras den hämtade HTML-texten med pandas.
+FI-sidan hämtas med requests.
 
-Viktigt:
-    pandas.read_html() får aldrig FI_URL direkt.
-    Detta undviker att pandas/lxml försöker läsa URL:en
-    som en lokal fil eller göra ett eget HTTP-anrop.
+HTML-innehållet skickas till pandas via StringIO så att
+pandas/lxml inte försöker tolka HTML-texten som en filväg.
 
-Resultatet sparas som en daterad JSONL-fil:
+Normal körning ger kort och användbar logg.
+
+Full traceback kan aktiveras med:
+
+    python -m src.fetch_fi --debug
+
+Resultatet sparas som:
 
     data/raw/fi_aggregate_YYYY-MM-DD.jsonl
 """
@@ -22,7 +25,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from datetime import date
+from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -54,6 +59,10 @@ HEADERS = {
 }
 
 
+class FetchFIError(Exception):
+    """Kontrollerat fel vid hämtning eller tolkning av FI-data."""
+
+
 def normalize_text(value) -> str:
     """Normaliserar text för jämförelser."""
 
@@ -67,7 +76,9 @@ def normalize_text(value) -> str:
     )
 
 
-def normalize_percent(value) -> float | None:
+def normalize_percent(
+    value,
+) -> float | None:
     """
     Konverterar en procentangivelse till float.
 
@@ -115,10 +126,10 @@ def normalize_percent(value) -> float | None:
         return None
 
 
-def normalize_date(value) -> str | None:
-    """
-    Normaliserar datum till YYYY-MM-DD.
-    """
+def normalize_date(
+    value,
+) -> str | None:
+    """Normaliserar datum till YYYY-MM-DD."""
 
     if value is None:
         return None
@@ -147,121 +158,36 @@ def fetch_html() -> str:
     """
     Hämtar FI:s HTML med requests.
 
-    Pandas/lxml används inte för själva HTTP-anropet.
+    Returnerar endast HTML-innehållet.
+    HTML skrivs aldrig ut i loggen.
     """
 
-    print(
-        f"Hämtar FI: {FI_URL}"
-    )
+    try:
+        response = requests.get(
+            FI_URL,
+            headers=HEADERS,
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        raise FetchFIError(
+            f"HTTP-fel vid hämtning från FI: "
+            f"{type(exc).__name__}"
+        ) from exc
 
-    response = requests.get(
-        FI_URL,
-        headers=HEADERS,
-        timeout=30,
-    )
-
-    print(
-        f"FI HTTP-status: {response.status_code}"
-    )
-
-    response.raise_for_status()
+    if response.status_code != 200:
+        raise FetchFIError(
+            "FI svarade med HTTP "
+            f"{response.status_code}."
+        )
 
     html = response.text
 
-    print(
-        f"FI HTML-längd: {len(html)} tecken"
-    )
-
     if not html.strip():
-        raise RuntimeError(
+        raise FetchFIError(
             "FI returnerade ett tomt HTML-svar."
         )
 
     return html
-
-
-def find_target_table(
-    tables: list[pd.DataFrame],
-) -> pd.DataFrame:
-    """
-    Hittar tabellen som innehåller FI:s aktuella
-    blankningspositioner.
-    """
-
-    for table_number, table in enumerate(tables):
-
-        if table.empty:
-            continue
-
-        columns = [
-            normalize_text(column).lower()
-            for column in table.columns
-        ]
-
-        column_text = " | ".join(columns)
-
-        issuer_match = (
-            "emittentens namn" in column_text
-            or "emittent" in column_text
-        )
-
-        lei_match = (
-            "emittentens lei-kod" in column_text
-            or "lei-kod" in column_text
-            or "lei" in column_text
-        )
-
-        date_match = (
-            "positionsdatum senaste position"
-            in column_text
-            or "positionsdatum" in column_text
-        )
-
-        short_match = (
-            "summa blankning %" in column_text
-            or "summa blankning" in column_text
-        )
-
-        if (
-            issuer_match
-            and lei_match
-            and date_match
-            and short_match
-        ):
-            print(
-                "FI måltabell hittad: "
-                f"tabell {table_number}"
-            )
-
-            print(
-                "FI-kolumner: "
-                + ", ".join(columns)
-            )
-
-            return table
-
-    available = []
-
-    for index, table in enumerate(tables):
-
-        columns = [
-            normalize_text(column)
-            for column in table.columns
-        ]
-
-        available.append(
-            f"Tabell {index}: {columns}"
-        )
-
-    details = "\n".join(
-        available
-    )
-
-    raise RuntimeError(
-        "Kunde inte hitta FI:s blankningstabell.\n"
-        "Tillgängliga tabeller:\n"
-        f"{details}"
-    )
 
 
 def resolve_column(
@@ -274,7 +200,9 @@ def resolve_column(
     """
 
     normalized = {
-        column: normalize_text(column).lower()
+        column: normalize_text(
+            column
+        ).lower()
         for column in columns
     }
 
@@ -288,6 +216,69 @@ def resolve_column(
     return None
 
 
+def find_target_table(
+    tables: list[pd.DataFrame],
+) -> pd.DataFrame:
+    """
+    Hittar FI-tabellen med:
+
+        Emittentens namn
+        Emittentens LEI-kod
+        Positionsdatum senaste position
+        Summa blankning %
+    """
+
+    for table in tables:
+
+        if table.empty:
+            continue
+
+        issuer_column = resolve_column(
+            table.columns,
+            [
+                "emittentens namn",
+                "emittent",
+            ],
+        )
+
+        lei_column = resolve_column(
+            table.columns,
+            [
+                "emittentens lei-kod",
+                "lei-kod",
+                "lei",
+            ],
+        )
+
+        position_date_column = resolve_column(
+            table.columns,
+            [
+                "positionsdatum senaste position",
+                "positionsdatum",
+            ],
+        )
+
+        short_interest_column = resolve_column(
+            table.columns,
+            [
+                "summa blankning %",
+                "summa blankning",
+            ],
+        )
+
+        if (
+            issuer_column
+            and lei_column
+            and position_date_column
+            and short_interest_column
+        ):
+            return table
+
+    raise FetchFIError(
+        "Kunde inte hitta FI:s blankningstabell."
+    )
+
+
 def fetch_current() -> list[dict]:
     """
     Hämtar aktuella aggregerade blankningsnivåer från FI.
@@ -295,26 +286,20 @@ def fetch_current() -> list[dict]:
 
     html = fetch_html()
 
-    print(
-        "Tolkar hämtad FI-HTML..."
-    )
-
     try:
-        # OBS:
-        # Här skickas HTML-INNEHÅLLET till pandas.
-        # FI_URL skickas aldrig till read_html().
         tables = pd.read_html(
-            html
+            StringIO(html)
         )
     except Exception as exc:
-        raise RuntimeError(
-            "Kunde inte tolka FI:s hämtade HTML "
+        raise FetchFIError(
+            "Kunde inte tolka FI:s HTML "
             "som tabeller."
         ) from exc
 
-    print(
-        f"FI-tabeller hittade: {len(tables)}"
-    )
+    if not tables:
+        raise FetchFIError(
+            "FI-sidan innehöll inga HTML-tabeller."
+        )
 
     table = find_target_table(
         tables
@@ -354,31 +339,30 @@ def fetch_current() -> list[dict]:
     )
 
     if not issuer_column:
-        raise RuntimeError(
-            "Kunde inte hitta kolumnen "
-            "för emittent."
+        raise FetchFIError(
+            "Kolumnen för emittent saknas."
         )
 
     if not lei_column:
-        raise RuntimeError(
-            "Kunde inte hitta LEI-kolumnen."
+        raise FetchFIError(
+            "LEI-kolumnen saknas."
         )
 
     if not position_date_column:
-        raise RuntimeError(
-            "Kunde inte hitta "
-            "positionsdatum."
+        raise FetchFIError(
+            "Kolumnen för positionsdatum saknas."
         )
 
     if not short_interest_column:
-        raise RuntimeError(
-            "Kunde inte hitta kolumnen "
-            "Summa blankning %."
+        raise FetchFIError(
+            "Kolumnen för Summa blankning % saknas."
         )
 
     records: list[dict] = []
 
-    snapshot_date = date.today().isoformat()
+    snapshot_date = (
+        date.today().isoformat()
+    )
 
     for _, row in table.iterrows():
 
@@ -400,9 +384,11 @@ def fetch_current() -> list[dict]:
             )
         )
 
-        short_interest_pct = normalize_percent(
-            row.get(
-                short_interest_column
+        short_interest_pct = (
+            normalize_percent(
+                row.get(
+                    short_interest_column
+                )
             )
         )
 
@@ -423,19 +409,14 @@ def fetch_current() -> list[dict]:
                 "snapshot_date": (
                     snapshot_date
                 ),
-
                 "position_date": (
                     position_date
                 ),
-
                 "lei": lei,
-
                 "issuer": issuer,
-
                 "short_interest_pct": (
                     short_interest_pct
                 ),
-
                 "source": FI_URL,
             }
         )
@@ -446,9 +427,7 @@ def fetch_current() -> list[dict]:
 def write_jsonl(
     records: list[dict],
 ) -> Path:
-    """
-    Skriver resultatet som en ny daterad JSONL-fil.
-    """
+    """Skriver resultatet som en daterad JSONL-fil."""
 
     RAW_DIR.mkdir(
         parents=True,
@@ -495,28 +474,62 @@ def main() -> None:
         type=int,
         default=None,
         help=(
-            "Visa endast de N första "
+            "Spara endast de N första "
             "observationerna."
+        ),
+    )
+
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help=(
+            "Visa full traceback vid fel."
         ),
     )
 
     args = parser.parse_args()
 
-    records = fetch_current()
+    try:
+        records = fetch_current()
 
-    if args.sample is not None:
-        records = records[
-            :args.sample
-        ]
+        if args.sample is not None:
+            records = records[
+                :args.sample
+            ]
 
-    path = write_jsonl(
-        records
-    )
+        path = write_jsonl(
+            records
+        )
 
-    print(
-        f"FI: {len(records)} observationer "
-        f"→ {path}"
-    )
+        print(
+            f"FI: OK - {len(records)} "
+            f"observationer → {path}"
+        )
+
+    except FetchFIError as exc:
+
+        print(
+            f"FI: FEL - {exc}",
+            file=sys.stderr,
+        )
+
+        if args.debug:
+            raise
+
+        sys.exit(1)
+
+    except Exception as exc:
+
+        print(
+            "FI: OVÄNTAT FEL - "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+
+        if args.debug:
+            raise
+
+        sys.exit(1)
 
 
 if __name__ == "__main__":
