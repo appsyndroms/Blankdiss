@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+.DS_Store
+
+# Generated data
+data/raw/*
+data/events/*
+data/analysis/*
+!data/raw/.gitkeep
+!data/events/.gitkeep
+!data/analysis/.gitkeep
+
+# Generated website
+web_site/
+
+# Local configuration
+.env
