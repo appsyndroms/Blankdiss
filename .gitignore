@@ -6,13 +6,5 @@ venv/
 
 .DS_Store
 
-# Generated data
-data/raw/*
-data/events/*
-data/analysis/*
-!data/raw/.gitkeep
-!data/events/.gitkeep
-!data/analysis/.gitkeep
-
 # Local configuration
 .env
