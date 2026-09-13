@@ -1,1 +1,175 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <title>Blankdiss</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="hero">
+    <div class="container">
+
+        <div class="brand">
+            BLANKDISS
+        </div>
+
+        <h1>
+            Vad händer efter förändrad blankning?
+        </h1>
+
+        <p class="lead">
+            En datadriven analys av sambandet mellan
+            blankningsförändringar och framtida aktieavkastning.
+        </p>
+
+    </div>
+</header>
+
+
+<main class="container">
+
+    <section class="cards">
+
+        <div class="card">
+            <span class="label">
+                Händelser
+            </span>
+
+            <strong>
+                {{EVENT_COUNT}}
+            </strong>
+        </div>
+
+
+        <div class="card">
+            <span class="label">
+                Metod
+            </span>
+
+            <strong>
+                Event study
+            </strong>
+        </div>
+
+
+        <div class="card">
+            <span class="label">
+                Status
+            </span>
+
+            <strong>
+                V0.1
+            </strong>
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <h2>
+                Blankningsförändring
+            </h2>
+
+            <p>
+                Historisk efterföljande avkastning.
+            </p>
+
+        </div>
+
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>
+                            Förändring
+                        </th>
+
+                        <th>
+                            Händelser
+                        </th>
+
+                        <th>
+                            Median 1d
+                        </th>
+
+                        <th>
+                            Median 5d
+                        </th>
+
+                        <th>
+                            Median 20d
+                        </th>
+
+                        <th>
+                            Median 60d
+                        </th>
+                    </tr>
+                </thead>
+
+
+                <tbody>
+                    {{ANALYSIS_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <section class="explanation">
+
+        <h2>
+            Hur ska analysen läsas?
+        </h2>
+
+        <p>
+            Blankdiss försöker inte börja med en köp- eller
+            säljsignal. Först undersöker vi om det överhuvudtaget
+            finns ett stabilt statistiskt samband.
+        </p>
+
+        <p>
+            Om blankningen exempelvis ökar med 0,50–1,00
+            procentenheter letar vi efter historiska händelser
+            med liknande förändring och mäter vad aktien därefter
+            gjorde efter 1, 5, 20 och 60 handelsdagar.
+        </p>
+
+        <p>
+            Ett positivt historiskt resultat är inte automatiskt
+            en prognos. Nästa steg är att kontrollera robusthet,
+            marknadsregim, urval och risk för lookahead bias.
+        </p>
+
+    </section>
+
+
+    <footer>
+
+        <span>
+            Blankdiss
+        </span>
+
+        <span>
+            Genererad {{GENERATED_AT}}
+        </span>
+
+    </footer>
+
+</main>
+
+</body>
+</html>
