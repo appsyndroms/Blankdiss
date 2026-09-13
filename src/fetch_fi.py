@@ -4,12 +4,13 @@ Hämtar aktuella blankningspositioner från Finansinspektionen.
 Datakälla:
     https://www.fi.se/sv/vara-register/blankningsregistret/
 
-FI:s sida hämtas först med requests.
-Därefter analyseras HTML-innehållet med pandas.
+FI-sidan hämtas först med requests.
+Därefter analyseras den hämtade HTML-texten med pandas.
 
-Detta är viktigt eftersom pandas.read_html(URL) annars
-låter lxml försöka läsa URL:en direkt, vilket kan fallera
-i GitHub Actions.
+Viktigt:
+    pandas.read_html() får aldrig FI_URL direkt.
+    Detta undviker att pandas/lxml försöker läsa URL:en
+    som en lokal fil eller göra ett eget HTTP-anrop.
 
 Resultatet sparas som en daterad JSONL-fil:
 
@@ -47,7 +48,9 @@ HEADERS = {
         "text/html,application/xhtml+xml,"
         "application/xml;q=0.9,*/*;q=0.8"
     ),
-    "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
+    "Accept-Language": (
+        "sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7"
+    ),
 }
 
 
@@ -78,8 +81,11 @@ def normalize_percent(value) -> float | None:
     if value is None:
         return None
 
-    if pd.isna(value):
-        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
 
     text = normalize_text(value)
 
@@ -89,11 +95,11 @@ def normalize_percent(value) -> float | None:
     text = (
         text
         .replace("%", "")
+        .replace("\xa0", "")
         .replace(" ", "")
         .replace(",", ".")
     )
 
-    # Behåll endast siffror, minus och decimalpunkt.
     text = re.sub(
         r"[^0-9.\-]",
         "",
@@ -117,8 +123,11 @@ def normalize_date(value) -> str | None:
     if value is None:
         return None
 
-    if pd.isna(value):
-        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
 
     parsed = pd.to_datetime(
         value,
@@ -136,11 +145,14 @@ def normalize_date(value) -> str | None:
 
 def fetch_html() -> str:
     """
-    Hämtar FI:s sida med requests.
+    Hämtar FI:s HTML med requests.
 
-    Vi använder medvetet response.text i stället för
-    att skicka URL:en direkt till pandas.read_html().
+    Pandas/lxml används inte för själva HTTP-anropet.
     """
+
+    print(
+        f"Hämtar FI: {FI_URL}"
+    )
 
     response = requests.get(
         FI_URL,
@@ -148,58 +160,33 @@ def fetch_html() -> str:
         timeout=30,
     )
 
-    response.raise_for_status()
-
     print(
         f"FI HTTP-status: {response.status_code}"
     )
 
+    response.raise_for_status()
+
+    html = response.text
+
     print(
-        f"FI HTML: {len(response.text)} bytes"
+        f"FI HTML-längd: {len(html)} tecken"
     )
 
-    if not response.text.strip():
+    if not html.strip():
         raise RuntimeError(
             "FI returnerade ett tomt HTML-svar."
         )
 
-    return response.text
+    return html
 
 
 def find_target_table(
     tables: list[pd.DataFrame],
 ) -> pd.DataFrame:
     """
-    Hittar tabellen som innehåller:
-
-        Emittentens namn
-        Emittentens LEI-kod
-        Positionsdatum senaste position
-        Summa blankning %
-
-    Kolumnnamnen kan innehålla mindre variationer
-    i whitespace och encoding.
+    Hittar tabellen som innehåller FI:s aktuella
+    blankningspositioner.
     """
-
-    required_patterns = {
-        "issuer": [
-            "emittentens namn",
-            "emittent",
-        ],
-        "lei": [
-            "emittentens lei-kod",
-            "lei-kod",
-            "lei",
-        ],
-        "position_date": [
-            "positionsdatum senaste position",
-            "positionsdatum",
-        ],
-        "short_interest": [
-            "summa blankning %",
-            "summa blankning",
-        ],
-    }
 
     for table_number, table in enumerate(tables):
 
@@ -213,32 +200,26 @@ def find_target_table(
 
         column_text = " | ".join(columns)
 
-        issuer_match = any(
-            pattern in column_text
-            for pattern in required_patterns[
-                "issuer"
-            ]
+        issuer_match = (
+            "emittentens namn" in column_text
+            or "emittent" in column_text
         )
 
-        lei_match = any(
-            pattern in column_text
-            for pattern in required_patterns[
-                "lei"
-            ]
+        lei_match = (
+            "emittentens lei-kod" in column_text
+            or "lei-kod" in column_text
+            or "lei" in column_text
         )
 
-        date_match = any(
-            pattern in column_text
-            for pattern in required_patterns[
-                "position_date"
-            ]
+        date_match = (
+            "positionsdatum senaste position"
+            in column_text
+            or "positionsdatum" in column_text
         )
 
-        short_match = any(
-            pattern in column_text
-            for pattern in required_patterns[
-                "short_interest"
-            ]
+        short_match = (
+            "summa blankning %" in column_text
+            or "summa blankning" in column_text
         )
 
         if (
@@ -289,7 +270,7 @@ def resolve_column(
 ) -> str | None:
     """
     Hittar den faktiska kolumnrubriken utifrån
-    ett antal möjliga namn.
+    möjliga delar av kolumnnamnet.
     """
 
     normalized = {
@@ -314,13 +295,21 @@ def fetch_current() -> list[dict]:
 
     html = fetch_html()
 
+    print(
+        "Tolkar hämtad FI-HTML..."
+    )
+
     try:
+        # OBS:
+        # Här skickas HTML-INNEHÅLLET till pandas.
+        # FI_URL skickas aldrig till read_html().
         tables = pd.read_html(
             html
         )
     except Exception as exc:
         raise RuntimeError(
-            "Kunde inte tolka FI:s HTML som tabeller."
+            "Kunde inte tolka FI:s hämtade HTML "
+            "som tabeller."
         ) from exc
 
     print(
@@ -366,7 +355,8 @@ def fetch_current() -> list[dict]:
 
     if not issuer_column:
         raise RuntimeError(
-            "Kunde inte hitta kolumnen för emittent."
+            "Kunde inte hitta kolumnen "
+            "för emittent."
         )
 
     if not lei_column:
@@ -376,7 +366,8 @@ def fetch_current() -> list[dict]:
 
     if not position_date_column:
         raise RuntimeError(
-            "Kunde inte hitta positionsdatum."
+            "Kunde inte hitta "
+            "positionsdatum."
         )
 
     if not short_interest_column:
@@ -429,9 +420,13 @@ def fetch_current() -> list[dict]:
 
         records.append(
             {
-                "snapshot_date": snapshot_date,
+                "snapshot_date": (
+                    snapshot_date
+                ),
 
-                "position_date": position_date,
+                "position_date": (
+                    position_date
+                ),
 
                 "lei": lei,
 
