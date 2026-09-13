@@ -20,7 +20,7 @@ EVENT_DIR = ROOT / "data" / "events"
 TEMPLATE = ROOT / "web" / "templates" / "index.html"
 STATIC_DIR = ROOT / "web" / "static"
 
-OUTPUT_DIR = ROOT / "web_site"
+OUTPUT_DIR = ROOT / "pages"
 
 
 def read_latest_analysis() -> dict:
