@@ -9,6 +9,16 @@ FI-sidan hämtas med requests.
 HTML-innehållet skickas till pandas via StringIO så att
 pandas/lxml inte försöker tolka HTML-texten som en filväg.
 
+FI använder svenska decimaler i HTML-tabellen, exempelvis:
+
+    4,16
+    0,74
+    8,4
+
+Därför anges decimal="," explicit till pandas.read_html().
+Detta är viktigt eftersom pandas annars kan tolka exempelvis
+"0,74" som 74.
+
 Normal körning ger kort och användbar logg.
 
 Full traceback kan aktiveras med:
@@ -88,18 +98,20 @@ def normalize_percent(
         "3.42%"  -> 3.42
         3.42     -> 3.42
 
-    pandas kan tolka svenska decimaler från FI:s HTML-tabell
-    felaktigt. Exempelvis kan "4,16" bli 416 i stället för
-    4.16. Eftersom aggregerad blankning anges som procent och
-    inte kan vara större än 100 %, korrigeras värden över 100
-    genom att dividera med 100.
+    FI:s HTML-tabell använder svensk decimalnotation.
+    Decimaltecknet hanteras redan av pandas.read_html()
+    genom decimal=",".
+
+    Funktionen innehåller därför ingen efterhandskorrigering
+    baserad på exempelvis värden över 100. Ett värde som FI
+    faktiskt anger som 74,0 ska inte automatiskt ändras till
+    0,74.
     """
 
     if value is None:
         return None
 
     try:
-
         if pd.isna(value):
             return None
 
@@ -139,10 +151,11 @@ def normalize_percent(
     except ValueError:
         return None
 
-    # FI:s värden är procenttal, exempelvis 4,16 %.
-    # pandas kan dock läsa "4,16" som 416.
+    if result < 0:
+        return None
+
     if result > 100:
-        result /= 100
+        return None
 
     return result
 
@@ -156,7 +169,6 @@ def normalize_date(
         return None
 
     try:
-
         if pd.isna(value):
             return None
 
@@ -336,7 +348,8 @@ def fetch_current() -> list[dict]:
     try:
 
         tables = pd.read_html(
-            StringIO(html)
+            StringIO(html),
+            decimal=",",
         )
 
     except Exception as exc:
