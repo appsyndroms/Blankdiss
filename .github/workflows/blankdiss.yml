@@ -4,24 +4,34 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: "0 16 * * *"
+    - cron: "0 18 * * *"
+      timezone: "Europe/Stockholm"
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: blankdiss-main
+  cancel-in-progress: false
 
 jobs:
-  run:
-    name: Kör Blankdiss
+  build:
+    name: Bygg Blankdiss
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -48,16 +58,51 @@ jobs:
         run: |
           python -m src.build_web
 
-      - name: Commit generated files
+      - name: Validate web
+        run: |
+          test -f pages/index.html
+          test -f pages/style.css
+          test -f pages/data.json
+          echo "Webbvalidering OK"
+
+      - name: Create Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: pages
+
+      - name: Commit generated data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/ web_site/
+          git add data/
 
           if git diff --cached --quiet; then
             echo "Inga förändringar att committa."
           else
             git commit -m "Update Blankdiss data"
-            git push
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
+
+  deploy:
+    name: Publicera Blankdiss
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Publicera GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Skriv ut webb-URL
+        run: |
+          echo "=========================================="
+          echo "BLANKDISS WEBB"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "=========================================="
