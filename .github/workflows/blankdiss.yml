@@ -1,0 +1,60 @@
+name: Blankdiss
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "30 18 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Fetch FI data
+        run: |
+          python -m src.fetch_fi
+
+      - name: Fetch prices
+        run: |
+          python -m src.fetch_prices
+
+      - name: Build events
+        run: |
+          python -m src.build_events
+
+      - name: Analyze
+        run: |
+          python -m src.analyze
+
+      - name: Build web
+        run: |
+          python -m src.build_web
+
+      - name: Commit generated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/ web_site/
+
+          git diff --cached --quiet || \
+            git commit -m "Update Blankdiss data"
+
+          git push
