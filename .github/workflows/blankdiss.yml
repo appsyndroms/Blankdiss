@@ -65,6 +65,9 @@ jobs:
           test -f pages/data.json
           echo "Webbvalidering OK"
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Create Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -90,6 +93,10 @@ jobs:
     name: Publicera Blankdiss
     needs: build
     runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
 
     environment:
       name: github-pages
