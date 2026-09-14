@@ -4,11 +4,337 @@
   "output_file": "data/processed/fi/aggregate/reconstructed.jsonl",
   "rows": 249690,
   "unique_issuers": 321,
+  "unique_snapshot_dates": 1100,
   "first_snapshot_date": "2022-05-25",
   "last_snapshot_date": "2026-09-11",
   "source": "Finansinspektionen GetHistFile",
   "official_aggregate_threshold": ">0.1%",
   "method": "Chronological replay of normalized individual FI position changes. A missing position value represents a previously visible position that has fallen below the publication threshold.",
+  "validation": {
+    "rows": 249690,
+    "unique_snapshot_dates": 1100,
+    "unique_issuers": 321,
+    "unique_isins": 330,
+    "first_snapshot_date": "2022-05-25",
+    "last_snapshot_date": "2026-09-11",
+    "short_interest": {
+      "minimum_pct": 0.5,
+      "maximum_pct": 27.5,
+      "median_pct": 1.12,
+      "mean_pct": 1.928804
+    },
+    "active_holders": {
+      "minimum": 1,
+      "maximum": 26,
+      "median": 1.0
+    },
+    "integrity": {
+      "negative_short_interest_rows": 0,
+      "invalid_active_holder_rows": 0,
+      "max_position_exceeds_total_rows": 0,
+      "invalid_concentration_rows": 0,
+      "duplicate_snapshot_issuer_rows": 0,
+      "passed": true
+    },
+    "examples": {
+      "Husqvarna": {
+        "matched_issuer_names": [
+          "HUSQVARNA AKTIEBOLAG",
+          "Husqvarna AB",
+          "Husqvarna Aktiebolag"
+        ],
+        "observations": 4400,
+        "first_date": "2022-05-25",
+        "last_date": "2026-09-11",
+        "max_short_interest_pct": 4.24,
+        "latest": {
+          "snapshot_date": "2026-09-11",
+          "issuer": "Husqvarna Aktiebolag",
+          "isin": "SE0001662230",
+          "short_interest_pct": 1.2,
+          "active_holders": 2
+        }
+      },
+      "Volvo": {
+        "matched_issuer_names": [
+          "Volvo Car AB"
+        ],
+        "observations": 1538,
+        "first_date": "2022-07-08",
+        "last_date": "2026-09-11",
+        "max_short_interest_pct": 3.62,
+        "latest": {
+          "snapshot_date": "2026-09-11",
+          "issuer": "Volvo Car AB",
+          "isin": "SE0021628898",
+          "short_interest_pct": 2.16,
+          "active_holders": 3
+        }
+      },
+      "Truecaller": {
+        "matched_issuer_names": [
+          "Truecaller AB"
+        ],
+        "observations": 1100,
+        "first_date": "2022-05-25",
+        "last_date": "2026-09-11",
+        "max_short_interest_pct": 10.14,
+        "latest": {
+          "snapshot_date": "2026-09-11",
+          "issuer": "Truecaller AB",
+          "isin": "SE0016787071",
+          "short_interest_pct": 6.34,
+          "active_holders": 7
+        }
+      },
+      "Nobia": {
+        "matched_issuer_names": [
+          "Nobia AB"
+        ],
+        "observations": 637,
+        "first_date": "2022-06-28",
+        "last_date": "2026-09-09",
+        "max_short_interest_pct": 3.95,
+        "latest": {
+          "snapshot_date": "2026-09-09",
+          "issuer": "Nobia AB",
+          "isin": "SE0028900134",
+          "short_interest_pct": 0.57,
+          "active_holders": 1
+        }
+      },
+      "Balder": {
+        "matched_issuer_names": [
+          "Fastighets AB Balder"
+        ],
+        "observations": 878,
+        "first_date": "2022-10-12",
+        "last_date": "2026-09-09",
+        "max_short_interest_pct": 1.77,
+        "latest": {
+          "snapshot_date": "2026-09-09",
+          "issuer": "Fastighets AB Balder",
+          "isin": "SE0017832488",
+          "short_interest_pct": 0.56,
+          "active_holders": 1
+        }
+      },
+      "AAK": {
+        "matched_issuer_names": [
+          "AAK AB (publ)"
+        ],
+        "observations": 405,
+        "first_date": "2023-09-25",
+        "last_date": "2026-09-11",
+        "max_short_interest_pct": 3.92,
+        "latest": {
+          "snapshot_date": "2026-09-11",
+          "issuer": "AAK AB (publ)",
+          "isin": "SE0011337708",
+          "short_interest_pct": 2.84,
+          "active_holders": 3
+        }
+      },
+      "Embracer": {
+        "matched_issuer_names": [
+          "Embracer Group AB"
+        ],
+        "observations": 2617,
+        "first_date": "2022-05-25",
+        "last_date": "2026-09-11",
+        "max_short_interest_pct": 8.14,
+        "latest": {
+          "snapshot_date": "2026-09-11",
+          "issuer": "Embracer Group AB",
+          "isin": "SE0023615885",
+          "short_interest_pct": 3.25,
+          "active_holders": 2
+        }
+      }
+    },
+    "extreme_observations": [
+      {
+        "snapshot_date": "2023-12-04",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 27.5,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.64,
+        "max_position_share_pct": 9.6
+      },
+      {
+        "snapshot_date": "2023-12-01",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 27.4,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.54,
+        "max_position_share_pct": 9.270073
+      },
+      {
+        "snapshot_date": "2023-11-30",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 27.35,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.67,
+        "max_position_share_pct": 9.76234
+      },
+      {
+        "snapshot_date": "2023-11-24",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.71,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.4,
+        "max_position_share_pct": 8.985399
+      },
+      {
+        "snapshot_date": "2023-11-27",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.71,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.4,
+        "max_position_share_pct": 8.985399
+      },
+      {
+        "snapshot_date": "2023-11-28",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.71,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.4,
+        "max_position_share_pct": 8.985399
+      },
+      {
+        "snapshot_date": "2023-11-29",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.71,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.4,
+        "max_position_share_pct": 8.985399
+      },
+      {
+        "snapshot_date": "2023-11-16",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.58,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.23,
+        "max_position_share_pct": 8.389767
+      },
+      {
+        "snapshot_date": "2023-11-14",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.54,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.19,
+        "max_position_share_pct": 8.251696
+      },
+      {
+        "snapshot_date": "2023-11-15",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.54,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.19,
+        "max_position_share_pct": 8.251696
+      },
+      {
+        "snapshot_date": "2023-11-09",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.53,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.23,
+        "max_position_share_pct": 8.405579
+      },
+      {
+        "snapshot_date": "2023-11-10",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.53,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.23,
+        "max_position_share_pct": 8.405579
+      },
+      {
+        "snapshot_date": "2023-11-21",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.53,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.33,
+        "max_position_share_pct": 8.78251
+      },
+      {
+        "snapshot_date": "2023-11-22",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.53,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.33,
+        "max_position_share_pct": 8.78251
+      },
+      {
+        "snapshot_date": "2023-11-23",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.53,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.33,
+        "max_position_share_pct": 8.78251
+      },
+      {
+        "snapshot_date": "2023-11-13",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.52,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.23,
+        "max_position_share_pct": 8.408748
+      },
+      {
+        "snapshot_date": "2023-11-17",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.52,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.23,
+        "max_position_share_pct": 8.408748
+      },
+      {
+        "snapshot_date": "2023-11-20",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.52,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.23,
+        "max_position_share_pct": 8.408748
+      },
+      {
+        "snapshot_date": "2023-11-07",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.48,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.36,
+        "max_position_share_pct": 8.912387
+      },
+      {
+        "snapshot_date": "2023-11-08",
+        "issuer": "JM AB",
+        "isin": "SE0000806994",
+        "short_interest_pct": 26.48,
+        "active_holders": 25,
+        "max_individual_position_pct": 2.36,
+        "max_position_share_pct": 8.912387
+      }
+    ]
+  },
   "limitations": [
     "Not FI's official aggregate series.",
     "Positions below FI's individual publication threshold are not available as exact values.",
