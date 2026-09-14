@@ -1,0 +1,47 @@
+{
+  "dataset": "FI aggregate short positions",
+  "definition": "Aggregate short positions above FI reporting threshold of 0.1 percent.",
+  "requested_start": "2022-05-25",
+  "requested_end": "2026-09-14",
+  "available_snapshots": 2,
+  "available_dates": [
+    "2022-06-01",
+    "2022-06-08"
+  ],
+  "newly_downloaded_snapshots": 2,
+  "newly_downloaded_dates": [
+    "2022-06-01",
+    "2022-06-08"
+  ],
+  "existing_snapshots_reused": 0,
+  "existing_dates_reused": [],
+  "candidate_count": 2,
+  "sources": [
+    "known-fi"
+  ],
+  "validation": [
+    {
+      "snapshot_date": "2022-06-01",
+      "rows": 472,
+      "unique_issuers": 472,
+      "min_position": 0.0,
+      "max_position": 97.0,
+      "duplicate_issuers": [],
+      "negative_positions": 0,
+      "positions_over_100": 0,
+      "valid": true
+    },
+    {
+      "snapshot_date": "2022-06-08",
+      "rows": 473,
+      "unique_issuers": 473,
+      "min_position": 0.0,
+      "max_position": 97.0,
+      "duplicate_issuers": [],
+      "negative_positions": 0,
+      "positions_over_100": 0,
+      "valid": true
+    }
+  ],
+  "generated_at": "2026-09-14T15:30:34.477788Z"
+}
