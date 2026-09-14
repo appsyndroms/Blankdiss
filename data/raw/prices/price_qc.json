@@ -1,12 +1,12 @@
 {
   "dataset_summary": {
     "price_file": "prices_2022-05-25_2026-09-12.jsonl",
-    "rows": 291600,
-    "valid_rows": 277762,
-    "invalid_rows": 13838,
+    "rows": 311040,
+    "valid_rows": 296482,
+    "invalid_rows": 14558,
     "duplicate_rows": 0,
-    "unique_price_symbols": 269,
-    "unique_price_isins": 1,
+    "unique_price_symbols": 287,
+    "unique_price_isins": 215,
     "first_price_date": "2022-05-25",
     "last_price_date": "2026-09-11"
   },
@@ -15,97 +15,82 @@
     "missing_date": 0,
     "bad_date": 0,
     "missing_close": 0,
-    "nonfinite_close": 13838
+    "nonfinite_close": 14558
   },
   "mapping_summary": {
     "mapping_entries": 340,
-    "mapped_symbols": 271,
+    "mapped_symbols": 289,
     "unresolved_instruments": 0,
-    "duplicate_yahoo_symbols": 4,
+    "duplicate_yahoo_symbols": 5,
     "mapped_symbols_without_prices": 2,
     "price_symbols_without_mapping": 0,
     "unresolved_examples": [],
     "duplicate_yahoo_symbol_examples": {
       "None": [
-        "2138008LJU6WFQWOXJ73",
-        "213800CQXEA3W1YWXZ31",
-        "213800D1MJVOT6SNBX11",
-        "213800HJQ519AT4VCK42",
-        "213800T8PC8Q4FYJZR07",
-        "213800USNX47LQFQQN20",
-        "213800WRGLW3CY4MHW53",
-        "52990080SH3454F0QE68",
-        "529900BPSFZS6O3A9R04",
-        "5493002L6I4YHANEYR87",
-        "5493002P3RCOFW6HI207",
-        "54930030A8V6LH0G1Z92",
-        "54930033BTSY61VHUR49",
-        "5493003YS3NSPZJ5WU39",
-        "54930047C4A74IBXR037",
-        "5493004Q73OEYW1SPE91",
-        "5493004YF5D7Z612Z822",
-        "5493005LXSKPJXQXI542",
-        "5493006GFBLNB3Y0Y789",
-        "5493006KHWZ6OVF3IO54",
-        "5493006UG44TYSIXOB13",
-        "54930074JF89HQZ5DW64",
-        "5493007FF9DNP5DUJQ78",
-        "5493007QQ16K1NL2PW55",
-        "54930082R4LTC7PERT23",
-        "549300B1UZTBDU27UJ88",
-        "549300B4CGWDK6FGRY73",
-        "549300B6HWYEE57O8J84",
-        "549300BUD7ZPFPKM6856",
-        "549300CM6KSG2GY3HV62",
-        "549300CTHC1CP86P2G96",
-        "549300D4GJAZR1EMIA07",
-        "549300E7QRHEF2IJUY10",
-        "549300E8DQ5IX5LJ5I21",
-        "549300FHCTIFJOZ9D484",
-        "549300G3VF7LZQ9IW435",
-        "549300G8E6YUVJ1DA153",
-        "549300HX9MRFY47AH564",
-        "549300IULC8F8IGXKI15",
-        "549300KMAL1H1YLMWP02",
-        "549300KTMO4X275LNL41",
-        "549300MAN4M3OKQPID57",
-        "549300MBXCR8ZQJIFP95",
-        "549300MH8OETHBBKJU80",
-        "549300MSNMHPC3O60W78",
-        "549300MYLGD0VKNGTJ47",
-        "549300MZ7HL7X6AXMC13",
-        "549300NNUPH6DE8DVO06",
-        "549300NZI620CFL1TR88",
-        "549300ODX3D04SRRH667",
-        "549300QTR46SOJY7TE73",
-        "549300R9ZBT8YSFFK266",
-        "549300REE3038LIBWS21",
-        "549300UIPGM58Z67Z634",
-        "549300UNMLWLG6B2R803",
-        "549300VEBQPHRZBKUX38",
-        "549300VWDGUX0WMJ1T79",
-        "549300VX4JS45IIBBN05",
-        "549300WI3UNWMNQDVQ18",
-        "549300X76X1DK285JB13",
-        "549300YJUYJ9A24RXL71",
-        "549300Z20D1BP4MA0040",
-        "549300ZEFN8VKPK9I111",
-        "549300ZJTLE5T4SGP021",
-        "7437000ZP669LKUTZ738",
-        "A23RUXWKASG834LTMK28"
-      ],
-      "SIVE.ST": [
-        "254900UBKNY2EJ588J53",
-        "549300BWNI7ZPOHOHV76",
-        "549300ZNNKE1UFGNNE47"
-      ],
-      "PDX.ST": [
-        "529900QNSZUY53R5WW95",
-        "549300K4HA8EBLSL3B97"
+        "ISIN:GB00B635TG28",
+        "ISIN:LU0038705702",
+        "ISIN:SE0000101032",
+        "ISIN:SE0000108227",
+        "ISIN:SE0000109290",
+        "ISIN:SE0000117970",
+        "ISIN:SE0000273294",
+        "ISIN:SE0000382335",
+        "ISIN:SE0000652216",
+        "ISIN:SE0001296542",
+        "ISIN:SE0003366871",
+        "ISIN:SE0003622265",
+        "ISIN:SE0007665823",
+        "ISIN:SE0007871645",
+        "ISIN:SE0008374250",
+        "ISIN:SE0008374383",
+        "ISIN:SE0008966295",
+        "ISIN:SE0009806045",
+        "ISIN:SE0011115971",
+        "ISIN:SE0012455525",
+        "ISIN:SE0014960431",
+        "ISIN:SE0016075063",
+        "ISIN:SE0017083983",
+        "ISIN:SE0017161243",
+        "LEI:213800HJQ519AT4VCK42",
+        "LEI:529900BPSFZS6O3A9R04",
+        "LEI:5493002L6I4YHANEYR87",
+        "LEI:54930030A8V6LH0G1Z92",
+        "LEI:54930033BTSY61VHUR49",
+        "LEI:5493003YS3NSPZJ5WU39",
+        "LEI:5493004Q73OEYW1SPE91",
+        "LEI:5493005LXSKPJXQXI542",
+        "LEI:54930074JF89HQZ5DW64",
+        "LEI:5493007FF9DNP5DUJQ78",
+        "LEI:5493007QQ16K1NL2PW55",
+        "LEI:54930082R4LTC7PERT23",
+        "LEI:549300D4GJAZR1EMIA07",
+        "LEI:549300E7QRHEF2IJUY10",
+        "LEI:549300E8DQ5IX5LJ5I21",
+        "LEI:549300FHCTIFJOZ9D484",
+        "LEI:549300MBXCR8ZQJIFP95",
+        "LEI:549300MYLGD0VKNGTJ47",
+        "LEI:549300NZI620CFL1TR88",
+        "LEI:549300QTR46SOJY7TE73",
+        "LEI:549300UIPGM58Z67Z634",
+        "LEI:549300VEBQPHRZBKUX38",
+        "LEI:7437000ZP669LKUTZ738"
       ],
       "SCA-B.ST": [
-        "549300FW5JDRV1IJ0M67",
-        "549300HGV012CNC8JD22"
+        "ISIN:SE0000112724",
+        "LEI:549300HGV012CNC8JD22"
+      ],
+      "SIVE.ST": [
+        "ISIN:SE0003917798",
+        "ISIN:SE0008321608",
+        "LEI:549300BWNI7ZPOHOHV76"
+      ],
+      "EOLU-B.ST": [
+        "ISIN:SE0007075056",
+        "LEI:213800T7T7I7WAOX8Y72"
+      ],
+      "PDX.ST": [
+        "ISIN:SE0007100359",
+        "ISIN:SE0008294953"
       ]
     },
     "mapped_symbols_without_prices_examples": [
@@ -116,81 +101,18 @@
   },
   "price_quality": {
     "symbols_with_1080_observations": 0,
-    "symbols_with_less_than_1000_observations": 18,
+    "symbols_with_less_than_1000_observations": 19,
     "largest_observation_count": 1079,
     "smallest_observation_count": 82,
     "gaps_over_7_days": 0,
-    "large_price_moves_ge_50pct": 107,
+    "large_price_moves_ge_50pct": 111,
     "large_price_move_examples": [
-      {
-        "yahoo_symbol": "SIVE.ST",
-        "date": "2026-03-16",
-        "previous_close": 4.23799991607666,
-        "close": 7.364999771118164,
-        "relative_change": 0.7378480219358599
-      },
-      {
-        "yahoo_symbol": "SIVE.ST",
-        "date": "2026-06-02",
-        "previous_close": 60.849998474121094,
-        "close": 97.44999694824219,
-        "relative_change": 0.6014790368431433
-      },
-      {
-        "yahoo_symbol": "IMMU.ST",
-        "date": "2023-11-09",
-        "previous_close": 7.260000228881836,
-        "close": 11.180000305175781,
-        "relative_change": 0.5399448970675436
-      },
       {
         "yahoo_symbol": "ABSL-B.ST",
         "date": "2026-03-12",
         "previous_close": 9.579999923706055,
         "close": 4.710000038146973,
         "relative_change": 0.508350722791562
-      },
-      {
-        "yahoo_symbol": "IRIS.ST",
-        "date": "2022-10-28",
-        "previous_close": 8.300000190734863,
-        "close": 4.0,
-        "relative_change": 0.5180723002313752
-      },
-      {
-        "yahoo_symbol": "IRIS.ST",
-        "date": "2025-10-15",
-        "previous_close": 0.11999999731779099,
-        "close": 0.19050000607967377,
-        "relative_change": 0.5875000861473401
-      },
-      {
-        "yahoo_symbol": "IRIS.ST",
-        "date": "2026-04-27",
-        "previous_close": 0.10300000011920929,
-        "close": 0.289000004529953,
-        "relative_change": 1.80582528345119
-      },
-      {
-        "yahoo_symbol": "IRIS.ST",
-        "date": "2026-04-28",
-        "previous_close": 0.289000004529953,
-        "close": 0.5879999995231628,
-        "relative_change": 1.0346020425830837
-      },
-      {
-        "yahoo_symbol": "VOLO.ST",
-        "date": "2026-06-08",
-        "previous_close": 84.9000015258789,
-        "close": 32.07185363769531,
-        "relative_change": 0.6222396576998966
-      },
-      {
-        "yahoo_symbol": "MINEST.ST",
-        "date": "2025-05-26",
-        "previous_close": 2.3299999237060547,
-        "close": 3.494999885559082,
-        "relative_change": 0.5
       },
       {
         "yahoo_symbol": "ACE.ST",
@@ -207,66 +129,129 @@
         "relative_change": 0.7536585258593663
       },
       {
-        "yahoo_symbol": "INQ.ST",
-        "date": "2024-07-11",
-        "previous_close": 0.20800000429153442,
-        "close": 0.3409999907016754,
-        "relative_change": 0.6394229983944
+        "yahoo_symbol": "ALZ.ST",
+        "date": "2022-09-28",
+        "previous_close": 1.0549999475479126,
+        "close": 2.0,
+        "relative_change": 0.8957346914078121
       },
       {
-        "yahoo_symbol": "INQ.ST",
-        "date": "2026-03-26",
-        "previous_close": 0.056699998676776886,
-        "close": 0.10199999809265137,
-        "relative_change": 0.7989418072848808
+        "yahoo_symbol": "ALZ.ST",
+        "date": "2022-10-11",
+        "previous_close": 2.059999942779541,
+        "close": 3.559999942779541,
+        "relative_change": 0.7281553600317399
       },
       {
-        "yahoo_symbol": "INQ.ST",
-        "date": "2026-05-22",
-        "previous_close": 0.0689999982714653,
-        "close": 0.11500000208616257,
-        "relative_change": 0.6666667386529543
+        "yahoo_symbol": "ALZ.ST",
+        "date": "2025-10-06",
+        "previous_close": 1.093999981880188,
+        "close": 1.8179999589920044,
+        "relative_change": 0.6617915805332317
       },
       {
-        "yahoo_symbol": "CTM.ST",
-        "date": "2026-02-11",
-        "previous_close": 1.9199999570846558,
-        "close": 3.0250000953674316,
-        "relative_change": 0.5755209182195073
+        "yahoo_symbol": "ALZ.ST",
+        "date": "2026-07-07",
+        "previous_close": 0.47999998927116394,
+        "close": 1.399999976158142,
+        "relative_change": 1.9166666821887097
       },
       {
-        "yahoo_symbol": "VPLAY-B.ST",
-        "date": "2023-06-05",
-        "previous_close": 68.45079803466797,
-        "close": 25.53998374938965,
-        "relative_change": 0.626885522409037
+        "yahoo_symbol": "ATORX.ST",
+        "date": "2024-12-02",
+        "previous_close": 47.17917251586914,
+        "close": 22.828632354736328,
+        "relative_change": 0.5161290218250922
       },
       {
-        "yahoo_symbol": "VPLAY-B.ST",
-        "date": "2023-12-01",
-        "previous_close": 7.191281795501709,
-        "close": 1.8403359651565552,
-        "relative_change": 0.7440879084577492
+        "yahoo_symbol": "ATORX.ST",
+        "date": "2025-01-24",
+        "previous_close": 14.136841773986816,
+        "close": 51.0,
+        "relative_change": 2.607595021247605
       },
       {
-        "yahoo_symbol": "VPLAY-B.ST",
-        "date": "2024-01-16",
-        "previous_close": 1.2633329629898071,
-        "close": 3.4539999961853027,
-        "relative_change": 1.7340377377718834
+        "yahoo_symbol": "ATORX.ST",
+        "date": "2025-02-26",
+        "previous_close": 40.900001525878906,
+        "close": 120.80000305175781,
+        "relative_change": 1.9535451966994009
       },
       {
-        "yahoo_symbol": "HILB-B.ST",
-        "date": "2022-12-15",
-        "previous_close": 1.0399999618530273,
-        "close": 2.0199999809265137,
-        "relative_change": 0.9423077452112252
+        "yahoo_symbol": "ATORX.ST",
+        "date": "2025-03-06",
+        "previous_close": 47.70000076293945,
+        "close": 12.399999618530273,
+        "relative_change": 0.7400419408763519
+      },
+      {
+        "yahoo_symbol": "ATORX.ST",
+        "date": "2026-04-14",
+        "previous_close": 0.1964000016450882,
+        "close": 0.34599998593330383,
+        "relative_change": 0.7617107079181993
+      },
+      {
+        "yahoo_symbol": "ATORX.ST",
+        "date": "2026-07-23",
+        "previous_close": 0.1940000057220459,
+        "close": 0.05040000006556511,
+        "relative_change": 0.7402061928916854
+      },
+      {
+        "yahoo_symbol": "AXIC-A.ST",
+        "date": "2023-12-14",
+        "previous_close": 7.639999866485596,
+        "close": 2.7799999713897705,
+        "relative_change": 0.6361256518360946
+      },
+      {
+        "yahoo_symbol": "AXIC-A.ST",
+        "date": "2023-12-19",
+        "previous_close": 2.3299999237060547,
+        "close": 4.159999847412109,
+        "relative_change": 0.7854077182952395
+      },
+      {
+        "yahoo_symbol": "BEAMMW-B.ST",
+        "date": "2024-02-22",
+        "previous_close": 6.019999980926514,
+        "close": 9.140000343322754,
+        "relative_change": 0.5182724870899507
+      },
+      {
+        "yahoo_symbol": "BICO.ST",
+        "date": "2022-07-15",
+        "previous_close": 82.9000015258789,
+        "close": 32.77000045776367,
+        "relative_change": 0.6047044649627196
+      },
+      {
+        "yahoo_symbol": "BICO.ST",
+        "date": "2022-11-09",
+        "previous_close": 49.22999954223633,
+        "close": 77.5,
+        "relative_change": 0.57424336219036
+      },
+      {
+        "yahoo_symbol": "BIOA-B.ST",
+        "date": "2022-09-28",
+        "previous_close": 92.0999984741211,
+        "close": 251.0,
+        "relative_change": 1.7252986336425158
+      },
+      {
+        "yahoo_symbol": "CANTA.ST",
+        "date": "2023-02-22",
+        "previous_close": 4.734000205993652,
+        "close": 7.215000152587891,
+        "relative_change": 0.5240810812498653
       }
     ],
     "gap_examples": []
   },
   "integrity": {
-    "invalid_rows": 13838,
+    "invalid_rows": 14558,
     "duplicate_rows": 0,
     "passed": true
   }
