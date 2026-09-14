@@ -1,36 +1,44 @@
 name: FI historisk data
+
 on:
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   fetch-fi-history:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Hämta verifierade historiska FI-filer
         run: |
           python -m fi.backfill \
             --from 2022-05-25 \
             --to 2022-06-08
+
       - name: Proba kontinuerlig FI-källa
         run: |
           python -m fi.aggregate_probe \
             --date 2022-06-09
+
       - name: Inventera hela FI-aggregatet
         run: |
-          python -m fi.aggregate_inventory \
-            --transition-start 2022-05-25 \
-            --transition-end 2022-06-15
+          python -m fi.aggregate_inventory
+
       - name: Visa historisk data
         run: |
           echo "Historiska FI-filer:"
@@ -40,15 +48,18 @@ jobs:
             -name 'fi_aggregate_*.jsonl' \
             -print \
             | sort
+
       - name: Kontrollera historiska testdatum
         run: |
           echo "Verifierade historiska publiceringsdatum:"
           echo "2022-05-25"
           echo "2022-06-01"
           echo "2022-06-08"
+
           echo
           echo "Nästa datum som ska undersökas:"
           echo "2022-06-09"
+
           echo
           echo "Faktiskt hämtade filer:"
           find data/raw/fi/aggregate/historical \
@@ -57,29 +68,38 @@ jobs:
             -name 'fi_aggregate_2022-*.jsonl' \
             -print \
             | sort
+
       - name: Kontrollera Git-status
         run: |
           echo "Git-status för historiska FI-filer:"
           git status --short \
             -- data/raw/fi/aggregate/historical
+
       - name: Commit historisk data
         run: |
           if [ -z "$(git status --porcelain -- data/raw/fi/aggregate/historical)" ]; then
             echo "Ingen ny historisk data att committa."
             exit 0
           fi
+
           echo "Ny historisk data hittad:"
           git status --short \
             -- data/raw/fi/aggregate/historical
+
           git config user.name \
             "github-actions[bot]"
+
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add \
             data/raw/fi/aggregate/historical
+
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
+
           git commit \
             -m "Add FI historical aggregate data"
+
           git push
