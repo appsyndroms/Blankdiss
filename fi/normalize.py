@@ -9,14 +9,26 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 
-def fetched_at() -> str:
+STOCKHOLM_TZ = ZoneInfo("Europe/Stockholm")
+
+
+def now_stockholm() -> datetime:
     """
-    Aktuell tid i Europe/Stockholm.
+    Returnerar aktuell tid i Europe/Stockholm.
     """
 
     return datetime.now(
-        ZoneInfo("Europe/Stockholm")
-    ).isoformat(
+        STOCKHOLM_TZ
+    )
+
+
+def fetched_at() -> str:
+    """
+    Returnerar aktuell tid i Europe/Stockholm
+    som ISO-sträng.
+    """
+
+    return now_stockholm().isoformat(
         timespec="seconds"
     )
 
