@@ -1,4 +1,4 @@
-"""Lagring av FI-rådata och manifest."""
+"""Lagring av FI-rådata och snapshots."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from .config import (
     MANIFEST_PATH,
     RAW_DIR,
     SNAPSHOT_DIR,
+    SOURCE_DIR,
 )
 from .errors import FIError
 from .normalize import now_stockholm
@@ -19,6 +20,7 @@ from .normalize import now_stockholm
 def sha256_bytes(
     data: bytes,
 ) -> str:
+    """Beräknar SHA-256 för rådata."""
 
     return hashlib.sha256(
         data
@@ -26,11 +28,14 @@ def sha256_bytes(
 
 
 def load_manifest() -> dict:
+    """Läser manifestet eller skapar ett tomt."""
 
     if not MANIFEST_PATH.exists():
         return {
             "source": "FI",
-            "dataset": "aggregate_short_positions",
+            "dataset": (
+                "aggregate_short_positions"
+            ),
             "last_checked": None,
             "files": {},
         }
@@ -53,6 +58,7 @@ def load_manifest() -> dict:
 def save_manifest(
     manifest: dict,
 ) -> None:
+    """Skriver manifestet."""
 
     RAW_DIR.mkdir(
         parents=True,
@@ -74,18 +80,36 @@ def save_manifest(
 def write_snapshot(
     records: list[dict],
 ) -> Path:
+    """
+    Skriver en tidsstämplad JSONL-snapshot.
+
+    Varje körning får ett eget filnamn.
+    """
+
+    if not records:
+        raise FIError(
+            "Kan inte skriva tom FI-snapshot."
+        )
 
     SNAPSHOT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    if records and records[0].get(
+    fetched_value = records[0].get(
         "fetched_at"
-    ):
-        fetched = datetime.fromisoformat(
-            records[0]["fetched_at"]
-        )
+    )
+
+    if fetched_value:
+        try:
+            fetched = datetime.fromisoformat(
+                fetched_value
+            )
+        except ValueError as exc:
+            raise FIError(
+                "Ogiltig fetched_at i FI-data: "
+                f"{fetched_value}"
+            ) from exc
     else:
         fetched = now_stockholm()
 
@@ -105,7 +129,6 @@ def write_snapshot(
         "w",
         encoding="utf-8",
     ) as handle:
-
         for record in records:
             handle.write(
                 json.dumps(
@@ -123,6 +146,13 @@ def write_source(
     extension: str,
     source_date: str,
 ) -> Path:
+    """
+    Sparar en rå FI-fil med innehållsbaserat namn.
+
+    Funktionen används inte av den aktuella
+    HTML-baserade hämtningen men finns kvar för
+    framtida FI-filer.
+    """
 
     RAW_DIR.mkdir(
         parents=True,
@@ -134,7 +164,9 @@ def write_source(
         exist_ok=True,
     )
 
-    digest = sha256_bytes(data)
+    digest = sha256_bytes(
+        data
+    )
 
     filename = (
         f"aggregate_"
