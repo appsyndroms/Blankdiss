@@ -210,17 +210,126 @@ def download_historical_file(
             url,
         )
     return None
+def prepare_historical_two_column_table(
+    table: pd.DataFrame,
+    source_date: date,
+) -> pd.DataFrame:
+    """
+    Hanterar FI:s äldre tvåkolumnsformat.
+    Formatet som FI använder i den historiska
+    aggregatfilen från 2022-05-25 är:
+        kolumn 0 = emittent
+        kolumn 1 = summa blankning %
+    Filens datum används som positionsdatum.
+    LEI saknas i denna äldre fil och lämnas därför
+    tomt.
+    """
+    if table.shape[1] != 2:
+        raise FIError(
+            "Den historiska FI-filen har "
+            f"{table.shape[1]} kolumner. "
+            "Förväntade två kolumner."
+        )
+    result = pd.DataFrame(
+        {
+            "Emittentens namn": (
+                table.iloc[:, 0]
+            ),
+            "Emittentens LEI-kod": (
+                None
+            ),
+            "Summa blankning %": (
+                pd.to_numeric(
+                    table.iloc[:, 1],
+                    errors="coerce",
+                )
+            ),
+            "Positionsdatum": (
+                source_date.isoformat()
+            ),
+        }
+    )
+    # Ta bort helt tomma rader.
+    result = result.loc[
+        result["Emittentens namn"]
+        .notna()
+    ].copy()
+    # Ta bort rader som saknar numerisk
+    # blankningsprocent.
+    result = result.loc[
+        result["Summa blankning %"]
+        .notna()
+    ].copy()
+    result = result.reset_index(
+        drop=True
+    )
+    print(
+        "FI backfill: identifierat "
+        "historiskt tvåkolumnsformat."
+    )
+    print(
+        "FI backfill: "
+        f"{len(result)} observationer."
+    )
+    return result
+def find_header_row(
+    table: pd.DataFrame,
+) -> int | None:
+    """
+    Försöker hitta rubrikraden i en FI-fil.
+    Används för historiska filer som inte
+    följer det äldre tvåkolumnsformatet.
+    """
+    for header_row in range(
+        min(30, len(table))
+    ):
+        values = (
+            table
+            .iloc[header_row]
+            .astype(str)
+            .str.strip()
+        )
+        text = (
+            " | ".join(
+                values.tolist()
+            )
+            .lower()
+        )
+        if (
+            "emittentens namn" in text
+            and "summa blankning" in text
+        ):
+            return header_row
+        if (
+            "emittent" in text
+            and "blankning" in text
+            and (
+                "lei" in text
+                or "positionsdatum" in text
+                or "position" in text
+            )
+        ):
+            return header_row
+        if (
+            "issuer" in text
+            and (
+                "short" in text
+                or "position" in text
+            )
+        ):
+            return header_row
+    return None
 def print_table_diagnostic(
     table: pd.DataFrame,
     source_date: date,
 ) -> None:
     """
     Skriver ut diagnostik för en historisk
-    FI-tabell när rubrikerna inte känns igen.
+    FI-tabell när formatet inte känns igen.
     """
     print(
-        "FI backfill: kunde inte identifiera "
-        f"kolumnerna för {source_date}."
+        "FI backfill: okänt tabellformat "
+        f"för {source_date}."
     )
     print(
         "FI backfill: "
@@ -249,66 +358,43 @@ def print_table_diagnostic(
             f"  [{index}] "
             + " | ".join(values)
         )
-def find_header_row(
-    table: pd.DataFrame,
-) -> int | None:
-    """
-    Försöker hitta rubrikraden i en FI-fil.
-    Historiska FI-filer kan ha andra rubriker
-    än dagens aggregatfil, därför används flera
-    signaler.
-    """
-    for header_row in range(
-        min(30, len(table))
-    ):
-        values = (
-            table
-            .iloc[header_row]
-            .astype(str)
-            .str.strip()
-        )
-        text = (
-            " | ".join(
-                values.tolist()
-            )
-            .lower()
-        )
-        # Dagens/nyare struktur.
-        if (
-            "emittentens namn" in text
-            and "summa blankning" in text
-        ):
-            return header_row
-        # Alternativ stavning.
-        if (
-            "emittent" in text
-            and "blankning" in text
-            and (
-                "lei" in text
-                or "positionsdatum" in text
-                or "position" in text
-            )
-        ):
-            return header_row
-        # Historiska filer kan använda
-        # "issuer" / "short".
-        if (
-            "issuer" in text
-            and (
-                "short" in text
-                or "position" in text
-            )
-        ):
-            return header_row
-    return None
 def prepare_table(
     table: pd.DataFrame,
     source_date: date,
 ) -> pd.DataFrame:
     """
-    Försöker omvandla en rå Excel-tabell till
-    en tabell med identifierbara kolumner.
+    Försöker omvandla en rå Excel-tabell
+    till normaliserbara kolumner.
     """
+    # FI:s äldre aggregatfiler, exempelvis
+    # 2022-05-25, består av exakt två kolumner:
+    #
+    #   Emittent
+    #   Aggregerad blankning %
+    #
+    # Detta måste hanteras före rubriksökningen
+    # eftersom dessa filer saknar rubrikrad.
+    if table.shape[1] == 2:
+        first_column = table.iloc[:, 0]
+        second_column = pd.to_numeric(
+            table.iloc[:, 1],
+            errors="coerce",
+        )
+        non_empty = first_column.notna()
+        numeric_ratio = (
+            second_column
+            .notna()
+            .sum()
+            / max(
+                non_empty.sum(),
+                1,
+            )
+        )
+        if numeric_ratio >= 0.90:
+            return prepare_historical_two_column_table(
+                table,
+                source_date,
+            )
     header_row = find_header_row(
         table
     )
@@ -356,11 +442,8 @@ def read_aggregate_file(
 ) -> pd.DataFrame:
     """
     Läser en historisk FI-aggregatfil.
-    För ZIP-baserade filer provas först XLSX.
-    Om XLSX lyckas läser vi inte filen med ODS
-    bara för att rubrikerna inte hittades.
-    Detta är viktigt eftersom både XLSX och ODS
-    är ZIP-baserade.
+    XLSX läses med openpyxl. ODS provas endast
+    om XLSX-parsern inte kan läsa filen.
     """
     file_format = detect_file_format(
         data
@@ -371,8 +454,6 @@ def read_aggregate_file(
         f"format={file_format}"
     )
     errors: list[str] = []
-    # FI-filen vi har sett är XLSX.
-    # Prova därför XLSX först.
     if file_format == "zip":
         try:
             table = pd.read_excel(
@@ -390,8 +471,6 @@ def read_aggregate_file(
                 source_date,
             )
         except FIError:
-            # Detta är ett riktigt innehålls-/formatfel
-            # och ska inte maskeras av ett senare ODS-fel.
             raise
         except Exception as exc:
             errors.append(
@@ -402,8 +481,8 @@ def read_aggregate_file(
                 f"parser=openpyxl misslyckades: "
                 f"{exc}"
             )
-        # Om openpyxl misslyckades helt kan filen
-        # fortfarande vara ODS.
+        # Om openpyxl verkligen inte kunde läsa
+        # filen provar vi ODS.
         try:
             table = pd.read_excel(
                 BytesIO(data),
@@ -528,9 +607,6 @@ def backfill(
         existing = output_path(
             source_date
         )
-        # Idempotens:
-        # finns datumet redan hoppar vi över
-        # nätverksanropet.
         if existing.exists():
             found += 1
             try:
