@@ -48,6 +48,16 @@ METADATA = (
 
 START_DATE = pd.Timestamp("2022-05-25")
 
+VALIDATION_EXAMPLE_ISSUERS = (
+    "Husqvarna",
+    "Volvo",
+    "Truecaller",
+    "Nobia",
+    "Balder",
+    "AAK",
+    "Embracer",
+)
+
 
 def parse_position(value: object) -> float:
     """Tolkar en normaliserad FI-position."""
@@ -336,8 +346,462 @@ def reconstruct(
     )
 
 
+def validate_result(
+    result: pd.DataFrame,
+) -> dict:
+    """Validerar och sammanfattar rekonstruktionen."""
+
+    if result.empty:
+        raise ValueError(
+            "Kan inte validera ett tomt resultat."
+        )
+
+    frame = result.copy()
+
+    frame["snapshot_date"] = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+
+    frame["short_interest_pct"] = pd.to_numeric(
+        frame["short_interest_pct"],
+        errors="coerce",
+    )
+
+    frame[
+        "max_individual_position_pct"
+    ] = pd.to_numeric(
+        frame["max_individual_position_pct"],
+        errors="coerce",
+    )
+
+    frame["max_position_share_pct"] = pd.to_numeric(
+        frame["max_position_share_pct"],
+        errors="coerce",
+    )
+
+    frame["active_holders"] = pd.to_numeric(
+        frame["active_holders"],
+        errors="coerce",
+    )
+
+    frame = frame.loc[
+        frame["snapshot_date"].notna()
+    ].copy()
+
+    validation: dict = {
+        "rows": int(len(frame)),
+        "unique_snapshot_dates": int(
+            frame["snapshot_date"].nunique()
+        ),
+        "unique_issuers": int(
+            frame["issuer"].nunique()
+        ),
+        "unique_isins": int(
+            frame["isin"]
+            .dropna()
+            .nunique()
+        ),
+        "first_snapshot_date": (
+            frame["snapshot_date"]
+            .min()
+            .date()
+            .isoformat()
+        ),
+        "last_snapshot_date": (
+            frame["snapshot_date"]
+            .max()
+            .date()
+            .isoformat()
+        ),
+        "short_interest": {
+            "minimum_pct": round(
+                float(
+                    frame[
+                        "short_interest_pct"
+                    ].min()
+                ),
+                6,
+            ),
+            "maximum_pct": round(
+                float(
+                    frame[
+                        "short_interest_pct"
+                    ].max()
+                ),
+                6,
+            ),
+            "median_pct": round(
+                float(
+                    frame[
+                        "short_interest_pct"
+                    ].median()
+                ),
+                6,
+            ),
+            "mean_pct": round(
+                float(
+                    frame[
+                        "short_interest_pct"
+                    ].mean()
+                ),
+                6,
+            ),
+        },
+        "active_holders": {
+            "minimum": int(
+                frame[
+                    "active_holders"
+                ].min()
+            ),
+            "maximum": int(
+                frame[
+                    "active_holders"
+                ].max()
+            ),
+            "median": round(
+                float(
+                    frame[
+                        "active_holders"
+                    ].median()
+                ),
+                2,
+            ),
+        },
+        "integrity": {},
+        "examples": {},
+        "extreme_observations": [],
+    }
+
+    invalid_negative = frame.loc[
+        frame["short_interest_pct"] < 0
+    ]
+
+    invalid_holder_count = frame.loc[
+        frame["active_holders"] < 1
+    ]
+
+    invalid_max = frame.loc[
+        frame[
+            "max_individual_position_pct"
+        ]
+        > frame["short_interest_pct"]
+    ]
+
+    invalid_concentration = frame.loc[
+        (
+            frame[
+                "max_position_share_pct"
+            ]
+            < 0
+        )
+        | (
+            frame[
+                "max_position_share_pct"
+            ]
+            > 100.000001
+        )
+    ]
+
+    duplicate_keys = frame.duplicated(
+        subset=[
+            "snapshot_date",
+            "issuer",
+            "isin",
+        ],
+        keep=False,
+    )
+
+    validation["integrity"] = {
+        "negative_short_interest_rows": int(
+            len(invalid_negative)
+        ),
+        "invalid_active_holder_rows": int(
+            len(invalid_holder_count)
+        ),
+        "max_position_exceeds_total_rows": int(
+            len(invalid_max)
+        ),
+        "invalid_concentration_rows": int(
+            len(invalid_concentration)
+        ),
+        "duplicate_snapshot_issuer_rows": int(
+            duplicate_keys.sum()
+        ),
+    }
+
+    validation["integrity"]["passed"] = (
+        validation["integrity"][
+            "negative_short_interest_rows"
+        ]
+        == 0
+        and validation["integrity"][
+            "invalid_active_holder_rows"
+        ]
+        == 0
+        and validation["integrity"][
+            "max_position_exceeds_total_rows"
+        ]
+        == 0
+        and validation["integrity"][
+            "invalid_concentration_rows"
+        ]
+        == 0
+        and validation["integrity"][
+            "duplicate_snapshot_issuer_rows"
+        ]
+        == 0
+    )
+
+    extreme = frame.nlargest(
+        20,
+        "short_interest_pct",
+    )
+
+    validation["extreme_observations"] = [
+        {
+            "snapshot_date": (
+                row.snapshot_date
+                .date()
+                .isoformat()
+            ),
+            "issuer": row.issuer,
+            "isin": (
+                row.isin
+                if pd.notna(row.isin)
+                else None
+            ),
+            "short_interest_pct": round(
+                float(
+                    row.short_interest_pct
+                ),
+                6,
+            ),
+            "active_holders": int(
+                row.active_holders
+            ),
+            "max_individual_position_pct": (
+                round(
+                    float(
+                        row.max_individual_position_pct
+                    ),
+                    6,
+                )
+            ),
+            "max_position_share_pct": (
+                round(
+                    float(
+                        row.max_position_share_pct
+                    ),
+                    6,
+                )
+            ),
+        }
+        for row in extreme.itertuples(
+            index=False
+        )
+    ]
+
+    issuer_lower = frame[
+        "issuer"
+    ].str.lower()
+
+    for example_issuer in (
+        VALIDATION_EXAMPLE_ISSUERS
+    ):
+        matches = frame.loc[
+            issuer_lower.str.contains(
+                example_issuer.lower(),
+                na=False,
+            )
+        ].copy()
+
+        if matches.empty:
+            continue
+
+        matches = matches.sort_values(
+            "snapshot_date"
+        )
+
+        latest = matches.iloc[-1]
+
+        validation["examples"][
+            example_issuer
+        ] = {
+            "matched_issuer_names": sorted(
+                matches["issuer"]
+                .dropna()
+                .unique()
+                .tolist()
+            ),
+            "observations": int(
+                len(matches)
+            ),
+            "first_date": (
+                matches[
+                    "snapshot_date"
+                ]
+                .min()
+                .date()
+                .isoformat()
+            ),
+            "last_date": (
+                matches[
+                    "snapshot_date"
+                ]
+                .max()
+                .date()
+                .isoformat()
+            ),
+            "max_short_interest_pct": round(
+                float(
+                    matches[
+                        "short_interest_pct"
+                    ].max()
+                ),
+                6,
+            ),
+            "latest": {
+                "snapshot_date": (
+                    latest[
+                        "snapshot_date"
+                    ]
+                    .date()
+                    .isoformat()
+                ),
+                "issuer": latest["issuer"],
+                "isin": (
+                    latest["isin"]
+                    if pd.notna(
+                        latest["isin"]
+                    )
+                    else None
+                ),
+                "short_interest_pct": round(
+                    float(
+                        latest[
+                            "short_interest_pct"
+                        ]
+                    ),
+                    6,
+                ),
+                "active_holders": int(
+                    latest[
+                        "active_holders"
+                    ]
+                ),
+            },
+        }
+
+    return validation
+
+
+def print_validation(
+    validation: dict,
+) -> None:
+    """Skriver en kompakt valideringsrapport."""
+
+    print()
+    print(
+        "=========================================="
+    )
+    print(
+        "VALIDERING AV REKONSTRUERAT RESULTAT"
+    )
+    print(
+        "=========================================="
+    )
+
+    print(
+        f"Rader: {validation['rows']}"
+    )
+
+    print(
+        "Snapshot-datum: "
+        f"{validation['unique_snapshot_dates']}"
+    )
+
+    print(
+        "Unika emittenter: "
+        f"{validation['unique_issuers']}"
+    )
+
+    print(
+        "Period: "
+        f"{validation['first_snapshot_date']} "
+        "till "
+        f"{validation['last_snapshot_date']}"
+    )
+
+    short_interest = validation[
+        "short_interest"
+    ]
+
+    print()
+    print("SHORT INTEREST")
+
+    print(
+        "Min: "
+        f"{short_interest['minimum_pct']} %"
+    )
+
+    print(
+        "Median: "
+        f"{short_interest['median_pct']} %"
+    )
+
+    print(
+        "Medel: "
+        f"{short_interest['mean_pct']} %"
+    )
+
+    print(
+        "Max: "
+        f"{short_interest['maximum_pct']} %"
+    )
+
+    integrity = validation["integrity"]
+
+    print()
+    print("INTEGRITET")
+
+    for key, value in integrity.items():
+        print(f"{key}: {value}")
+
+    if validation["examples"]:
+        print()
+        print("EXEMPEL")
+
+        for (
+            issuer,
+            example,
+        ) in validation["examples"].items():
+            print(
+                f"{issuer}: "
+                f"{example['observations']} observationer, "
+                f"{example['first_date']} till "
+                f"{example['last_date']}, "
+                f"max="
+                f"{example['max_short_interest_pct']} %"
+            )
+
+    print()
+    print("TOPP 10 STÖRSTA OBSERVATIONER")
+
+    for observation in validation[
+        "extreme_observations"
+    ][:10]:
+        print(
+            f"{observation['snapshot_date']} | "
+            f"{observation['issuer']} | "
+            f"{observation['short_interest_pct']} % | "
+            f"{observation['active_holders']} innehavare"
+        )
+
+
 def write_result(
     result: pd.DataFrame,
+    validation: dict,
 ) -> None:
     """Skriver JSONL och metadata."""
 
@@ -377,11 +841,20 @@ def write_result(
         "unique_issuers": int(
             result["issuer"].nunique()
         ),
+        "unique_snapshot_dates": int(
+            result[
+                "snapshot_date"
+            ].nunique()
+        ),
         "first_snapshot_date": (
-            result["snapshot_date"].min()
+            result[
+                "snapshot_date"
+            ].min()
         ),
         "last_snapshot_date": (
-            result["snapshot_date"].max()
+            result[
+                "snapshot_date"
+            ].max()
         ),
         "source": (
             "Finansinspektionen GetHistFile"
@@ -398,6 +871,7 @@ def write_result(
             "that has fallen below the "
             "publication threshold."
         ),
+        "validation": validation,
         "limitations": [
             (
                 "Not FI's official aggregate "
@@ -464,10 +938,26 @@ def main() -> int:
             "observationer."
         )
 
-    write_result(
+    validation = validate_result(
         result
     )
 
+    print_validation(
+        validation
+    )
+
+    if not validation["integrity"]["passed"]:
+        raise RuntimeError(
+            "Valideringen misslyckades. "
+            "Se integritetsresultatet ovan."
+        )
+
+    write_result(
+        result,
+        validation,
+    )
+
+    print()
     print(
         "FI reconstruction klar: "
         f"{len(result)} "
