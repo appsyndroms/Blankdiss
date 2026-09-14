@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import quote, urljoin
 import pandas as pd
 import requests
 # ---------------------------------------------------------------------------
@@ -91,36 +90,42 @@ def is_fi_aggregate_url(url: str) -> bool:
         and "aggregerade-blankningspositioner-" in lowered
         and lowered.endswith(".xlsx")
     )
-def safe_filename(url: str) -> str:
-    name = url.rstrip("/").split("/")[-1]
-    if not name.lower().endswith(".xlsx"):
-        name += ".xlsx"
-    return re.sub(r"[^A-Za-z0-9._-]", "_", name)
 # ---------------------------------------------------------------------------
 # Common Crawl
 # ---------------------------------------------------------------------------
 def get_commoncrawl_indexes() -> list[str]:
     """
-    Returns recent Common Crawl index names.
-    We only need indexes covering the requested period.
+    Returns Common Crawl index names.
+    We keep all indexes whose crawl period can overlap our requested
+    historical range instead of arbitrarily taking only the newest 20.
     """
     url = "https://index.commoncrawl.org/collinfo.json"
-    response = SESSION.get(url, timeout=TIMEOUT)
+    response = SESSION.get(
+        url,
+        timeout=TIMEOUT,
+    )
     response.raise_for_status()
     collections = response.json()
     indexes = []
     for collection in collections:
         name = collection.get("id", "")
-        # Common Crawl ids normally look like:
-        # CC-MAIN-2026-30
-        if name.startswith("CC-MAIN-"):
+        if not name.startswith("CC-MAIN-"):
+            continue
+        match = re.match(
+            r"CC-MAIN-(\d{4})-",
+            name,
+        )
+        if not match:
+            continue
+        year = int(match.group(1))
+        if year >= START_DATE.year:
             indexes.append(name)
     return indexes
 def query_commoncrawl(index_name: str) -> list[Candidate]:
     """
-    Searches Common Crawl for FI's historical aggregate XLSX files.
-    Important:
-    The wildcard is intentional. We do not know FI's contentassets GUID.
+    Searches Common Crawl for FI historical aggregate XLSX files.
+    The wildcard is intentional because FI's contentassets GUID is
+    not known in advance.
     """
     pattern = (
         "fi.se/contentassets/*/"
@@ -163,8 +168,12 @@ def query_commoncrawl(index_name: str) -> list[Candidate]:
         original = item.get("url", "")
         if not is_fi_aggregate_url(original):
             continue
-        snapshot_date = extract_date_from_filename(original)
-        if snapshot_date is None or not in_range(snapshot_date):
+        snapshot_date = extract_date_from_filename(
+            original
+        )
+        if snapshot_date is None:
+            continue
+        if not in_range(snapshot_date):
             continue
         candidates.append(
             Candidate(
@@ -181,7 +190,8 @@ def query_commoncrawl(index_name: str) -> list[Candidate]:
 def query_wayback(url_pattern: str) -> list[Candidate]:
     """
     Searches the Wayback CDX endpoint.
-    We intentionally query the wildcard path rather than individual GUIDs.
+    We query the wildcard path because the FI contentassets GUID is
+    not known.
     """
     endpoint = "https://web.archive.org/cdx/search/cdx"
     params = {
@@ -199,7 +209,9 @@ def query_wayback(url_pattern: str) -> list[Candidate]:
         )
         response.raise_for_status()
     except requests.RequestException as exc:
-        print(f"[Wayback] Kunde inte söka: {exc}")
+        print(
+            f"[Wayback] Kunde inte söka: {exc}"
+        )
         return []
     try:
         rows = response.json()
@@ -208,16 +220,21 @@ def query_wayback(url_pattern: str) -> list[Candidate]:
     if not rows:
         return []
     candidates: list[Candidate] = []
-    # CDX may return a header row.
     for row in rows:
-        if not isinstance(row, list) or len(row) < 2:
+        if not isinstance(row, list):
+            continue
+        if len(row) < 2:
             continue
         timestamp = row[0]
         original = row[1]
         if not is_fi_aggregate_url(original):
             continue
-        snapshot_date = extract_date_from_filename(original)
-        if snapshot_date is None or not in_range(snapshot_date):
+        snapshot_date = extract_date_from_filename(
+            original
+        )
+        if snapshot_date is None:
+            continue
+        if not in_range(snapshot_date):
             continue
         candidates.append(
             Candidate(
@@ -231,9 +248,11 @@ def query_wayback(url_pattern: str) -> list[Candidate]:
 # ---------------------------------------------------------------------------
 # Download
 # ---------------------------------------------------------------------------
-def download_direct(candidate: Candidate) -> bytes | None:
+def download_direct(
+    candidate: Candidate,
+) -> bytes | None:
     """
-    Attempts direct FI download first.
+    Attempts a direct FI download.
     """
     try:
         response = SESSION.get(
@@ -242,27 +261,24 @@ def download_direct(candidate: Candidate) -> bytes | None:
         )
         if response.status_code != 200:
             return None
-        content_type = response.headers.get(
-            "content-type",
-            "",
-        ).lower()
-        # FI sometimes returns generic binary content.
-        # Therefore content-type is advisory only.
         if len(response.content) < 1000:
             return None
+        first_bytes = response.content[:1000].lower()
         if (
-            b"<html" in response.content[:1000].lower()
-            or b"<!doctype" in response.content[:1000].lower()
+            b"<html" in first_bytes
+            or b"<!doctype" in first_bytes
         ):
             return None
         return response.content
     except requests.RequestException:
         return None
-def download_wayback(candidate: Candidate) -> bytes | None:
+def download_wayback(
+    candidate: Candidate,
+) -> bytes | None:
     """
     Downloads the archived original file from Wayback.
-    id_ is important: it asks Wayback for the original binary
-    instead of its replay wrapper.
+    id_ asks Wayback for the original binary rather than
+    the replay wrapper.
     """
     if not candidate.archive_timestamp:
         return None
@@ -286,13 +302,18 @@ def download_wayback(candidate: Candidate) -> bytes | None:
 # ---------------------------------------------------------------------------
 # Excel parsing
 # ---------------------------------------------------------------------------
-def find_column(columns: Iterable[object], *wanted: str) -> str | None:
+def find_column(
+    columns: Iterable[object],
+    *wanted: str,
+) -> str | None:
     normalized = {
         normalize_header(column): str(column)
         for column in columns
     }
     for wanted_name in wanted:
-        wanted_normalized = normalize_header(wanted_name)
+        wanted_normalized = normalize_header(
+            wanted_name
+        )
         for normalized_name, original in normalized.items():
             if (
                 normalized_name == wanted_normalized
@@ -301,14 +322,15 @@ def find_column(columns: Iterable[object], *wanted: str) -> str | None:
             ):
                 return original
     return None
-def parse_position(value: object) -> float | None:
+def parse_position(
+    value: object,
+) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
         if pd.isna(value):
             return None
         number = float(value)
-        # Excel may store 0.123 as 12.3%.
         if 0 < abs(number) < 1:
             number *= 100
         return number
@@ -327,7 +349,9 @@ def parse_position(value: object) -> float | None:
     if 0 < abs(number) < 1:
         number *= 100
     return number
-def parse_date(value: object) -> str | None:
+def parse_date(
+    value: object,
+) -> str | None:
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -365,7 +389,9 @@ def parse_xlsx(
             continue
         frames.append(frame)
     if not frames:
-        raise ValueError("Excel-filen innehåller inga tabeller.")
+        raise ValueError(
+            "Excel-filen innehåller inga tabeller."
+        )
     frame = pd.concat(
         frames,
         ignore_index=True,
@@ -410,7 +436,9 @@ def parse_xlsx(
         )
     records = []
     for _, row in frame.iterrows():
-        issuer = normalize_text(row.get(issuer_col))
+        issuer = normalize_text(
+            row.get(issuer_col)
+        )
         if not issuer:
             continue
         position = parse_position(
@@ -419,12 +447,16 @@ def parse_xlsx(
         if position is None:
             continue
         lei = (
-            normalize_text(row.get(lei_col))
+            normalize_text(
+                row.get(lei_col)
+            )
             if lei_col
             else ""
         )
         latest_position_date = (
-            parse_date(row.get(latest_date_col))
+            parse_date(
+                row.get(latest_date_col)
+            )
             if latest_date_col
             else None
         )
@@ -439,6 +471,104 @@ def parse_xlsx(
                 "source_url": source_url,
             }
         )
+    return records
+# ---------------------------------------------------------------------------
+# Existing JSONL compatibility
+# ---------------------------------------------------------------------------
+def normalize_existing_record(
+    record: dict,
+    fallback_snapshot_date: date | None = None,
+) -> dict | None:
+    """
+    Normalizes both the old and new FI aggregate JSONL schemas.
+    Old schema:
+        source_date
+        position_date
+        issuer
+        lei
+        short_interest_pct
+    New schema:
+        snapshot_date
+        issuer
+        lei
+        position
+        latest_position_date
+        source
+        source_url
+    """
+    issuer = normalize_text(
+        record.get("issuer")
+    )
+    if not issuer:
+        return None
+    snapshot_date = (
+        record.get("snapshot_date")
+        or record.get("source_date")
+        or record.get("position_date")
+    )
+    if snapshot_date is None and fallback_snapshot_date:
+        snapshot_date = fallback_snapshot_date.isoformat()
+    snapshot_date = parse_date(snapshot_date)
+    if snapshot_date is None:
+        return None
+    position = record.get("position")
+    if position is None:
+        position = record.get(
+            "short_interest_pct"
+        )
+    position = parse_position(position)
+    if position is None:
+        return None
+    lei = normalize_text(
+        record.get("lei")
+    )
+    latest_position_date = (
+        record.get("latest_position_date")
+        or record.get("position_date")
+    )
+    latest_position_date = parse_date(
+        latest_position_date
+    )
+    source = record.get("source")
+    if not source:
+        source = "existing-fi"
+    source_url = record.get(
+        "source_url"
+    )
+    normalized = {
+        "snapshot_date": snapshot_date,
+        "issuer": issuer,
+        "lei": lei or None,
+        "position": round(position, 6),
+        "latest_position_date": latest_position_date,
+        "source": source,
+        "source_url": source_url,
+    }
+    return normalized
+def read_existing_snapshot(
+    path: Path,
+) -> list[dict]:
+    fallback_date = extract_date_from_filename(
+        path.name
+    )
+    records = []
+    with path.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            normalized = normalize_existing_record(
+                raw,
+                fallback_snapshot_date=fallback_date,
+            )
+            if normalized is not None:
+                records.append(normalized)
     return records
 # ---------------------------------------------------------------------------
 # Validation
@@ -476,11 +606,23 @@ def validate_snapshot(
         "snapshot_date": snapshot_date.isoformat(),
         "rows": len(records),
         "unique_issuers": len(set(issuers)),
-        "min_position": min(positions) if positions else None,
-        "max_position": max(positions) if positions else None,
+        "min_position": (
+            min(positions)
+            if positions
+            else None
+        ),
+        "max_position": (
+            max(positions)
+            if positions
+            else None
+        ),
         "duplicate_issuers": duplicate_issuers,
-        "negative_positions": len(negative_positions),
-        "positions_over_100": len(invalid_positions),
+        "negative_positions": len(
+            negative_positions
+        ),
+        "positions_over_100": len(
+            invalid_positions
+        ),
         "valid": (
             bool(records)
             and not duplicate_issuers
@@ -496,7 +638,8 @@ def write_snapshot(
     snapshot_date: date,
 ) -> Path:
     path = RAW_DIR / (
-        f"fi_aggregate_{snapshot_date.isoformat()}.jsonl"
+        f"fi_aggregate_"
+        f"{snapshot_date.isoformat()}.jsonl"
     )
     with path.open(
         "w",
@@ -512,12 +655,19 @@ def write_snapshot(
             )
     return path
 def rebuild_combined_dataset() -> Path:
+    """
+    Rebuilds the combined dataset from all per-snapshot JSONL files.
+    This function deliberately accepts both the historical schema and
+    the current schema so existing FI snapshots remain usable.
+    """
     output = (
         PROCESSED_DIR
         / "fi_aggregate_history.jsonl"
     )
     files = sorted(
-        RAW_DIR.glob("fi_aggregate_*.jsonl")
+        RAW_DIR.glob(
+            "fi_aggregate_*.jsonl"
+        )
     )
     seen = set()
     with output.open(
@@ -525,6 +675,11 @@ def rebuild_combined_dataset() -> Path:
         encoding="utf-8",
     ) as destination:
         for path in files:
+            fallback_date = (
+                extract_date_from_filename(
+                    path.name
+                )
+            )
             with path.open(
                 "r",
                 encoding="utf-8",
@@ -532,7 +687,18 @@ def rebuild_combined_dataset() -> Path:
                 for line in source:
                     if not line.strip():
                         continue
-                    record = json.loads(line)
+                    try:
+                        raw_record = json.loads(
+                            line
+                        )
+                    except json.JSONDecodeError:
+                        continue
+                    record = normalize_existing_record(
+                        raw_record,
+                        fallback_snapshot_date=fallback_date,
+                    )
+                    if record is None:
+                        continue
                     key = (
                         record["snapshot_date"],
                         record["issuer"],
@@ -549,10 +715,34 @@ def rebuild_combined_dataset() -> Path:
                         + "\n"
                     )
     return output
+# ---------------------------------------------------------------------------
+# Metadata
+# ---------------------------------------------------------------------------
+def get_existing_snapshot_dates() -> list[str]:
+    dates = []
+    for path in RAW_DIR.glob(
+        "fi_aggregate_*.jsonl"
+    ):
+        snapshot_date = (
+            extract_date_from_filename(
+                path.name
+            )
+        )
+        if snapshot_date is None:
+            continue
+        if not in_range(snapshot_date):
+            continue
+        dates.append(
+            snapshot_date.isoformat()
+        )
+    return sorted(set(dates))
 def write_metadata(
     candidates: list[Candidate],
     validations: list[dict],
 ) -> None:
+    existing_dates = (
+        get_existing_snapshot_dates()
+    )
     downloaded_dates = sorted(
         {
             validation["snapshot_date"]
@@ -560,17 +750,43 @@ def write_metadata(
             if validation["valid"]
         }
     )
+    all_valid_dates = sorted(
+        set(existing_dates)
+        | set(downloaded_dates)
+    )
     metadata = {
-        "dataset": "FI aggregate short positions",
-        "definition": (
-            "Aggregate short positions above FI reporting "
-            "threshold of 0.1 percent."
+        "dataset": (
+            "FI aggregate short positions"
         ),
-        "requested_start": START_DATE.isoformat(),
-        "requested_end": END_DATE.isoformat(),
-        "downloaded_snapshots": len(downloaded_dates),
-        "downloaded_dates": downloaded_dates,
-        "candidate_count": len(candidates),
+        "definition": (
+            "Aggregate short positions above "
+            "FI reporting threshold of 0.1 percent."
+        ),
+        "requested_start": (
+            START_DATE.isoformat()
+        ),
+        "requested_end": (
+            END_DATE.isoformat()
+        ),
+        "available_snapshots": len(
+            all_valid_dates
+        ),
+        "available_dates": all_valid_dates,
+        "newly_downloaded_snapshots": len(
+            downloaded_dates
+        ),
+        "newly_downloaded_dates": (
+            downloaded_dates
+        ),
+        "existing_snapshots_reused": len(
+            set(existing_dates)
+        ),
+        "existing_dates_reused": (
+            existing_dates
+        ),
+        "candidate_count": len(
+            candidates
+        ),
         "sources": sorted(
             {
                 candidate.source
@@ -578,8 +794,10 @@ def write_metadata(
             }
         ),
         "validation": validations,
-        "generated_at": datetime.utcnow().isoformat()
-        + "Z",
+        "generated_at": (
+            datetime.utcnow().isoformat()
+            + "Z"
+        ),
     }
     path = (
         PROCESSED_DIR
@@ -594,12 +812,14 @@ def write_metadata(
         encoding="utf-8",
     )
 # ---------------------------------------------------------------------------
-# Main discovery
+# Discovery
 # ---------------------------------------------------------------------------
 def discover_candidates() -> list[Candidate]:
     candidates: list[Candidate] = []
     print("=" * 70)
-    print("FI AGGREGATE HISTORY DISCOVERY")
+    print(
+        "FI AGGREGATE HISTORY DISCOVERY"
+    )
     print("=" * 70)
     # ------------------------------------------------------------------
     # 1. Wayback
@@ -610,58 +830,75 @@ def discover_candidates() -> list[Candidate]:
         "fi.se/contentassets/*/"
         "aggregerade-blankningspositioner-*.xlsx"
     )
+    wayback_candidates = query_wayback(
+        wayback_pattern
+    )
     candidates.extend(
-        query_wayback(wayback_pattern)
+        wayback_candidates
     )
     print(
-        f"Wayback: {len(candidates)} kandidater"
+        f"Wayback: "
+        f"{len(wayback_candidates)} kandidater"
     )
     # ------------------------------------------------------------------
     # 2. Common Crawl
     # ------------------------------------------------------------------
     try:
-        indexes = get_commoncrawl_indexes()
+        indexes = (
+            get_commoncrawl_indexes()
+        )
     except Exception as exc:
         print(
-            f"Kunde inte hämta Common Crawl-index: {exc}"
+            "Kunde inte hämta "
+            f"Common Crawl-index: {exc}"
         )
         indexes = []
-    # We do not need hundreds of indexes.
-    # Keep indexes whose crawl dates could overlap our period.
-    indexes = indexes[:20]
-    commoncrawl_count_before = len(candidates)
+    commoncrawl_count_before = (
+        len(candidates)
+    )
     for index_name in indexes:
         print(
-            f"Söker Common Crawl: {index_name}"
+            f"Söker Common Crawl: "
+            f"{index_name}"
         )
         found = query_commoncrawl(
             index_name
         )
         candidates.extend(found)
-        time.sleep(0.2)
+        time.sleep(0.5)
     print(
         "Common Crawl:",
-        len(candidates) - commoncrawl_count_before,
+        len(candidates)
+        - commoncrawl_count_before,
         "kandidater",
     )
     # ------------------------------------------------------------------
-    # 3. Known direct examples
+    # 3. Known direct FI examples
     # ------------------------------------------------------------------
     known_urls = [
         (
             "https://www.fi.se/contentassets/"
             "79e6c3558bd9473fb70a418f51df48d0/"
-            "aggregerade-blankningspositioner-2022-06-01.xlsx"
+            "aggregerade-blankningspositioner-"
+            "2022-06-01.xlsx"
         ),
         (
             "https://www.fi.se/contentassets/"
             "79e6c3558bd9473fb70a418f51df48d0/"
-            "aggregerade-blankningspositioner-2022-06-08.xlsx"
+            "aggregerade-blankningspositioner-"
+            "2022-06-08.xlsx"
         ),
     ]
     for url in known_urls:
-        snapshot_date = extract_date_from_filename(url)
-        if snapshot_date and in_range(snapshot_date):
+        snapshot_date = (
+            extract_date_from_filename(
+                url
+            )
+        )
+        if (
+            snapshot_date is not None
+            and in_range(snapshot_date)
+        ):
             candidates.append(
                 Candidate(
                     url=url,
@@ -672,7 +909,10 @@ def discover_candidates() -> list[Candidate]:
     # ------------------------------------------------------------------
     # Deduplicate
     # ------------------------------------------------------------------
-    unique: dict[tuple[str, str], Candidate] = {}
+    unique: dict[
+        tuple[str, str],
+        Candidate,
+    ] = {}
     for candidate in candidates:
         key = (
             candidate.snapshot_date.isoformat(),
@@ -688,44 +928,93 @@ def discover_candidates() -> list[Candidate]:
         ),
     )
     return result
+# ---------------------------------------------------------------------------
+# Download candidates
+# ---------------------------------------------------------------------------
 def download_candidates(
     candidates: list[Candidate],
 ) -> list[dict]:
     validations = []
-    # Group by date. We want one successful source per snapshot.
-    by_date: dict[date, list[Candidate]] = {}
+    by_date: dict[
+        date,
+        list[Candidate],
+    ] = {}
     for candidate in candidates:
         by_date.setdefault(
             candidate.snapshot_date,
             [],
         ).append(candidate)
-    for snapshot_date in sorted(by_date):
+    for snapshot_date in sorted(
+        by_date
+    ):
         print()
         print("-" * 70)
         print(
-            f"Snapshot {snapshot_date.isoformat()}"
+            f"Snapshot "
+            f"{snapshot_date.isoformat()}"
         )
         existing = (
             RAW_DIR
-            / f"fi_aggregate_{snapshot_date.isoformat()}.jsonl"
+            / f"fi_aggregate_"
+            f"{snapshot_date.isoformat()}.jsonl"
         )
         if existing.exists():
-            print("Finns redan:", existing)
+            existing_records = (
+                read_existing_snapshot(
+                    existing
+                )
+            )
+            validation = (
+                validate_snapshot(
+                    existing_records,
+                    snapshot_date,
+                )
+            )
+            print(
+                "Finns redan:",
+                existing,
+            )
+            print(
+                f"  Rader: "
+                f"{validation['rows']}"
+            )
+            print(
+                f"  Unika emittenter: "
+                f"{validation['unique_issuers']}"
+            )
+            if validation["valid"]:
+                validations.append(
+                    validation
+                )
+                print(
+                    "  Återanvänds: "
+                    "befintlig snapshot är giltig."
+                )
+            else:
+                print(
+                    "  FEL: befintlig snapshot "
+                    "klarade inte integritetskontrollen."
+                )
             continue
-        candidates_for_date = by_date[snapshot_date]
+        candidates_for_date = (
+            by_date[snapshot_date]
+        )
         successful = False
-        # Prefer original FI over archive.
         candidates_for_date.sort(
             key=lambda candidate: {
                 "known-fi": 0,
                 "commoncrawl": 1,
                 "wayback": 2,
-            }.get(candidate.source, 9)
+            }.get(
+                candidate.source,
+                9,
+            )
         )
         for candidate in candidates_for_date:
             print(
-                f"Försöker {candidate.source}:"
-                f" {candidate.url}"
+                f"Försöker "
+                f"{candidate.source}: "
+                f"{candidate.url}"
             )
             content = None
             if candidate.source in (
@@ -735,9 +1024,12 @@ def download_candidates(
                 content = download_direct(
                     candidate
                 )
-            if content is None and (
-                candidate.source == "wayback"
-                or candidate.archive_timestamp
+            if (
+                content is None
+                and (
+                    candidate.source == "wayback"
+                    or candidate.archive_timestamp
+                )
             ):
                 content = download_wayback(
                     candidate
@@ -746,7 +1038,8 @@ def download_candidates(
                 print("  MISS")
                 continue
             print(
-                f"  Hämtad: {len(content):,} bytes"
+                f"  Hämtad: "
+                f"{len(content):,} bytes"
             )
             try:
                 records = parse_xlsx(
@@ -755,25 +1048,28 @@ def download_candidates(
                     source=candidate.source,
                     source_url=candidate.url,
                 )
-                validation = validate_snapshot(
-                    records,
-                    snapshot_date,
+                validation = (
+                    validate_snapshot(
+                        records,
+                        snapshot_date,
+                    )
                 )
                 print(
-                    f"  Rader: {validation['rows']}"
+                    f"  Rader: "
+                    f"{validation['rows']}"
                 )
                 print(
-                    f"  Unika emittenter:"
-                    f" {validation['unique_issuers']}"
+                    f"  Unika emittenter: "
+                    f"{validation['unique_issuers']}"
                 )
                 print(
-                    f"  Max blankning:"
-                    f" {validation['max_position']}"
+                    f"  Max blankning: "
+                    f"{validation['max_position']}"
                 )
                 if not validation["valid"]:
                     print(
-                        "  FEL: snapshot klarade inte "
-                        "integritetskontrollen."
+                        "  FEL: snapshot klarade "
+                        "inte integritetskontrollen."
                     )
                     print(
                         json.dumps(
@@ -806,8 +1102,13 @@ def download_candidates(
                 "  INGEN KÄLLA FUNNEN"
             )
     return validations
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 def main() -> None:
-    candidates = discover_candidates()
+    candidates = (
+        discover_candidates()
+    )
     print()
     print("=" * 70)
     print("KANDIDATER")
@@ -818,10 +1119,14 @@ def main() -> None:
             candidate.source,
             candidate.url,
         )
-    validations = download_candidates(
-        candidates
+    validations = (
+        download_candidates(
+            candidates
+        )
     )
-    combined = rebuild_combined_dataset()
+    combined = (
+        rebuild_combined_dataset()
+    )
     write_metadata(
         candidates,
         validations,
@@ -831,7 +1136,7 @@ def main() -> None:
     print("KLART")
     print("=" * 70)
     print(
-        "Verifierade snapshots:",
+        "Giltiga snapshots:",
         len(validations),
     )
     print(
