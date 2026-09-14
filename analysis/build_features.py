@@ -37,12 +37,12 @@ OUTPUT_DIR = (
 
 OUTPUT_PATH = (
     OUTPUT_DIR
-    / "fi_price_features.jsonl"
+    / "features.jsonl"
 )
 
 METADATA_PATH = (
     OUTPUT_DIR
-    / "fi_price_features_metadata.json"
+    / "features_metadata.json"
 )
 
 RETURN_HORIZONS = (
@@ -523,14 +523,27 @@ def attach_prices(
 
     matched = 0
     unmatched = 0
+    matched_by_isin = 0
+    matched_by_issuer = 0
 
     for row in fi.itertuples(
         index=False
     ):
+        mapping_source = None
+
+        # Primärmatchning: ISIN/security_key.
         series = lookup.get(
             row.security_key
         )
 
+        if (
+            series is not None
+            and not series.empty
+        ):
+            mapping_source = "isin"
+
+        # Fallback: issuer får endast användas
+        # när FI-observationen saknar ISIN.
         if (
             series is None
             and not normalize_text(
@@ -543,6 +556,12 @@ def attach_prices(
                     row.issuer
                 )
             )
+
+            if (
+                series is not None
+                and not series.empty
+            ):
+                mapping_source = "issuer"
 
         if (
             series is None
@@ -562,6 +581,8 @@ def attach_prices(
             "ns",
         )
 
+        # Vi använder första prisdagen på eller efter
+        # FI-observationen. Aldrig ett pris före signalen.
         entry_idx = int(
             np.searchsorted(
                 dates,
@@ -579,6 +600,11 @@ def attach_prices(
 
         matched += 1
 
+        if mapping_source == "isin":
+            matched_by_isin += 1
+        elif mapping_source == "issuer":
+            matched_by_issuer += 1
+
         entry = series.iloc[
             entry_idx
         ]
@@ -594,8 +620,19 @@ def attach_prices(
         ] = entry["date"]
 
         result[
-            "close"
+            "close_on_signal_date"
         ] = entry_price
+
+        result[
+            "days_from_fi_to_price"
+        ] = (
+            entry["date"]
+            - row.snapshot_date
+        ).days
+
+        result[
+            "price_match_available"
+        ] = True
 
         result[
             "yahoo_symbol"
@@ -605,9 +642,7 @@ def attach_prices(
 
         result[
             "price_mapping_source"
-        ] = entry.get(
-            "mapping_source"
-        )
+        ] = mapping_source
 
         for horizon in (
             RETURN_HORIZONS
@@ -662,6 +697,8 @@ def attach_prices(
             ),
             "matched_rows": matched,
             "unmatched_rows": unmatched,
+            "matched_by_isin": matched_by_isin,
+            "matched_by_issuer": matched_by_issuer,
         },
     )
 
@@ -683,11 +720,51 @@ def clean_for_json(
                 )
             )
 
-    return frame.replace(
-        {
-            np.nan: None
-        }
+    # JSON ska aldrig innehålla NaN/NaT.
+    frame = frame.where(
+        pd.notna(frame),
+        None,
     )
+
+    return frame
+
+
+def validate_output_columns(
+    frame: pd.DataFrame,
+) -> None:
+    required = {
+        "snapshot_date",
+        "issuer",
+        "isin",
+        "security_key",
+        "yahoo_symbol",
+        "price_mapping_source",
+        "price_date",
+        "close_on_signal_date",
+        "days_from_fi_to_price",
+        "price_match_available",
+        "short_interest_pct",
+        "active_holders",
+        "max_individual_position_pct",
+        "max_position_share_pct",
+        "forward_return_1d",
+        "forward_return_5d",
+        "forward_return_20d",
+        "forward_return_60d",
+    }
+
+    missing = required.difference(
+        frame.columns
+    )
+
+    if missing:
+        raise RuntimeError(
+            "Featurejobb saknar "
+            "förväntade outputkolumner: "
+            + ", ".join(
+                sorted(missing)
+            )
+        )
 
 
 def write_jsonl(
@@ -764,6 +841,10 @@ def main() -> None:
             "matchade FI-observationer."
         )
 
+    validate_output_columns(
+        result
+    )
+
     result = clean_for_json(
         result
     )
@@ -793,6 +874,12 @@ def main() -> None:
         ],
         "unmatched_fi_rows": stats[
             "unmatched_rows"
+        ],
+        "matched_by_isin": stats[
+            "matched_by_isin"
+        ],
+        "matched_by_issuer": stats[
+            "matched_by_issuer"
         ],
         "security_keys_fi": int(
             fi[
@@ -847,6 +934,14 @@ def main() -> None:
         "matchade, "
         f"{stats['unmatched_rows']:,} "
         "omatchade."
+    )
+
+    print(
+        "Featurejobb: "
+        f"{stats['matched_by_isin']:,} "
+        "matchade via ISIN, "
+        f"{stats['matched_by_issuer']:,} "
+        "via issuer."
     )
 
     print(
