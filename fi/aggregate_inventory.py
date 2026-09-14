@@ -17,25 +17,13 @@ def fetch_aggregate() -> bytes:
         headers=HEADERS,
         timeout=FI_AGGREGATE_TIMEOUT,
     )
-    print(
-        "HTTP:",
-        response.status_code,
-    )
+    print("HTTP:", response.status_code)
     print(
         "Content-Type:",
-        response.headers.get(
-            "Content-Type",
-            "",
-        ),
+        response.headers.get("Content-Type", ""),
     )
-    print(
-        "Bytes:",
-        len(response.content),
-    )
-    print(
-        "URL:",
-        response.url,
-    )
+    print("Bytes:", len(response.content))
+    print("URL:", response.url)
     if response.status_code != 200:
         raise FIError(
             "FI returnerade HTTP "
@@ -45,11 +33,7 @@ def fetch_aggregate() -> bytes:
 def read_aggregate(
     data: bytes,
 ) -> pd.DataFrame:
-    """
-    Läser FI:s ODS-fil.
-    FI:s aggregatfil har sex metadata-/rubrikrader
-    före själva tabellen.
-    """
+    """Läser FI:s ODS-fil."""
     try:
         table = pd.read_excel(
             BytesIO(data),
@@ -93,26 +77,42 @@ def normalize_dates(
         errors="coerce",
     )
     return table
+def get_counts(
+    table: pd.DataFrame,
+) -> pd.Series:
+    """Returnerar antal observationer per positionsdatum."""
+    valid_dates = table[
+        table["position_date"].notna()
+    ].copy()
+    return (
+        valid_dates
+        .groupby(
+            valid_dates["position_date"].dt.date
+        )
+        .size()
+        .sort_index()
+    )
 def print_summary(
     table: pd.DataFrame,
 ) -> None:
-    """Skriver en sammanfattning av datumfördelningen."""
+    """Skriver en kort diagnostisk sammanfattning."""
     total_rows = len(table)
     valid_dates = table[
         table["position_date"].notna()
     ].copy()
-    unique_dates = sorted(
-        valid_dates["position_date"]
-        .dt.date
-        .unique()
-    )
+    counts = get_counts(table)
+    if counts.empty:
+        raise FIError(
+            "FI-filen innehöll inga giltiga "
+            "positionsdatum."
+        )
     print()
     print("=" * 72)
     print("FI AGGREGATE INVENTORY")
     print("=" * 72)
-    print()
     print(
-        f"Råa rader:              {total_rows:,}"
+        f"Råa rader:              "
+        f"{total_rows:,}"
     )
     print(
         "Rader med giltigt datum: "
@@ -124,103 +124,87 @@ def print_summary(
     )
     print(
         "Unika positionsdatum:    "
-        f"{len(unique_dates):,}"
+        f"{len(counts):,}"
     )
-    if not unique_dates:
-        raise FIError(
-            "FI-filen innehöll inga giltiga "
-            "positionsdatum."
-        )
     print(
         "Första datum:            "
-        f"{unique_dates[0]}"
+        f"{counts.index[0]}"
     )
     print(
         "Sista datum:             "
-        f"{unique_dates[-1]}"
+        f"{counts.index[-1]}"
     )
     print()
     print("-" * 72)
-    print("Antal observationer per positionsdatum")
-    print("-" * 72)
-    counts = (
-        valid_dates
-        .groupby(
-            valid_dates["position_date"].dt.date
-        )
-        .size()
-        .sort_index()
+    print(
+        "TOPP 30 DATUM EFTER ANTAL OBSERVATIONER"
     )
-    for position_date, count in counts.items():
+    print("-" * 72)
+    top_counts = (
+        counts
+        .sort_values(
+            ascending=False
+        )
+        .head(30)
+    )
+    for position_date, count in top_counts.items():
         print(
-            f"{position_date}    {count:>6,}"
+            f"{position_date}    "
+            f"{count:>6,}"
         )
     print()
     print("-" * 72)
-    print("Årssammanfattning")
+    print("DATUM RUNT 2022-06-09")
+    print("-" * 72)
+    transition = counts.loc[
+        (
+            counts.index
+            >= pd.Timestamp(
+                "2022-05-25"
+            ).date()
+        )
+        & (
+            counts.index
+            <= pd.Timestamp(
+                "2022-06-15"
+            ).date()
+        )
+    ]
+    if transition.empty:
+        print(
+            "Inga observationer i intervallet."
+        )
+    else:
+        for position_date, count in (
+            transition.items()
+        ):
+            print(
+                f"{position_date}    "
+                f"{count:>6,}"
+            )
+    print()
+    print("-" * 72)
+    print("ÅRSSAMMANFATTNING")
     print("-" * 72)
     yearly = (
         valid_dates
         .groupby(
-            valid_dates["position_date"].dt.year
+            valid_dates[
+                "position_date"
+            ].dt.year
         )
         .size()
         .sort_index()
     )
     for year, count in yearly.items():
         print(
-            f"{year}    {count:>10,}"
-        )
-def print_transition(
-    table: pd.DataFrame,
-    start: str,
-    end: str,
-) -> None:
-    """
-    Skriver detaljer kring en specifik
-    övergång i historiken.
-    """
-    start_date = pd.Timestamp(start)
-    end_date = pd.Timestamp(end)
-    subset = table[
-        table["position_date"].between(
-            start_date,
-            end_date,
-        )
-    ].copy()
-    if subset.empty:
-        print()
-        print(
-            f"Inga observationer mellan "
-            f"{start} och {end}."
-        )
-        return
-    counts = (
-        subset
-        .groupby(
-            subset["position_date"].dt.date
-        )
-        .size()
-        .sort_index()
-    )
-    print()
-    print("-" * 72)
-    print(
-        f"Detaljer: {start} → {end}"
-    )
-    print("-" * 72)
-    for position_date, count in counts.items():
-        print(
-            f"{position_date}    {count:>6,}"
+            f"{year}    "
+            f"{count:>10,}"
         )
 def print_gaps(
     table: pd.DataFrame,
 ) -> None:
-    """
-    Identifierar luckor mellan observerade datum.
-    Detta är diagnostik. Alla kalenderdagar behöver
-    inte ha en publicerad observation.
-    """
+    """Identifierar luckor mellan observerade datum."""
     dates = (
         table["position_date"]
         .dropna()
@@ -246,15 +230,15 @@ def print_gaps(
     print("Luckor i kalenderdatum")
     print("-" * 72)
     print(
-        f"Förväntade kalenderdagar: "
+        "Förväntade kalenderdagar: "
         f"{len(expected):,}"
     )
     print(
-        f"Observerade datum:        "
+        "Observerade datum:        "
         f"{len(observed):,}"
     )
     print(
-        f"Saknade kalenderdatum:    "
+        "Saknade kalenderdatum:    "
         f"{len(missing):,}"
     )
     if missing.empty:
@@ -272,37 +256,20 @@ def print_gaps(
         )
     if len(missing) > 100:
         print(
-            f"... och ytterligare "
+            "... och ytterligare "
             f"{len(missing) - 100:,}."
         )
 def parse_args() -> argparse.Namespace:
     """Tolkar kommandoradsargument."""
-    parser = argparse.ArgumentParser(
+    return argparse.ArgumentParser(
         description=(
             "Analyserar datumfördelningen i "
             "FI:s aktuella aggregatfil."
         )
-    )
-    parser.add_argument(
-        "--transition-start",
-        default="2022-05-25",
-        help=(
-            "Startdatum för detaljerad "
-            "övergångsanalys."
-        ),
-    )
-    parser.add_argument(
-        "--transition-end",
-        default="2022-06-15",
-        help=(
-            "Slutdatum för detaljerad "
-            "övergångsanalys."
-        ),
-    )
-    return parser.parse_args()
+    ).parse_args()
 def main() -> int:
     """Kör inventeringen."""
-    args = parse_args()
+    parse_args()
     try:
         data = fetch_aggregate()
         table = read_aggregate(
@@ -314,11 +281,6 @@ def main() -> int:
         print_summary(
             table
         )
-        print_transition(
-            table,
-            args.transition_start,
-            args.transition_end,
-        )
         print_gaps(
             table
         )
@@ -327,7 +289,8 @@ def main() -> int:
         requests.RequestException,
     ) as exc:
         print(
-            f"FI aggregate inventory FEL: {exc}"
+            f"FI aggregate inventory FEL: "
+            f"{exc}"
         )
         return 1
     return 0
