@@ -2,8 +2,9 @@
 
 VIKTIGT:
 FI:s officiella aggregat omfattar rapporterade positioner över 0,1 %.
-FI:s historiska positionsfil omfattar endast publicerade individuella
-positioner över 0,5 %.
+FI:s historiska positionsfil omfattar publicerade individuella
+positioner och innehåller även markeringar när positioner fallit
+under 0,5 %.
 
 Resultatet från denna modul är därför en REKONSTRUERAD serie över de
 synliga individuella positionerna. Den får inte beskrivas som FI:s
@@ -39,36 +40,54 @@ OUTPUT_DIR = (
 )
 
 OUTPUT = OUTPUT_DIR / "reconstructed.jsonl"
-METADATA = OUTPUT_DIR / "reconstructed_metadata.json"
+
+METADATA = (
+    OUTPUT_DIR
+    / "reconstructed_metadata.json"
+)
 
 START_DATE = pd.Timestamp("2022-05-25")
 
 
 def parse_position(value: object) -> float:
-    """Tolkar en FI-position."""
+    """Tolkar en normaliserad FI-position."""
+
     if value is None:
         return 0.0
 
-    text = str(value).strip().replace(",", ".")
+    if pd.isna(value):
+        return 0.0
+
+    text = str(value).strip().replace(
+        ",",
+        ".",
+    )
 
     if not text or text.lower() == "nan":
         return 0.0
 
-    # FI använder <0,5 när en tidigare synlig position
-    # har fallit under publiceringströskeln.
+    # En position som markerats som <0,5 i FI:s historik
+    # normaliseras till None i historical_positions.py.
+    # Här betyder None därför att den tidigare synliga
+    # positionen ska avslutas.
     if text.startswith("<"):
         return 0.0
 
     try:
         return float(
-            text.replace("%", "").strip()
+            text.replace(
+                "%",
+                "",
+            ).strip()
         )
+
     except ValueError:
         return 0.0
 
 
 def load_history() -> pd.DataFrame:
-    """Läser FI:s historiska individregister."""
+    """Läser den normaliserade FI-historiken."""
+
     if not INPUT.exists():
         raise FileNotFoundError(
             f"Saknar FI-historik: {INPUT}"
@@ -80,11 +99,11 @@ def load_history() -> pd.DataFrame:
     )
 
     required = {
-        "Innehavare av positionen",
-        "Namn på emittent",
-        "Position i procent",
-        "Datum för positionen",
-        "ISIN",
+        "holder",
+        "issuer",
+        "position",
+        "position_date",
+        "isin",
     }
 
     missing = required.difference(
@@ -94,28 +113,34 @@ def load_history() -> pd.DataFrame:
     if missing:
         raise ValueError(
             "Saknade kolumner: "
-            + ", ".join(sorted(missing))
+            + ", ".join(
+                sorted(missing)
+            )
+            + ". Tillgängliga kolumner: "
+            + ", ".join(
+                map(
+                    str,
+                    frame.columns,
+                )
+            )
         )
 
     frame = frame.rename(
         columns={
-            "Innehavare av positionen": "holder",
-            "Namn på emittent": "issuer",
-            "Position i procent": "position_pct",
-            "Datum för positionen": "position_date",
-            "ISIN": "isin",
+            "position": "position_pct",
         }
     )
 
     frame["position_date"] = pd.to_datetime(
         frame["position_date"],
         errors="coerce",
-        dayfirst=True,
     )
 
     frame["position_pct"] = frame[
         "position_pct"
-    ].map(parse_position)
+    ].map(
+        parse_position
+    )
 
     for column in (
         "holder",
@@ -168,6 +193,7 @@ def reconstruct(
     frame: pd.DataFrame,
 ) -> pd.DataFrame:
     """Spelar igenom positionshistoriken kronologiskt."""
+
     state: dict[
         tuple[str, str],
         dict,
@@ -175,7 +201,10 @@ def reconstruct(
 
     output: list[dict] = []
 
-    for position_date, day in frame.groupby(
+    for (
+        position_date,
+        day,
+    ) in frame.groupby(
         "position_date",
         sort=True,
     ):
@@ -197,6 +226,9 @@ def reconstruct(
                 ),
             }
 
+        # Spela igenom äldre historik för att bygga upp
+        # korrekt state, men börja skriva observationer
+        # från START_DATE.
         if position_date < START_DATE:
             continue
 
@@ -214,12 +246,18 @@ def reconstruct(
         )
 
         grouped = active_frame.groupby(
-            ["issuer", "isin"],
+            [
+                "issuer",
+                "isin",
+            ],
             dropna=False,
             sort=True,
         )
 
-        for (issuer, isin), rows in grouped:
+        for (
+            issuer,
+            isin,
+        ), rows in grouped:
             positions = rows[
                 "position_pct"
             ]
@@ -246,13 +284,19 @@ def reconstruct(
                         .isoformat()
                     ),
                     "issuer": issuer,
-                    "isin": isin or None,
+                    "isin": (
+                        isin
+                        if isin
+                        else None
+                    ),
                     "short_interest_pct": round(
                         total,
                         6,
                     ),
                     "active_holders": int(
-                        (positions > 0).sum()
+                        (
+                            positions > 0
+                        ).sum()
                     ),
                     "max_individual_position_pct": (
                         round(
@@ -271,10 +315,14 @@ def reconstruct(
                         "fi_historical_positions"
                     ),
                     "coverage": (
-                        "visible_positions_above_0_5_pct"
+                        "visible_positions_"
+                        "from_fi_history"
                     ),
                 }
             )
+
+    if not output:
+        return pd.DataFrame()
 
     return pd.DataFrame(
         output
@@ -292,6 +340,7 @@ def write_result(
     result: pd.DataFrame,
 ) -> None:
     """Skriver JSONL och metadata."""
+
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -337,19 +386,37 @@ def write_result(
         "source": (
             "Finansinspektionen GetHistFile"
         ),
-        "source_threshold": ">0.5%",
-        "official_aggregate_threshold": ">0.1%",
+        "official_aggregate_threshold": (
+            ">0.1%"
+        ),
         "method": (
-            "Chronological replay of individual "
-            "FI position changes. A reported <0.5 "
-            "position closes the previously visible "
-            "position."
+            "Chronological replay of "
+            "normalized individual FI "
+            "position changes. A missing "
+            "position value represents a "
+            "previously visible position "
+            "that has fallen below the "
+            "publication threshold."
         ),
         "limitations": [
-            "Not FI's official aggregate series.",
-            "Positions from 0.1% to 0.5% are missing.",
-            "Only dates with position changes are emitted.",
-            "Pre-2022 history is replayed to establish state.",
+            (
+                "Not FI's official aggregate "
+                "series."
+            ),
+            (
+                "Positions below FI's "
+                "individual publication "
+                "threshold are not available "
+                "as exact values."
+            ),
+            (
+                "Only dates with position "
+                "changes are emitted."
+            ),
+            (
+                "Pre-2022 history is replayed "
+                "to establish state."
+            ),
         ],
     }
 
@@ -369,7 +436,22 @@ def main() -> int:
 
     print(
         "FI reconstruction: "
-        f"{len(frame)} positionshändelser."
+        f"{len(frame)} "
+        "positionshändelser."
+    )
+
+    print(
+        "Kolumner: "
+        + ", ".join(
+            frame.columns
+        )
+    )
+
+    print(
+        "Period: "
+        f"{frame['position_date'].min().date()} "
+        "till "
+        f"{frame['position_date'].max().date()}"
     )
 
     result = reconstruct(
@@ -388,7 +470,20 @@ def main() -> int:
 
     print(
         "FI reconstruction klar: "
-        f"{len(result)} observationer."
+        f"{len(result)} "
+        "observationer."
+    )
+
+    print(
+        f"Unika emittenter: "
+        f"{result['issuer'].nunique()}"
+    )
+
+    print(
+        f"Period: "
+        f"{result['snapshot_date'].min()} "
+        "till "
+        f"{result['snapshot_date'].max()}"
     )
 
     print(
