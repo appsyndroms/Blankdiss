@@ -66,6 +66,7 @@ class ResourceParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "script" and self._in_script:
             script = "".join(self._script_parts).strip()
+
             if script:
                 self.inline_scripts.append(script)
 
@@ -84,36 +85,18 @@ def same_host(url: str, base_url: str) -> bool:
 
 
 def extract_endpoints(text: str) -> set[str]:
-    """
-    Försöker hitta backend-endpoints i HTML/JavaScript.
-
-    Vi letar inte bara efter FI:s kända BlankningsRegister-paths,
-    utan även generiska AJAX/fetch-mönster.
-    """
+    """Försöker hitta backend-endpoints i HTML/JavaScript."""
 
     endpoints: set[str] = set()
 
     patterns = [
-        # Direkta FI-paths
         r"""['"](/BlankningsRegister/[^'"]+)['"]""",
         r"""[`"](/BlankningsRegister/[^`"]+)[`"]""",
-
-        # url: "/..."
         r"""url\s*:\s*['"]([^'"]+)['"]""",
-
-        # fetch("/...")
         r"""fetch\s*\(\s*['"]([^'"]+)['"]""",
-
-        # $.get("/...")
         r"""\$\.(?:get|getJSON|post)\s*\(\s*['"]([^'"]+)['"]""",
-
-        # $.ajax({ url: "/..." })
         r"""url\s*:\s*['"]([^'"]*BlankningsRegister[^'"]*)['"]""",
-
-        # href/data-url etc
         r"""(?:href|data-url|data-href|data-endpoint|data-api|data-ajax-url)\s*=\s*['"]([^'"]+)['"]""",
-
-        # ASP.NET/MVC-style paths
         r"""['"](/[^'"]*(?:Get|Post|Download|Report|Export|History|Historical|Aggregate|Aggregat)[^'"]*)['"]""",
     ]
 
@@ -124,11 +107,10 @@ def extract_endpoints(text: str) -> set[str]:
             if not value:
                 continue
 
-            # Undvik uppenbart irrelevanta värden.
             if value.startswith("javascript:"):
                 continue
 
-            if value.startswith("/") or value.startswith("http://") or value.startswith("https://"):
+            if value.startswith(("/", "http://", "https://")):
                 endpoints.add(value)
 
     return endpoints
@@ -136,19 +118,19 @@ def extract_endpoints(text: str) -> set[str]:
 
 def extract_parameter_names(url_or_text: str) -> set[str]:
     """Hittar potentiella query-parametrar."""
+
     params: set[str] = set()
 
-    # Riktiga query strings.
     parsed = urlparse(url_or_text)
 
     if parsed.query:
         for part in parsed.query.split("&"):
             if "=" in part:
                 key = part.split("=", 1)[0].strip()
+
                 if key:
                     params.add(key)
 
-    # Även parametrar som förekommer i JavaScript.
     patterns = [
         r"""[?&]([A-Za-z][A-Za-z0-9_]*)=""",
         r"""(?:name|param|parameter)\s*[:=]\s*['"]([A-Za-z][A-Za-z0-9_]*)['"]""",
@@ -161,7 +143,11 @@ def extract_parameter_names(url_or_text: str) -> set[str]:
     return params
 
 
-def print_contexts(text: str, terms: list[str], radius: int = 350) -> None:
+def print_contexts(
+    text: str,
+    terms: list[str],
+    radius: int = 350,
+) -> None:
     """Skriver relevanta kodstycken runt givna sökord."""
 
     lower = text.lower()
@@ -192,13 +178,7 @@ def inspect_page(
     url: str,
     label: str,
 ) -> tuple[set[str], list[str]]:
-    """
-    Hämtar och analyserar en FI-sida.
-
-    Returnerar:
-      - endpoints
-      - externa scripts
-    """
+    """Hämtar och analyserar en FI-sida."""
 
     print()
     print("=" * 80)
@@ -217,7 +197,10 @@ def inspect_page(
         return set(), []
 
     print(f"HTTP: {response.status_code}")
-    print(f"Content-Type: {response.headers.get('content-type', '')}")
+    print(
+        "Content-Type:",
+        response.headers.get("content-type", ""),
+    )
     print(f"Length: {len(response.content)}")
 
     if response.status_code != 200:
@@ -281,8 +264,7 @@ def inspect_page(
             print(f"<{tag}> {name}={value}")
 
     for script in parser.inline_scripts:
-        script_endpoints = extract_endpoints(script)
-        endpoints.update(script_endpoints)
+        endpoints.update(extract_endpoints(script))
 
         if any(
             term in script.lower()
@@ -309,7 +291,7 @@ def inspect_page(
                 ],
             )
 
-    return endpoints, external_scripts
+    return endpoints, sorted(set(external_scripts))
 
 
 def inspect_external_script(
@@ -334,13 +316,17 @@ def inspect_external_script(
         return set()
 
     print(f"HTTP: {response.status_code}")
-    print(f"Content-Type: {response.headers.get('content-type', '')}")
+    print(
+        "Content-Type:",
+        response.headers.get("content-type", ""),
+    )
     print(f"Length: {len(response.content)}")
 
     if response.status_code != 200:
         return set()
 
     text = response.text
+
     endpoints = extract_endpoints(text)
 
     if endpoints:
@@ -379,12 +365,7 @@ def candidate_pages(
     links: list[str],
     base_url: str,
 ) -> list[str]:
-    """
-    Väljer relevanta FI-sidor för vidare undersökning.
-
-    Vi prioriterar sidor som verkar kunna visa emittent-, innehavar-
-    eller positionshistorik.
-    """
+    """Väljer relevanta FI-sidor för vidare undersökning."""
 
     candidates: list[str] = []
     seen: set[str] = set()
@@ -405,7 +386,10 @@ def candidate_pages(
 
         path_lower = urlparse(absolute).path.lower()
 
-        if not any(keyword.lower() in path_lower for keyword in keywords):
+        if not any(
+            keyword.lower() in path_lower
+            for keyword in keywords
+        ):
             continue
 
         if absolute in seen:
@@ -414,7 +398,6 @@ def candidate_pages(
         seen.add(absolute)
         candidates.append(absolute)
 
-    # Prioritera de mest intressanta sidorna.
     def score(url: str) -> tuple[int, int]:
         lower = url.lower()
 
@@ -451,10 +434,13 @@ def main() -> int:
 
     # ------------------------------------------------------------------
     # 1. Hämta huvudsidan
+    #
+    # OBS:
+    # fi.client.fetch_html() tar inga argument.
     # ------------------------------------------------------------------
 
     try:
-        html = fetch_html(FI_URL)
+        html = fetch_html()
     except FIError as exc:
         print(f"Kunde inte hämta FI-sidan: {exc}")
         return 1
@@ -492,7 +478,7 @@ def main() -> int:
         if "/BlankningsRegister/" in absolute:
             blank_links.add(absolute)
 
-    for tag, name, value in parser.attributes:
+    for _tag, _name, value in parser.attributes:
         absolute = absolute_url(FI_URL, value)
 
         if "/BlankningsRegister/" in absolute:
@@ -559,16 +545,16 @@ def main() -> int:
     # 5. Analysera externa FI-script
     # ------------------------------------------------------------------
 
-    external_scripts: list[str] = []
-
-    for script in parser.scripts:
-        script_url = absolute_url(FI_URL, script)
-
-        if same_host(script_url, FI_URL):
-            external_scripts.append(script_url)
-
-    # Dubbletter bort.
-    external_scripts = sorted(set(external_scripts))
+    external_scripts = sorted(
+        {
+            absolute_url(FI_URL, script)
+            for script in parser.scripts
+            if same_host(
+                absolute_url(FI_URL, script),
+                FI_URL,
+            )
+        }
+    )
 
     print()
     print("=" * 80)
@@ -576,13 +562,21 @@ def main() -> int:
     print("=" * 80)
 
     for script_url in external_scripts:
-        inspect_external_script(session, script_url)
+        discovered = inspect_external_script(
+            session,
+            script_url,
+        )
+
+        endpoints.update(discovered)
 
     # ------------------------------------------------------------------
     # 6. Hitta relevanta undersidor
     # ------------------------------------------------------------------
 
-    pages = candidate_pages(parser.links, FI_URL)
+    pages = candidate_pages(
+        parser.links,
+        FI_URL,
+    )
 
     print()
     print("=" * 80)
@@ -596,8 +590,6 @@ def main() -> int:
     # 7. Inspektera undersidor
     # ------------------------------------------------------------------
 
-    discovered_endpoints: set[str] = set(endpoints)
-
     for page in pages:
         page_endpoints, page_scripts = inspect_page(
             session,
@@ -605,7 +597,7 @@ def main() -> int:
             label="Blankningsregister-relaterad sida",
         )
 
-        discovered_endpoints.update(page_endpoints)
+        endpoints.update(page_endpoints)
 
         for script_url in page_scripts:
             script_endpoints = inspect_external_script(
@@ -613,7 +605,7 @@ def main() -> int:
                 script_url,
             )
 
-            discovered_endpoints.update(script_endpoints)
+            endpoints.update(script_endpoints)
 
     # ------------------------------------------------------------------
     # 8. Samlad endpoint-lista
@@ -624,7 +616,7 @@ def main() -> int:
     print("SAMLAD ENDPOINT-KARTA")
     print("=" * 80)
 
-    for endpoint in sorted(discovered_endpoints):
+    for endpoint in sorted(endpoints):
         print(endpoint)
 
     # ------------------------------------------------------------------
@@ -633,12 +625,11 @@ def main() -> int:
 
     parameter_names: set[str] = set()
 
-    for endpoint in discovered_endpoints:
+    for endpoint in endpoints:
         parameter_names.update(
             extract_parameter_names(endpoint)
         )
 
-    # Även HTML/JS kan innehålla parametrar som inte syntes i endpoints.
     parameter_names.update(
         extract_parameter_names(html)
     )
@@ -687,13 +678,22 @@ def main() -> int:
         print(f"HTTP-fel: {exc}")
 
     # ------------------------------------------------------------------
-    # 11. Testa om dokumenterade/kända endpoint-paths förekommer
+    # 11. Kontrollera om kända endpoints förekommer
     # ------------------------------------------------------------------
 
     known_paths = {
-        "aggregate": "/BlankningsRegister/GetBlankningsregisterAggregat",
-        "historical": "/BlankningsRegister/GetHistFile",
-        "current": "/BlankningsRegister/GetAktuellFile",
+        "aggregate": (
+            "/BlankningsRegister/"
+            "GetBlankningsregisterAggregat"
+        ),
+        "historical": (
+            "/BlankningsRegister/"
+            "GetHistFile"
+        ),
+        "current": (
+            "/BlankningsRegister/"
+            "GetAktuellFile"
+        ),
     }
 
     print()
@@ -704,11 +704,12 @@ def main() -> int:
     for name, path in known_paths.items():
         found = any(
             path.lower() in endpoint.lower()
-            for endpoint in discovered_endpoints
+            for endpoint in endpoints
         )
 
         print(
-            f"{name:12} {path:65} "
+            f"{name:12} "
+            f"{path:65} "
             f"{'HITTAD' if found else 'EJ HITTAD'}"
         )
 
