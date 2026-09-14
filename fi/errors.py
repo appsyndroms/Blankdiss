@@ -1,7 +1,5 @@
-"""Feltyper för FI-klienten."""
-
-from __future__ import annotations
+"""Feltyper för FI-modulen."""
 
 
 class FIError(Exception):
-    """Kontrollerat fel i FI-flödet."""
+    """Fel vid hämtning, tolkning eller lagring av FI-data."""
