@@ -1,11 +1,11 @@
-name: Testa FI aggregerad fil
+name: Undersök FI aggregerad historik
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   probe:
-    name: Hämta FI:s aggregerade positioner
+    name: Undersök FI aggregate-endpoint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -14,87 +14,239 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install odfpy
-      - name: Hämta FI:s aggregerade fil
+      - name: Diagnostisera FI JavaScript
         run: |
-          python - <<'PY'
+          python -m fi.diagnose \
+            | tee fi-diagnostic-output.txt
+      - name: Testa FI aggregate-endpoint
+        run: |
+          python - <<'PY' \
+            | tee fi-endpoint-probe.txt
+          from __future__ import annotations
+          from datetime import date
           import requests
-          url = (
+          BASE_URL = (
               "https://www.fi.se/"
               "BlankningsRegister/"
               "GetBlankningsregisterAggregat"
           )
-          headers = {
+          HEADERS = {
               "User-Agent": (
                   "Mozilla/5.0 "
                   "(compatible; Blankdiss/1.0)"
               ),
               "Accept": (
-                  "application/vnd.oasis.opendocument.spreadsheet,"
-                  "application/octet-stream,*/*"
+                  "application/vnd.oasis."
+                  "opendocument.spreadsheet,"
+                  "application/octet-stream,"
+                  "*/*"
               ),
           }
-          response = requests.get(
-              url,
-              headers=headers,
-              timeout=60,
-          )
-          print("HTTP:", response.status_code)
-          print("Content-Type:", response.headers.get("Content-Type"))
-          print("Content-Length:", response.headers.get("Content-Length"))
-          print("Content-Disposition:", response.headers.get("Content-Disposition"))
-          print("Bytes:", len(response.content))
-          response.raise_for_status()
-          with open(
-              "fi-aggregate.ods",
-              "wb",
-          ) as file:
-              file.write(response.content)
-          print("Sparade fi-aggregate.ods")
-          PY
-      - name: Inspektera ODS-filen
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import pandas as pd
-          path = Path("fi-aggregate.ods")
-          print()
+          TEST_DATE = date(
+              2026,
+              6,
+              16,
+          ).isoformat()
+          parameter_sets = [
+              (
+                  "utan parametrar",
+                  {},
+              ),
+              (
+                  "date",
+                  {
+                      "date": TEST_DATE,
+                  },
+              ),
+              (
+                  "datum",
+                  {
+                      "datum": TEST_DATE,
+                  },
+              ),
+              (
+                  "fromDate",
+                  {
+                      "fromDate": TEST_DATE,
+                  },
+              ),
+              (
+                  "reportDate",
+                  {
+                      "reportDate": TEST_DATE,
+                  },
+              ),
+              (
+                  "positionDate",
+                  {
+                      "positionDate": TEST_DATE,
+                  },
+              ),
+              (
+                  "asOfDate",
+                  {
+                      "asOfDate": TEST_DATE,
+                  },
+              ),
+          ]
+          session = requests.Session()
+          session.headers.update(HEADERS)
           print("=" * 72)
-          print("FI AGGREGERAD FIL")
+          print("FI ENDPOINT-PROBE")
           print("=" * 72)
-          print("Fil:", path)
-          print("Storlek:", path.stat().st_size, "bytes")
-          sheets = pd.ExcelFile(
-              path,
-              engine="odf",
-          ).sheet_names
-          print()
-          print("ARK:")
-          for sheet in sheets:
-              print("-", sheet)
-          print()
-          for sheet in sheets:
-              print("=" * 72)
-              print("ARK:", sheet)
-              print("=" * 72)
-              frame = pd.read_excel(
-                  path,
-                  sheet_name=sheet,
-                  engine="odf",
-              )
-              print("Rader:", len(frame))
-              print("Kolumner:", list(frame.columns))
+          print("Endpoint:", BASE_URL)
+          print("Testdatum:", TEST_DATE)
+          results = []
+          for name, params in parameter_sets:
               print()
-              print(frame.head(20).to_string(index=False))
+              print("-" * 72)
+              print("GET:", name)
+              print("Parametrar:", params)
+              try:
+                  response = session.get(
+                      BASE_URL,
+                      params=params,
+                      timeout=30,
+                  )
+                  result = {
+                      "method": "GET",
+                      "name": name,
+                      "params": params,
+                      "status": response.status_code,
+                      "content_type": (
+                          response.headers.get(
+                              "Content-Type"
+                          )
+                      ),
+                      "content_length": len(
+                          response.content
+                      ),
+                      "disposition": (
+                          response.headers.get(
+                              "Content-Disposition"
+                          )
+                      ),
+                  }
+                  results.append(result)
+                  print(
+                      "Status:",
+                      result["status"],
+                  )
+                  print(
+                      "Content-Type:",
+                      result["content_type"],
+                  )
+                  print(
+                      "Bytes:",
+                      result["content_length"],
+                  )
+                  print(
+                      "Content-Disposition:",
+                      result["disposition"],
+                  )
+              except requests.RequestException as exc:
+                  print(
+                      "FEL:",
+                      exc,
+                  )
+          for name, data in parameter_sets[1:]:
+              print()
+              print("-" * 72)
+              print("POST:", name)
+              print("Data:", data)
+              try:
+                  response = session.post(
+                      BASE_URL,
+                      data=data,
+                      timeout=30,
+                  )
+                  result = {
+                      "method": "POST",
+                      "name": name,
+                      "params": data,
+                      "status": response.status_code,
+                      "content_type": (
+                          response.headers.get(
+                              "Content-Type"
+                          )
+                      ),
+                      "content_length": len(
+                          response.content
+                      ),
+                      "disposition": (
+                          response.headers.get(
+                              "Content-Disposition"
+                          )
+                      ),
+                  }
+                  results.append(result)
+                  print(
+                      "Status:",
+                      result["status"],
+                  )
+                  print(
+                      "Content-Type:",
+                      result["content_type"],
+                  )
+                  print(
+                      "Bytes:",
+                      result["content_length"],
+                  )
+                  print(
+                      "Content-Disposition:",
+                      result["disposition"],
+                  )
+              except requests.RequestException as exc:
+                  print(
+                      "FEL:",
+                      exc,
+                  )
+          print()
+          print("=" * 72)
+          print("SAMMANFATTNING")
+          print("=" * 72)
+          baseline = next(
+              (
+                  result
+                  for result in results
+                  if (
+                      result["method"] == "GET"
+                      and result["name"]
+                      == "utan parametrar"
+                  )
+              ),
+              None,
+          )
+          if baseline:
+              print(
+                  "Baseline bytes:",
+                  baseline["content_length"],
+              )
+              for result in results:
+                  differs = (
+                      result["content_length"]
+                      != baseline["content_length"]
+                  )
+                  print(
+                      f"{result['method']:4} "
+                      f"{result['name']:15} "
+                      f"status={result['status']} "
+                      f"bytes={result['content_length']} "
+                      f"skiljer={differs}"
+                  )
           PY
-      - name: Ladda upp FI-filen
+      - name: Ladda upp diagnostik
         uses: actions/upload-artifact@v4
         with:
-          name: fi-aggregate-probe
-          path: fi-aggregate.ods
+          name: fi-aggregate-investigation
+          path: |
+            fi-diagnostic-output.txt
+            fi-endpoint-probe.txt
           if-no-files-found: error
           retention-days: 14
