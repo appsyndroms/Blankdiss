@@ -1,4 +1,4 @@
-name: Features QC
+name: Features - build och QC
 
 on:
   workflow_dispatch:
@@ -24,35 +24,52 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Kontrollera feature-data
+      - name: Kontrollera FI-historik
         run: |
-          test -f data/processed/analysis/features.jsonl
-          echo "Feature-dataset hittad."
+          test -f data/processed/fi/aggregate/reconstructed.jsonl
+          echo "FI rekonstruerad historik hittad."
 
       - name: Kontrollera prisdata
         run: |
           test -n "$(find data/raw/prices -maxdepth 1 -name 'prices_*.jsonl' -print -quit)"
           echo "Prisdata hittad."
 
+      - name: Kontrollera instrumentmappning
+        run: |
+          test -f data/analysis/instrument_map.json
+          echo "Instrumentmappning hittad."
+
+      - name: Bygg features
+        run: |
+          python -m analysis.build_features
+
+      - name: Kontrollera feature-data
+        run: |
+          test -f data/processed/analysis/features.jsonl
+          test -f data/processed/analysis/features_metadata.json
+          echo "Feature-dataset skapad."
+
       - name: Kör Feature QC
         run: |
           python -m analysis.features_qc
 
-      - name: Visa QC-rapport
+      - name: Visa Feature QC
         if: always()
         run: |
           if [ -f data/processed/analysis/features_qc.json ]; then
             cat data/processed/analysis/features_qc.json
           else
-            echo "Ingen QC-rapport skapades."
+            echo "Ingen Feature QC-rapport skapades."
           fi
 
-      - name: Spara QC-rapport som artifact
+      - name: Spara feature-data och QC som artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: features-qc
+          name: features-and-qc
           path: |
+            data/processed/analysis/features.jsonl
+            data/processed/analysis/features_metadata.json
             data/processed/analysis/features_qc.json
           if-no-files-found: error
           retention-days: 30
