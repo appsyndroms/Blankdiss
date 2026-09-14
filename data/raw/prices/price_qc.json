@@ -1,258 +1,39 @@
 {
-  "dataset_summary": {
-    "price_file": "prices_2022-05-25_2026-09-12.jsonl",
-    "rows": 311040,
-    "valid_rows": 296482,
-    "invalid_rows": 14558,
-    "duplicate_rows": 0,
-    "unique_price_symbols": 287,
-    "unique_price_isins": 214,
-    "first_price_date": "2022-05-25",
-    "last_price_date": "2026-09-11"
+  "price_file": "prices_2022-05-25_2026-09-12.jsonl",
+  "rows_total": 296482,
+  "rows_valid": 296482,
+  "rows_invalid": 0,
+  "symbols": 287,
+  "isins": 213,
+  "period": {
+    "start": "2022-05-25",
+    "end": "2026-09-11"
   },
-  "invalid_row_breakdown": {
+  "mapping": {
+    "mapping_entries": 340,
+    "mapped_symbols": 288,
+    "unresolved": 47,
+    "price_symbols": 287,
+    "mapped_without_prices": [
+      "VSURE.ST"
+    ],
+    "prices_without_mapping": []
+  },
+  "invalid": {
     "missing_symbol": 0,
     "missing_date": 0,
     "bad_date": 0,
     "missing_close": 0,
-    "nonfinite_close": 14558
-  },
-  "mapping_summary": {
-    "mapping_entries": 340,
-    "mapped_symbols": 289,
-    "unresolved_instruments": 0,
-    "duplicate_yahoo_symbols": 5,
-    "mapped_symbols_without_prices": 2,
-    "price_symbols_without_mapping": 0,
-    "unresolved_examples": [],
-    "duplicate_yahoo_symbol_examples": {
-      "None": [
-        "ISIN:GB00B635TG28",
-        "ISIN:LU0038705702",
-        "ISIN:SE0000101032",
-        "ISIN:SE0000108227",
-        "ISIN:SE0000109290",
-        "ISIN:SE0000117970",
-        "ISIN:SE0000273294",
-        "ISIN:SE0000382335",
-        "ISIN:SE0000652216",
-        "ISIN:SE0001296542",
-        "ISIN:SE0003366871",
-        "ISIN:SE0003622265",
-        "ISIN:SE0007665823",
-        "ISIN:SE0007871645",
-        "ISIN:SE0008374250",
-        "ISIN:SE0008374383",
-        "ISIN:SE0008966295",
-        "ISIN:SE0009806045",
-        "ISIN:SE0011115971",
-        "ISIN:SE0012455525",
-        "ISIN:SE0014960431",
-        "ISIN:SE0016075063",
-        "ISIN:SE0017083983",
-        "ISIN:SE0017161243",
-        "LEI:213800HJQ519AT4VCK42",
-        "LEI:529900BPSFZS6O3A9R04",
-        "LEI:5493002L6I4YHANEYR87",
-        "LEI:54930030A8V6LH0G1Z92",
-        "LEI:54930033BTSY61VHUR49",
-        "LEI:5493003YS3NSPZJ5WU39",
-        "LEI:5493004Q73OEYW1SPE91",
-        "LEI:5493005LXSKPJXQXI542",
-        "LEI:54930074JF89HQZ5DW64",
-        "LEI:5493007FF9DNP5DUJQ78",
-        "LEI:5493007QQ16K1NL2PW55",
-        "LEI:54930082R4LTC7PERT23",
-        "LEI:549300D4GJAZR1EMIA07",
-        "LEI:549300E7QRHEF2IJUY10",
-        "LEI:549300E8DQ5IX5LJ5I21",
-        "LEI:549300FHCTIFJOZ9D484",
-        "LEI:549300MBXCR8ZQJIFP95",
-        "LEI:549300MYLGD0VKNGTJ47",
-        "LEI:549300NZI620CFL1TR88",
-        "LEI:549300QTR46SOJY7TE73",
-        "LEI:549300UIPGM58Z67Z634",
-        "LEI:549300VEBQPHRZBKUX38",
-        "LEI:7437000ZP669LKUTZ738"
-      ],
-      "SCA-B.ST": [
-        "ISIN:SE0000112724",
-        "LEI:549300HGV012CNC8JD22"
-      ],
-      "SIVE.ST": [
-        "ISIN:SE0003917798",
-        "ISIN:SE0008321608",
-        "LEI:549300BWNI7ZPOHOHV76"
-      ],
-      "EOLU-B.ST": [
-        "ISIN:SE0007075056",
-        "LEI:213800T7T7I7WAOX8Y72"
-      ],
-      "PDX.ST": [
-        "ISIN:SE0007100359",
-        "ISIN:SE0008294953"
-      ]
-    },
-    "mapped_symbols_without_prices_examples": [
-      "None",
-      "VSURE.ST"
-    ],
-    "price_symbols_without_mapping_examples": []
-  },
-  "price_quality": {
-    "symbols_with_1080_observations": 0,
-    "symbols_with_less_than_1000_observations": 19,
-    "largest_observation_count": 1079,
-    "smallest_observation_count": 82,
-    "gaps_over_7_days": 0,
-    "large_price_moves_ge_50pct": 111,
-    "large_price_move_examples": [
-      {
-        "yahoo_symbol": "ABSL-B.ST",
-        "date": "2026-03-12",
-        "previous_close": 9.579999923706055,
-        "close": 4.710000038146973,
-        "relative_change": 0.508350722791562
-      },
-      {
-        "yahoo_symbol": "ACE.ST",
-        "date": "2023-08-08",
-        "previous_close": 16.239999771118164,
-        "close": 4.78000020980835,
-        "relative_change": 0.7056650075630367
-      },
-      {
-        "yahoo_symbol": "ACE.ST",
-        "date": "2026-07-03",
-        "previous_close": 3.2799999713897705,
-        "close": 0.8080000281333923,
-        "relative_change": 0.7536585258593663
-      },
-      {
-        "yahoo_symbol": "ALZ.ST",
-        "date": "2022-09-28",
-        "previous_close": 1.0549999475479126,
-        "close": 2.0,
-        "relative_change": 0.8957346914078121
-      },
-      {
-        "yahoo_symbol": "ALZ.ST",
-        "date": "2022-10-11",
-        "previous_close": 2.059999942779541,
-        "close": 3.559999942779541,
-        "relative_change": 0.7281553600317399
-      },
-      {
-        "yahoo_symbol": "ALZ.ST",
-        "date": "2025-10-06",
-        "previous_close": 1.093999981880188,
-        "close": 1.8179999589920044,
-        "relative_change": 0.6617915805332317
-      },
-      {
-        "yahoo_symbol": "ALZ.ST",
-        "date": "2026-07-07",
-        "previous_close": 0.47999998927116394,
-        "close": 1.399999976158142,
-        "relative_change": 1.9166666821887097
-      },
-      {
-        "yahoo_symbol": "ATORX.ST",
-        "date": "2024-12-02",
-        "previous_close": 47.17917251586914,
-        "close": 22.828632354736328,
-        "relative_change": 0.5161290218250922
-      },
-      {
-        "yahoo_symbol": "ATORX.ST",
-        "date": "2025-01-24",
-        "previous_close": 14.136841773986816,
-        "close": 51.0,
-        "relative_change": 2.607595021247605
-      },
-      {
-        "yahoo_symbol": "ATORX.ST",
-        "date": "2025-02-26",
-        "previous_close": 40.900001525878906,
-        "close": 120.80000305175781,
-        "relative_change": 1.9535451966994009
-      },
-      {
-        "yahoo_symbol": "ATORX.ST",
-        "date": "2025-03-06",
-        "previous_close": 47.70000076293945,
-        "close": 12.399999618530273,
-        "relative_change": 0.7400419408763519
-      },
-      {
-        "yahoo_symbol": "ATORX.ST",
-        "date": "2026-04-14",
-        "previous_close": 0.1964000016450882,
-        "close": 0.34599998593330383,
-        "relative_change": 0.7617107079181993
-      },
-      {
-        "yahoo_symbol": "ATORX.ST",
-        "date": "2026-07-23",
-        "previous_close": 0.1940000057220459,
-        "close": 0.05040000006556511,
-        "relative_change": 0.7402061928916854
-      },
-      {
-        "yahoo_symbol": "AXIC-A.ST",
-        "date": "2023-12-14",
-        "previous_close": 7.639999866485596,
-        "close": 2.7799999713897705,
-        "relative_change": 0.6361256518360946
-      },
-      {
-        "yahoo_symbol": "AXIC-A.ST",
-        "date": "2023-12-19",
-        "previous_close": 2.3299999237060547,
-        "close": 4.159999847412109,
-        "relative_change": 0.7854077182952395
-      },
-      {
-        "yahoo_symbol": "BEAMMW-B.ST",
-        "date": "2024-02-22",
-        "previous_close": 6.019999980926514,
-        "close": 9.140000343322754,
-        "relative_change": 0.5182724870899507
-      },
-      {
-        "yahoo_symbol": "BICO.ST",
-        "date": "2022-07-15",
-        "previous_close": 82.9000015258789,
-        "close": 32.77000045776367,
-        "relative_change": 0.6047044649627196
-      },
-      {
-        "yahoo_symbol": "BICO.ST",
-        "date": "2022-11-09",
-        "previous_close": 49.22999954223633,
-        "close": 77.5,
-        "relative_change": 0.57424336219036
-      },
-      {
-        "yahoo_symbol": "BIOA-B.ST",
-        "date": "2022-09-28",
-        "previous_close": 92.0999984741211,
-        "close": 251.0,
-        "relative_change": 1.7252986336425158
-      },
-      {
-        "yahoo_symbol": "CANTA.ST",
-        "date": "2023-02-22",
-        "previous_close": 4.734000205993652,
-        "close": 7.215000152587891,
-        "relative_change": 0.5240810812498653
-      }
-    ],
-    "gap_examples": []
+    "nonfinite_close": 0
   },
   "integrity": {
-    "invalid_rows": 14558,
-    "duplicate_rows": 0,
-    "passed": true
-  }
+    "pass": true,
+    "duplicates": 0
+  },
+  "observations": {
+    "exactly_1080": 0,
+    "below_1000": 19
+  },
+  "large_moves_ge_50pct": 111,
+  "gaps_gt_7d": 0
 }
