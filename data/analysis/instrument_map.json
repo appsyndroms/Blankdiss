@@ -1909,5 +1909,12 @@
         "issuer": "ASTRAZENECA PLC",
         "ticker": "AZN",
         "yahoo_symbol": "AZN.ST"
+    },
+    "529900U9GE0JYU3PUP93": {
+        "isin": null,
+        "lei": "529900U9GE0JYU3PUP93",
+        "issuer": "Minesto AB",
+        "ticker": "MINEST",
+        "yahoo_symbol": "MINEST.ST"
     }
 }
