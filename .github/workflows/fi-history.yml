@@ -46,7 +46,6 @@ jobs:
           find data/raw/fi/aggregate/historical \
             -maxdepth 1 \
             -type f \
-            -name 'fi_aggregate_*.jsonl' \
             -print \
             | sort
 
@@ -88,30 +87,69 @@ jobs:
           cat \
             data/raw/fi/positions/historical/fi_historical_positions_metadata.json
 
+      - name: Kontrollera storlek på genererade data
+        run: |
+          echo "=========================================="
+          echo "GENERERADE DATASTORLEKAR"
+          echo "=========================================="
+
+          du -sh \
+            data/raw/fi/aggregate/historical \
+            data/raw/fi/positions/historical \
+            data/processed/fi/aggregate \
+            2>/dev/null || true
+
+          echo
+          echo "=========================================="
+          echo "STÖRSTA GENERERADE FILER"
+          echo "=========================================="
+
+          find \
+            data/raw/fi/aggregate/historical \
+            data/raw/fi/positions/historical \
+            data/processed/fi/aggregate \
+            -type f \
+            -printf '%s %p\n' \
+            | sort -nr \
+            | head -20
+
+      - name: Spara stora FI-data som artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fi-historical-data
+          path: |
+            data/raw/fi/aggregate/historical/**/*.jsonl
+            data/raw/fi/positions/historical/**/*.jsonl
+            data/processed/fi/aggregate/**/*.jsonl
+            data/raw/fi/positions/historical/*_metadata.json
+            data/processed/fi/aggregate/*_metadata.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
+
       - name: Kontrollera Git-status
         run: |
-          echo "Git-status för historiska FI-data:"
+          echo "Git-status för metadata:"
 
           git status --short \
-            -- data/raw/fi/aggregate \
+            -- \
             data/raw/fi/positions/historical \
             data/processed/fi/aggregate
 
-      - name: Commit historisk data
+      - name: Commit metadata
         run: |
           if [ -z "$(git status --porcelain -- \
-            data/raw/fi/aggregate \
             data/raw/fi/positions/historical \
             data/processed/fi/aggregate)" ]; then
 
-            echo "Ingen ny historisk data att committa."
+            echo "Ingen ny metadata att committa."
             exit 0
           fi
 
-          echo "Historisk data hittad:"
+          echo "Metadata hittad:"
 
           git status --short \
-            -- data/raw/fi/aggregate \
+            -- \
             data/raw/fi/positions/historical \
             data/processed/fi/aggregate
 
@@ -122,9 +160,13 @@ jobs:
             "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add \
-            data/raw/fi/aggregate \
-            data/raw/fi/positions/historical \
-            data/processed/fi/aggregate
+            data/raw/fi/positions/historical/*_metadata.json \
+            data/processed/fi/aggregate/*_metadata.json
+
+          if git diff --cached --quiet; then
+            echo "Ingen metadata att committa."
+            exit 0
+          fi
 
           echo
           echo "Filer som kommer att committas:"
@@ -132,6 +174,6 @@ jobs:
           git diff --cached --name-status
 
           git commit \
-            -m "Build reconstructed FI aggregate history"
+            -m "Update FI historical metadata"
 
           git push
