@@ -24,24 +24,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Hämta verifierade historiska FI-filer
+      - name: Hämta verifierade historiska FI-aggregat
         run: |
           python -m fi.backfill \
             --from 2022-05-25 \
             --to 2022-06-08
 
-      - name: Proba kontinuerlig FI-källa
+      - name: Hämta hela FI:s historiska positionsregister
         run: |
-          python -m fi.aggregate_probe \
-            --date 2022-06-09
+          python -m fi.historical_positions
 
-      - name: Inventera hela FI-aggregatet
+      - name: Visa historiska FI-data
         run: |
-          python -m fi.aggregate_inventory
+          echo "=========================================="
+          echo "HISTORISKA AGGREGAT"
+          echo "=========================================="
 
-      - name: Visa historisk data
-        run: |
-          echo "Historiska FI-filer:"
           find data/raw/fi/aggregate/historical \
             -maxdepth 1 \
             -type f \
@@ -49,42 +47,47 @@ jobs:
             -print \
             | sort
 
-      - name: Kontrollera historiska testdatum
-        run: |
-          echo "Verifierade historiska publiceringsdatum:"
-          echo "2022-05-25"
-          echo "2022-06-01"
-          echo "2022-06-08"
-
           echo
-          echo "Nästa datum som ska undersökas:"
-          echo "2022-06-09"
+          echo "=========================================="
+          echo "HISTORISKA POSITIONER"
+          echo "=========================================="
 
-          echo
-          echo "Faktiskt hämtade filer:"
-          find data/raw/fi/aggregate/historical \
+          find data/raw/fi/positions/historical \
             -maxdepth 1 \
             -type f \
-            -name 'fi_aggregate_2022-*.jsonl' \
             -print \
             | sort
 
+          echo
+          echo "=========================================="
+          echo "METADATA"
+          echo "=========================================="
+
+          if [ -f data/raw/fi/positions/historical/fi_historical_positions_metadata.json ]; then
+            cat \
+              data/raw/fi/positions/historical/fi_historical_positions_metadata.json
+          fi
+
       - name: Kontrollera Git-status
         run: |
-          echo "Git-status för historiska FI-filer:"
+          echo "Git-status för historiska FI-data:"
           git status --short \
-            -- data/raw/fi/aggregate/historical
+            -- data/raw/fi/aggregate/historical \
+            data/raw/fi/positions/historical
 
       - name: Commit historisk data
         run: |
-          if [ -z "$(git status --porcelain -- data/raw/fi/aggregate/historical)" ]; then
+          if [ -z "$(git status --porcelain -- \
+            data/raw/fi/aggregate/historical \
+            data/raw/fi/positions/historical)" ]; then
             echo "Ingen ny historisk data att committa."
             exit 0
           fi
 
-          echo "Ny historisk data hittad:"
+          echo "Historisk data hittad:"
           git status --short \
-            -- data/raw/fi/aggregate/historical
+            -- data/raw/fi/aggregate/historical \
+            data/raw/fi/positions/historical
 
           git config user.name \
             "github-actions[bot]"
@@ -93,13 +96,14 @@ jobs:
             "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add \
-            data/raw/fi/aggregate/historical
+            data/raw/fi/aggregate/historical \
+            data/raw/fi/positions/historical
 
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
 
           git commit \
-            -m "Add FI historical aggregate data"
+            -m "Add FI historical short positions"
 
           git push
