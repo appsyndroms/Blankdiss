@@ -1,0 +1,43 @@
+name: FI historisk data
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch-fi-history:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Hämta en historisk FI-fil
+        run: |
+          python -m fi.backfill \
+            --from 2022-05-25 \
+            --to 2022-05-25
+      - name: Visa hämtad data
+        run: |
+          echo "Historiska FI-filer:"
+          find data/raw/fi/aggregate/historical \
+            -type f \
+            -maxdepth 1 \
+            -print \
+            | sort
+      - name: Commit historisk data
+        run: |
+          if git diff --quiet -- data/raw/fi/aggregate/historical; then
+            echo "Ingen ny historisk data att committa."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/raw/fi/aggregate/historical
+          git commit -m "Add FI historical aggregate data"
+          git push
