@@ -1,665 +1,608 @@
-"""Hämta och normalisera FI:s historiska blankningspositioner.
-Källan innehåller historiska individuella blankningspositioner
-och ska hållas separerad från FI:s aggregerade >0,1 %-data.
-FI:s historiska positionsregister publicerar betydande
-positioner, dvs. positioner över 0,5 %.
-"""
 from __future__ import annotations
-import io
+
+import hashlib
 import json
-import re
+from datetime import date, datetime
 from pathlib import Path
+
 import pandas as pd
-import requests
-from fi.config import HEADERS
-HISTORICAL_URL = (
-    "https://www.fi.se/BlankningsRegister/"
-    "GetHistFile"
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+OUTPUT_DIR = (
+    ROOT
+    / "data"
+    / "raw"
+    / "fi"
+    / "positions"
+    / "historical"
 )
-REQUEST_TIMEOUT = 60
-OUTPUT_DIR = Path(
-    "data/raw/fi/positions/historical"
-)
-OUTPUT_PATH = (
-    OUTPUT_DIR
-    / "fi_historical_positions.jsonl"
-)
+
+OUTPUT_PATH = OUTPUT_DIR / "fi_historical_positions.jsonl"
 METADATA_PATH = (
     OUTPUT_DIR
     / "fi_historical_positions_metadata.json"
 )
-SUB05_RE = re.compile(
-    r"^\s*<\s*0[,.]5\s*$",
-    re.IGNORECASE,
+
+FI_URL = (
+    "https://www.fi.se/"
+    "BlankningsRegister/GetHistFile"
 )
-def download_history() -> bytes:
-    """Hämtar FI:s historiska positionsfil."""
-    response = requests.get(
-        HISTORICAL_URL,
-        headers=HEADERS,
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-    if not response.content:
-        raise RuntimeError(
-            "FI returnerade en tom historikfil."
-        )
-    return response.content
-def clean_text(
-    value: object,
-) -> str | None:
-    """Normaliserar text."""
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 "
+        "(compatible; Blankdiss/1.0; "
+        "+https://github.com/appsyndroms/Blankdiss)"
+    ),
+    "Accept": (
+        "application/vnd.oasis.opendocument.spreadsheet,"
+        "application/vnd.oasis.opendocument.spreadsheet-template,"
+        "application/octet-stream"
+    ),
+    "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
+}
+
+TIMEOUT = 120
+
+EXPECTED_COLUMNS = {
+    "holder": "Innehavare av positionen",
+    "issuer": "Namn på emittent",
+    "position": "Position i procent",
+    "position_date": "Datum för positionen",
+    "isin": "ISIN",
+}
+
+
+def clean_text(value: object) -> str | None:
+    """Normaliserar text från FI-filen."""
     if value is None:
         return None
+
     if pd.isna(value):
         return None
+
     text = str(value).strip()
+
     if not text:
         return None
-    if text.lower() == "nan":
-        return None
+
     return text
-def normalize_column_name(
-    value: object,
-) -> str:
-    """Normaliserar kolumnnamn."""
-    text = clean_text(value)
-    if text is None:
-        return ""
-    text = text.replace(
-        "\n",
-        " ",
-    )
-    text = text.replace(
-        "\r",
-        " ",
-    )
-    text = re.sub(
-        r"\s+",
-        " ",
-        text,
-    )
-    return text.strip().lower()
-def find_column(
-    columns: list[object],
-    candidates: list[str],
-) -> object | None:
-    """Hittar en kolumn genom namn eller delsträng."""
-    normalized = [
-        (
-            column,
-            normalize_column_name(column),
-        )
-        for column in columns
-    ]
-    normalized_candidates = [
-        normalize_column_name(candidate)
-        for candidate in candidates
-    ]
-    for candidate in normalized_candidates:
-        for column, name in normalized:
-            if name == candidate:
-                return column
-    for candidate in normalized_candidates:
-        for column, name in normalized:
-            if candidate in name:
-                return column
-    return None
+
+
 def find_header_row(
     dataframe: pd.DataFrame,
 ) -> int:
-    """Hittar raden som innehåller FI:s riktiga kolumnrubriker.
-    FI:s ODS-fil innehåller metadata före själva tabellen.
-    Därför ska vi inte förutsätta ett fast antal skiprows.
     """
-    holder_terms = [
-        "innehavare",
-        "position holder",
-        "holder",
-    ]
-    issuer_terms = [
+    Hittar rubrikraden i FI:s ODS-fil.
+
+    FI:s historik innehåller metadata/rubriker före själva
+    tabellen, så vi kan inte anta att första raden är header.
+    """
+    required_terms = [
+        "Innehavare",
         "emittent",
-        "issuer",
-    ]
-    position_terms = [
         "position",
+        "Datum",
     ]
-    date_terms = [
-        "positionsdatum",
-        "position date",
-    ]
+
     max_rows = min(
         len(dataframe),
         40,
     )
+
     for row_index in range(max_rows):
         values = [
-            normalize_column_name(value)
-            for value in dataframe.iloc[
-                row_index
-            ].tolist()
+            clean_text(value)
+            for value in dataframe.iloc[row_index].tolist()
         ]
-        row_text = " | ".join(
-            value
+
+        combined = " ".join(
+            value.lower()
             for value in values
-            if value
+            if value is not None
         )
-        has_holder = any(
-            term in row_text
-            for term in holder_terms
-        )
-        has_issuer = any(
-            term in row_text
-            for term in issuer_terms
-        )
-        has_position = any(
-            term in row_text
-            for term in position_terms
-        )
-        has_date = any(
-            term in row_text
-            for term in date_terms
-        )
-        if (
-            has_holder
-            and has_issuer
-            and has_position
-            and has_date
+
+        if all(
+            term.lower() in combined
+            for term in required_terms
         ):
             return row_index
+
     raise RuntimeError(
-        "Kunde inte hitta FI:s rubrikrad. "
-        "De första raderna i filen var:\n"
-        + "\n".join(
-            (
-                f"{index}: "
-                f"{dataframe.iloc[index].tolist()}"
-            )
-            for index in range(
-                min(len(dataframe), 20)
-            )
-        )
+        "Kunde inte hitta rubrikraden i FI:s historiska "
+        "positionsregister."
     )
-def read_history(
-    data: bytes,
-) -> pd.DataFrame:
-    """Läser FI:s historiska ODS-fil.
-    Först läses filen utan header så att vi kan hitta
-    den riktiga rubrikraden dynamiskt.
+
+
+def find_column(
+    columns: list[object],
+    expected: str,
+) -> object:
+    """Hittar en kolumn med robust textmatchning."""
+    expected_clean = expected.strip().lower()
+
+    for column in columns:
+        text = clean_text(column)
+
+        if text is None:
+            continue
+
+        if text.strip().lower() == expected_clean:
+            return column
+
+    for column in columns:
+        text = clean_text(column)
+
+        if text is None:
+            continue
+
+        if expected_clean in text.lower():
+            return column
+
+    raise RuntimeError(
+        f"Kunde inte hitta kolumnen {expected!r}. "
+        f"Tillgängliga kolumner: {list(columns)!r}"
+    )
+
+
+def parse_date(value: object) -> str | None:
     """
+    Tolkar FI-datum med explicita format.
+
+    Vi använder inte pd.to_datetime(..., dayfirst=True)
+    som generell fallback eftersom FI-filen kan innehålla
+    datum som pandas redan har tolkat innan vi får värdet.
+
+    Framtida datum stoppas medvetet. Vi vill hellre att
+    importen misslyckas än att Blankdiss bygger in felaktig
+    historik.
+    """
+    if value is None:
+        return None
+
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, pd.Timestamp):
+        parsed_date = value.date()
+
+    elif isinstance(value, datetime):
+        parsed_date = value.date()
+
+    elif isinstance(value, date):
+        parsed_date = value
+
+    else:
+        text = clean_text(value)
+
+        if text is None:
+            return None
+
+        # Ta bort eventuell tid efter datumet.
+        text = text.split(" ", 1)[0]
+
+        parsed_date = None
+
+        explicit_formats = (
+            "%Y-%m-%d",
+            "%Y/%m/%d",
+            "%d.%m.%Y",
+            "%d-%m-%Y",
+            "%d/%m/%Y",
+        )
+
+        for fmt in explicit_formats:
+            try:
+                parsed_date = datetime.strptime(
+                    text,
+                    fmt,
+                ).date()
+                break
+            except ValueError:
+                continue
+
+        if parsed_date is None:
+            raise RuntimeError(
+                "Okänt datumformat i FI-historiken: "
+                f"{text!r}"
+            )
+
+    today = date.today()
+
+    if parsed_date > today:
+        raise RuntimeError(
+            "FI-historiken innehåller ett framtida "
+            f"positionsdatum: {parsed_date.isoformat()}. "
+            "Importen stoppas för att inte bygga in "
+            "felaktiga datum i historiken."
+        )
+
+    return parsed_date.isoformat()
+
+
+def parse_position(value: object) -> float | None:
+    """Tolkar position i procent."""
+    if value is None:
+        return None
+
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, str):
+        text = value.strip()
+
+        if not text:
+            return None
+
+        text = (
+            text
+            .replace("%", "")
+            .replace(",", ".")
+            .replace(" ", "")
+        )
+
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
     try:
-        raw = pd.read_excel(
-            io.BytesIO(data),
-            sheet_name=0,
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_dataframe(
+    dataframe: pd.DataFrame,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    """Normaliserar FI:s historiska positionsregister."""
+
+    header_row = find_header_row(dataframe)
+
+    dataframe = dataframe.iloc[
+        header_row + 1 :
+    ].copy()
+
+    dataframe.columns = [
+        clean_text(column) or ""
+        for column in dataframe.columns
+    ]
+
+    holder_column = find_column(
+        list(dataframe.columns),
+        EXPECTED_COLUMNS["holder"],
+    )
+
+    issuer_column = find_column(
+        list(dataframe.columns),
+        EXPECTED_COLUMNS["issuer"],
+    )
+
+    position_column = find_column(
+        list(dataframe.columns),
+        EXPECTED_COLUMNS["position"],
+    )
+
+    date_column = find_column(
+        list(dataframe.columns),
+        EXPECTED_COLUMNS["position_date"],
+    )
+
+    isin_column = find_column(
+        list(dataframe.columns),
+        EXPECTED_COLUMNS["isin"],
+    )
+
+    rows: list[dict[str, object]] = []
+
+    below_05_rows = 0
+    numeric_position_rows = 0
+
+    for row_number, (_, row) in enumerate(
+        dataframe.iterrows(),
+        start=1,
+    ):
+        holder = clean_text(
+            row[holder_column],
+        )
+
+        issuer = clean_text(
+            row[issuer_column],
+        )
+
+        isin = clean_text(
+            row[isin_column],
+        )
+
+        raw_position = row[position_column]
+
+        position = parse_position(
+            raw_position,
+        )
+
+        raw_date = row[date_column]
+
+        try:
+            position_date = parse_date(
+                raw_date,
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "Felaktigt datum i FI:s historiska "
+                f"positionsregister på rad {row_number}: "
+                f"råvärde={raw_date!r}, "
+                f"typ={type(raw_date).__name__}. "
+                f"Originalfel: {exc}"
+            ) from exc
+
+        # Tomma/slutliga rader i ODS-filen.
+        if (
+            holder is None
+            and issuer is None
+            and isin is None
+            and position is None
+            and position_date is None
+        ):
+            continue
+
+        if position is not None:
+            numeric_position_rows += 1
+
+            if position < 0.5:
+                below_05_rows += 1
+
+        rows.append(
+            {
+                "holder": holder,
+                "issuer": issuer,
+                "position": position,
+                "position_date": position_date,
+                "isin": isin,
+            }
+        )
+
+    metadata = {
+        "header_row": header_row,
+        "raw_rows": len(dataframe),
+        "normalized_rows": len(rows),
+        "numeric_position_rows": numeric_position_rows,
+        "below_0_5_rows": below_05_rows,
+        "unique_holders": len(
+            {
+                row["holder"]
+                for row in rows
+                if row["holder"] is not None
+            }
+        ),
+        "unique_issuers": len(
+            {
+                row["issuer"]
+                for row in rows
+                if row["issuer"] is not None
+            }
+        ),
+        "first_position_date": min(
+            (
+                row["position_date"]
+                for row in rows
+                if row["position_date"] is not None
+            ),
+            default=None,
+        ),
+        "last_position_date": max(
+            (
+                row["position_date"]
+                for row in rows
+                if row["position_date"] is not None
+            ),
+            default=None,
+        ),
+        "columns": EXPECTED_COLUMNS,
+    }
+
+    return rows, metadata
+
+
+def download_file() -> bytes:
+    """Hämtar FI:s historiska positionsregister."""
+    import requests
+
+    response = requests.get(
+        FI_URL,
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
+
+    response.raise_for_status()
+
+    if not response.content:
+        raise RuntimeError(
+            "FI:s historiska positionsregister "
+            "returnerade en tom fil."
+        )
+
+    return response.content
+
+
+def read_ods(
+    content: bytes,
+) -> pd.DataFrame:
+    """Läser FI:s ODS-fil."""
+    from io import BytesIO
+
+    try:
+        return pd.read_excel(
+            BytesIO(content),
             engine="odf",
             header=None,
         )
-    except ImportError as exc:
-        raise RuntimeError(
-            "ODS-stöd saknas. Installera odfpy."
-        ) from exc
     except Exception as exc:
         raise RuntimeError(
             "Kunde inte läsa FI:s historiska "
-            f"ODS-fil: {exc}"
+            "positionsregister som ODS."
         ) from exc
-    if raw.empty:
-        raise RuntimeError(
-            "FI:s historiska fil innehöll "
-            "inga rader."
-        )
-    header_row = find_header_row(
-        raw
-    )
-    print(
-        "FI historical positions: "
-        f"rubrikrad = {header_row}"
-    )
-    headers = [
-        clean_text(value)
-        for value in raw.iloc[
-            header_row
-        ].tolist()
-    ]
-    dataframe = raw.iloc[
-        header_row + 1:
-    ].copy()
-    dataframe.columns = headers
-    dataframe = dataframe.dropna(
-        how="all"
-    )
-    if dataframe.empty:
-        raise RuntimeError(
-            "FI:s historiska tabell innehöll "
-            "inga datarader efter rubriken."
-        )
-    return dataframe
-def is_below_threshold(
-    value: object,
-) -> bool:
-    """Returnerar True om FI uttrycker positionen som <0,5."""
-    text = clean_text(value)
-    if text is None:
-        return False
-    return bool(
-        SUB05_RE.match(text)
-    )
-def parse_position(
-    value: object,
-) -> float | None:
-    """Tolkar en numerisk positionsprocent."""
-    text = clean_text(value)
-    if text is None:
-        return None
-    if is_below_threshold(text):
-        return None
-    text = (
-        text
-        .replace(" ", "")
-        .replace("%", "")
-        .replace(",", ".")
-    )
-    try:
-        return float(text)
-    except ValueError:
-        return None
-def parse_date(
-    value: object,
-) -> str | None:
-    """Tolkar datum till ISO-format."""
-    if value is None:
-        return None
-    if pd.isna(value):
-        return None
-    if isinstance(
-        value,
-        pd.Timestamp,
-    ):
-        return value.date().isoformat()
-    parsed = pd.to_datetime(
-        value,
-        errors="coerce",
-        dayfirst=True,
-    )
-    if pd.isna(parsed):
-        return None
-    return parsed.date().isoformat()
-def find_required_columns(
-    dataframe: pd.DataFrame,
-) -> dict[str, object]:
-    """Identifierar FI:s relevanta kolumner."""
-    columns = list(
-        dataframe.columns
-    )
-    holder = find_column(
-        columns,
-        [
-            "Innehavare",
-            "Innehavare namn",
-            "Position holder",
-            "Holder",
-        ],
-    )
-    issuer = find_column(
-        columns,
-        [
-            "Emittentens namn",
-            "Emittent",
-            "Issuer",
-            "Name of issuer",
-        ],
-    )
-    position = find_column(
-        columns,
-        [
-            "Position i procent",
-            "Position %",
-            "Position procent",
-            "Net short position %",
-            "Net short position in per cent",
-            "Position",
-        ],
-    )
-    position_date = find_column(
-        columns,
-        [
-            "Positionsdatum",
-            "Position date",
-            "Date of position",
-        ],
-    )
-    isin = find_column(
-        columns,
-        [
-            "ISIN",
-            "ISIN-kod",
-        ],
-    )
-    if holder is None:
-        raise RuntimeError(
-            "Kunde inte hitta kolumnen "
-            "för innehavare. "
-            f"Kolumner: {columns}"
-        )
-    if issuer is None:
-        raise RuntimeError(
-            "Kunde inte hitta kolumnen "
-            "för emittent. "
-            f"Kolumner: {columns}"
-        )
-    if position is None:
-        raise RuntimeError(
-            "Kunde inte hitta kolumnen "
-            "för position. "
-            f"Kolumner: {columns}"
-        )
-    if position_date is None:
-        raise RuntimeError(
-            "Kunde inte hitta kolumnen "
-            "för positionsdatum. "
-            f"Kolumner: {columns}"
-        )
-    return {
-        "holder": holder,
-        "issuer": issuer,
-        "position": position,
-        "position_date": position_date,
-        "isin": isin,
-    }
-def normalize_records(
-    dataframe: pd.DataFrame,
-    columns: dict[str, object],
-) -> list[dict]:
-    """Normaliserar FI:s historiska positioner."""
-    records: list[dict] = []
-    holder_column = columns["holder"]
-    issuer_column = columns["issuer"]
-    position_column = columns["position"]
-    date_column = columns["position_date"]
-    isin_column = columns["isin"]
-    for _, row in dataframe.iterrows():
-        holder = clean_text(
-            row.get(holder_column)
-        )
-        issuer = clean_text(
-            row.get(issuer_column)
-        )
-        raw_position = clean_text(
-            row.get(position_column)
-        )
-        position_date = parse_date(
-            row.get(date_column)
-        )
-        if holder is None:
-            continue
-        if issuer is None:
-            continue
-        if position_date is None:
-            continue
-        if raw_position is None:
-            continue
-        position_below_05 = (
-            is_below_threshold(
-                raw_position
-            )
-        )
-        position_pct = parse_position(
-            raw_position
-        )
-        if (
-            position_pct is None
-            and not position_below_05
-        ):
-            continue
-        if isin_column is not None:
-            isin = clean_text(
-                row.get(isin_column)
-            )
-        else:
-            isin = None
-        records.append(
-            {
-                "position_date": position_date,
-                "holder": holder,
-                "issuer": issuer,
-                "isin": isin,
-                "position_pct": position_pct,
-                "position_below_0_5": (
-                    position_below_05
-                ),
-                "raw_position": raw_position,
-            }
-        )
-    return records
+
+
 def write_jsonl(
-    records: list[dict],
+    rows: list[dict[str, object]],
 ) -> None:
     """Skriver normaliserad historik som JSONL."""
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     with OUTPUT_PATH.open(
         "w",
         encoding="utf-8",
-    ) as handle:
-        for record in records:
-            handle.write(
+    ) as file:
+        for row in rows:
+            file.write(
                 json.dumps(
-                    record,
+                    row,
                     ensure_ascii=False,
                     separators=(",", ":"),
                 )
                 + "\n"
             )
+
+
 def write_metadata(
-    dataframe: pd.DataFrame,
-    records: list[dict],
-    columns: dict[str, object],
+    metadata: dict[str, object],
+    raw_content: bytes,
 ) -> None:
-    """Skriver metadata om importen."""
-    dates = [
-        record["position_date"]
-        for record in records
-        if record.get("position_date")
-    ]
-    numeric_positions = [
-        record
-        for record in records
-        if record.get("position_pct")
-        is not None
-    ]
-    below_threshold = [
-        record
-        for record in records
-        if record.get(
-            "position_below_0_5"
-        )
-    ]
-    holders = {
-        record["holder"]
-        for record in records
-        if record.get("holder")
-    }
-    issuers = {
-        record["issuer"]
-        for record in records
-        if record.get("issuer")
-    }
+    """Skriver metadata och checksumma."""
+    sha256 = hashlib.sha256(
+        raw_content
+    ).hexdigest()
+
     metadata = {
-        "source": HISTORICAL_URL,
-        "raw_rows": len(dataframe),
-        "normalized_rows": len(records),
-        "numeric_position_rows": len(
-            numeric_positions
+        **metadata,
+        "source_url": FI_URL,
+        "raw_sha256": sha256,
+        "output_file": str(
+            OUTPUT_PATH.relative_to(ROOT)
         ),
-        "below_0_5_rows": len(
-            below_threshold
+        "generated_at": datetime.now().isoformat(
+            timespec="seconds",
         ),
-        "unique_holders": len(
-            holders
-        ),
-        "unique_issuers": len(
-            issuers
-        ),
-        "first_position_date": (
-            min(dates)
-            if dates
-            else None
-        ),
-        "last_position_date": (
-            max(dates)
-            if dates
-            else None
-        ),
-        "columns": {
-            key: (
-                str(value)
-                if value is not None
-                else None
-            )
-            for key, value in columns.items()
-        },
     }
-    METADATA_PATH.write_text(
-        json.dumps(
+
+    with METADATA_PATH.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
             metadata,
+            file,
             ensure_ascii=False,
             indent=2,
         )
-        + "\n",
-        encoding="utf-8",
-    )
-def main() -> int:
-    """Hämtar och sparar FI:s historiska positioner."""
+
+        file.write("\n")
+
+
+def main() -> None:
+    """Hämtar, validerar och sparar FI:s historik."""
     print(
-        "FI historical positions: "
-        "hämtar historik..."
+        "Hämtar FI:s historiska "
+        "positionsregister..."
     )
-    data = download_history()
+
+    raw_content = download_file()
+
     print(
-        "FI historical positions: "
-        f"{len(data):,} bytes hämtade."
+        "Hämtad fil:",
+        f"{len(raw_content):,}",
+        "bytes",
     )
-    dataframe = read_history(
-        data
+
+    dataframe = read_ods(
+        raw_content,
     )
+
     print(
-        "FI historical positions: "
-        f"{len(dataframe):,} datarader."
+        "ODS-dimension:",
+        dataframe.shape,
     )
-    columns = find_required_columns(
-        dataframe
-    )
-    print(
-        "FI historical positions: "
-        "kolumner identifierade."
-    )
-    print(
-        "  innehavare: "
-        f"{columns['holder']}"
-    )
-    print(
-        "  emittent: "
-        f"{columns['issuer']}"
-    )
-    print(
-        "  position: "
-        f"{columns['position']}"
-    )
-    print(
-        "  positionsdatum: "
-        f"{columns['position_date']}"
-    )
-    if columns["isin"] is not None:
-        print(
-            "  ISIN: "
-            f"{columns['isin']}"
-        )
-    records = normalize_records(
+
+    rows, metadata = normalize_dataframe(
         dataframe,
-        columns,
     )
-    if not records:
+
+    if not rows:
         raise RuntimeError(
-            "Ingen historisk position kunde "
-            "normaliseras."
+            "FI:s historiska positionsregister "
+            "gav inga normaliserade rader."
         )
+
     write_jsonl(
-        records
+        rows,
     )
+
     write_metadata(
-        dataframe,
-        records,
-        columns,
+        metadata,
+        raw_content,
     )
-    dates = sorted(
-        {
-            record["position_date"]
-            for record in records
-            if record.get("position_date")
-        }
-    )
-    below_threshold = sum(
-        record["position_below_0_5"]
-        for record in records
-    )
-    numeric = sum(
-        record["position_pct"] is not None
-        for record in records
-    )
-    holders = {
-        record["holder"]
-        for record in records
-    }
-    issuers = {
-        record["issuer"]
-        for record in records
-    }
+
     print()
     print(
-        "=========================================="
+        "FI:s historiska positionsregister "
+        "sparat."
     )
+
     print(
-        "FI HISTORISKA POSITIONER KLART"
+        "Råa rader:",
+        metadata["raw_rows"],
     )
+
     print(
-        "=========================================="
+        "Normaliserade rader:",
+        metadata["normalized_rows"],
     )
+
     print(
-        f"Råa rader:          {len(dataframe):,}"
+        "Numeriska positioner:",
+        metadata["numeric_position_rows"],
     )
+
     print(
-        f"Normaliserade:      {len(records):,}"
+        "Positioner under 0,5 %:",
+        metadata["below_0_5_rows"],
     )
+
     print(
-        f"Numeriska:          {numeric:,}"
+        "Unika innehavare:",
+        metadata["unique_holders"],
     )
+
     print(
-        f"<0,5:               {below_threshold:,}"
+        "Unika emittenter:",
+        metadata["unique_issuers"],
     )
+
     print(
-        f"Unika innehavare:   {len(holders):,}"
+        "Första positionsdatum:",
+        metadata["first_position_date"],
     )
+
     print(
-        f"Unika emittenter:   {len(issuers):,}"
+        "Sista positionsdatum:",
+        metadata["last_position_date"],
     )
+
     print(
-        "Första datum:       "
-        f"{dates[0] if dates else 'saknas'}"
+        "JSONL:",
+        OUTPUT_PATH,
     )
+
     print(
-        "Sista datum:        "
-        f"{dates[-1] if dates else 'saknas'}"
+        "Metadata:",
+        METADATA_PATH,
     )
-    print(
-        f"JSONL:              {OUTPUT_PATH}"
-    )
-    print(
-        f"Metadata:           {METADATA_PATH}"
-    )
-    return 0
+
+
 if __name__ == "__main__":
-    raise SystemExit(
-        main()
-    )
+    main()
