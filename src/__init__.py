@@ -1,1 +1,0 @@
-"""Blankdiss package."""
