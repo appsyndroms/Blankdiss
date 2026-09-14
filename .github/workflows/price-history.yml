@@ -1,56 +1,83 @@
 name: Pris historisk data
+
 on:
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   price-history:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Kontrollera FI-historik
         run: |
           test -f data/processed/fi/aggregate/reconstructed.jsonl
           echo "FI rekonstruerad historik hittad."
+
+      - name: Rensa gamla prisfiler
+        run: |
+          rm -f data/raw/prices/prices_*.jsonl
+          rm -f data/raw/prices/price_qc.json
+
       - name: Hämta historiska priser
         run: |
-          python -m prices --start 2022-05-25 --end 2026-09-12
+          python -m prices \
+            --start 2022-05-25 \
+            --end 2026-09-12
+
       - name: Kontrollera prisdata
         run: |
           test -d data/raw/prices
           ls -lh data/raw/prices
+
+      - name: Kör price QC
+        run: |
+          python -m prices.qc
+
       - name: Spara prisdata som artifact
         uses: actions/upload-artifact@v7
         with:
           name: price-historical-data
           path: |
             data/raw/prices/*.jsonl
+            data/raw/prices/price_qc.json
             data/analysis/instrument_map.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 9
+
       - name: Git status
         run: |
           git status --short
-      - name: Committera prisdata och mappning
+
+      - name: Committera prisdata, QC och mappning
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add \
             data/raw/prices \
             data/analysis/instrument_map.json
+
           if git diff --cached --quiet; then
             echo "Inga prisdataförändringar att commitera."
             exit 0
           fi
-          git commit -m "Add historical stock price data"
+
+          git commit -m "Add historical stock price data and QC"
           git push
