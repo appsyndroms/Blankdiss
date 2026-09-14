@@ -537,6 +537,8 @@ def attach_prices(
 
         result["price_date"] = entry["date"]
 
+        result["close"] = entry_price
+
         result["close_on_signal_date"] = (
             entry_price
         )
@@ -574,18 +576,10 @@ def attach_prices(
                     - 1.0
                 )
 
-                result[
-                    f"forward_price_date_{horizon}d"
-                ] = target["date"]
-
             else:
                 result[
                     f"forward_return_{horizon}d"
                 ] = np.nan
-
-                result[
-                    f"forward_price_date_{horizon}d"
-                ] = pd.NaT
 
         rows.append(
             result
@@ -641,6 +635,7 @@ def validate_output_columns(
         "yahoo_symbol",
         "price_mapping_source",
         "price_date",
+        "close",
         "close_on_signal_date",
         "days_from_fi_to_price",
         "price_match_available",
