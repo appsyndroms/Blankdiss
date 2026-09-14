@@ -113,7 +113,7 @@ def load_jsonl(
 
 
 def find_price_file() -> Path:
-    """Hittar senaste prisfilen."""
+    """Hittar senaste prisfil."""
 
     files = sorted(
         PRICE_DIR.glob(
@@ -550,8 +550,7 @@ def add_fi_features(
     ] = (
         grouped[
             "snapshot_date"
-        ]
-        .diff()
+        ].diff()
         .dt.days
     )
 
@@ -749,14 +748,16 @@ def merge_fi_and_prices(
     Kopplar FI-observation till första priset på
     eller efter FI-datumet.
 
-    Vi använder inte samma dags pris som ett krav,
-    eftersom FI-datum och börsdag inte nödvändigtvis
-    sammanfaller.
+    Joinen görs separat per Yahoo-symbol.
 
-    Price date kan därför vara:
-        snapshot_date
-    eller:
-        närmast följande handelsdag.
+    Detta är medvetet gjort i stället för en enda
+    merge_asof(..., by="yahoo_symbol"), eftersom
+    pandas kräver strikt sorterade tidsnycklar och
+    stora multi-instrument-dataset annars kan ge
+    "left keys must be sorted".
+
+    Vi använder inte framtida prisdata som feature.
+    Forward returns är targets/utfall.
     """
 
     price_frame = calculate_forward_returns(
@@ -789,22 +790,6 @@ def merge_fi_and_prices(
 
     fi_frame = fi.copy()
 
-    fi_frame = fi_frame.sort_values(
-        [
-            "yahoo_symbol",
-            "snapshot_date",
-        ],
-        kind="mergesort",
-    )
-
-    price_frame = price_frame.sort_values(
-        [
-            "yahoo_symbol",
-            "price_date",
-        ],
-        kind="mergesort",
-    )
-
     fi_with_symbol = fi_frame.loc[
         fi_frame[
             "yahoo_symbol"
@@ -816,14 +801,100 @@ def merge_fi_and_prices(
         - len(fi_with_symbol)
     )
 
-    merged = pd.merge_asof(
-        fi_with_symbol,
-        price_frame,
-        left_on="snapshot_date",
-        right_on="price_date",
-        by="yahoo_symbol",
-        direction="forward",
-        allow_exact_matches=True,
+    if fi_with_symbol.empty:
+        return (
+            pd.DataFrame(
+                columns=list(
+                    fi_frame.columns
+                )
+            ),
+            {
+                "fi_rows": int(
+                    len(fi_frame)
+                ),
+                "fi_rows_without_yahoo_symbol": int(
+                    fi_without_symbol
+                ),
+                "fi_rows_with_yahoo_symbol": 0,
+                "merged_rows": 0,
+                "merged_rows_with_price": 0,
+                "merged_rows_without_price": 0,
+            },
+        )
+
+    merged_parts: list[
+        pd.DataFrame
+    ] = []
+
+    symbols = sorted(
+        fi_with_symbol[
+            "yahoo_symbol"
+        ]
+        .dropna()
+        .unique()
+    )
+
+    for symbol in symbols:
+        fi_group = fi_with_symbol.loc[
+            fi_with_symbol[
+                "yahoo_symbol"
+            ]
+            == symbol
+        ].copy()
+
+        price_group = price_frame.loc[
+            price_frame[
+                "yahoo_symbol"
+            ]
+            == symbol
+        ].copy()
+
+        fi_group = fi_group.sort_values(
+            "snapshot_date",
+            kind="mergesort",
+        )
+
+        price_group = price_group.sort_values(
+            "price_date",
+            kind="mergesort",
+        )
+
+        if price_group.empty:
+            fi_group[
+                "price_date"
+            ] = pd.NaT
+
+            fi_group[
+                "close_on_signal_date"
+            ] = None
+
+            for window in FORWARD_WINDOWS:
+                fi_group[
+                    f"forward_return_{window}d"
+                ] = None
+
+            merged_parts.append(
+                fi_group
+            )
+
+            continue
+
+        merged_group = pd.merge_asof(
+            fi_group,
+            price_group,
+            left_on="snapshot_date",
+            right_on="price_date",
+            direction="forward",
+            allow_exact_matches=True,
+        )
+
+        merged_parts.append(
+            merged_group
+        )
+
+    merged = pd.concat(
+        merged_parts,
+        ignore_index=True,
     )
 
     merged[
