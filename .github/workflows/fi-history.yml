@@ -24,11 +24,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Hämta verifierade historiska FI-aggregat
+      - name: Hämta verifierad FI-aggregathistorik
         run: |
           python -m fi.backfill \
-            --from 2022-05-25 \
-            --to 2022-06-08
+            --from 2022-06-09
 
       - name: Hämta hela FI:s historiska positionsregister
         run: |
