@@ -1,29 +1,43 @@
 from __future__ import annotations
+
 import json
 import re
 import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
+
 import yfinance as yf
+
+
 MAPPING_PATH = Path(
     "data/analysis/instrument_map.json"
 )
+
 FI_SNAPSHOT_DIR = Path(
     "data/raw/fi/aggregate/snapshots"
 )
+
 FI_RECONSTRUCTED_PATH = Path(
     "data/processed/fi/aggregate/reconstructed.jsonl"
 )
+
+
 # ---------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------
-def clean_value(value: Any) -> str | None:
+
+def clean_value(
+    value: Any,
+) -> str | None:
     if value is None:
         return None
+
     text = str(value).strip()
+
     if not text:
         return None
+
     if text.lower() in {
         "none",
         "null",
@@ -34,19 +48,28 @@ def clean_value(value: Any) -> str | None:
         "-",
     }:
         return None
+
     return text
-def normalize_name(value: Any) -> str:
+
+
+def normalize_name(
+    value: Any,
+) -> str:
     text = clean_value(value) or ""
+
     text = unicodedata.normalize(
         "NFKD",
         text,
     )
+
     text = "".join(
         char
         for char in text
         if not unicodedata.combining(char)
     )
+
     text = text.lower()
+
     text = re.sub(
         r"\b("
         r"ab|aktiebolag|publ|plc|inc|corp|corporation|"
@@ -55,55 +78,205 @@ def normalize_name(value: Any) -> str:
         " ",
         text,
     )
+
     text = re.sub(
         r"[^a-z0-9]+",
         " ",
         text,
     )
+
     text = re.sub(
         r"\s+",
         " ",
         text,
     )
+
     return text.strip()
-def normalize_ticker(value: Any) -> str | None:
+
+
+def normalize_ticker(
+    value: Any,
+) -> str | None:
     text = clean_value(value)
+
     if not text:
         return None
+
     text = text.upper().strip()
+
     if text.endswith(".ST"):
         text = text[:-3]
+
     return text
-def normalize_isin(value: Any) -> str | None:
+
+
+def normalize_isin(
+    value: Any,
+) -> str | None:
     text = clean_value(value)
+
     if not text:
         return None
+
     text = text.upper().replace(
         " ",
         "",
     )
+
     if re.fullmatch(
         r"[A-Z0-9]{12}",
         text,
     ):
         return text
+
     return None
+
+
 def name_similarity(
     a: Any,
     b: Any,
 ) -> float:
     a_norm = normalize_name(a)
     b_norm = normalize_name(b)
+
     if not a_norm or not b_norm:
         return 0.0
+
     return SequenceMatcher(
         None,
         a_norm,
         b_norm,
     ).ratio()
+
+
+def yahoo_symbol(
+    ticker: Any,
+) -> str | None:
+    ticker_norm = normalize_ticker(
+        ticker
+    )
+
+    if not ticker_norm:
+        return None
+
+    if ticker_norm.endswith(
+        ".ST"
+    ):
+        return ticker_norm
+
+    return (
+        f"{ticker_norm}.ST"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Known Swedish / historical Yahoo mappings
+#
+# These are deliberately explicit.
+# A known mapping is safer than fuzzy matching.
+# ---------------------------------------------------------------------------
+
+KNOWN_YAHOO_SYMBOLS: dict[str, str] = {
+    # Large Swedish companies
+    "autoliv": "ALIV-SDB.ST",
+    "autoliv inc": "ALIV-SDB.ST",
+    "atlas copco": "ATCO-B.ST",
+    "atlas copco a": "ATCO-A.ST",
+    "atlas copco b": "ATCO-B.ST",
+    "skf": "SKF-B.ST",
+    "skf b": "SKF-B.ST",
+    "epiroc": "EPRO-B.ST",
+    "epiroc b": "EPRO-B.ST",
+    "investor": "INVE-B.ST",
+    "investor b": "INVE-B.ST",
+    "holmen": "HOLM-B.ST",
+    "holmen b": "HOLM-B.ST",
+    "ica gruppen": "ICA.ST",
+    "ica": "ICA.ST",
+    "ncc": "NCC-B.ST",
+    "ncc b": "NCC-B.ST",
+    "stora enso": "STE-R.ST",
+    "stora enso r": "STE-R.ST",
+    "tethys oil": "TETY.ST",
+    "millicom international cellular": "TIGO",
+    "millicom": "TIGO",
+    "kindred group": "KIND-SDB.ST",
+    "kindred": "KIND-SDB.ST",
+    "resurs holding": "RESURS.ST",
+    "resurs": "RESURS.ST",
+    "sas": "SAS-DKK.CO",
+    "sas ab": "SAS-DKK.CO",
+    "lagercrantz": "LAGR-B.ST",
+    "lagercrantz group": "LAGR-B.ST",
+    "lundbergforetagen": "LUND-B.ST",
+    "l e lundbergforetagen": "LUND-B.ST",
+    "lundbergforetagen b": "LUND-B.ST",
+    "nederman": "NMAN.ST",
+    "nederman holding": "NMAN.ST",
+    "stendorren": "STEFB.ST",
+    "stendorren fastigheter": "STEFB.ST",
+    "prevas": "PREV-B.ST",
+    "prevas aktiebolag": "PREV-B.ST",
+    "bjorn borg": "BORG.ST",
+    "bjorn borg ab": "BORG.ST",
+    "billerud": "BILL.ST",
+    "billerud ab": "BILL.ST",
+    "c reades": "CRED-A.ST",
+    "creades": "CRED-A.ST",
+    "cortus energy": "CE.ST",
+    "haldex": "HLDX.ST",
+    "kancera": "KAN.ST",
+    "maha energy": "MAHA-A.ST",
+    "medivir": "MVIR.ST",
+    "nobina": "NOBINA.ST",
+    "oscar properties": "OP.ST",
+    "prostalund": "PLUN.ST",
+    "resurs": "RESURS.ST",
+    "recipharm": "RECI-B.ST",
+    "swedol": "SWDL.ST",
+    "terranet": "TERRNT-B.ST",
+    "veoneer": "VNE-SDB.ST",
+    "veoneer inc": "VNE-SDB.ST",
+
+    # Historical / distressed / delisted names
+    "fingerprint cards": "FING-B.ST",
+    "fingerprint cards ab": "FING-B.ST",
+    "klövern": "KLOV-B.ST",
+    "klovern": "KLOV-B.ST",
+    "ica gruppen aktiebolag": "ICA.ST",
+    "nobina ab": "NOBINA.ST",
+    "recipharm ab": "RECI-B.ST",
+    "swedol ab": "SWDL.ST",
+    "veoneer inc": "VNE-SDB.ST",
+
+    # Companies where current Yahoo symbols are known
+    "addnode group": "ANOD-B.ST",
+    "billerud": "BILL.ST",
+    "clas ohlson": "CLAS-B.ST",
+    "diös fastigheter": "DIOS.ST",
+    "eolus vind": "EOLU-B.ST",
+    "enea": "ENEA.ST",
+    "essity": "ESSITY-B.ST",
+    "grangex": "GRANGX.ST",
+    "granges": "GRNG.ST",
+    "gränges": "GRNG.ST",
+    "heba": "HEBA-B.ST",
+    "latour": "LATO-B.ST",
+    "knowit": "KNOW.ST",
+    "orrön energy": "ORRON.ST",
+    "roko": "ROKO-B.ST",
+    "sectra": "SECT-B.ST",
+    "sbb": "SBB-B.ST",
+    "smart eye": "SEYE.ST",
+    "zinzino": "ZZ-B.ST",
+    "axichem": "AXIC-A.ST",
+}
+
+
 # ---------------------------------------------------------------------------
 # FI field extraction
 # ---------------------------------------------------------------------------
+
 def _find_value_by_key(
     record: dict[str, Any],
     candidates: set[str],
@@ -116,17 +289,23 @@ def _find_value_by_key(
         )
         for candidate in candidates
     }
+
     for key, value in record.items():
         normalized_key = re.sub(
             r"[^a-z0-9]",
             "",
             str(key).lower(),
         )
+
         if normalized_key in normalized_candidates:
             result = clean_value(value)
+
             if result:
                 return result
+
     return None
+
+
 def _find_nested_value(
     record: Any,
     candidates: set[str],
@@ -136,13 +315,16 @@ def _find_nested_value(
 ) -> str | None:
     if depth > max_depth:
         return None
+
     if isinstance(record, dict):
         direct = _find_value_by_key(
             record,
             candidates,
         )
+
         if direct:
             return direct
+
         for value in record.values():
             result = _find_nested_value(
                 value,
@@ -150,8 +332,10 @@ def _find_nested_value(
                 max_depth=max_depth,
                 depth=depth + 1,
             )
+
             if result:
                 return result
+
     elif isinstance(record, list):
         for value in record:
             result = _find_nested_value(
@@ -160,9 +344,13 @@ def _find_nested_value(
                 max_depth=max_depth,
                 depth=depth + 1,
             )
+
             if result:
                 return result
+
     return None
+
+
 def get_isin(
     record: dict[str, Any],
 ) -> str | None:
@@ -177,7 +365,12 @@ def get_isin(
             "securityIsin",
         },
     )
-    return normalize_isin(value)
+
+    return normalize_isin(
+        value
+    )
+
+
 def get_lei(
     record: dict[str, Any],
 ) -> str | None:
@@ -192,6 +385,8 @@ def get_lei(
             "entityLei",
         },
     )
+
+
 def get_ticker(
     record: dict[str, Any],
 ) -> str | None:
@@ -208,6 +403,8 @@ def get_ticker(
             "securityTicker",
         },
     )
+
+
 def get_issuer(
     record: dict[str, Any],
 ) -> str | None:
@@ -222,6 +419,8 @@ def get_issuer(
             "companyName",
         },
     )
+
+
 def get_date(
     record: dict[str, Any],
 ) -> str | None:
@@ -236,95 +435,128 @@ def get_date(
             "Date",
         },
     )
+
+
 # ---------------------------------------------------------------------------
-# FI data
+# JSONL
 # ---------------------------------------------------------------------------
+
 def _iter_jsonl(
     path: Path,
 ):
     if not path.exists():
         return
+
     with path.open(
         "r",
         encoding="utf-8",
     ) as handle:
         for line in handle:
             line = line.strip()
+
             if not line:
                 continue
+
             try:
-                record = json.loads(line)
+                record = json.loads(
+                    line
+                )
             except json.JSONDecodeError:
                 continue
-            if isinstance(record, dict):
+
+            if isinstance(
+                record,
+                dict,
+            ):
                 yield record
-def read_all_fi_data() -> list[dict[str, Any]]:
-    """
-    Read all FI aggregate snapshot observations.
-    This function intentionally returns the observations rather than
-    immediately collapsing them to instruments. __main__.py expects
-    the complete FI observation list.
-    Aggregate FI data contains issuer/LEI information but normally
-    does NOT contain ISIN or ticker.
-    """
-    records: list[dict[str, Any]] = []
+
+
+# ---------------------------------------------------------------------------
+# FI data
+# ---------------------------------------------------------------------------
+
+def read_all_fi_data() -> list[
+    dict[str, Any]
+]:
+    records: list[
+        dict[str, Any]
+    ] = []
+
     files = sorted(
         FI_SNAPSHOT_DIR.glob(
             "fi_aggregate_*.jsonl"
         )
     )
+
     for path in files:
-        for record in _iter_jsonl(path):
-            records.append(record)
+        for record in _iter_jsonl(
+            path
+        ):
+            records.append(
+                record
+            )
+
     return records
+
+
 # ---------------------------------------------------------------------------
-# Reconstructed FI identity data
+# Reconstructed FI identity
 # ---------------------------------------------------------------------------
-def _read_reconstructed_identity() -> dict[str, dict[str, Any]]:
-    """
-    Read reconstructed FI history and build the best available
-    issuer/LEI -> ISIN identity lookup.
-    The reconstructed history is the correct place to obtain ISIN
-    because the aggregate snapshots themselves do not contain it.
-    """
-    result: dict[str, dict[str, Any]] = {}
+
+def _read_reconstructed_identity() -> dict[
+    str,
+    dict[str, Any],
+]:
+    result: dict[
+        str,
+        dict[str, Any],
+    ] = {}
+
     if not FI_RECONSTRUCTED_PATH.exists():
         return result
+
     for record in _iter_jsonl(
         FI_RECONSTRUCTED_PATH
     ):
         isin = get_isin(record)
         lei = get_lei(record)
         issuer = get_issuer(record)
+
         if not isin:
             continue
+
         key = None
+
         if lei:
             key = f"LEI:{lei}"
+
         elif issuer:
             key = (
-                f"ISSUER:"
+                "ISSUER:"
                 f"{normalize_name(issuer)}"
             )
+
         if not key:
             continue
-        existing = result.get(key)
+
+        existing = result.get(
+            key
+        )
+
         if existing is None:
             result[key] = {
                 "isin": isin,
                 "lei": lei,
                 "issuer": issuer,
             }
-            continue
-        # If the same LEI has multiple ISINs, don't overwrite blindly.
-        # Keep the first identity here; instrument-specific historical
-        # mapping is handled separately through existing mappings.
-        if existing.get("isin") == isin:
-            continue
+
     return result
+
+
 # ---------------------------------------------------------------------------
 # Instrument identity
 # ---------------------------------------------------------------------------
+
 def instrument_key(
     *,
     isin: str | None,
@@ -332,65 +564,77 @@ def instrument_key(
     ticker: str | None,
     issuer: str | None,
 ) -> str:
-    """
-    Prefer ISIN.
-    If aggregate FI data does not contain ISIN, fall back to LEI.
-    """
     if isin:
         return f"ISIN:{isin}"
+
     if lei:
         return f"LEI:{lei}"
+
     if ticker:
         return (
-            f"TICKER:"
+            "TICKER:"
             f"{normalize_ticker(ticker)}"
         )
+
     if issuer:
         return (
-            f"ISSUER:"
+            "ISSUER:"
             f"{normalize_name(issuer)}"
         )
+
     raise ValueError(
         "Cannot identify FI instrument."
     )
+
+
 def get_latest_fi_instruments(
-    fi_records: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """
-    Build one current FI instrument record per issuer/LEI.
-    IMPORTANT:
-    Aggregate FI snapshots are issuer-level data. They do not contain
-    ISIN/ticker. Therefore this function does not invent those fields.
-    """
+    fi_records: list[
+        dict[str, Any]
+    ],
+) -> list[
+    dict[str, Any]
+]:
     latest: dict[
         str,
         dict[str, Any],
     ] = {}
+
     reconstructed = (
         _read_reconstructed_identity()
     )
+
     for record in fi_records:
         lei = get_lei(record)
         issuer = get_issuer(record)
         ticker = get_ticker(record)
         isin = get_isin(record)
-        snapshot_date = (
-            record.get("snapshot_date")
-            or record.get("snapshotDate")
+        snapshot_date = get_date(
+            record
         )
-        # Enrich with reconstructed identity when possible.
+
         identity = None
+
         if lei:
             identity = reconstructed.get(
                 f"LEI:{lei}"
             )
-        if identity is None and issuer:
+
+        if (
+            identity is None
+            and issuer
+        ):
             identity = reconstructed.get(
                 "ISSUER:"
-                + normalize_name(issuer)
+                + normalize_name(
+                    issuer
+                )
             )
+
         if identity and not isin:
-            isin = identity.get("isin")
+            isin = identity.get(
+                "isin"
+            )
+
         try:
             key = instrument_key(
                 isin=isin,
@@ -400,33 +644,38 @@ def get_latest_fi_instruments(
             )
         except ValueError:
             continue
-        existing = latest.get(key)
+
+        candidate = {
+            "map_key": key,
+            "isin": isin,
+            "lei": lei,
+            "issuer": issuer,
+            "ticker": ticker,
+            "date": snapshot_date,
+        }
+
+        existing = latest.get(
+            key
+        )
+
         if existing is None:
-            latest[key] = {
-                "map_key": key,
-                "isin": isin,
-                "lei": lei,
-                "issuer": issuer,
-                "ticker": ticker,
-                "date": snapshot_date,
-            }
+            latest[key] = candidate
             continue
+
         existing_date = existing.get(
             "date"
         )
-        if snapshot_date and (
-            not existing_date
-            or str(snapshot_date)
-            > str(existing_date)
+
+        if (
+            snapshot_date
+            and (
+                not existing_date
+                or str(snapshot_date)
+                > str(existing_date)
+            )
         ):
-            latest[key] = {
-                "map_key": key,
-                "isin": isin,
-                "lei": lei,
-                "issuer": issuer,
-                "ticker": ticker,
-                "date": snapshot_date,
-            }
+            latest[key] = candidate
+
     instruments = sorted(
         latest.values(),
         key=lambda item: (
@@ -435,42 +684,62 @@ def get_latest_fi_instruments(
             item.get("lei") or "",
         ),
     )
+
     print(
         "Mappning: "
-        f"{len(instruments)} FI-instrument "
-        "identifierade."
+        f"{len(instruments)} "
+        "FI-instrument identifierade."
     )
+
     return instruments
+
+
 # ---------------------------------------------------------------------------
 # Existing mapping
 # ---------------------------------------------------------------------------
+
 def load_instrument_map() -> dict[
     str,
     dict[str, Any],
 ]:
     if not MAPPING_PATH.exists():
         return {}
+
     try:
         with MAPPING_PATH.open(
             "r",
             encoding="utf-8",
         ) as handle:
-            data = json.load(handle)
+            data = json.load(
+                handle
+            )
+
     except (
         OSError,
         json.JSONDecodeError,
     ):
         return {}
-    if not isinstance(data, dict):
+
+    if not isinstance(
+        data,
+        dict,
+    ):
         return {}
+
     return data
+
+
 def save_instrument_map(
-    mapping: dict[str, dict[str, Any]],
+    mapping: dict[
+        str,
+        dict[str, Any],
+    ],
 ) -> Path:
     MAPPING_PATH.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     with MAPPING_PATH.open(
         "w",
         encoding="utf-8",
@@ -482,420 +751,585 @@ def save_instrument_map(
             indent=2,
             sort_keys=True,
         )
+
         handle.write("\n")
+
     return MAPPING_PATH
+
+
 # ---------------------------------------------------------------------------
-# Mapping migration
+# Existing mapping migration
 # ---------------------------------------------------------------------------
+
 def _migrate_existing_mapping(
-    existing: dict[str, dict[str, Any]],
-    fi_instruments: list[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """
-    Reuse known Yahoo mappings.
-    Matching priority:
-      1. exact ISIN
-      2. exact LEI + ticker
-      3. exact LEI, only if unique
-      4. exact issuer, only if unique
-    """
+    existing: dict[
+        str,
+        dict[str, Any],
+    ],
+    fi_instruments: list[
+        dict[str, Any]
+    ],
+) -> dict[
+    str,
+    dict[str, Any],
+]:
     by_isin: dict[
         str,
         dict[str, Any],
     ] = {}
-    by_lei_ticker: dict[
-        tuple[str, str],
-        dict[str, Any],
-    ] = {}
+
     by_lei: dict[
         str,
         list[dict[str, Any]],
     ] = {}
+
     by_issuer: dict[
         str,
         list[dict[str, Any]],
     ] = {}
+
     for item in existing.values():
-        if not isinstance(item, dict):
+        if not isinstance(
+            item,
+            dict,
+        ):
             continue
+
         isin = normalize_isin(
             item.get("isin")
         )
+
         lei = clean_value(
             item.get("lei")
         )
-        ticker = normalize_ticker(
-            item.get("ticker")
-        )
+
         issuer = clean_value(
             item.get("issuer")
         )
+
         if isin:
             by_isin[isin] = item
-        if lei and ticker:
-            by_lei_ticker[
-                (lei, ticker)
-            ] = item
+
         if lei:
             by_lei.setdefault(
                 lei,
                 [],
             ).append(item)
+
         if issuer:
             by_issuer.setdefault(
-                normalize_name(issuer),
+                normalize_name(
+                    issuer
+                ),
                 [],
             ).append(item)
+
     migrated: dict[
         str,
         dict[str, Any],
     ] = {}
+
     for instrument in fi_instruments:
         isin = normalize_isin(
             instrument.get("isin")
         )
+
         lei = clean_value(
             instrument.get("lei")
         )
-        ticker = normalize_ticker(
-            instrument.get("ticker")
-        )
+
         issuer = clean_value(
             instrument.get("issuer")
         )
-        key = instrument["map_key"]
+
+        key = instrument[
+            "map_key"
+        ]
+
         old = None
-        # 1. ISIN
+
+        # 1. Exact ISIN
         if isin:
-            old = by_isin.get(isin)
-        # 2. LEI + ticker
-        if (
-            old is None
-            and lei
-            and ticker
-        ):
-            old = by_lei_ticker.get(
-                (lei, ticker)
+            old = by_isin.get(
+                isin
             )
-        # 3. Unique LEI
+
+        # 2. Unique LEI
         if old is None and lei:
             candidates = by_lei.get(
                 lei,
                 [],
             )
+
             if len(candidates) == 1:
                 old = candidates[0]
-        # 4. Unique issuer
+
+        # 3. Unique issuer
         if old is None and issuer:
             candidates = by_issuer.get(
-                normalize_name(issuer),
+                normalize_name(
+                    issuer
+                ),
                 [],
             )
+
             if len(candidates) == 1:
                 old = candidates[0]
-        result = {
-            "map_key": key,
-            "isin": isin,
-            "lei": lei,
-            "issuer": issuer,
-            "ticker": ticker,
-            "yahoo_symbol": None,
-            "mapping_source": None,
-        }
-        if old:
-            yahoo_symbol = clean_value(
-                old.get("yahoo_symbol")
-            )
-            if (
-                yahoo_symbol
-                and _valid_yahoo_symbol(
-                    yahoo_symbol
-                )
-            ):
-                result[
-                    "yahoo_symbol"
-                ] = yahoo_symbol
-            result[
-                "mapping_source"
-            ] = (
-                old.get(
-                    "mapping_source"
-                )
-                or "migrated"
-            )
-        migrated[key] = result
+
+        if old is not None:
+            migrated[key] = {
+                **old,
+                "map_key": key,
+                "isin": isin
+                or old.get("isin"),
+                "lei": lei
+                or old.get("lei"),
+                "issuer": issuer
+                or old.get("issuer"),
+            }
+
     return migrated
+
+
 # ---------------------------------------------------------------------------
-# Yahoo mapping
+# Explicit mapping
 # ---------------------------------------------------------------------------
-def _valid_yahoo_symbol(
-    symbol: Any,
-) -> bool:
-    value = clean_value(symbol)
-    if not value:
-        return False
-    if value.upper() in {
-        "NONE",
-        "NULL",
-        "NAN",
-        "NAT",
-    }:
-        return False
-    return True
-def _search_yahoo(
-    *,
-    issuer: str | None,
-    ticker: str | None,
-    isin: str | None,
+
+def _explicit_mapping(
+    instrument: dict[str, Any],
 ) -> tuple[
     str | None,
     str | None,
 ]:
-    """
-    Search Yahoo for a Swedish equity.
-    Returns:
-        (yahoo_symbol, mapping_source)
-    """
-    normalized_ticker = (
-        normalize_ticker(ticker)
+    issuer = normalize_name(
+        instrument.get("issuer")
     )
-    # ---------------------------------------------------------------
-    # 1. Direct ticker
-    # ---------------------------------------------------------------
-    if normalized_ticker:
-        candidate = (
-            f"{normalized_ticker}.ST"
+
+    if not issuer:
+        return None, None
+
+    symbol = KNOWN_YAHOO_SYMBOLS.get(
+        issuer
+    )
+
+    if symbol:
+        return (
+            symbol,
+            "known_name",
         )
-        try:
-            search = yf.Search(
-                candidate
+
+    return None, None
+
+
+# ---------------------------------------------------------------------------
+# Ticker based mapping
+# ---------------------------------------------------------------------------
+
+def _ticker_mapping(
+    instrument: dict[str, Any],
+) -> tuple[
+    str | None,
+    str | None,
+]:
+    ticker = normalize_ticker(
+        instrument.get("ticker")
+    )
+
+    if not ticker:
+        return None, None
+
+    symbol = yahoo_symbol(
+        ticker
+    )
+
+    if not symbol:
+        return None, None
+
+    return (
+        symbol,
+        "fi_ticker",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Yahoo search
+# ---------------------------------------------------------------------------
+
+def _search_yahoo(
+    query: str,
+) -> list[dict[str, Any]]:
+    try:
+        search = yf.Search(
+            query,
+            max_results=10,
+        )
+
+        quotes = getattr(
+            search,
+            "quotes",
+            None,
+        )
+
+        if not quotes:
+            return []
+
+        return [
+            quote
+            for quote in quotes
+            if isinstance(
+                quote,
+                dict,
             )
-            quotes = (
-                getattr(
-                    search,
-                    "quotes",
-                    [],
-                )
-                or []
-            )
-            for quote in quotes:
-                symbol = clean_value(
-                    quote.get("symbol")
-                )
-                quote_type = str(
-                    quote.get(
-                        "quoteType"
-                    )
-                    or ""
-                ).upper()
-                if (
-                    symbol
-                    and symbol.upper()
-                    == candidate.upper()
-                    and (
-                        not quote_type
-                        or quote_type
-                        == "EQUITY"
-                    )
-                ):
-                    return (
-                        symbol,
-                        "ticker",
-                    )
-        except Exception:
-            pass
-    # ---------------------------------------------------------------
-    # 2. Search issuer
-    # ---------------------------------------------------------------
-    queries: list[str] = []
+        ]
+
+    except Exception as exc:
+        print(
+            "Mappning: Yahoo-sökning "
+            f"misslyckades för "
+            f"{query!r}: {exc}"
+        )
+
+        return []
+
+
+def _candidate_symbol(
+    quote: dict[str, Any],
+) -> str | None:
+    symbol = clean_value(
+        quote.get("symbol")
+    )
+
+    if not symbol:
+        return None
+
+    symbol = symbol.upper()
+
+    # Swedish equities.
+    if symbol.endswith(
+        ".ST"
+    ):
+        return symbol
+
+    # Some Yahoo results omit the
+    # exchange suffix.
+    exchange = clean_value(
+        quote.get("exchange")
+    )
+
+    if (
+        exchange
+        and exchange.upper()
+        in {
+            "STO",
+            "STOCKHOLM",
+        }
+    ):
+        return (
+            f"{symbol}.ST"
+        )
+
+    return None
+
+
+def _search_candidates(
+    instrument: dict[str, Any],
+) -> list[
+    tuple[
+        str,
+        float,
+        str,
+    ]
+]:
+    issuer = clean_value(
+        instrument.get("issuer")
+    )
+
+    isin = normalize_isin(
+        instrument.get("isin")
+    )
+
+    queries: list[
+        tuple[str, str]
+    ] = []
+
     if issuer:
-        queries.append(issuer)
-    if normalized_ticker:
         queries.append(
-            normalized_ticker
+            (
+                issuer,
+                "issuer_search",
+            )
         )
+
+    normalized = normalize_name(
+        issuer
+    )
+
+    if normalized:
+        queries.append(
+            (
+                normalized,
+                "normalized_name_search",
+            )
+        )
+
     if isin:
-        queries.append(isin)
+        queries.append(
+            (
+                isin,
+                "isin_search",
+            )
+        )
+
+    candidates: list[
+        tuple[
+            str,
+            float,
+            str,
+        ]
+    ] = []
+
     seen: set[str] = set()
-    for query in queries:
-        if (
-            not query
-            or query in seen
-        ):
-            continue
-        seen.add(query)
-        try:
-            search = yf.Search(
-                query
-            )
-            quotes = (
-                getattr(
-                    search,
-                    "quotes",
-                    [],
-                )
-                or []
-            )
-        except Exception:
-            continue
-        candidates = []
+
+    for query, source in queries:
+        quotes = _search_yahoo(
+            query
+        )
+
         for quote in quotes:
-            symbol = clean_value(
-                quote.get("symbol")
+            symbol = _candidate_symbol(
+                quote
             )
-            if not _valid_yahoo_symbol(
-                symbol
-            ):
+
+            if not symbol:
                 continue
-            if not symbol.upper().endswith(
-                ".ST"
-            ):
+
+            if symbol in seen:
                 continue
-            quote_type = str(
-                quote.get(
-                    "quoteType"
-                )
-                or ""
-            ).upper()
-            if (
-                quote_type
-                and quote_type != "EQUITY"
-            ):
-                continue
+
+            seen.add(symbol)
+
             quote_name = (
                 quote.get("longname")
                 or quote.get("shortname")
                 or quote.get("name")
+                or ""
             )
-            score = 0.0
-            if (
-                normalized_ticker
-                and normalize_ticker(
-                    symbol
-                )
-                == normalized_ticker
-            ):
-                score += 1.0
-            if (
+
+            score = name_similarity(
+                issuer,
+                quote_name,
+            )
+
+            # Exact-ish name match gets a
+            # substantial boost.
+            issuer_norm = normalize_name(
                 issuer
-                and quote_name
-            ):
-                score += name_similarity(
-                    issuer,
-                    quote_name,
+            )
+
+            quote_norm = normalize_name(
+                quote_name
+            )
+
+            if (
+                issuer_norm
+                and quote_norm
+                and (
+                    issuer_norm
+                    == quote_norm
                 )
+            ):
+                score = 1.0
+
             candidates.append(
                 (
-                    score,
                     symbol,
-                    quote_name,
+                    score,
+                    source,
                 )
             )
-        candidates.sort(
-            key=lambda item: item[0],
-            reverse=True,
-        )
-        if not candidates:
-            continue
-        score, symbol, _ = (
-            candidates[0]
-        )
-        if (
-            normalized_ticker
-            and normalize_ticker(
-                symbol
-            )
-            == normalized_ticker
-        ):
-            return (
-                symbol,
-                "ticker-search",
-            )
-        if (
-            issuer
-            and score >= 0.35
-        ):
-            return (
-                symbol,
-                "issuer-search",
-            )
-    return (
-        None,
-        None,
+
+    candidates.sort(
+        key=lambda item: item[1],
+        reverse=True,
     )
+
+    return candidates
+
+
+def _search_mapping(
+    instrument: dict[str, Any],
+) -> tuple[
+    str | None,
+    str | None,
+]:
+    candidates = _search_candidates(
+        instrument
+    )
+
+    if not candidates:
+        return None, None
+
+    best_symbol, best_score, source = (
+        candidates[0]
+    )
+
+    # Conservative threshold.
+    #
+    # We prefer an unresolved instrument
+    # over a dangerous false positive.
+    if best_score >= 0.90:
+        return (
+            best_symbol,
+            source,
+        )
+
+    # Exact Yahoo name may occasionally
+    # have weak normalization similarity
+    # because of legal-name differences.
+    if best_score >= 0.80:
+        if (
+            len(candidates) == 1
+            or (
+                best_score
+                - candidates[1][1]
+                >= 0.10
+            )
+        ):
+            return (
+                best_symbol,
+                source,
+            )
+
+    return None, None
+
+
 # ---------------------------------------------------------------------------
-# Build complete mapping
+# Build mapping
 # ---------------------------------------------------------------------------
+
 def build_instrument_map(
     *,
-    existing: dict[str, dict[str, Any]] | None,
-    fi_records: list[dict[str, Any]],
+    existing: dict[
+        str,
+        dict[str, Any],
+    ],
+    fi_records: list[
+        dict[str, Any]
+    ],
 ) -> tuple[
     dict[str, dict[str, Any]],
     int,
     int,
 ]:
-    """
-    Build instrument mapping.
-    Return value deliberately matches prices/__main__.py:
-        mapping,
-        new_mappings,
-        unresolved
-    """
-    existing = existing or {}
     fi_instruments = (
         get_latest_fi_instruments(
             fi_records
         )
     )
-    mapping = _migrate_existing_mapping(
-        existing,
-        fi_instruments,
-    )
-    unresolved_items = [
-        item
-        for item in mapping.values()
-        if not _valid_yahoo_symbol(
-            item.get(
-                "yahoo_symbol"
-            )
+
+    migrated = (
+        _migrate_existing_mapping(
+            existing,
+            fi_instruments,
         )
-    ]
-    print(
-        "Mappning: "
-        f"{len(unresolved_items)} instrument "
-        "behöver Yahoo-sökning."
     )
+
+    mapping: dict[
+        str,
+        dict[str, Any],
+    ] = dict(
+        migrated
+    )
+
     new_mappings = 0
     unresolved = 0
-    for index, item in enumerate(
-        unresolved_items,
+
+    needs_search = [
+        instrument
+        for instrument in fi_instruments
+        if instrument["map_key"]
+        not in mapping
+    ]
+
+    print(
+        "Mappning: "
+        f"{len(needs_search)} instrument "
+        "behöver Yahoo-sökning."
+    )
+
+    for index, instrument in enumerate(
+        needs_search,
         start=1,
     ):
-        issuer = item.get(
-            "issuer"
+        key = instrument[
+            "map_key"
+        ]
+
+        issuer = (
+            instrument.get(
+                "issuer"
+            )
+            or "?"
         )
-        ticker = item.get(
-            "ticker"
-        )
-        isin = item.get(
+
+        isin = instrument.get(
             "isin"
         )
+
+        ticker = instrument.get(
+            "ticker"
+        )
+
+        symbol = None
+        source = None
+
+        # ---------------------------------------------------------------
+        # 1. Explicit known mapping
+        # ---------------------------------------------------------------
+
         symbol, source = (
-            _search_yahoo(
-                issuer=issuer,
-                ticker=ticker,
-                isin=isin,
+            _explicit_mapping(
+                instrument
             )
         )
+
+        # ---------------------------------------------------------------
+        # 2. FI ticker -> .ST
+        # ---------------------------------------------------------------
+
+        if symbol is None:
+            symbol, source = (
+                _ticker_mapping(
+                    instrument
+                )
+            )
+
+        # ---------------------------------------------------------------
+        # 3. Yahoo search
+        # ---------------------------------------------------------------
+
+        if symbol is None:
+            symbol, source = (
+                _search_mapping(
+                    instrument
+                )
+            )
+
         if symbol:
-            item[
-                "yahoo_symbol"
-            ] = symbol
-            item[
-                "mapping_source"
-            ] = source
+            mapping[key] = {
+                "map_key": key,
+                "isin": isin,
+                "lei": instrument.get(
+                    "lei"
+                ),
+                "issuer": issuer,
+                "ticker": ticker,
+                "yahoo_symbol": symbol,
+                "mapping_source": source,
+            }
+
             new_mappings += 1
+
             print(
                 "Mappning: hittad - "
                 f"{issuer} "
@@ -903,92 +1337,99 @@ def build_instrument_map(
                 f"isin={isin} "
                 f"-> {symbol} "
                 f"[{index}/"
-                f"{len(unresolved_items)}]"
+                f"{len(needs_search)}]"
             )
+
         else:
-            item[
-                "yahoo_symbol"
-            ] = None
-            item[
-                "mapping_source"
-            ] = None
+            mapping[key] = {
+                "map_key": key,
+                "isin": isin,
+                "lei": instrument.get(
+                    "lei"
+                ),
+                "issuer": issuer,
+                "ticker": ticker,
+                "yahoo_symbol": None,
+                "mapping_source": None,
+            }
+
             unresolved += 1
+
             print(
                 "Mappning: ej hittad - "
                 f"{issuer} "
                 f"ticker={ticker} "
                 f"isin={isin} "
                 f"[{index}/"
-                f"{len(unresolved_items)}]"
+                f"{len(needs_search)}]"
             )
+
     print(
         "Mappning: "
         f"{new_mappings} nya, "
         f"{unresolved} olösta, "
         f"{len(mapping)} totalt"
     )
+
     return (
         mapping,
         new_mappings,
         unresolved,
     )
+
+
 # ---------------------------------------------------------------------------
-# Instruments used by price fetch
+# Yahoo symbols
 # ---------------------------------------------------------------------------
+
 def get_yahoo_symbols(
-    mapping: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """
-    Return only instruments with valid Yahoo symbols.
-    Invalid values such as None/NONE are never passed to yfinance.
-    """
+    mapping: dict[
+        str,
+        dict[str, Any],
+    ],
+) -> list[
+    dict[str, Any]
+]:
     instruments: list[
         dict[str, Any]
     ] = []
-    for map_key, item in mapping.items():
+
+    for item in mapping.values():
+        if not isinstance(
+            item,
+            dict,
+        ):
+            continue
+
         symbol = clean_value(
             item.get(
                 "yahoo_symbol"
             )
         )
-        if not _valid_yahoo_symbol(
-            symbol
-        ):
+
+        if not symbol:
             continue
+
         instruments.append(
-            {
-                "map_key": map_key,
-                "isin": normalize_isin(
-                    item.get("isin")
-                ),
-                "lei": clean_value(
-                    item.get("lei")
-                ),
-                "issuer": clean_value(
-                    item.get("issuer")
-                ),
-                "ticker": normalize_ticker(
-                    item.get("ticker")
-                ),
-                "yahoo_symbol": symbol,
-                "mapping_source": item.get(
-                    "mapping_source"
-                ),
-            }
+            item
         )
-    # Fetch each Yahoo symbol only once.
+
+    # Avoid duplicate Yahoo symbols.
     unique: dict[
         str,
         dict[str, Any],
     ] = {}
-    for instrument in instruments:
-        symbol = instrument[
+
+    for item in instruments:
+        symbol = item[
             "yahoo_symbol"
         ]
-        if symbol not in unique:
-            unique[symbol] = instrument
-    return sorted(
-        unique.values(),
-        key=lambda item:
-            item["yahoo_symbol"],
-    )
+
+        unique[symbol] = item
+
+    return [
+        unique[symbol]
+        for symbol in sorted(
+            unique
+        )
+    ]
