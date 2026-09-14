@@ -1,9 +1,8 @@
 """
 CLI för FI-data i Blankdiss.
 
-Hämtar aktuell aggregerad blankningsdata från
-Finansinspektionens blankningsregister och sparar
-den som en tidsstämplad snapshot.
+Hämtar FI:s aggregerade blankningsdata
+och sparar den som en tidsstämplad snapshot.
 
 Körs med:
 
@@ -28,7 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Hämta och normalisera "
-            "Finansinspektionens blankningsdata."
+            "Finansinspektionens "
+            "aggregerade blankningsdata."
         )
     )
 
@@ -36,8 +36,8 @@ def parse_args() -> argparse.Namespace:
         "--current-only",
         action="store_true",
         help=(
-            "Hämta endast aktuell data. "
-            "Flaggan finns för tydlighet och felsökning."
+            "Hämta aktuell FI-data utan "
+            "någon annan pipeline."
         ),
     )
 
@@ -49,14 +49,37 @@ def run_current() -> None:
 
     if not records:
         raise FIError(
-            "FI returnerade inga aktuella observationer."
+            "FI returnerade inga "
+            "aktuella observationer."
         )
 
-    path = write_snapshot(records)
+    path = write_snapshot(
+        records
+    )
+
+    source_dates = sorted(
+        {
+            record["source_date"]
+            for record in records
+            if record.get("source_date")
+        }
+    )
 
     print(
-        "FI: aktuell snapshot - "
-        f"{len(records)} observationer → {path}"
+        "FI: aggregerad snapshot sparad."
+    )
+
+    print(
+        f"FI: observationer = {len(records)}"
+    )
+
+    print(
+        "FI: source_date = "
+        f"{', '.join(source_dates)}"
+    )
+
+    print(
+        f"FI: snapshot = {path}"
     )
 
 
@@ -67,9 +90,13 @@ def main() -> int:
         run_current()
 
         if args.current_only:
-            print("FI: current-only klart.")
+            print(
+                "FI: current-only klart."
+            )
         else:
-            print("FI: klart.")
+            print(
+                "FI: klart."
+            )
 
         return 0
 
