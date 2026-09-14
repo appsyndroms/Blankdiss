@@ -27,22 +27,37 @@ jobs:
       - name: Hämta verifierad FI-aggregathistorik
         run: |
           python -m fi.backfill \
-            --from 2022-06-09
+            --from 2022-05-25
 
       - name: Hämta hela FI:s historiska positionsregister
         run: |
           python -m fi.historical_positions
 
+      - name: Rekonstruera aggregerad historik
+        run: |
+          python -m fi.reconstruct_aggregate
+
       - name: Visa historiska FI-data
         run: |
           echo "=========================================="
-          echo "HISTORISKA AGGREGAT"
+          echo "OFFICIELLA HISTORISKA AGGREGAT"
           echo "=========================================="
 
           find data/raw/fi/aggregate/historical \
             -maxdepth 1 \
             -type f \
             -name 'fi_aggregate_*.jsonl' \
+            -print \
+            | sort
+
+          echo
+          echo "=========================================="
+          echo "REKONSTRUERAT AGGREGAT"
+          echo "=========================================="
+
+          find data/processed/fi/aggregate \
+            -maxdepth 1 \
+            -type f \
             -print \
             | sort
 
@@ -59,34 +74,46 @@ jobs:
 
           echo
           echo "=========================================="
-          echo "METADATA"
+          echo "REKONSTRUKTION METADATA"
           echo "=========================================="
 
-          if [ -f data/raw/fi/positions/historical/fi_historical_positions_metadata.json ]; then
-            cat \
-              data/raw/fi/positions/historical/fi_historical_positions_metadata.json
-          fi
+          cat \
+            data/processed/fi/aggregate/reconstructed_metadata.json
+
+          echo
+          echo "=========================================="
+          echo "FI POSITION METADATA"
+          echo "=========================================="
+
+          cat \
+            data/raw/fi/positions/historical/fi_historical_positions_metadata.json
 
       - name: Kontrollera Git-status
         run: |
           echo "Git-status för historiska FI-data:"
+
           git status --short \
-            -- data/raw/fi/aggregate/historical \
-            data/raw/fi/positions/historical
+            -- data/raw/fi/aggregate \
+            data/raw/fi/positions/historical \
+            data/processed/fi/aggregate
 
       - name: Commit historisk data
         run: |
           if [ -z "$(git status --porcelain -- \
-            data/raw/fi/aggregate/historical \
-            data/raw/fi/positions/historical)" ]; then
+            data/raw/fi/aggregate \
+            data/raw/fi/positions/historical \
+            data/processed/fi/aggregate)" ]; then
+
             echo "Ingen ny historisk data att committa."
             exit 0
           fi
 
           echo "Historisk data hittad:"
+
           git status --short \
-            -- data/raw/fi/aggregate/historical \
-            data/raw/fi/positions/historical
+            -- data/raw/fi/aggregate \
+            data/raw/fi/positions/historical \
+            data/processed/fi/aggregate
 
           git config user.name \
             "github-actions[bot]"
@@ -95,14 +122,16 @@ jobs:
             "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add \
-            data/raw/fi/aggregate/historical \
-            data/raw/fi/positions/historical
+            data/raw/fi/aggregate \
+            data/raw/fi/positions/historical \
+            data/processed/fi/aggregate
 
           echo
           echo "Filer som kommer att committas:"
+
           git diff --cached --name-status
 
           git commit \
-            -m "Add FI historical short positions"
+            -m "Build reconstructed FI aggregate history"
 
           git push
