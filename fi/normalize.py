@@ -249,6 +249,12 @@ def normalize_records(
     """
     Normaliserar en rå FI-tabell till Blankdiss-format.
 
+    snapshot_date är datumet då Blankdiss hämtade
+    och observerade FI:s aktuella aggregat.
+
+    position_date är FI:s eget senaste
+    positionsdatum för respektive emittent.
+
     Stöder både moderna svenska rubriker
     och äldre historiska FI-filer med
     engelska rubriker inom parentes.
@@ -291,6 +297,23 @@ def normalize_records(
             "blankning."
         )
 
+    fetched_datetime = pd.to_datetime(
+        fetched_at,
+        errors="coerce",
+    )
+
+    if pd.isna(fetched_datetime):
+        raise ValueError(
+            "Ogiltig fetched_at: "
+            f"{fetched_at}"
+        )
+
+    snapshot_date = (
+        fetched_datetime
+        .date()
+        .isoformat()
+    )
+
     records: list[dict] = []
 
     for _, row in table.iterrows():
@@ -331,6 +354,7 @@ def normalize_records(
 
         records.append(
             {
+                "snapshot_date": snapshot_date,
                 "fetched_at": fetched_at,
                 "source_date": source_date,
                 "position_date": position_date,
