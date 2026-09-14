@@ -377,10 +377,10 @@ def add_fi_features(
     )
 
     for threshold in (
-        1,
-        2,
-        3,
-        5,
+        1.0,
+        2.0,
+        3.0,
+        5.0,
     ):
         current = (
             frame["short_interest_pct"]
@@ -391,12 +391,19 @@ def add_fi_features(
             "previous_short_interest_pct"
         ]
 
+        threshold_label = (
+            f"{threshold:.1f}".replace(
+                ".",
+                "_",
+            )
+        )
+
         frame[
-            f"short_interest_ge_{threshold}pp"
+            f"above_{threshold_label}pct"
         ] = current
 
         frame[
-            f"entered_ge_{threshold}pp"
+            f"entered_above_{threshold_label}pct"
         ] = (
             previous.notna()
             & (previous < threshold)
@@ -404,7 +411,7 @@ def add_fi_features(
         )
 
         frame[
-            f"exited_below_{threshold}pp"
+            f"exited_below_{threshold_label}pct"
         ] = (
             previous.notna()
             & (previous >= threshold)
@@ -645,6 +652,18 @@ def validate_output_columns(
         "forward_return_5d",
         "forward_return_20d",
         "forward_return_60d",
+        "above_1_0pct",
+        "entered_above_1_0pct",
+        "exited_below_1_0pct",
+        "above_2_0pct",
+        "entered_above_2_0pct",
+        "exited_below_2_0pct",
+        "above_3_0pct",
+        "entered_above_3_0pct",
+        "exited_below_3_0pct",
+        "above_5_0pct",
+        "entered_above_5_0pct",
+        "exited_below_5_0pct",
     }
 
     missing = required.difference(
