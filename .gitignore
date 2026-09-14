@@ -11,3 +11,12 @@ venv/
 
 # GitHub Pages build output
 pages/
+
+# Large generated FI datasets
+data/raw/fi/aggregate/historical/*.jsonl
+data/raw/fi/positions/historical/*.jsonl
+data/processed/fi/aggregate/*.jsonl
+
+# Keep metadata files in Git
+!data/raw/fi/positions/historical/*_metadata.json
+!data/processed/fi/aggregate/*_metadata.json
