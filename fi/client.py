@@ -42,7 +42,12 @@ def fetch_html() -> str:
 def download_file(
     url: str,
 ) -> tuple[bytes, str]:
-    """Hämtar en fil från FI."""
+    """
+    Hämtar en fil från FI.
+
+    Behålls som generell klientfunktion eftersom
+    källan kan komma att exponeras som Excel igen.
+    """
 
     try:
         response = requests.get(
@@ -82,4 +87,7 @@ def download_file(
 def absolute_url(href: str) -> str:
     """Gör en relativ FI-länk absolut."""
 
-    return urljoin(FI_URL, href)
+    return urljoin(
+        FI_URL,
+        href,
+    )
