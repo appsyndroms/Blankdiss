@@ -33,9 +33,16 @@ def extract_close_series(
         "columns",
     ):
         if symbol in close.columns:
-            close = close[symbol]
-        elif len(close.columns) == 1:
-            close = close.iloc[:, 0]
+            close = close[
+                symbol
+            ]
+        elif len(
+            close.columns
+        ) == 1:
+            close = close.iloc[
+                :,
+                0
+            ]
         else:
             return None
     return close
@@ -47,11 +54,15 @@ def fetch_prices(
     if not instruments:
         return []
     symbols = [
-        instrument["yahoo_symbol"]
+        instrument[
+            "yahoo_symbol"
+        ]
         for instrument in instruments
     ]
     symbols = list(
-        dict.fromkeys(symbols)
+        dict.fromkeys(
+            symbols
+        )
     )
     print(
         "Priser: hämtar "
@@ -82,14 +93,20 @@ def fetch_prices(
             "ingen prisdata."
         )
         return []
-    records: list[dict] = []
     instrument_by_symbol = {
-        instrument["yahoo_symbol"]: instrument
+        instrument[
+            "yahoo_symbol"
+        ]: instrument
         for instrument in instruments
     }
+    records: list[
+        dict
+    ] = []
     for symbol in symbols:
         instrument = (
-            instrument_by_symbol[symbol]
+            instrument_by_symbol[
+                symbol
+            ]
         )
         close = extract_close_series(
             data,
@@ -106,7 +123,9 @@ def fetch_prices(
             if value is None:
                 continue
             try:
-                price = float(value)
+                price = float(
+                    value
+                )
             except (
                 TypeError,
                 ValueError,
@@ -132,6 +151,11 @@ def fetch_prices(
                         "ticker"
                     ),
                     "yahoo_symbol": symbol,
+                    "mapping_source": (
+                        instrument.get(
+                            "mapping_source"
+                        )
+                    ),
                     "close": price,
                 }
             )
@@ -161,7 +185,10 @@ def write_jsonl(
         f"{start}_"
         f"{end_label}.jsonl"
     )
-    path = RAW_DIR / filename
+    path = (
+        RAW_DIR
+        / filename
+    )
     with path.open(
         "w",
         encoding="utf-8",
