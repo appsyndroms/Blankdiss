@@ -38,10 +38,11 @@ def load_manifest() -> dict:
             ),
             "last_checked": None,
             "files": {},
+            "snapshots": [],
         }
 
     try:
-        return json.loads(
+        manifest = json.loads(
             MANIFEST_PATH.read_text(
                 encoding="utf-8"
             )
@@ -53,6 +54,18 @@ def load_manifest() -> dict:
         raise FIError(
             "Kunde inte läsa FI-manifestet."
         ) from exc
+
+    if not isinstance(manifest, dict):
+        raise FIError(
+            "FI-manifestet har ogiltigt format."
+        )
+
+    snapshots = manifest.get("snapshots")
+
+    if not isinstance(snapshots, list):
+        manifest["snapshots"] = []
+
+    return manifest
 
 
 def save_manifest(
@@ -83,7 +96,9 @@ def write_snapshot(
     """
     Skriver en tidsstämplad JSONL-snapshot.
 
-    Varje körning får ett eget filnamn.
+    Varje körning får ett eget filnamn och manifestet
+    uppdateras så att FI-historiken kan följas utan att
+    tidigare snapshots skrivs över.
     """
 
     if not records:
@@ -112,6 +127,9 @@ def write_snapshot(
             ) from exc
     else:
         fetched = now_stockholm()
+        fetched_value = fetched.isoformat(
+            timespec="seconds"
+        )
 
     timestamp = fetched.strftime(
         "%Y-%m-%d_%H-%M-%S"
@@ -125,18 +143,77 @@ def write_snapshot(
         )
     )
 
-    with path.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        for record in records:
-            handle.write(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
+    if path.exists():
+        raise FIError(
+            "FI-snapshoten finns redan: "
+            f"{path}"
+        )
+
+    lines = [
+        json.dumps(
+            record,
+            ensure_ascii=False,
+        )
+        + "\n"
+        for record in records
+    ]
+
+    data = "".join(lines).encode("utf-8")
+
+    path.write_bytes(data)
+
+    digest = sha256_bytes(data)
+
+    source_dates = sorted(
+        {
+            str(record["source_date"])
+            for record in records
+            if record.get("source_date")
+        }
+    )
+
+    manifest = load_manifest()
+
+    snapshots = manifest.setdefault(
+        "snapshots",
+        [],
+    )
+
+    relative_path = path.relative_to(
+        RAW_DIR
+    ).as_posix()
+
+    snapshot_entry = {
+        "file": relative_path,
+        "fetched_at": fetched_value,
+        "source_dates": source_dates,
+        "observations": len(records),
+        "sha256": digest,
+    }
+
+    existing_files = {
+        item.get("file")
+        for item in snapshots
+        if isinstance(item, dict)
+    }
+
+    if relative_path not in existing_files:
+        snapshots.append(snapshot_entry)
+
+    snapshots.sort(
+        key=lambda item: item.get(
+            "fetched_at",
+            "",
+        )
+    )
+
+    manifest["last_checked"] = fetched_value
+    manifest["source"] = "FI"
+    manifest["dataset"] = (
+        "aggregate_short_positions"
+    )
+
+    save_manifest(manifest)
 
     return path
 
