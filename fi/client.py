@@ -6,7 +6,12 @@ from urllib.parse import urljoin
 
 import requests
 
-from .config import FI_URL, HEADERS
+from .config import (
+    FI_AGGREGATE_TIMEOUT,
+    FI_AGGREGATE_URL,
+    FI_URL,
+    HEADERS,
+)
 from .errors import FIError
 
 
@@ -45,8 +50,7 @@ def download_file(
     """
     Hämtar en fil från FI.
 
-    Behålls som generell klientfunktion eftersom
-    källan kan komma att exponeras som Excel igen.
+    Behålls som generell klientfunktion.
     """
 
     try:
@@ -78,10 +82,50 @@ def download_file(
 
     if lowered.endswith(".xls"):
         extension = ".xls"
-    else:
+    elif lowered.endswith(".xlsx"):
         extension = ".xlsx"
+    else:
+        extension = ".ods"
 
     return data, extension
+
+
+def fetch_aggregate() -> bytes:
+    """
+    Hämtar FI:s aggregerade blankningsfil.
+
+    Detta är FI:s riktiga aggregatkälla och innehåller
+    den aggregerade korta nettopositionen över 0,1 %.
+    """
+
+    try:
+        response = requests.get(
+            FI_AGGREGATE_URL,
+            headers=HEADERS,
+            timeout=FI_AGGREGATE_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise FIError(
+            "HTTP-fel vid hämtning av FI:s "
+            "aggregerade blankningsfil: "
+            f"{type(exc).__name__}"
+        ) from exc
+
+    if response.status_code != 200:
+        raise FIError(
+            "FI:s aggregat-endpoint svarade med HTTP "
+            f"{response.status_code}."
+        )
+
+    data = response.content
+
+    if not data:
+        raise FIError(
+            "FI:s aggregat-endpoint returnerade "
+            "en tom fil."
+        )
+
+    return data
 
 
 def absolute_url(href: str) -> str:
