@@ -1,0 +1,18 @@
+{
+  "source": "https://www.fi.se/BlankningsRegister/GetHistFile",
+  "raw_rows": 38233,
+  "normalized_rows": 38233,
+  "numeric_position_rows": 32943,
+  "below_0_5_rows": 5290,
+  "unique_holders": 574,
+  "unique_issuers": 467,
+  "first_position_date": "2010-05-10",
+  "last_position_date": "2026-12-08",
+  "columns": {
+    "holder": "Innehavare av positionen (Position holder)",
+    "issuer": "Namn på emittent (Name of the issuer)",
+    "position": "Position i procent (Position in per cent)",
+    "position_date": "Datum för positionen (Position date)",
+    "isin": "ISIN"
+  }
+}
