@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-09-14",
+  "results": [
+    {
+      "bucket": ">1,00 pp",
+      "events": 3,
+      "median_1d": null,
+      "mean_1d": null,
+      "positive_1d": null,
+      "median_5d": null,
+      "mean_5d": null,
+      "positive_5d": null,
+      "median_20d": null,
+      "mean_20d": null,
+      "positive_20d": null,
+      "median_60d": null,
+      "mean_60d": null,
+      "positive_60d": null
+    }
+  ]
+}
