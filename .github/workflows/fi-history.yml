@@ -24,11 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Hämta en historisk FI-fil
+      - name: Hämta historiska FI-filer
         run: |
           python -m fi.backfill \
             --from 2022-05-25 \
-            --to 2022-05-25
+            --to 2022-06-10
 
       - name: Visa hämtad data
         run: |
@@ -47,6 +47,24 @@ jobs:
           echo "Ignorerade filer i historikkatalogen:"
           git status --short --ignored -- data/raw/fi/aggregate/historical
 
+      - name: Kontrollera testfiler
+        run: |
+          echo "Förväntade testdatum:"
+          echo "2022-05-25"
+          echo "2022-06-01"
+          echo "2022-06-08"
+          echo "2022-06-09"
+          echo "2022-06-10"
+
+          echo
+          echo "Faktiskt hämtade filer:"
+          find data/raw/fi/aggregate/historical \
+            -maxdepth 1 \
+            -type f \
+            -name 'fi_aggregate_2022-*.jsonl' \
+            -print \
+            | sort
+
       - name: Commit historisk data
         run: |
           if [ -z "$(git status --porcelain -- data/raw/fi/aggregate/historical)" ]; then
@@ -58,5 +76,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data/raw/fi/aggregate/historical
+
           git commit -m "Add FI historical aggregate data"
+
           git push
