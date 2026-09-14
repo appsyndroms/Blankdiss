@@ -254,18 +254,43 @@ def fetch_prices(
     return records
 def write_jsonl(
     records: list[dict[str, Any]],
-    output_path: Path,
-) -> None:
+    *,
+    start: str | date,
+    end: str | date | None = None,
+) -> Path:
     """
     Write price records as JSONL.
-    Kept as a public compatibility function
-    because prices.__main__ imports it.
+    The filename is generated from start/end so that
+    prices.__main__ can call this function directly.
+    Example:
+        prices_2022-05-25_2026-09-12.jsonl
     """
-    output_path.parent.mkdir(
+    start_date = _normalise_date(
+        start
+    )
+    if end is None:
+        end_date = date.today()
+        end_label = "latest"
+    else:
+        end_date = _normalise_date(
+            end
+        )
+        end_label = end_date.isoformat()
+    OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
-    with output_path.open(
+    output = (
+        OUTPUT_DIR
+        / (
+            "prices_"
+            f"{start_date.isoformat()}"
+            "_"
+            f"{end_label}"
+            ".jsonl"
+        )
+    )
+    with output.open(
         "w",
         encoding="utf-8",
     ) as handle:
@@ -277,6 +302,7 @@ def write_jsonl(
                 )
             )
             handle.write("\n")
+    return output
 def save_prices(
     records: list[dict[str, Any]],
     *,
@@ -287,28 +313,8 @@ def save_prices(
     Convenience wrapper for writing
     the standard price filename.
     """
-    start_date = _normalise_date(
-        start
-    )
-    end_date = _normalise_date(
-        end
-    )
-    OUTPUT_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-    output = (
-        OUTPUT_DIR
-        / (
-            "prices_"
-            f"{start_date.isoformat()}"
-            "_"
-            f"{end_date.isoformat()}"
-            ".jsonl"
-        )
-    )
-    write_jsonl(
+    return write_jsonl(
         records,
-        output,
+        start=start,
+        end=end,
     )
-    return output
