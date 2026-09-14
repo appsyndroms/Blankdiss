@@ -1,0 +1,622 @@
+"""
+QC av historiska priser och instrumentmappning.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from collections import defaultdict
+from datetime import date
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+PRICE_DIR = ROOT / "data" / "raw" / "prices"
+MAP_PATH = ROOT / "data" / "analysis" / "instrument_map.json"
+FI_PATH = (
+    ROOT
+    / "data"
+    / "processed"
+    / "fi"
+    / "aggregate"
+    / "reconstructed.jsonl"
+)
+
+DEFAULT_QC = PRICE_DIR / "price_qc.json"
+
+
+def read_jsonl(path: Path):
+    with path.open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                yield line_number, json.loads(line)
+            except json.JSONDecodeError:
+                yield line_number, None
+
+
+def latest_price_file() -> Path:
+    files = sorted(
+        PRICE_DIR.glob("prices_*.jsonl"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not files:
+        raise FileNotFoundError(
+            "Ingen prices_*.jsonl hittades."
+        )
+
+    return files[0]
+
+
+def load_fi_isins() -> set[str]:
+    result: set[str] = set()
+
+    for _, record in read_jsonl(FI_PATH):
+        if not isinstance(record, dict):
+            continue
+
+        isin = str(
+            record.get("isin") or ""
+        ).strip()
+
+        if isin:
+            result.add(isin)
+
+    return result
+
+
+def load_mapping() -> dict:
+    return json.loads(
+        MAP_PATH.read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def mapping_qc(
+    mapping: dict,
+    fi_isins: set[str],
+) -> dict:
+    symbols: dict[str, set[str]] = (
+        defaultdict(set)
+    )
+
+    unresolved: list[dict] = []
+    mapped_isins: set[str] = set()
+
+    for key, item in mapping.items():
+        if not isinstance(item, dict):
+            continue
+
+        isin = str(
+            item.get("isin") or ""
+        ).strip()
+
+        symbol = str(
+            item.get("yahoo_symbol") or ""
+        ).strip()
+
+        lei = str(
+            item.get("lei") or key
+        ).strip()
+
+        issuer = str(
+            item.get("issuer") or ""
+        ).strip()
+
+        if isin:
+            mapped_isins.add(isin)
+
+        if symbol:
+            symbols[symbol].add(lei)
+        else:
+            unresolved.append(
+                {
+                    "lei": lei,
+                    "isin": isin or None,
+                    "issuer": issuer,
+                }
+            )
+
+    duplicate_symbols = {
+        symbol: sorted(leis)
+        for symbol, leis in symbols.items()
+        if len(leis) > 1
+    }
+
+    return {
+        "entries": len(mapping),
+        "with_yahoo_symbol": sum(
+            isinstance(item, dict)
+            and bool(
+                str(
+                    item.get(
+                        "yahoo_symbol"
+                    ) or ""
+                ).strip()
+            )
+            for item in mapping.values()
+        ),
+        "unresolved": len(unresolved),
+        "fi_unique_isins": len(fi_isins),
+        "mapped_fi_isins": len(
+            mapped_isins & fi_isins
+        ),
+        "unresolved_sample": (
+            unresolved[:100]
+        ),
+        "duplicate_yahoo_symbols": (
+            duplicate_symbols
+        ),
+    }
+
+
+def price_qc(
+    path: Path,
+    mapping: dict,
+    fi_isins: set[str],
+) -> dict:
+    symbols: set[str] = set()
+    price_isins: set[str] = set()
+
+    seen: set[tuple[str, str]] = set()
+
+    dates: dict[
+        str,
+        list[date],
+    ] = defaultdict(list)
+
+    previous: dict[str, float] = {}
+
+    large_changes: list[dict] = []
+
+    rows = 0
+    invalid = 0
+    invalid_dates = 0
+    duplicates = 0
+
+    for line_number, record in read_jsonl(path):
+        if not isinstance(record, dict):
+            invalid += 1
+            continue
+
+        symbol = str(
+            record.get(
+                "yahoo_symbol"
+            ) or ""
+        ).strip()
+
+        isin = str(
+            record.get("isin") or ""
+        ).strip()
+
+        date_text = str(
+            record.get("date") or ""
+        ).strip()
+
+        try:
+            parsed_date = date.fromisoformat(
+                date_text
+            )
+            close = float(
+                record["close"]
+            )
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+            invalid_dates += 1
+            continue
+
+        if (
+            not symbol
+            or not math.isfinite(close)
+            or close <= 0
+        ):
+            invalid += 1
+            continue
+
+        key = (
+            symbol,
+            date_text,
+        )
+
+        if key in seen:
+            duplicates += 1
+
+        seen.add(key)
+
+        rows += 1
+        symbols.add(symbol)
+
+        if isin:
+            price_isins.add(isin)
+
+        dates[symbol].append(
+            parsed_date
+        )
+
+        old_close = previous.get(
+            symbol
+        )
+
+        if old_close is not None:
+            change = (
+                close / old_close
+            ) - 1.0
+
+            if abs(change) >= 0.50:
+                if len(large_changes) < 100:
+                    large_changes.append(
+                        {
+                            "date": date_text,
+                            "yahoo_symbol": symbol,
+                            "isin": (
+                                isin
+                                or None
+                            ),
+                            "previous_close": round(
+                                old_close,
+                                8,
+                            ),
+                            "close": round(
+                                close,
+                                8,
+                            ),
+                            "change_pct": round(
+                                change * 100,
+                                2,
+                            ),
+                            "line": line_number,
+                        }
+                    )
+
+        previous[symbol] = close
+
+    series = []
+
+    gap_symbols = 0
+    min_count = None
+    max_count = 0
+
+    for symbol, symbol_dates in dates.items():
+        symbol_dates.sort()
+
+        gaps = [
+            (current - previous).days
+            for previous, current in zip(
+                symbol_dates,
+                symbol_dates[1:],
+            )
+            if (
+                current - previous
+            ).days > 7
+        ]
+
+        if gaps:
+            gap_symbols += 1
+
+        count = len(symbol_dates)
+
+        if min_count is None:
+            min_count = count
+        else:
+            min_count = min(
+                min_count,
+                count,
+            )
+
+        max_count = max(
+            max_count,
+            count,
+        )
+
+        series.append(
+            {
+                "yahoo_symbol": symbol,
+                "observations": count,
+                "first_date": (
+                    symbol_dates[0]
+                    .isoformat()
+                ),
+                "last_date": (
+                    symbol_dates[-1]
+                    .isoformat()
+                ),
+                "gaps_over_7_days": len(
+                    gaps
+                ),
+            }
+        )
+
+    mapped_symbols = {
+        str(
+            item.get(
+                "yahoo_symbol"
+            ) or ""
+        ).strip()
+        for item in mapping.values()
+        if (
+            isinstance(item, dict)
+            and str(
+                item.get(
+                    "yahoo_symbol"
+                ) or ""
+            ).strip()
+        )
+    }
+
+    mapped_without_price = sorted(
+        mapped_symbols - symbols
+    )
+
+    price_without_mapping = sorted(
+        symbols - mapped_symbols
+    )
+
+    first_date = min(
+        (
+            day.isoformat()
+            for symbol_dates in dates.values()
+            for day in symbol_dates
+        ),
+        default=None,
+    )
+
+    last_date = max(
+        (
+            day.isoformat()
+            for symbol_dates in dates.values()
+            for day in symbol_dates
+        ),
+        default=None,
+    )
+
+    return {
+        "file": str(
+            path.relative_to(ROOT)
+        ),
+        "rows": rows,
+        "symbols": len(symbols),
+        "price_isins": len(
+            price_isins
+        ),
+        "first_date": first_date,
+        "last_date": last_date,
+        "integrity": {
+            "invalid_rows": invalid,
+            "invalid_dates": invalid_dates,
+            "duplicate_symbol_date": (
+                duplicates
+            ),
+            "passed": (
+                invalid == 0
+                and invalid_dates == 0
+                and duplicates == 0
+            ),
+        },
+        "coverage": {
+            "fi_isins": len(fi_isins),
+            "fi_isins_with_price": len(
+                fi_isins & price_isins
+            ),
+            "fi_isins_without_price": len(
+                fi_isins - price_isins
+            ),
+            "mapped_symbols": len(
+                mapped_symbols
+            ),
+            "mapped_symbols_without_price": len(
+                mapped_without_price
+            ),
+            "price_symbols_without_mapping": len(
+                price_without_mapping
+            ),
+            "mapped_symbols_without_price_sample": (
+                mapped_without_price[:100]
+            ),
+            "price_symbols_without_mapping_sample": (
+                price_without_mapping[:100]
+            ),
+        },
+        "returns": {
+            "absolute_change_ge_50_percent_sample_count": (
+                len(large_changes)
+            ),
+            "large_change_examples": (
+                large_changes
+            ),
+        },
+        "series": {
+            "min_observations": (
+                min_count or 0
+            ),
+            "max_observations": max_count,
+            "symbols_with_gap_over_7_days": (
+                gap_symbols
+            ),
+            "lowest_observation_symbols": sorted(
+                series,
+                key=lambda item: item[
+                    "observations"
+                ],
+            )[:25],
+        },
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "QC av Blankdiss prisdata "
+            "och instrumentmappning."
+        )
+    )
+
+    parser.add_argument(
+        "--price-file",
+        default=None,
+        help=(
+            "Prisfil. Standard: "
+            "senast ändrade prices_*.jsonl."
+        ),
+    )
+
+    parser.add_argument(
+        "--output",
+        default=str(DEFAULT_QC),
+        help="Sökväg till QC-rapporten.",
+    )
+
+    args = parser.parse_args()
+
+    price_path = (
+        Path(args.price_file)
+        if args.price_file
+        else latest_price_file()
+    )
+
+    if not price_path.is_absolute():
+        price_path = ROOT / price_path
+
+    if not FI_PATH.exists():
+        raise FileNotFoundError(
+            f"FI-historik saknas: {FI_PATH}"
+        )
+
+    if not MAP_PATH.exists():
+        raise FileNotFoundError(
+            f"Instrumentmappning saknas: {MAP_PATH}"
+        )
+
+    fi_isins = load_fi_isins()
+    mapping = load_mapping()
+
+    report = {
+        "mapping": mapping_qc(
+            mapping,
+            fi_isins,
+        ),
+        "prices": price_qc(
+            price_path,
+            mapping,
+            fi_isins,
+        ),
+    }
+
+    output = Path(
+        args.output
+    )
+
+    if not output.is_absolute():
+        output = ROOT / output
+
+    output.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    output.write_text(
+        json.dumps(
+            report,
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prices = report["prices"]
+    integrity = prices["integrity"]
+    coverage = prices["coverage"]
+    mapping_report = report["mapping"]
+
+    print("PRICE QC")
+
+    print(
+        "Rows: "
+        f"{prices['rows']} | "
+        "Symbols: "
+        f"{prices['symbols']} | "
+        "ISIN med pris: "
+        f"{prices['price_isins']}"
+    )
+
+    print(
+        "Period: "
+        f"{prices['first_date']} -> "
+        f"{prices['last_date']}"
+    )
+
+    print(
+        "Integrity: "
+        f"{'PASS' if integrity['passed'] else 'FAIL'} | "
+        f"Invalid rows: "
+        f"{integrity['invalid_rows']} | "
+        f"Duplicate symbol/date: "
+        f"{integrity['duplicate_symbol_date']}"
+    )
+
+    print(
+        "Coverage: "
+        f"FI ISIN {coverage['fi_isins']} | "
+        f"with price "
+        f"{coverage['fi_isins_with_price']} | "
+        f"without price "
+        f"{coverage['fi_isins_without_price']}"
+    )
+
+    print(
+        "Mapping: "
+        f"entries "
+        f"{mapping_report['entries']} | "
+        f"Yahoo "
+        f"{mapping_report['with_yahoo_symbol']} | "
+        f"unresolved "
+        f"{mapping_report['unresolved']}"
+    )
+
+    print(
+        "Series: "
+        f"min "
+        f"{prices['series']['min_observations']} | "
+        f"max "
+        f"{prices['series']['max_observations']} | "
+        f"gaps >7d "
+        f"{prices['series']['symbols_with_gap_over_7_days']}"
+    )
+
+    print(
+        "Returns: "
+        ">=50% examples "
+        f"{prices['returns']['absolute_change_ge_50_percent_sample_count']}"
+    )
+
+    print(
+        "Mapping/price: "
+        "mapped without price "
+        f"{coverage['mapped_symbols_without_price']} | "
+        "price without mapping "
+        f"{coverage['price_symbols_without_mapping']}"
+    )
+
+    print(
+        f"QC report: {output}"
+    )
+
+    if not integrity["passed"]:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
