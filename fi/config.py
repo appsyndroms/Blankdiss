@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
 RAW_DIR = (
     ROOT
     / "data"
@@ -27,6 +28,14 @@ FI_URL = (
     "blankningsregistret/"
 )
 
+FI_AGGREGATE_URL = (
+    "https://www.fi.se"
+    "/BlankningsRegister/"
+    "GetBlankningsregisterAggregat"
+)
+
+FI_AGGREGATE_TIMEOUT = 60
+
 
 HEADERS = {
     "User-Agent": (
@@ -35,8 +44,9 @@ HEADERS = {
         "+https://github.com/appsyndroms/Blankdiss)"
     ),
     "Accept": (
-        "text/html,application/xhtml+xml,"
-        "application/xml;q=0.9,*/*;q=0.8"
+        "application/vnd.oasis.opendocument.spreadsheet,"
+        "application/vnd.oasis.opendocument.spreadsheet-template,"
+        "application/octet-stream"
     ),
     "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
 }
