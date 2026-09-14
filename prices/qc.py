@@ -2,553 +2,634 @@ from __future__ import annotations
 
 import json
 import math
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
-FI_RECONSTRUCTED = (
-    ROOT / "data" / "processed" / "fi" / "aggregate" / "reconstructed.jsonl"
+PRICE_DIR = Path(
+    "data/raw/prices"
 )
 
-MAPPING_FILE = ROOT / "data" / "analysis" / "instrument_map.json"
+MAPPING_PATH = Path(
+    "data/analysis/instrument_map.json"
+)
 
-PRICE_DIR = ROOT / "data" / "raw" / "prices"
+QC_PATH = (
+    PRICE_DIR
+    / "price_qc.json"
+)
 
-QC_FILE = PRICE_DIR / "price_qc.json"
+
+def _load_mapping() -> dict[str, dict[str, Any]]:
+    if not MAPPING_PATH.exists():
+        return {}
+
+    with MAPPING_PATH.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
+        data = json.load(handle)
+
+    if isinstance(data, dict):
+        return data
+
+    return {}
 
 
-def read_jsonl(path: Path):
-    with path.open("r", encoding="utf-8") as f:
-        for line_no, line in enumerate(f, start=1):
+def _find_price_file() -> Path:
+    files = sorted(
+        PRICE_DIR.glob(
+            "prices_*.jsonl"
+        )
+    )
+
+    if not files:
+        raise FileNotFoundError(
+            "Ingen prices_*.jsonl hittades "
+            f"i {PRICE_DIR}"
+        )
+
+    return files[-1]
+
+
+def _parse_date(
+    value: Any,
+) -> date | None:
+    if not isinstance(
+        value,
+        str,
+    ):
+        return None
+
+    try:
+        return date.fromisoformat(
+            value
+        )
+    except ValueError:
+        return None
+
+
+def _load_records(
+    path: Path,
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, int],
+]:
+    records: list[
+        dict[str, Any]
+    ] = []
+
+    invalid = {
+        "missing_symbol": 0,
+        "missing_date": 0,
+        "bad_date": 0,
+        "missing_close": 0,
+        "nonfinite_close": 0,
+    }
+
+    with path.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
+        for line in handle:
             line = line.strip()
 
             if not line:
                 continue
 
             try:
-                yield json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Ogiltig JSON på rad {line_no} i {path}: {exc}"
-                ) from exc
+                record = json.loads(
+                    line
+                )
+            except json.JSONDecodeError:
+                invalid[
+                    "missing_close"
+                ] += 1
+                continue
+
+            symbol = record.get(
+                "yahoo_symbol"
+            )
+
+            if (
+                symbol is None
+                or not str(symbol).strip()
+            ):
+                invalid[
+                    "missing_symbol"
+                ] += 1
+                continue
+
+            raw_date = record.get(
+                "date"
+            )
+
+            if raw_date is None:
+                invalid[
+                    "missing_date"
+                ] += 1
+                continue
+
+            parsed_date = _parse_date(
+                raw_date
+            )
+
+            if parsed_date is None:
+                invalid[
+                    "bad_date"
+                ] += 1
+                continue
+
+            close = record.get(
+                "close"
+            )
+
+            if close is None:
+                invalid[
+                    "missing_close"
+                ] += 1
+                continue
+
+            try:
+                numeric_close = float(
+                    close
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                invalid[
+                    "nonfinite_close"
+                ] += 1
+                continue
+
+            if not math.isfinite(
+                numeric_close
+            ):
+                invalid[
+                    "nonfinite_close"
+                ] += 1
+                continue
+
+            clean_record = dict(
+                record
+            )
+
+            clean_record[
+                "date"
+            ] = parsed_date.isoformat()
+
+            clean_record[
+                "close"
+            ] = numeric_close
+
+            records.append(
+                clean_record
+            )
+
+    return records, invalid
 
 
-def load_mapping() -> dict:
-    with MAPPING_FILE.open("r", encoding="utf-8") as f:
-        return json.load(f)
+def _check_duplicates(
+    records: list[dict[str, Any]],
+) -> int:
+    seen: set[
+        tuple[str, str]
+    ] = set()
 
+    duplicates = 0
 
-def find_latest_price_file() -> Path:
-    files = sorted(PRICE_DIR.glob("prices_*.jsonl"))
-
-    if not files:
-        raise FileNotFoundError(
-            f"Inga prisfiler hittades i {PRICE_DIR}"
+    for record in records:
+        key = (
+            str(
+                record[
+                    "yahoo_symbol"
+                ]
+            ),
+            str(
+                record["date"]
+            ),
         )
 
-    return files[-1]
+        if key in seen:
+            duplicates += 1
+        else:
+            seen.add(key)
+
+    return duplicates
 
 
-def parse_float(value):
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
+def _observation_counts(
+    records: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: dict[
+        str,
+        int,
+    ] = defaultdict(int)
 
-    if not math.isfinite(number):
-        return None
+    for record in records:
+        counts[
+            str(
+                record[
+                    "yahoo_symbol"
+                ]
+            )
+        ] += 1
 
-    return number
+    return dict(counts)
 
 
-def extract_mapping_entries(mapping: dict) -> list[dict]:
-    """
-    Instrument_map.json kan vara uppbyggd på olika sätt beroende på
-    tidigare version av mapping-koden.
+def _large_moves(
+    records: list[dict[str, Any]],
+    threshold: float = 0.50,
+) -> int:
+    grouped: dict[
+        str,
+        list[tuple[date, float]],
+    ] = defaultdict(list)
 
-    Vi försöker därför hitta instrumentposter robust utan att anta
-    att toppnivån är direkt {isin: instrument}.
-    """
+    for record in records:
+        grouped[
+            str(
+                record[
+                    "yahoo_symbol"
+                ]
+            )
+        ].append(
+            (
+                date.fromisoformat(
+                    record["date"]
+                ),
+                float(
+                    record["close"]
+                ),
+            )
+        )
 
-    entries = []
+    count = 0
 
-    if not isinstance(mapping, dict):
-        return entries
+    for values in grouped.values():
+        values.sort(
+            key=lambda item: item[0]
+        )
 
-    for key, value in mapping.items():
+        previous_close: float | None = None
 
-        if not isinstance(value, dict):
-            continue
+        for _, close in values:
+            if (
+                previous_close is not None
+                and previous_close != 0
+            ):
+                change = (
+                    close
+                    / previous_close
+                    - 1.0
+                )
 
-        entry = dict(value)
+                if abs(change) >= threshold:
+                    count += 1
 
-        # Behåll nyckeln som möjlig identitet.
-        entry.setdefault("_mapping_key", key)
+            previous_close = close
 
-        entries.append(entry)
+    return count
 
-    return entries
+
+def _large_gaps(
+    records: list[dict[str, Any]],
+    threshold_days: int = 7,
+) -> int:
+    grouped: dict[
+        str,
+        list[date],
+    ] = defaultdict(list)
+
+    for record in records:
+        grouped[
+            str(
+                record[
+                    "yahoo_symbol"
+                ]
+            )
+        ].append(
+            date.fromisoformat(
+                record["date"]
+            )
+        )
+
+    count = 0
+
+    for dates in grouped.values():
+        dates.sort()
+
+        previous: date | None = None
+
+        for current in dates:
+            if previous is not None:
+                gap = (
+                    current
+                    - previous
+                ).days
+
+                if gap > threshold_days:
+                    count += 1
+
+            previous = current
+
+    return count
+
+
+def _mapping_coverage(
+    records: list[dict[str, Any]],
+    mapping: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    price_symbols = {
+        str(
+            record[
+                "yahoo_symbol"
+            ]
+        )
+        for record in records
+    }
+
+    mapping_symbols = set()
+
+    unresolved = 0
+
+    for entry in mapping.values():
+        symbol = entry.get(
+            "yahoo_symbol"
+        )
+
+        if symbol:
+            mapping_symbols.add(
+                str(symbol)
+            )
+        else:
+            unresolved += 1
+
+    mapped_without_prices = sorted(
+        mapping_symbols
+        - price_symbols
+    )
+
+    prices_without_mapping = sorted(
+        price_symbols
+        - mapping_symbols
+    )
+
+    return {
+        "mapping_entries": len(
+            mapping
+        ),
+        "mapped_symbols": len(
+            mapping_symbols
+        ),
+        "unresolved": unresolved,
+        "price_symbols": len(
+            price_symbols
+        ),
+        "mapped_without_prices": (
+            mapped_without_prices
+        ),
+        "prices_without_mapping": (
+            prices_without_mapping
+        ),
+    }
 
 
 def main() -> None:
-    print("Price QC: startar.")
-
-    if not FI_RECONSTRUCTED.exists():
-        raise FileNotFoundError(FI_RECONSTRUCTED)
-
-    if not MAPPING_FILE.exists():
-        raise FileNotFoundError(MAPPING_FILE)
-
-    if not PRICE_DIR.exists():
-        raise FileNotFoundError(PRICE_DIR)
-
-    mapping = load_mapping()
-    mapping_entries = extract_mapping_entries(mapping)
-
-    latest_price_file = find_latest_price_file()
-
-    print(f"Price QC: mapping entries = {len(mapping_entries)}")
-    print(f"Price QC: prisfil = {latest_price_file.name}")
-
-    # ------------------------------------------------------------------
-    # Mapping
-    # ------------------------------------------------------------------
-
-    mapping_symbols: set[str] = set()
-    unresolved_mapping = []
-    duplicate_yahoo_symbols: dict[str, list[str]] = defaultdict(list)
-
-    for entry in mapping_entries:
-
-        yahoo_symbol = str(
-            entry.get("yahoo_symbol", "")
-        ).strip()
-
-        if yahoo_symbol:
-            mapping_symbols.add(yahoo_symbol)
-            duplicate_yahoo_symbols[yahoo_symbol].append(
-                str(entry.get("_mapping_key", ""))
-            )
-        else:
-            unresolved_mapping.append(
-                str(entry.get("_mapping_key", ""))
-            )
-
-    duplicate_symbols = {
-        symbol: keys
-        for symbol, keys in duplicate_yahoo_symbols.items()
-        if len(keys) > 1
-    }
-
-    # ------------------------------------------------------------------
-    # Price data
-    # ------------------------------------------------------------------
-
-    rows = 0
-
-    invalid_rows = 0
-    invalid_missing_symbol = 0
-    invalid_missing_date = 0
-    invalid_bad_date = 0
-    invalid_missing_close = 0
-    invalid_nonfinite_close = 0
-
-    duplicate_rows = 0
-
-    price_symbols: set[str] = set()
-    price_isins: set[str] = set()
-
-    observations_by_symbol = Counter()
-
-    dates_by_symbol: dict[str, list[date]] = defaultdict(list)
-
-    previous_close: dict[str, float] = {}
-
-    large_price_moves = []
-    duplicate_keys: set[tuple[str, str]] = set()
-
-    min_date = None
-    max_date = None
-
-    for row in read_jsonl(latest_price_file):
-
-        rows += 1
-
-        yahoo_symbol = str(
-            row.get("yahoo_symbol", "")
-        ).strip()
-
-        date_text = str(
-            row.get("date", "")
-        ).strip()
-
-        isin = str(
-            row.get("isin", "")
-        ).strip()
-
-        close_raw = row.get("close")
-
-        row_invalid = False
-
-        # --------------------------------------------------------------
-        # Symbol
-        # --------------------------------------------------------------
-
-        if not yahoo_symbol:
-            invalid_missing_symbol += 1
-            row_invalid = True
-
-        # --------------------------------------------------------------
-        # Date
-        # --------------------------------------------------------------
-
-        current_date = None
-
-        if not date_text:
-            invalid_missing_date += 1
-            row_invalid = True
-        else:
-            try:
-                current_date = date.fromisoformat(date_text)
-            except ValueError:
-                invalid_bad_date += 1
-                row_invalid = True
-
-        # --------------------------------------------------------------
-        # Close
-        # --------------------------------------------------------------
-
-        if close_raw is None or close_raw == "":
-            invalid_missing_close += 1
-            row_invalid = True
-
-        close_value = parse_float(close_raw)
-
-        if close_raw is not None and close_value is None:
-            invalid_nonfinite_close += 1
-            row_invalid = True
-
-        if row_invalid:
-            invalid_rows += 1
-            continue
-
-        # --------------------------------------------------------------
-        # Valid row
-        # --------------------------------------------------------------
-
-        price_symbols.add(yahoo_symbol)
-
-        if isin:
-            price_isins.add(isin)
-
-        observations_by_symbol[yahoo_symbol] += 1
-
-        dates_by_symbol[yahoo_symbol].append(current_date)
-
-        if min_date is None or current_date < min_date:
-            min_date = current_date
-
-        if max_date is None or current_date > max_date:
-            max_date = current_date
-
-        key = (yahoo_symbol, date_text)
-
-        if key in duplicate_keys:
-            duplicate_rows += 1
-        else:
-            duplicate_keys.add(key)
-
-        previous = previous_close.get(yahoo_symbol)
-
-        if previous is not None and previous > 0:
-
-            relative_change = abs(
-                close_value / previous - 1.0
-            )
-
-            if relative_change >= 0.50:
-
-                large_price_moves.append(
-                    {
-                        "yahoo_symbol": yahoo_symbol,
-                        "date": date_text,
-                        "previous_close": previous,
-                        "close": close_value,
-                        "relative_change": relative_change,
-                    }
-                )
-
-        previous_close[yahoo_symbol] = close_value
-
-    # ------------------------------------------------------------------
-    # Coverage
-    # ------------------------------------------------------------------
-
-    mapped_symbols_without_prices = sorted(
-        mapping_symbols - price_symbols
+    print(
+        "Price QC: startar."
     )
 
-    price_symbols_without_mapping = sorted(
-        price_symbols - mapping_symbols
+    mapping = _load_mapping()
+
+    print(
+        "Price QC: mapping entries = "
+        f"{len(mapping)}"
     )
 
-    # ------------------------------------------------------------------
-    # Gaps
-    # ------------------------------------------------------------------
+    price_file = _find_price_file()
 
-    gaps_over_7_days = []
-
-    for symbol, dates in dates_by_symbol.items():
-
-        dates = sorted(set(dates))
-
-        for previous_date, current_date in zip(
-            dates,
-            dates[1:],
-        ):
-
-            gap_days = (
-                current_date - previous_date
-            ).days
-
-            if gap_days > 7:
-
-                gaps_over_7_days.append(
-                    {
-                        "yahoo_symbol": symbol,
-                        "from": previous_date.isoformat(),
-                        "to": current_date.isoformat(),
-                        "gap_days": gap_days,
-                    }
-                )
-
-    # ------------------------------------------------------------------
-    # Observation statistics
-    # ------------------------------------------------------------------
-
-    observation_counts = list(
-        observations_by_symbol.values()
+    print(
+        "Price QC: prisfil = "
+        f"{price_file.name}"
     )
 
-    symbols_with_1080 = sum(
+    records, invalid = (
+        _load_records(
+            price_file
+        )
+    )
+
+    duplicates = _check_duplicates(
+        records
+    )
+
+    counts = _observation_counts(
+        records
+    )
+
+    equal_1080 = sum(
         1
-        for count in observation_counts
+        for count in counts.values()
         if count == 1080
     )
 
-    symbols_with_less_than_1000 = sum(
+    below_1000 = sum(
         1
-        for count in observation_counts
+        for count in counts.values()
         if count < 1000
     )
 
-    # ------------------------------------------------------------------
-    # Integrity
-    # ------------------------------------------------------------------
+    large_moves = _large_moves(
+        records
+    )
 
-    # Missing/invalid price rows are reported, but they do NOT automatically
-    # fail the entire dataset. We first need to understand whether these are
-    # Yahoo gaps, delisted instruments, or an extraction problem.
-    #
-    # Duplicate symbol/date pairs ARE structural errors.
+    large_gaps = _large_gaps(
+        records
+    )
 
-    integrity_passed = duplicate_rows == 0
+    coverage = _mapping_coverage(
+        records,
+        mapping,
+    )
 
-    # ------------------------------------------------------------------
-    # Report
-    # ------------------------------------------------------------------
-
-    report = {
-        "dataset_summary": {
-            "price_file": latest_price_file.name,
-            "rows": rows,
-            "valid_rows": rows - invalid_rows,
-            "invalid_rows": invalid_rows,
-            "duplicate_rows": duplicate_rows,
-            "unique_price_symbols": len(price_symbols),
-            "unique_price_isins": len(price_isins),
-            "first_price_date": (
-                min_date.isoformat()
-                if min_date
-                else None
-            ),
-            "last_price_date": (
-                max_date.isoformat()
-                if max_date
-                else None
-            ),
-        },
-
-        "invalid_row_breakdown": {
-            "missing_symbol": invalid_missing_symbol,
-            "missing_date": invalid_missing_date,
-            "bad_date": invalid_bad_date,
-            "missing_close": invalid_missing_close,
-            "nonfinite_close": invalid_nonfinite_close,
-        },
-
-        "mapping_summary": {
-            "mapping_entries": len(mapping_entries),
-            "mapped_symbols": len(mapping_symbols),
-            "unresolved_instruments": len(
-                unresolved_mapping
-            ),
-            "duplicate_yahoo_symbols": len(
-                duplicate_symbols
-            ),
-            "mapped_symbols_without_prices": len(
-                mapped_symbols_without_prices
-            ),
-            "price_symbols_without_mapping": len(
-                price_symbols_without_mapping
-            ),
-            "unresolved_examples": (
-                unresolved_mapping[:30]
-            ),
-            "duplicate_yahoo_symbol_examples": {
-                symbol: keys
-                for symbol, keys in list(
-                    duplicate_symbols.items()
-                )[:20]
-            },
-            "mapped_symbols_without_prices_examples": (
-                mapped_symbols_without_prices[:30]
-            ),
-            "price_symbols_without_mapping_examples": (
-                price_symbols_without_mapping[:30]
-            ),
-        },
-
-        "price_quality": {
-            "symbols_with_1080_observations": (
-                symbols_with_1080
-            ),
-            "symbols_with_less_than_1000_observations": (
-                symbols_with_less_than_1000
-            ),
-            "largest_observation_count": (
-                max(observation_counts)
-                if observation_counts
-                else 0
-            ),
-            "smallest_observation_count": (
-                min(observation_counts)
-                if observation_counts
-                else 0
-            ),
-            "gaps_over_7_days": len(
-                gaps_over_7_days
-            ),
-            "large_price_moves_ge_50pct": len(
-                large_price_moves
-            ),
-            "large_price_move_examples": (
-                large_price_moves[:20]
-            ),
-            "gap_examples": (
-                gaps_over_7_days[:20]
-            ),
-        },
-
-        "integrity": {
-            "invalid_rows": invalid_rows,
-            "duplicate_rows": duplicate_rows,
-            "passed": integrity_passed,
-        },
+    symbols = {
+        str(
+            record[
+                "yahoo_symbol"
+            ]
+        )
+        for record in records
     }
 
-    PRICE_DIR.mkdir(
+    isins = {
+        str(
+            record["isin"]
+        ).strip()
+        for record in records
+        if record.get("isin")
+    }
+
+    dates = [
+        date.fromisoformat(
+            record["date"]
+        )
+        for record in records
+    ]
+
+    first_date = (
+        min(dates)
+        if dates
+        else None
+    )
+
+    last_date = (
+        max(dates)
+        if dates
+        else None
+    )
+
+    total_invalid = sum(
+        invalid.values()
+    )
+
+    integrity_pass = (
+        duplicates == 0
+    )
+
+    print()
+    print("Price QC")
+    print(
+        f"Rows: "
+        f"{len(records) + total_invalid:,}"
+        .replace(",", " ")
+        + " | Valid: "
+        f"{len(records):,}"
+        .replace(",", " ")
+        + " | Invalid: "
+        f"{total_invalid:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        f"Symbols: {len(symbols)} "
+        f"| ISIN: {len(isins)}"
+    )
+
+    print(
+        "Period: "
+        f"{first_date} -> {last_date}"
+    )
+
+    print(
+        "Mapping: "
+        f"{coverage['mapped_symbols']} mapped "
+        f"| {coverage['unresolved']} unresolved"
+    )
+
+    print(
+        "Coverage: "
+        f"{len(coverage['mapped_without_prices'])} "
+        "mapped without prices "
+        f"| {len(coverage['prices_without_mapping'])} "
+        "prices without mapping"
+    )
+
+    print(
+        "Invalid breakdown: "
+        f"missing symbol={invalid['missing_symbol']} "
+        f"| missing date={invalid['missing_date']} "
+        f"| bad date={invalid['bad_date']} "
+        f"| missing close={invalid['missing_close']} "
+        f"| nonfinite close={invalid['nonfinite_close']}"
+    )
+
+    print(
+        "Integrity: "
+        f"{'PASS' if integrity_pass else 'FAIL'} "
+        f"| Duplicates: {duplicates}"
+    )
+
+    print(
+        "Observations: "
+        f"1080 = {equal_1080} "
+        f"| <1000 = {below_1000}"
+    )
+
+    print(
+        "Large moves >=50%: "
+        f"{large_moves} "
+        f"| Gaps >7d: {large_gaps}"
+    )
+
+    report = {
+        "price_file": price_file.name,
+        "rows_total": (
+            len(records)
+            + total_invalid
+        ),
+        "rows_valid": len(records),
+        "rows_invalid": total_invalid,
+        "symbols": len(symbols),
+        "isins": len(isins),
+        "period": {
+            "start": (
+                first_date.isoformat()
+                if first_date
+                else None
+            ),
+            "end": (
+                last_date.isoformat()
+                if last_date
+                else None
+            ),
+        },
+        "mapping": coverage,
+        "invalid": invalid,
+        "integrity": {
+            "pass": integrity_pass,
+            "duplicates": duplicates,
+        },
+        "observations": {
+            "exactly_1080": equal_1080,
+            "below_1000": below_1000,
+        },
+        "large_moves_ge_50pct": (
+            large_moves
+        ),
+        "gaps_gt_7d": large_gaps,
+    }
+
+    QC_PATH.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    with QC_FILE.open(
+    with QC_PATH.open(
         "w",
         encoding="utf-8",
-    ) as f:
-
+    ) as handle:
         json.dump(
             report,
-            f,
+            handle,
             ensure_ascii=False,
             indent=2,
         )
 
-    # ------------------------------------------------------------------
-    # Console output
-    # ------------------------------------------------------------------
-
-    print()
-    print("Price QC")
-
     print(
-        f"Rows: {rows:,} | "
-        f"Valid: {rows - invalid_rows:,} | "
-        f"Invalid: {invalid_rows:,}"
+        "QC report: "
+        f"{QC_PATH.resolve()}"
     )
 
-    print(
-        f"Symbols: {len(price_symbols)} | "
-        f"ISIN: {len(price_isins)}"
-    )
-
-    print(
-        f"Period: {min_date or '-'} -> "
-        f"{max_date or '-'}"
-    )
-
-    print(
-        f"Mapping: {len(mapping_symbols)} mapped | "
-        f"{len(unresolved_mapping)} unresolved"
-    )
-
-    print(
-        f"Coverage: "
-        f"{len(mapped_symbols_without_prices)} mapped without prices | "
-        f"{len(price_symbols_without_mapping)} "
-        f"prices without mapping"
-    )
-
-    print(
-        f"Invalid breakdown: "
-        f"missing symbol={invalid_missing_symbol} | "
-        f"missing date={invalid_missing_date} | "
-        f"bad date={invalid_bad_date} | "
-        f"missing close={invalid_missing_close} | "
-        f"nonfinite close={invalid_nonfinite_close}"
-    )
-
-    print(
-        f"Integrity: "
-        f"{'PASS' if integrity_passed else 'FAIL'} | "
-        f"Duplicates: {duplicate_rows}"
-    )
-
-    print(
-        f"Observations: 1080 = "
-        f"{symbols_with_1080} | "
-        f"<1000 = "
-        f"{symbols_with_less_than_1000}"
-    )
-
-    print(
-        f"Large moves >=50%: "
-        f"{len(large_price_moves)} | "
-        f"Gaps >7d: "
-        f"{len(gaps_over_7_days)}"
-    )
-
-    print(
-        f"QC report: {QC_FILE}"
-    )
-
-    if not integrity_passed:
+    if not integrity_pass:
         raise RuntimeError(
-            "Price QC misslyckades: "
-            "duplicerade symbol/datum-kombinationer."
+            "Price QC failed: "
+            f"{duplicates} duplicate "
+            "symbol/date combinations."
         )
 
 
