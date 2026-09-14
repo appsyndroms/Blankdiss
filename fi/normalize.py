@@ -2,9 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
+
+
+def fetched_at() -> str:
+    """
+    Aktuell tid i Europe/Stockholm.
+    """
+
+    return datetime.now(
+        ZoneInfo("Europe/Stockholm")
+    ).isoformat(
+        timespec="seconds"
+    )
 
 
 def normalize_percent(
@@ -114,8 +128,8 @@ def normalize_issuer(
 
 def normalize_records(
     dataframe: pd.DataFrame,
-    *,
     fetched_at: str,
+    source_date: str,
 ) -> list[dict[str, Any]]:
     columns = {
         str(column).strip(): column
@@ -185,8 +199,6 @@ def normalize_records(
         raise ValueError(
             "Kunde inte hitta kolumn för summa blankning."
         )
-
-    source_date = fetched_at[:10]
 
     records: list[dict[str, Any]] = []
 
