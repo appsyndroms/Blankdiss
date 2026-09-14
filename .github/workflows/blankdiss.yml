@@ -43,7 +43,7 @@ jobs:
 
       - name: Fetch FI data
         run: |
-          python -m fi --days 90
+          python -m fi
 
       - name: Fetch prices
         run: |
