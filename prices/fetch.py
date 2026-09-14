@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -23,18 +24,19 @@ def _extract_close(
     symbol: str,
 ):
     """
-    Handle both the normal yfinance MultiIndex result and simpler
-    DataFrame layouts.
+    Extract Close from yfinance output.
+    Handles both:
+      - MultiIndex columns
+      - ordinary DataFrame columns
     """
     if data is None or data.empty:
         return None
-    # MultiIndex columns:
-    #
+    # MultiIndex:
     # ('Close', 'VOLV-B.ST')
-    #
     if hasattr(data.columns, "levels"):
         try:
-            if "Close" in data.columns.get_level_values(0):
+            level0 = data.columns.get_level_values(0)
+            if "Close" in level0:
                 close = data["Close"]
                 if hasattr(close, "columns"):
                     if symbol in close.columns:
@@ -44,17 +46,20 @@ def _extract_close(
                 return close
         except Exception:
             pass
-    # Standard single-level DataFrame.
+    # Ordinary DataFrame:
     if "Close" in data.columns:
         return data["Close"]
     return None
 def fetch_prices(
-    *,
     instruments: list[dict[str, Any]],
     start: date,
     end: date,
 ) -> list[dict[str, Any]]:
-    valid_instruments = []
+    """
+    Fetch historical closing prices from Yahoo Finance.
+    Instruments without a valid Yahoo symbol are skipped.
+    """
+    valid_instruments: list[dict[str, Any]] = []
     skipped = 0
     for instrument in instruments:
         symbol = instrument.get("yahoo_symbol")
@@ -142,12 +147,40 @@ def fetch_prices(
             f"Pris: {symbol} - {count} observationer"
         )
     return records
+def write_jsonl(
+    records: list[dict[str, Any]],
+    output_path: Path,
+) -> None:
+    """
+    Write price records as JSONL.
+    Kept as a public compatibility function because
+    prices.__main__ imports it.
+    """
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    with output_path.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        for record in records:
+            handle.write(
+                json.dumps(
+                    record,
+                    ensure_ascii=False,
+                )
+            )
+            handle.write("\n")
 def save_prices(
     records: list[dict[str, Any]],
     *,
     start: date,
     end: date,
 ) -> Path:
+    """
+    Convenience wrapper for writing the standard price filename.
+    """
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -156,16 +189,8 @@ def save_prices(
         OUTPUT_DIR
         / f"prices_{start.isoformat()}_{end.isoformat()}.jsonl"
     )
-    with output.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        for record in records:
-            handle.write(
-                __import__("json").dumps(
-                    record,
-                    ensure_ascii=False,
-                )
-            )
-            handle.write("\n")
+    write_jsonl(
+        records,
+        output,
+    )
     return output
