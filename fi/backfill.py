@@ -15,14 +15,22 @@ from .config import HEADERS, RAW_DIR
 from .errors import FIError
 from .normalize import normalize_records, now_stockholm
 
-DEFAULT_START_DATE = date(2022, 5, 25)
-CONTINUOUS_START_DATE = date(2022, 6, 9)
 
-# Dessa är de enda historiska aggregatdatum som vi har verifierat
-# som faktiskt finns publicerade av FI i det daterade filarkivet.
+DEFAULT_START_DATE = date(2022, 5, 25)
+
+# Historiska aggregatfiler som vi faktiskt har verifierat
+# finns i FI:s daterade filarkiv.
 #
-# Vi ska inte gissa URL:er för varje vardag från 2022-06-09 och framåt.
-# Det leder bara till tusentals 404-anrop.
+# VIKTIGT:
+# FI började publicera aggregerad blankning 2022-05-25 och
+# gick över till fortlöpande publicering 2022-06-09.
+#
+# Det innebär däremot inte att det finns en separat daterad
+# Excel/ODS-fil för varje dag som fortfarande är åtkomlig via
+# dagens FI-server.
+#
+# Vi ska därför INTE konstruera URL:er för varje vardag och
+# bombardera FI med 404-anrop.
 VERIFIED_HISTORICAL_DATES = (
     date(2022, 5, 25),
     date(2022, 6, 1),
@@ -52,23 +60,10 @@ def historical_dates(
     """
     Returnerar endast historiska FI-aggregatdatum som är verifierade.
 
-    FI började publicera aggregerade blankningspositioner veckovis
-    2022-05-25 och gick över till fortlöpande publicering 2022-06-09.
+    Vi använder medvetet inte ett genererat datumintervall här.
 
-    Det betyder dock inte att daterade historiska Excel/ODS-filer
-    för varje senare datum fortfarande finns på den nuvarande
-    FI-servern.
-
-    Vi har verifierat:
-        2022-05-25
-        2022-06-01
-        2022-06-08
-
-    För senare datum ska vi inte konstruera URL:er och anta att
-    filerna finns.
-
-    Den separata historiska positionsfilen hämtas av
-    fi.historical_positions.
+    Om FI:s historiska filarkiv senare kartläggs och fler datum
+    verifieras läggs de till i VERIFIED_HISTORICAL_DATES.
     """
     if start > end:
         return
@@ -81,7 +76,11 @@ def historical_dates(
 def historical_urls(
     source_date: date,
 ) -> list[str]:
-    """Returnerar möjliga FI-URL:er för en verifierad daterad aggregatfil."""
+    """
+    Returnerar möjliga FI-URL:er för en verifierad aggregatfil.
+
+    XLSX provas först och ODS därefter som fallback.
+    """
     date_text = source_date.isoformat()
 
     base = (
@@ -660,11 +659,7 @@ def backfill(
     """
     Hämtar verifierad historisk FI-aggregathistorik.
 
-    Viktigt:
-    vi frågar inte FI efter varje vardag från 2022-06-09.
-
-    Sådana daterade historiska filer är inte verifierade
-    och dagens URL-mönster ger 404.
+    Vi frågar inte FI efter varje vardag från 2022-06-09.
 
     Endast verifierade historiska datum provas.
     """
@@ -709,6 +704,16 @@ def backfill(
 
         return 0, 0
 
+    print(
+        "FI backfill: verifierade datum "
+        "inom intervallet:"
+    )
+
+    for source_date in candidate_dates:
+        print(
+            f"  - {source_date}"
+        )
+
     found = 0
     rows = 0
 
@@ -752,6 +757,11 @@ def backfill(
         )
 
         if result is None:
+            print(
+                "FI backfill: ingen "
+                f"åtkomlig fil för {source_date}."
+            )
+
             time.sleep(delay)
             continue
 
