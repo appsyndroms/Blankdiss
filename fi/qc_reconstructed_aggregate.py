@@ -57,7 +57,9 @@ def load_metadata():
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(
+            path.read_text(encoding="utf-8")
+        )
     except (OSError, json.JSONDecodeError):
         return {}
 def run_qc():
@@ -79,15 +81,12 @@ def run_qc():
     dates = set()
     issuers = set()
     isins = set()
-    # IMPORTANT:
-    # The time series is identified by issuer + ISIN.
-    #
-    # The previous implementation used only issuer, which caused
-    # different ISINs belonging to the same issuer to be compared
-    # against each other.
+    # Time series identity:
+    # issuer + ISIN
     previous_by_security = {}
-    # Tracks duplicate observations for the same issuer + ISIN + date.
-    # These are not treated as time-series changes.
+    # Multiple observations for the same security/date are
+    # tracked separately and are never interpreted as a
+    # time-series change.
     observations_by_security_date = defaultdict(int)
     isin_to_issuers = defaultdict(set)
     issuer_to_isins = defaultdict(set)
@@ -99,6 +98,9 @@ def run_qc():
             "absolute_change_sum": 0.0,
         }
     )
+    # ------------------------------------------------------------
+    # Detailed findings
+    # ------------------------------------------------------------
     findings = {
         "large_absolute_jumps": [],
         "large_relative_jumps": [],
@@ -110,6 +112,41 @@ def run_qc():
         "same_security_same_date": [],
         "invalid_rows": [],
     }
+    # ------------------------------------------------------------
+    # Full counters
+    #
+    # Unlike findings[], these are NOT limited to MAX_EXAMPLES.
+    # ------------------------------------------------------------
+    holder_stats = {
+        "total_changes": 0,
+        "changes_ge_5": 0,
+        "changes_ge_10": 0,
+        "changes_ge_20": 0,
+        "changes_ge_50": 0,
+        "relative_changes_ge_100_percent": 0,
+        "largest_absolute_change": 0,
+        "largest_relative_change_percent": 0.0,
+    }
+    concentration_stats = {
+        "total_changes": 0,
+        "changes_ge_25pp": 0,
+        "changes_ge_40pp": 0,
+        "changes_ge_60pp": 0,
+        "changes_ge_80pp": 0,
+        "largest_absolute_change_pp": 0.0,
+    }
+    jump_stats = {
+        "total_time_series_changes": 0,
+        "absolute_changes_ge_1pp": 0,
+        "absolute_changes_ge_2pp": 0,
+        "absolute_changes_ge_3pp": 0,
+        "absolute_changes_ge_5pp": 0,
+        "relative_changes_ge_100_percent": 0,
+    }
+    # Keep the largest changes separately so we can inspect
+    # the most interesting cases without storing everything.
+    top_holder_changes = []
+    top_concentration_changes = []
     first_date = None
     last_date = None
     with INPUT.open("r", encoding="utf-8") as handle:
@@ -199,10 +236,11 @@ def run_qc():
             observations_by_security_date[
                 security_date_key
             ] += 1
-            # Multiple observations for the same security on the same
-            # date are not a time-series change. We therefore do not
-            # compare them with each other.
-            if observations_by_security_date[security_date_key] > 1:
+            # Same security + same date is not a time-series
+            # change.
+            if observations_by_security_date[
+                security_date_key
+            ] > 1:
                 add(
                     findings["same_security_same_date"],
                     {
@@ -215,14 +253,15 @@ def run_qc():
                     },
                 )
                 continue
-            previous = previous_by_security.get(security_key)
+            previous = previous_by_security.get(
+                security_key
+            )
             if previous is not None:
                 previous_date = pd.Timestamp(
                     previous["snapshot_date"]
                 )
                 current_date = pd.Timestamp(date)
-                # Only compare observations when they are genuinely
-                # later in time. Same-day observations are not changes.
+                # Only compare genuinely later observations.
                 if current_date <= previous_date:
                     continue
                 gap_days = (
@@ -233,12 +272,39 @@ def run_qc():
                 ]
                 delta = short_interest - previous_short
                 absolute_delta = abs(delta)
+                jump_stats[
+                    "total_time_series_changes"
+                ] += 1
+                if absolute_delta >= 1.0:
+                    jump_stats[
+                        "absolute_changes_ge_1pp"
+                    ] += 1
+                if absolute_delta >= 2.0:
+                    jump_stats[
+                        "absolute_changes_ge_2pp"
+                    ] += 1
+                if absolute_delta >= 3.0:
+                    jump_stats[
+                        "absolute_changes_ge_3pp"
+                    ] += 1
+                if absolute_delta >= 5.0:
+                    jump_stats[
+                        "absolute_changes_ge_5pp"
+                    ] += 1
                 stats = market[date]
                 stats["observations"] += 1
-                stats["absolute_change_sum"] += absolute_delta
-                if absolute_delta >= MARKET_ABSOLUTE_CHANGE_PP:
+                stats["absolute_change_sum"] += (
+                    absolute_delta
+                )
+                if (
+                    absolute_delta
+                    >= MARKET_ABSOLUTE_CHANGE_PP
+                ):
                     stats["changes_ge_1pp"] += 1
-                if absolute_delta >= ABSOLUTE_JUMP_PP:
+                if (
+                    absolute_delta
+                    >= ABSOLUTE_JUMP_PP
+                ):
                     stats["changes_ge_3pp"] += 1
                 base = {
                     **current,
@@ -251,6 +317,9 @@ def run_qc():
                     "delta_pp": round(delta, 6),
                     "gap_days": gap_days,
                 }
+                # ------------------------------------------------
+                # Absolute short-interest changes
+                # ------------------------------------------------
                 if absolute_delta >= ABSOLUTE_JUMP_PP:
                     add(
                         findings["large_absolute_jumps"],
@@ -263,15 +332,26 @@ def run_qc():
                             "reason": "large_absolute_jump",
                         },
                     )
-                if previous_short >= RELATIVE_JUMP_MIN_PREVIOUS:
+                # ------------------------------------------------
+                # Relative short-interest changes
+                # ------------------------------------------------
+                if (
+                    previous_short
+                    >= RELATIVE_JUMP_MIN_PREVIOUS
+                ):
                     relative = (
                         absolute_delta
                         / previous_short
                         * 100.0
                     )
                     if relative >= RELATIVE_JUMP_PERCENT:
+                        jump_stats[
+                            "relative_changes_ge_100_percent"
+                        ] += 1
                         add(
-                            findings["large_relative_jumps"],
+                            findings[
+                                "large_relative_jumps"
+                            ],
                             {
                                 **base,
                                 "relative_change_percent": round(
@@ -285,6 +365,9 @@ def run_qc():
                                 ),
                             },
                         )
+                # ------------------------------------------------
+                # Holder count changes
+                # ------------------------------------------------
                 previous_holders = previous[
                     "active_holders"
                 ]
@@ -292,6 +375,15 @@ def run_qc():
                     holders - previous_holders
                 )
                 holder_abs = abs(holder_delta)
+                holder_stats["total_changes"] += 1
+                if holder_abs >= 5:
+                    holder_stats["changes_ge_5"] += 1
+                if holder_abs >= 10:
+                    holder_stats["changes_ge_10"] += 1
+                if holder_abs >= 20:
+                    holder_stats["changes_ge_20"] += 1
+                if holder_abs >= 50:
+                    holder_stats["changes_ge_50"] += 1
                 if previous_holders:
                     holder_relative = (
                         holder_abs
@@ -302,6 +394,48 @@ def run_qc():
                     holder_relative = (
                         100.0 if holders else 0.0
                     )
+                if (
+                    holder_relative
+                    >= HOLDER_CHANGE_RELATIVE_PERCENT
+                ):
+                    holder_stats[
+                        "relative_changes_ge_100_percent"
+                    ] += 1
+                holder_stats[
+                    "largest_absolute_change"
+                ] = max(
+                    holder_stats[
+                        "largest_absolute_change"
+                    ],
+                    holder_abs,
+                )
+                holder_stats[
+                    "largest_relative_change_percent"
+                ] = max(
+                    holder_stats[
+                        "largest_relative_change_percent"
+                    ],
+                    holder_relative,
+                )
+                holder_record = {
+                    **base,
+                    "previous_active_holders": (
+                        previous_holders
+                    ),
+                    "holder_delta": holder_delta,
+                    "holder_absolute_change": (
+                        holder_abs
+                    ),
+                    "holder_relative_change_percent": (
+                        round(
+                            holder_relative,
+                            6,
+                        )
+                    ),
+                    "reason": (
+                        "large_holder_count_change"
+                    ),
+                }
                 if (
                     holder_abs
                     >= HOLDER_CHANGE_ABSOLUTE
@@ -315,23 +449,27 @@ def run_qc():
                         findings[
                             "large_holder_count_changes"
                         ],
-                        {
-                            **base,
-                            "previous_active_holders": (
-                                previous_holders
-                            ),
-                            "holder_delta": holder_delta,
-                            "holder_relative_change_percent": (
-                                round(
-                                    holder_relative,
-                                    6,
-                                )
-                            ),
-                            "reason": (
-                                "large_holder_count_change"
-                            ),
-                        },
+                        holder_record,
                     )
+                top_holder_changes.append(
+                    holder_record
+                )
+                if len(top_holder_changes) > MAX_EXAMPLES * 2:
+                    top_holder_changes = sorted(
+                        top_holder_changes,
+                        key=lambda item: (
+                            item[
+                                "holder_absolute_change"
+                            ],
+                            item[
+                                "holder_relative_change_percent"
+                            ],
+                        ),
+                        reverse=True,
+                    )[:MAX_EXAMPLES]
+                # ------------------------------------------------
+                # Concentration changes
+                # ------------------------------------------------
                 previous_concentration = previous[
                     "max_position_share_pct"
                 ]
@@ -339,31 +477,102 @@ def run_qc():
                     concentration
                     - previous_concentration
                 )
+                concentration_abs = abs(
+                    concentration_delta
+                )
+                concentration_stats[
+                    "total_changes"
+                ] += 1
+                if concentration_abs >= 25.0:
+                    concentration_stats[
+                        "changes_ge_25pp"
+                    ] += 1
+                if concentration_abs >= 40.0:
+                    concentration_stats[
+                        "changes_ge_40pp"
+                    ] += 1
+                if concentration_abs >= 60.0:
+                    concentration_stats[
+                        "changes_ge_60pp"
+                    ] += 1
+                if concentration_abs >= 80.0:
+                    concentration_stats[
+                        "changes_ge_80pp"
+                    ] += 1
+                concentration_stats[
+                    "largest_absolute_change_pp"
+                ] = max(
+                    concentration_stats[
+                        "largest_absolute_change_pp"
+                    ],
+                    concentration_abs,
+                )
+                concentration_record = {
+                    **base,
+                    "previous_max_position_share_pct": (
+                        previous_concentration
+                    ),
+                    "concentration_delta_pp": round(
+                        concentration_delta,
+                        6,
+                    ),
+                    "concentration_absolute_change_pp": (
+                        round(
+                            concentration_abs,
+                            6,
+                        )
+                    ),
+                    "reason": (
+                        "large_concentration_change"
+                    ),
+                }
                 if (
-                    abs(concentration_delta)
+                    concentration_abs
                     >= CONCENTRATION_CHANGE_PP
                 ):
                     add(
                         findings[
                             "large_concentration_changes"
                         ],
-                        {
-                            **base,
-                            "previous_max_position_share_pct": (
-                                previous_concentration
-                            ),
-                            "concentration_delta_pp": round(
-                                concentration_delta,
-                                6,
-                            ),
-                            "reason": (
-                                "large_concentration_change"
-                            ),
-                        },
+                        concentration_record,
                     )
-            # Only update the previous observation after processing
-            # the current one.
-            previous_by_security[security_key] = current
+                top_concentration_changes.append(
+                    concentration_record
+                )
+                if (
+                    len(top_concentration_changes)
+                    > MAX_EXAMPLES * 2
+                ):
+                    top_concentration_changes = sorted(
+                        top_concentration_changes,
+                        key=lambda item: item[
+                            "concentration_absolute_change_pp"
+                        ],
+                        reverse=True,
+                    )[:MAX_EXAMPLES]
+            # Update the previous observation only after
+            # processing the current one.
+            previous_by_security[
+                security_key
+            ] = current
+    # ------------------------------------------------------------
+    # Sort top examples
+    # ------------------------------------------------------------
+    top_holder_changes = sorted(
+        top_holder_changes,
+        key=lambda item: (
+            item["holder_absolute_change"],
+            item["holder_relative_change_percent"],
+        ),
+        reverse=True,
+    )[:MAX_EXAMPLES]
+    top_concentration_changes = sorted(
+        top_concentration_changes,
+        key=lambda item: item[
+            "concentration_absolute_change_pp"
+        ],
+        reverse=True,
+    )[:MAX_EXAMPLES]
     # ------------------------------------------------------------
     # ISIN / issuer consistency diagnostics
     # ------------------------------------------------------------
@@ -376,6 +585,7 @@ def run_qc():
                 {
                     "isin": isin,
                     "issuers": sorted(names),
+                    "issuer_count": len(names),
                     "reason": (
                         "same_isin_multiple_issuers"
                     ),
@@ -389,7 +599,12 @@ def run_qc():
                 findings["issuer_isin_conflicts"],
                 {
                     "issuer": issuer,
-                    "isins": sorted(issuer_isins),
+                    "isins": sorted(
+                        issuer_isins
+                    ),
+                    "isin_count": len(
+                        issuer_isins
+                    ),
                     "reason": (
                         "same_issuer_multiple_isins"
                     ),
@@ -432,12 +647,16 @@ def run_qc():
                     ),
                     "mean_absolute_change_pp": round(
                         (
-                            stats["absolute_change_sum"]
+                            stats[
+                                "absolute_change_sum"
+                            ]
                             / stats["observations"]
                         ),
                         6,
                     ),
-                    "reason": "market_wide_change",
+                    "reason": (
+                        "market_wide_change"
+                    ),
                 },
             )
     # ------------------------------------------------------------
@@ -468,14 +687,19 @@ def run_qc():
                 break
             previous_date = current_date
     # ------------------------------------------------------------
-    # Summary
+    # Finding counts
     # ------------------------------------------------------------
     category_counts = {
         key: len(value)
         for key, value in findings.items()
     }
+    # ------------------------------------------------------------
+    # Result
+    # ------------------------------------------------------------
     result = {
-        "dataset": "reconstructed_fi_aggregate",
+        "dataset": (
+            "reconstructed_fi_aggregate"
+        ),
         "input_file": str(
             INPUT.relative_to(ROOT)
         ),
@@ -513,9 +737,15 @@ def run_qc():
         },
         "dataset_summary": {
             "rows": rows,
-            "unique_snapshot_dates": len(dates),
-            "unique_issuers": len(issuers),
-            "unique_isins": len(isins),
+            "unique_snapshot_dates": len(
+                dates
+            ),
+            "unique_issuers": len(
+                issuers
+            ),
+            "unique_isins": len(
+                isins
+            ),
             "first_snapshot_date": first_date,
             "last_snapshot_date": last_date,
         },
@@ -527,12 +757,48 @@ def run_qc():
                 and date_order_ok
             ),
         },
+        "change_statistics": {
+            "short_interest": jump_stats,
+            "active_holders": holder_stats,
+            "concentration": concentration_stats,
+        },
         "finding_counts": category_counts,
         "findings": findings,
+        "top_examples": {
+            "holder_changes": (
+                top_holder_changes
+            ),
+            "concentration_changes": (
+                top_concentration_changes
+            ),
+        },
+        "conflict_statistics": {
+            "issuers_with_multiple_isins": sum(
+                1
+                for values in issuer_to_isins.values()
+                if len(values) > 1
+            ),
+            "isins_with_multiple_issuers": sum(
+                1
+                for values in isin_to_issuers.values()
+                if len(values) > 1
+            ),
+            "total_unique_issuers": len(
+                issuer_to_isins
+            ),
+            "total_unique_isins": len(
+                isin_to_issuers
+            ),
+        },
         "interpretation": {
             "note": (
                 "Findings are candidates for review, "
                 "not automatic data errors."
+            ),
+            "data_mutation": (
+                "This QC does not modify, remove, "
+                "correct or impute any observations "
+                "in the input dataset."
             ),
             "time_series_identity": (
                 "Time-series changes are calculated "
@@ -548,6 +814,12 @@ def run_qc():
                 "treated as zero because FI's individual "
                 "publication threshold can make positions "
                 "disappear from the visible data."
+            ),
+            "relative_changes": (
+                "Large relative changes can be caused "
+                "by small starting values near the FI "
+                "publication threshold and are therefore "
+                "not automatically suspicious."
             ),
             "issuer_isin": (
                 "Corporate actions can legitimately "
@@ -574,7 +846,18 @@ def run_qc():
 def main():
     result = run_qc()
     summary = result["dataset_summary"]
+    integrity = result["integrity"]
     counts = result["finding_counts"]
+    changes = result["change_statistics"]
+    short_interest = changes[
+        "short_interest"
+    ]
+    holders = changes[
+        "active_holders"
+    ]
+    concentration = changes[
+        "concentration"
+    ]
     print("==========================================")
     print("QC AV REKONSTRUERAT FI-AGGREGAT")
     print("==========================================")
@@ -598,13 +881,132 @@ def main():
         f"{summary['last_snapshot_date']}"
     )
     print()
-    for key, value in counts.items():
-        print(f"  {key}: {value}")
-    print()
+    print("STRUKTURELL INTEGRITET")
+    print("------------------------------------------")
     print(
-        "Strukturell integritet: "
-        f"{result['integrity']['passed']}"
+        f"Invalid rows: "
+        f"{integrity['invalid_rows']}"
     )
+    print(
+        f"Date order OK: "
+        f"{integrity['date_order_ok']}"
+    )
+    print(
+        f"Same security + same date: "
+        f"{counts['same_security_same_date']}"
+    )
+    print(
+        f"Passed: "
+        f"{integrity['passed']}"
+    )
+    print()
+    print("SHORT INTEREST-FÖRÄNDRINGAR")
+    print("------------------------------------------")
+    print(
+        f"Time-series changes: "
+        f"{short_interest['total_time_series_changes']}"
+    )
+    print(
+        f">= 1 pp: "
+        f"{short_interest['absolute_changes_ge_1pp']}"
+    )
+    print(
+        f">= 2 pp: "
+        f"{short_interest['absolute_changes_ge_2pp']}"
+    )
+    print(
+        f">= 3 pp: "
+        f"{short_interest['absolute_changes_ge_3pp']}"
+    )
+    print(
+        f">= 5 pp: "
+        f"{short_interest['absolute_changes_ge_5pp']}"
+    )
+    print(
+        f">= 100% relative: "
+        f"{short_interest['relative_changes_ge_100_percent']}"
+    )
+    print()
+    print("ACTIVE HOLDER-FÖRÄNDRINGAR")
+    print("------------------------------------------")
+    print(
+        f"Total changes: "
+        f"{holders['total_changes']}"
+    )
+    print(
+        f">= 5 holders: "
+        f"{holders['changes_ge_5']}"
+    )
+    print(
+        f">= 10 holders: "
+        f"{holders['changes_ge_10']}"
+    )
+    print(
+        f">= 20 holders: "
+        f"{holders['changes_ge_20']}"
+    )
+    print(
+        f">= 50 holders: "
+        f"{holders['changes_ge_50']}"
+    )
+    print(
+        f">= 100% relative: "
+        f"{holders['relative_changes_ge_100_percent']}"
+    )
+    print(
+        f"Largest absolute change: "
+        f"{holders['largest_absolute_change']}"
+    )
+    print(
+        f"Largest relative change: "
+        f"{holders['largest_relative_change_percent']:.2f}%"
+    )
+    print()
+    print("CONCENTRATION-FÖRÄNDRINGAR")
+    print("------------------------------------------")
+    print(
+        f"Total changes: "
+        f"{concentration['total_changes']}"
+    )
+    print(
+        f">= 25 pp: "
+        f"{concentration['changes_ge_25pp']}"
+    )
+    print(
+        f">= 40 pp: "
+        f"{concentration['changes_ge_40pp']}"
+    )
+    print(
+        f">= 60 pp: "
+        f"{concentration['changes_ge_60pp']}"
+    )
+    print(
+        f">= 80 pp: "
+        f"{concentration['changes_ge_80pp']}"
+    )
+    print(
+        f"Largest absolute change: "
+        f"{concentration['largest_absolute_change_pp']:.2f} pp"
+    )
+    print()
+    print("ISIN / ISSUER")
+    print("------------------------------------------")
+    print(
+        f"Issuers with multiple ISIN: "
+        f"{result['conflict_statistics']['issuers_with_multiple_isins']}"
+    )
+    print(
+        f"ISIN with multiple issuers: "
+        f"{result['conflict_statistics']['isins_with_multiple_issuers']}"
+    )
+    print()
+    print("FINDINGS")
+    print("------------------------------------------")
+    for key, value in counts.items():
+        print(
+            f"{key}: {value}"
+        )
+    print()
     print(
         f"QC sparad till: {OUTPUT}"
     )
