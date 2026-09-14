@@ -1,0 +1,100 @@
+name: Testa FI aggregerad fil
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: Hämta FI:s aggregerade positioner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install odfpy
+      - name: Hämta FI:s aggregerade fil
+        run: |
+          python - <<'PY'
+          import requests
+          url = (
+              "https://www.fi.se/"
+              "BlankningsRegister/"
+              "GetBlankningsregisterAggregat"
+          )
+          headers = {
+              "User-Agent": (
+                  "Mozilla/5.0 "
+                  "(compatible; Blankdiss/1.0)"
+              ),
+              "Accept": (
+                  "application/vnd.oasis.opendocument.spreadsheet,"
+                  "application/octet-stream,*/*"
+              ),
+          }
+          response = requests.get(
+              url,
+              headers=headers,
+              timeout=60,
+          )
+          print("HTTP:", response.status_code)
+          print("Content-Type:", response.headers.get("Content-Type"))
+          print("Content-Length:", response.headers.get("Content-Length"))
+          print("Content-Disposition:", response.headers.get("Content-Disposition"))
+          print("Bytes:", len(response.content))
+          response.raise_for_status()
+          with open(
+              "fi-aggregate.ods",
+              "wb",
+          ) as file:
+              file.write(response.content)
+          print("Sparade fi-aggregate.ods")
+          PY
+      - name: Inspektera ODS-filen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          path = Path("fi-aggregate.ods")
+          print()
+          print("=" * 72)
+          print("FI AGGREGERAD FIL")
+          print("=" * 72)
+          print("Fil:", path)
+          print("Storlek:", path.stat().st_size, "bytes")
+          sheets = pd.ExcelFile(
+              path,
+              engine="odf",
+          ).sheet_names
+          print()
+          print("ARK:")
+          for sheet in sheets:
+              print("-", sheet)
+          print()
+          for sheet in sheets:
+              print("=" * 72)
+              print("ARK:", sheet)
+              print("=" * 72)
+              frame = pd.read_excel(
+                  path,
+                  sheet_name=sheet,
+                  engine="odf",
+              )
+              print("Rader:", len(frame))
+              print("Kolumner:", list(frame.columns))
+              print()
+              print(frame.head(20).to_string(index=False))
+          PY
+      - name: Ladda upp FI-filen
+        uses: actions/upload-artifact@v4
+        with:
+          name: fi-aggregate-probe
+          path: fi-aggregate.ods
+          if-no-files-found: error
+          retention-days: 14
