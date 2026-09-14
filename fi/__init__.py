@@ -1,1 +1,1 @@
-
+"""FI-data för Blankdiss."""
