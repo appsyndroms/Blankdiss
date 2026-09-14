@@ -1,0 +1,357 @@
+name: Undersök FI historiska positioner
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Hämta och analysera FI:s historiska fil
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install odfpy
+
+      - name: Hämta och analysera historisk FI-fil
+        run: |
+          python - <<'PY' | tee fi-history-probe.txt
+          from __future__ import annotations
+
+          from pathlib import Path
+
+          import pandas as pd
+          import requests
+
+
+          URL = (
+              "https://www.fi.se/"
+              "BlankningsRegister/"
+              "GetHistFile"
+          )
+
+          OUTPUT = Path("fi-historical.ods")
+
+          HEADERS = {
+              "User-Agent": (
+                  "Mozilla/5.0 "
+                  "(compatible; Blankdiss/1.0)"
+              ),
+              "Accept": (
+                  "application/vnd.oasis."
+                  "opendocument.spreadsheet,"
+                  "application/octet-stream,"
+                  "*/*"
+              ),
+          }
+
+
+          def find_column(
+              columns: list[str],
+              terms: tuple[str, ...],
+          ) -> str | None:
+              for column in columns:
+                  lowered = str(column).lower()
+
+                  if all(
+                      term in lowered
+                      for term in terms
+                  ):
+                      return str(column)
+
+              return None
+
+
+          print("=" * 72)
+          print("FI HISTORISK FIL")
+          print("=" * 72)
+          print("URL:", URL)
+
+          response = requests.get(
+              URL,
+              headers=HEADERS,
+              timeout=60,
+          )
+
+          print("HTTP:", response.status_code)
+          print(
+              "Content-Type:",
+              response.headers.get("Content-Type"),
+          )
+          print(
+              "Content-Length:",
+              response.headers.get("Content-Length"),
+          )
+          print(
+              "Content-Disposition:",
+              response.headers.get(
+                  "Content-Disposition"
+              ),
+          )
+          print("Bytes:", len(response.content))
+
+          response.raise_for_status()
+
+          OUTPUT.write_bytes(response.content)
+
+          print("Sparad:", OUTPUT)
+
+          print()
+          print("=" * 72)
+          print("FILANALYS")
+          print("=" * 72)
+
+          workbook = pd.ExcelFile(
+              OUTPUT,
+              engine="odf",
+          )
+
+          print(
+              "Antal blad:",
+              len(workbook.sheet_names),
+          )
+          print("Blad:")
+
+          for sheet_name in workbook.sheet_names:
+              print("-", sheet_name)
+
+          for sheet_name in workbook.sheet_names:
+              print()
+              print("=" * 72)
+              print("ARK:", sheet_name)
+              print("=" * 72)
+
+              raw = pd.read_excel(
+                  OUTPUT,
+                  sheet_name=sheet_name,
+                  header=None,
+                  engine="odf",
+              )
+
+              print(
+                  "Rader inklusive rubriker:",
+                  len(raw),
+              )
+              print(
+                  "Kolumner:",
+                  len(raw.columns),
+              )
+
+              print()
+              print("FÖRSTA 20 RADERNA:")
+              print(
+                  raw.head(20).to_string(
+                      index=False,
+                      header=False,
+                  )
+              )
+
+              header_row = None
+
+              for index, row in raw.iterrows():
+                  values = [
+                      str(value).lower()
+                      for value in row.tolist()
+                      if pd.notna(value)
+                  ]
+
+                  joined = " ".join(values)
+
+                  if (
+                      "emittent" in joined
+                      or "issuer" in joined
+                  ) and (
+                      "position" in joined
+                      or "nettoposition" in joined
+                  ):
+                      header_row = index
+                      break
+
+              if header_row is None:
+                  print()
+                  print(
+                      "Kunde inte identifiera "
+                      "rubrikrad automatiskt."
+                  )
+                  continue
+
+              print()
+              print(
+                  "Identifierad rubrikrad:",
+                  header_row,
+              )
+
+              frame = pd.read_excel(
+                  OUTPUT,
+                  sheet_name=sheet_name,
+                  header=header_row,
+                  engine="odf",
+              )
+
+              frame = frame.dropna(
+                  how="all"
+              )
+
+              frame.columns = [
+                  str(column).strip()
+                  for column in frame.columns
+              ]
+
+              print()
+              print("DATAKOLUMNER:")
+
+              for column in frame.columns:
+                  print("-", column)
+
+              print()
+              print(
+                  "Antal datarader:",
+                  len(frame),
+              )
+
+              issuer_column = find_column(
+                  list(frame.columns),
+                  ("emittent",),
+              ) or find_column(
+                  list(frame.columns),
+                  ("issuer",),
+              )
+
+              lei_column = find_column(
+                  list(frame.columns),
+                  ("lei",),
+              )
+
+              date_column = (
+                  find_column(
+                      list(frame.columns),
+                      ("positionsdatum",),
+                  )
+                  or find_column(
+                      list(frame.columns),
+                      ("position", "date"),
+                  )
+                  or find_column(
+                      list(frame.columns),
+                      ("datum",),
+                  )
+                  or find_column(
+                      list(frame.columns),
+                      ("date",),
+                  )
+              )
+
+              print()
+              print("=" * 72)
+              print("SAMMANFATTNING")
+              print("=" * 72)
+
+              if issuer_column:
+                  print(
+                      "Emittentkolumn:",
+                      issuer_column,
+                  )
+                  print(
+                      "Unika emittenter:",
+                      frame[
+                          issuer_column
+                      ].nunique(),
+                  )
+
+              else:
+                  print(
+                      "Emittentkolumn: "
+                      "hittades inte"
+                  )
+
+              if lei_column:
+                  print(
+                      "LEI-kolumn:",
+                      lei_column,
+                  )
+                  print(
+                      "Unika LEI:",
+                      frame[
+                          lei_column
+                      ].nunique(),
+                  )
+
+              else:
+                  print(
+                      "LEI-kolumn: hittades inte"
+                  )
+
+              if date_column:
+                  print(
+                      "Datumkolumn:",
+                      date_column,
+                  )
+
+                  parsed_dates = pd.to_datetime(
+                      frame[date_column],
+                      errors="coerce",
+                      dayfirst=False,
+                  )
+
+                  valid_dates = parsed_dates.dropna()
+
+                  print(
+                      "Giltiga datum:",
+                      len(valid_dates),
+                  )
+                  print(
+                      "Unika datum:",
+                      valid_dates.nunique(),
+                  )
+
+                  if not valid_dates.empty:
+                      print(
+                          "Äldsta datum:",
+                          valid_dates.min()
+                          .date()
+                          .isoformat(),
+                      )
+                      print(
+                          "Senaste datum:",
+                          valid_dates.max()
+                          .date()
+                          .isoformat(),
+                      )
+
+              else:
+                  print(
+                      "Datumkolumn: hittades inte"
+                  )
+
+              print()
+              print("FÖRSTA 20 DATARADERNA:")
+              print(
+                  frame.head(20).to_string(
+                      index=False,
+                  )
+              )
+          PY
+
+      - name: Ladda upp analys
+        uses: actions/upload-artifact@v4
+        with:
+          name: fi-history-investigation
+          path: |
+            fi-history-probe.txt
+            fi-historical.ods
+          if-no-files-found: error
+          retention-days: 14
