@@ -6,7 +6,7 @@
     "invalid_rows": 14558,
     "duplicate_rows": 0,
     "unique_price_symbols": 287,
-    "unique_price_isins": 215,
+    "unique_price_isins": 214,
     "first_price_date": "2022-05-25",
     "last_price_date": "2026-09-11"
   },
