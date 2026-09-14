@@ -1,86 +1,112 @@
 name: Blankdiss
+
 on:
   workflow_dispatch:
+
   schedule:
+    - cron: "30 0 * * *"
+      timezone: "Europe/Stockholm"
+
     - cron: "0 18 * * *"
       timezone: "Europe/Stockholm"
+
 permissions:
   contents: write
   pages: write
   id-token: write
+
 concurrency:
   group: blankdiss-main
   cancel-in-progress: false
+
 jobs:
   build:
     name: Bygg Blankdiss
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Backfill FI data
+
+      - name: Fetch FI data
         run: |
-          python -m src.backfill_fi --days 90
-      - name: Fetch current FI data
-        run: |
-          python -m src.fetch_fi
+          python -m fi --days 90
+
       - name: Fetch prices
         run: |
-          python -m src.fetch_prices
+          python -m prices
+
       - name: Build events
         run: |
-          python -m src.build_events
+          python -m events
+
       - name: Analyze
         run: |
-          python -m src.analyze
+          python -m analysis
+
       - name: Build web
         run: |
-          python -m src.build_web
+          python web_build.py
+
       - name: Validate web
         run: |
           set -e
+
           test -f pages/index.html
           test -f pages/style.css
           test -f pages/data.json
+
           grep -q -- "--bg: #0b1020" pages/style.css
           grep -q -- "--surface: #121a2b" pages/style.css
           grep -q -- "--accent: #72a7ff" pages/style.css
+
           grep -q "./style.css?v=2" pages/index.html
+
           echo "=========================================="
           echo "WEBBVALIDERING OK"
           echo "=========================================="
+
           echo "Filer:"
           ls -lah pages
+
           echo
           echo "CSS:"
           grep -n -- "--bg:" pages/style.css
           grep -n -- "--surface:" pages/style.css
           grep -n -- "--accent:" pages/style.css
+
           echo
           echo "Stylesheet:"
           grep -n "stylesheet" pages/index.html
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+
       - name: Create Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: pages
+
       - name: Commit generated data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add data/
+
           if git diff --cached --quiet; then
             echo "Inga förändringar att committa."
           else
@@ -89,20 +115,25 @@ jobs:
             git rebase origin/main
             git push origin HEAD:main
           fi
+
   deploy:
     name: Publicera Blankdiss
     needs: build
     runs-on: ubuntu-latest
+
     permissions:
       pages: write
       id-token: write
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Publicera GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
       - name: Skriv ut webb-URL
         run: |
           echo "=========================================="
