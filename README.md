@@ -43,5 +43,13 @@ Rådata sparas som daterade JSONL-filer.
 ```text
 data/
 ├── raw/
+│   ├── fi/
+│   │   └── aggregate/
+│   │       ├── source/
+│   │       ├── snapshots/
+│   │       └── manifest.json
+│   │
+│   └── prices/
+│
 ├── events/
 └── analysis/
