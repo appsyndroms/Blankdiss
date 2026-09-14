@@ -16,7 +16,7 @@
     "isin": "ISIN"
   },
   "source_url": "https://www.fi.se/BlankningsRegister/GetHistFile",
-  "raw_sha256": "06f2fd9b4fdad82423876fddcb7f499d97d181fe37954827e3316b7dfba3f5c5",
+  "raw_sha256": "de30efaba33ad0b399922a47f43c78ff4c0ce5bfb8558e12ca614166d57da38e",
   "output_file": "data/raw/fi/positions/historical/fi_historical_positions.jsonl",
-  "generated_at": "2026-09-14T13:44:32"
+  "generated_at": "2026-09-14T14:00:47"
 }

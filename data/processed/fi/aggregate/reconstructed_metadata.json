@@ -1,0 +1,18 @@
+{
+  "dataset": "reconstructed_fi_aggregate",
+  "source_file": "data/raw/fi/positions/historical/fi_historical_positions.jsonl",
+  "output_file": "data/processed/fi/aggregate/reconstructed.jsonl",
+  "rows": 249690,
+  "unique_issuers": 321,
+  "first_snapshot_date": "2022-05-25",
+  "last_snapshot_date": "2026-09-11",
+  "source": "Finansinspektionen GetHistFile",
+  "official_aggregate_threshold": ">0.1%",
+  "method": "Chronological replay of normalized individual FI position changes. A missing position value represents a previously visible position that has fallen below the publication threshold.",
+  "limitations": [
+    "Not FI's official aggregate series.",
+    "Positions below FI's individual publication threshold are not available as exact values.",
+    "Only dates with position changes are emitted.",
+    "Pre-2022 history is replayed to establish state."
+  ]
+}
