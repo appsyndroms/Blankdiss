@@ -19,7 +19,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -29,7 +28,7 @@ jobs:
 
       - name: Hämta och analysera historisk FI-fil
         run: |
-          python - <<'PY' | tee fi-history-probe.txt
+          python - <<'PY'
           from __future__ import annotations
 
           from pathlib import Path
@@ -45,6 +44,7 @@ jobs:
           )
 
           OUTPUT = Path("fi-historical.ods")
+          REPORT = Path("fi-history-report.txt")
 
           HEADERS = {
               "User-Agent": (
@@ -60,290 +60,495 @@ jobs:
           }
 
 
+          def write(
+              file,
+              text: str = "",
+          ) -> None:
+              print(text)
+              file.write(text + "\n")
+
+
           def find_column(
               columns: list[str],
-              terms: tuple[str, ...],
+              *terms: tuple[str, ...],
           ) -> str | None:
-              for column in columns:
-                  lowered = str(column).lower()
+              for term_group in terms:
+                  for column in columns:
+                      lowered = str(column).lower()
 
-                  if all(
-                      term in lowered
-                      for term in terms
-                  ):
-                      return str(column)
+                      if all(
+                          term in lowered
+                          for term in term_group
+                      ):
+                          return str(column)
 
               return None
 
 
-          print("=" * 72)
-          print("FI HISTORISK FIL")
-          print("=" * 72)
-          print("URL:", URL)
+          with REPORT.open(
+              "w",
+              encoding="utf-8",
+          ) as report:
 
-          response = requests.get(
-              URL,
-              headers=HEADERS,
-              timeout=60,
-          )
+              write(
+                  report,
+                  "=" * 72,
+              )
+              write(
+                  report,
+                  "FI HISTORISK FIL",
+              )
+              write(
+                  report,
+                  "=" * 72,
+              )
+              write(
+                  report,
+                  f"URL: {URL}",
+              )
 
-          print("HTTP:", response.status_code)
-          print(
-              "Content-Type:",
-              response.headers.get("Content-Type"),
-          )
-          print(
-              "Content-Length:",
-              response.headers.get("Content-Length"),
-          )
-          print(
-              "Content-Disposition:",
-              response.headers.get(
-                  "Content-Disposition"
-              ),
-          )
-          print("Bytes:", len(response.content))
+              response = requests.get(
+                  URL,
+                  headers=HEADERS,
+                  timeout=60,
+              )
 
-          response.raise_for_status()
+              write(
+                  report,
+                  f"HTTP: {response.status_code}",
+              )
+              write(
+                  report,
+                  "Content-Type: "
+                  f"{response.headers.get('Content-Type')}",
+              )
+              write(
+                  report,
+                  "Content-Length: "
+                  f"{response.headers.get('Content-Length')}",
+              )
+              write(
+                  report,
+                  "Content-Disposition: "
+                  f"{response.headers.get('Content-Disposition')}",
+              )
+              write(
+                  report,
+                  f"Bytes: {len(response.content)}",
+              )
 
-          OUTPUT.write_bytes(response.content)
+              response.raise_for_status()
 
-          print("Sparad:", OUTPUT)
+              OUTPUT.write_bytes(
+                  response.content
+              )
+
+              write(
+                  report,
+                  f"Sparad: {OUTPUT}",
+              )
+
+              workbook = pd.ExcelFile(
+                  OUTPUT,
+                  engine="odf",
+              )
+
+              write(
+                  report,
+              )
+              write(
+                  report,
+                  "=" * 72,
+              )
+              write(
+                  report,
+                  "FILANALYS",
+              )
+              write(
+                  report,
+                  "=" * 72,
+              )
+
+              write(
+                  report,
+                  "Antal blad: "
+                  f"{len(workbook.sheet_names)}",
+              )
+
+              for sheet_name in (
+                  workbook.sheet_names
+              ):
+                  write(
+                      report,
+                      f"- {sheet_name}",
+                  )
+
+              for sheet_name in (
+                  workbook.sheet_names
+              ):
+                  write(
+                      report,
+                  )
+                  write(
+                      report,
+                      "=" * 72,
+                  )
+                  write(
+                      report,
+                      f"ARK: {sheet_name}",
+                  )
+                  write(
+                      report,
+                      "=" * 72,
+                  )
+
+                  raw = pd.read_excel(
+                      OUTPUT,
+                      sheet_name=sheet_name,
+                      header=None,
+                      engine="odf",
+                  )
+
+                  write(
+                      report,
+                      "Rader inklusive rubriker: "
+                      f"{len(raw)}",
+                  )
+                  write(
+                      report,
+                      "Kolumner: "
+                      f"{len(raw.columns)}",
+                  )
+
+                  header_row = None
+
+                  for index, row in raw.iterrows():
+                      values = [
+                          str(value).lower()
+                          for value in row.tolist()
+                          if pd.notna(value)
+                      ]
+
+                      joined = " ".join(values)
+
+                      if (
+                          (
+                              "emittent"
+                              in joined
+                              or "issuer"
+                              in joined
+                          )
+                          and
+                          (
+                              "position"
+                              in joined
+                              or "nettoposition"
+                              in joined
+                          )
+                      ):
+                          header_row = index
+                          break
+
+                  if header_row is None:
+                      write(
+                          report,
+                          "Kunde inte identifiera "
+                          "rubrikrad.",
+                      )
+                      continue
+
+                  write(
+                      report,
+                      "Identifierad rubrikrad: "
+                      f"{header_row}",
+                  )
+
+                  frame = pd.read_excel(
+                      OUTPUT,
+                      sheet_name=sheet_name,
+                      header=header_row,
+                      engine="odf",
+                  )
+
+                  frame = frame.dropna(
+                      how="all"
+                  )
+
+                  frame.columns = [
+                      str(column).strip()
+                      for column in frame.columns
+                  ]
+
+                  write(
+                      report,
+                  )
+                  write(
+                      report,
+                      "DATAKOLUMNER",
+                  )
+
+                  for number, column in enumerate(
+                      frame.columns
+                  ):
+                      write(
+                          report,
+                          f"{number}: {column}",
+                      )
+
+                  write(
+                      report,
+                      f"Antal datarader: {len(frame)}",
+                  )
+
+                  issuer_column = find_column(
+                      list(frame.columns),
+                      ("emittent",),
+                      ("issuer",),
+                  )
+
+                  lei_column = find_column(
+                      list(frame.columns),
+                      ("lei",),
+                  )
+
+                  position_column = find_column(
+                      list(frame.columns),
+                      ("position",),
+                      ("nettoposition",),
+                      ("blankning",),
+                  )
+
+                  date_column = find_column(
+                      list(frame.columns),
+                      ("positionsdatum",),
+                      ("position", "date"),
+                      ("datum",),
+                      ("date",),
+                  )
+
+                  write(
+                      report,
+                  )
+                  write(
+                      report,
+                      "=" * 72,
+                  )
+                  write(
+                      report,
+                      "SAMMANFATTNING",
+                  )
+                  write(
+                      report,
+                      "=" * 72,
+                  )
+
+                  write(
+                      report,
+                      "Emittentkolumn: "
+                      f"{issuer_column}",
+                  )
+
+                  if issuer_column:
+                      write(
+                          report,
+                          "Unika emittenter: "
+                          f"{frame[issuer_column].nunique()}",
+                      )
+
+                  write(
+                      report,
+                      "LEI-kolumn: "
+                      f"{lei_column}",
+                  )
+
+                  if lei_column:
+                      write(
+                          report,
+                          "Unika LEI: "
+                          f"{frame[lei_column].nunique()}",
+                      )
+
+                  write(
+                      report,
+                      "Positionskolumn: "
+                      f"{position_column}",
+                  )
+
+                  write(
+                      report,
+                      "Datumkolumn: "
+                      f"{date_column}",
+                  )
+
+                  if date_column:
+                      dates = pd.to_datetime(
+                          frame[date_column],
+                          errors="coerce",
+                      )
+
+                      valid_dates = dates.dropna()
+
+                      write(
+                          report,
+                          "Giltiga datum: "
+                          f"{len(valid_dates)}",
+                      )
+
+                      write(
+                          report,
+                          "Unika datum: "
+                          f"{valid_dates.nunique()}",
+                      )
+
+                      if not valid_dates.empty:
+                          write(
+                              report,
+                              "Äldsta datum: "
+                              f"{valid_dates.min().date().isoformat()}",
+                          )
+
+                          write(
+                              report,
+                              "Senaste datum: "
+                              f"{valid_dates.max().date().isoformat()}",
+                          )
+
+                          write(
+                              report,
+                          )
+                          write(
+                              report,
+                              "DATUMFÖRDELNING",
+                          )
+
+                          monthly = (
+                              valid_dates
+                              .dt.to_period("M")
+                              .value_counts()
+                              .sort_index()
+                          )
+
+                          for period, count in (
+                              monthly.items()
+                          ):
+                              write(
+                                  report,
+                                  f"{period}: {count}",
+                              )
+
+                  if position_column:
+                      positions = pd.to_numeric(
+                          frame[position_column],
+                          errors="coerce",
+                      )
+
+                      valid_positions = (
+                          positions.dropna()
+                      )
+
+                      write(
+                          report,
+                      )
+                      write(
+                          report,
+                          "POSITIONER",
+                      )
+
+                      write(
+                          report,
+                          "Giltiga positioner: "
+                          f"{len(valid_positions)}",
+                      )
+
+                      if not valid_positions.empty:
+                          write(
+                              report,
+                              "Min position: "
+                              f"{valid_positions.min()}",
+                          )
+
+                          write(
+                              report,
+                              "Max position: "
+                              f"{valid_positions.max()}",
+                          )
+
+                          below_half = (
+                              valid_positions < 0.5
+                          )
+
+                          write(
+                              report,
+                              "Positioner < 0,5 %: "
+                              f"{below_half.sum()}",
+                          )
+
+                          at_or_above_half = (
+                              valid_positions >= 0.5
+                          )
+
+                          write(
+                              report,
+                              "Positioner >= 0,5 %: "
+                              f"{at_or_above_half.sum()}",
+                          )
+
+                          write(
+                              report,
+                              "Unika positionsvärden: "
+                              f"{valid_positions.nunique()}",
+                          )
+
+                  write(
+                      report,
+                  )
+                  write(
+                      report,
+                      "FÖRSTA 20 DATARADERNA",
+                  )
+                  write(
+                      report,
+                      "-" * 72,
+                  )
+
+                  write(
+                      report,
+                      frame.head(20).to_string(
+                          index=False,
+                      ),
+                  )
+
+                  write(
+                      report,
+                  )
+                  write(
+                      report,
+                      "SISTA 20 DATARADERNA",
+                  )
+                  write(
+                      report,
+                      "-" * 72,
+                  )
+
+                  write(
+                      report,
+                      frame.tail(20).to_string(
+                          index=False,
+                      ),
+                  )
 
           print()
           print("=" * 72)
-          print("FILANALYS")
+          print("KLART")
           print("=" * 72)
-
-          workbook = pd.ExcelFile(
-              OUTPUT,
-              engine="odf",
-          )
-
           print(
-              "Antal blad:",
-              len(workbook.sheet_names),
+              "Fullständig rapport sparad i:",
+              REPORT,
           )
-          print("Blad:")
-
-          for sheet_name in workbook.sheet_names:
-              print("-", sheet_name)
-
-          for sheet_name in workbook.sheet_names:
-              print()
-              print("=" * 72)
-              print("ARK:", sheet_name)
-              print("=" * 72)
-
-              raw = pd.read_excel(
-                  OUTPUT,
-                  sheet_name=sheet_name,
-                  header=None,
-                  engine="odf",
-              )
-
-              print(
-                  "Rader inklusive rubriker:",
-                  len(raw),
-              )
-              print(
-                  "Kolumner:",
-                  len(raw.columns),
-              )
-
-              print()
-              print("FÖRSTA 20 RADERNA:")
-              print(
-                  raw.head(20).to_string(
-                      index=False,
-                      header=False,
-                  )
-              )
-
-              header_row = None
-
-              for index, row in raw.iterrows():
-                  values = [
-                      str(value).lower()
-                      for value in row.tolist()
-                      if pd.notna(value)
-                  ]
-
-                  joined = " ".join(values)
-
-                  if (
-                      "emittent" in joined
-                      or "issuer" in joined
-                  ) and (
-                      "position" in joined
-                      or "nettoposition" in joined
-                  ):
-                      header_row = index
-                      break
-
-              if header_row is None:
-                  print()
-                  print(
-                      "Kunde inte identifiera "
-                      "rubrikrad automatiskt."
-                  )
-                  continue
-
-              print()
-              print(
-                  "Identifierad rubrikrad:",
-                  header_row,
-              )
-
-              frame = pd.read_excel(
-                  OUTPUT,
-                  sheet_name=sheet_name,
-                  header=header_row,
-                  engine="odf",
-              )
-
-              frame = frame.dropna(
-                  how="all"
-              )
-
-              frame.columns = [
-                  str(column).strip()
-                  for column in frame.columns
-              ]
-
-              print()
-              print("DATAKOLUMNER:")
-
-              for column in frame.columns:
-                  print("-", column)
-
-              print()
-              print(
-                  "Antal datarader:",
-                  len(frame),
-              )
-
-              issuer_column = find_column(
-                  list(frame.columns),
-                  ("emittent",),
-              ) or find_column(
-                  list(frame.columns),
-                  ("issuer",),
-              )
-
-              lei_column = find_column(
-                  list(frame.columns),
-                  ("lei",),
-              )
-
-              date_column = (
-                  find_column(
-                      list(frame.columns),
-                      ("positionsdatum",),
-                  )
-                  or find_column(
-                      list(frame.columns),
-                      ("position", "date"),
-                  )
-                  or find_column(
-                      list(frame.columns),
-                      ("datum",),
-                  )
-                  or find_column(
-                      list(frame.columns),
-                      ("date",),
-                  )
-              )
-
-              print()
-              print("=" * 72)
-              print("SAMMANFATTNING")
-              print("=" * 72)
-
-              if issuer_column:
-                  print(
-                      "Emittentkolumn:",
-                      issuer_column,
-                  )
-                  print(
-                      "Unika emittenter:",
-                      frame[
-                          issuer_column
-                      ].nunique(),
-                  )
-
-              else:
-                  print(
-                      "Emittentkolumn: "
-                      "hittades inte"
-                  )
-
-              if lei_column:
-                  print(
-                      "LEI-kolumn:",
-                      lei_column,
-                  )
-                  print(
-                      "Unika LEI:",
-                      frame[
-                          lei_column
-                      ].nunique(),
-                  )
-
-              else:
-                  print(
-                      "LEI-kolumn: hittades inte"
-                  )
-
-              if date_column:
-                  print(
-                      "Datumkolumn:",
-                      date_column,
-                  )
-
-                  parsed_dates = pd.to_datetime(
-                      frame[date_column],
-                      errors="coerce",
-                      dayfirst=False,
-                  )
-
-                  valid_dates = parsed_dates.dropna()
-
-                  print(
-                      "Giltiga datum:",
-                      len(valid_dates),
-                  )
-                  print(
-                      "Unika datum:",
-                      valid_dates.nunique(),
-                  )
-
-                  if not valid_dates.empty:
-                      print(
-                          "Äldsta datum:",
-                          valid_dates.min()
-                          .date()
-                          .isoformat(),
-                      )
-                      print(
-                          "Senaste datum:",
-                          valid_dates.max()
-                          .date()
-                          .isoformat(),
-                      )
-
-              else:
-                  print(
-                      "Datumkolumn: hittades inte"
-                  )
-
-              print()
-              print("FÖRSTA 20 DATARADERNA:")
-              print(
-                  frame.head(20).to_string(
-                      index=False,
-                  )
-              )
+          print(
+              "ODS sparad i:",
+              OUTPUT,
+          )
           PY
 
       - name: Ladda upp analys
@@ -351,7 +556,7 @@ jobs:
         with:
           name: fi-history-investigation
           path: |
-            fi-history-probe.txt
+            fi-history-report.txt
             fi-historical.ods
           if-no-files-found: error
           retention-days: 14
