@@ -25,29 +25,43 @@ HISTORICAL_DIR = RAW_DIR / "historical"
 def parse_date(value: str) -> date:
     """Tolkar YYYY-MM-DD."""
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
+        return datetime.strptime(
+            value,
+            "%Y-%m-%d",
+        ).date()
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            f"Ogiltigt datum: {value}. Använd YYYY-MM-DD."
+            f"Ogiltigt datum: {value}. "
+            "Använd YYYY-MM-DD."
         ) from exc
 
 
-def historical_dates(start: date, end: date):
+def historical_dates(
+    start: date,
+    end: date,
+):
     """
-    Itererar över datum då FI förväntas ha publicerat historiska
-    aggregatfiler.
+    Itererar över datum då FI förväntas ha
+    publicerat historiska aggregatfiler.
 
-    FI:s aggregerade historik började publiceras veckovis 2022-05-25.
-    Från 2022-06-09 publiceras data fortlöpande, så från och med det
+    FI:s aggregerade historik började
+    publiceras veckovis 2022-05-25.
+
+    Från 2022-06-09 publiceras data
+    fortlöpande, så från och med det
     datumet används varje kalenderdag.
 
-    Det gör att vi inte behöver prova alla kalenderdagar under den
-    första perioden, där 404 är normalt för dagar utan publicering.
+    Det gör att vi inte behöver prova
+    alla kalenderdagar under den första
+    perioden, där 404 är normalt.
     """
     if start > end:
         return
 
-    first_period_end = CONTINUOUS_START_DATE - timedelta(days=1)
+    first_period_end = (
+        CONTINUOUS_START_DATE
+        - timedelta(days=1)
+    )
 
     # Veckovisa publiceringar:
     # 2022-05-25, 2022-06-01, 2022-06-08.
@@ -59,19 +73,27 @@ def historical_dates(start: date, end: date):
 
         weekly_date += timedelta(days=7)
 
-    # Kontinuerlig publicering från 2022-06-09.
-    current = max(start, CONTINUOUS_START_DATE)
+    # Kontinuerlig publicering från
+    # 2022-06-09.
+    current = max(
+        start,
+        CONTINUOUS_START_DATE,
+    )
 
     while current <= end:
         yield current
         current += timedelta(days=1)
 
 
-def historical_urls(source_date: date) -> list[str]:
+def historical_urls(
+    source_date: date,
+) -> list[str]:
     """
-    Returnerar möjliga FI-URL:er för en daterad historisk aggregatfil.
+    Returnerar möjliga FI-URL:er för
+    en daterad historisk aggregatfil.
 
     FI:s historiska filer följer formatet:
+
         aggregerade-blankningspositioner-YYYY-MM-DD.xlsx
     """
     date_text = source_date.isoformat()
@@ -81,7 +103,10 @@ def historical_urls(source_date: date) -> list[str]:
         "79e6c3558bd9473fb70a418f51df48d0/"
     )
 
-    stem = f"aggregerade-blankningspositioner-{date_text}"
+    stem = (
+        "aggregerade-blankningspositioner-"
+        f"{date_text}"
+    )
 
     return [
         f"{base}{stem}.xlsx",
@@ -89,7 +114,9 @@ def historical_urls(source_date: date) -> list[str]:
     ]
 
 
-def detect_file_format(data: bytes) -> str:
+def detect_file_format(
+    data: bytes,
+) -> str:
     """Identifierar filformat utifrån filens bytes."""
     if data.startswith(b"PK\x03\x04"):
         return "zip"
@@ -106,9 +133,13 @@ def detect_file_format(data: bytes) -> str:
     return "unknown"
 
 
-def describe_content(data: bytes) -> str:
-    """Returnerar en kort diagnostisk beskrivning av innehållet."""
-    file_format = detect_file_format(data)
+def describe_content(
+    data: bytes,
+) -> str:
+    """Returnerar en kort diagnostisk beskrivning."""
+    file_format = detect_file_format(
+        data
+    )
 
     preview = (
         data[:120]
@@ -132,10 +163,13 @@ def download_historical_file(
     session: requests.Session,
     source_date: date,
 ) -> tuple[bytes, str] | None:
-    """Hämtar en daterad FI-fil, eller None om filen saknas."""
-    for url in historical_urls(source_date):
+    """Hämtar en daterad FI-fil."""
+    for url in historical_urls(
+        source_date
+    ):
         print(
-            f"FI backfill: försöker {url}"
+            "FI backfill: försöker "
+            f"{url}"
         )
 
         try:
@@ -147,7 +181,8 @@ def download_historical_file(
             )
         except requests.RequestException as exc:
             raise FIError(
-                f"FI-nätverksfel för {source_date}: {exc}"
+                "FI-nätverksfel för "
+                f"{source_date}: {exc}"
             ) from exc
 
         content_type = response.headers.get(
@@ -177,7 +212,7 @@ def download_historical_file(
 
         if response.status_code != 200:
             raise FIError(
-                f"FI returnerade HTTP "
+                "FI returnerade HTTP "
                 f"{response.status_code} "
                 f"för {source_date}."
             )
@@ -186,12 +221,15 @@ def download_historical_file(
 
         if len(data) < 100:
             print(
-                "FI backfill: svaret är för litet "
-                "för att vara en historisk datafil."
+                "FI backfill: svaret är "
+                "för litet för att vara "
+                "en historisk datafil."
             )
             continue
 
-        description = describe_content(data)
+        description = describe_content(
+            data
+        )
 
         print(
             "FI backfill: "
@@ -225,13 +263,17 @@ def prepare_historical_two_column_table(
 
     result = pd.DataFrame(
         {
-            "Emittentens namn": table.iloc[:, 0],
+            "Emittentens namn": table.iloc[
+                :, 0
+            ],
             "Emittentens LEI-kod": None,
             "Summa blankning %": pd.to_numeric(
                 table.iloc[:, 1],
                 errors="coerce",
             ),
-            "Positionsdatum": source_date.isoformat(),
+            "Positionsdatum": (
+                source_date.isoformat()
+            ),
         }
     )
 
@@ -263,21 +305,28 @@ def prepare_historical_two_column_table(
 def find_header_row(
     table: pd.DataFrame,
 ) -> int | None:
-    """Försöker hitta rubrikraden i en historisk FI-fil."""
+    """
+    Försöker hitta rubrikraden.
+
+    Historiska FI-filer kan innehålla
+    blandade datatyper, så varje cell
+    konverteras uttryckligen till sträng
+    innan raden sätts ihop.
+    """
     for header_row in range(
         min(30, len(table))
     ):
-        values = (
-            table
-            .iloc[header_row]
-            .astype(str)
-            .str.strip()
-        )
+        raw_values = table.iloc[
+            header_row
+        ].tolist()
+
+        values = [
+            str(value).strip()
+            for value in raw_values
+        ]
 
         text = (
-            " | ".join(
-                values.tolist()
-            )
+            " | ".join(values)
             .lower()
         )
 
@@ -314,7 +363,7 @@ def print_table_diagnostic(
     table: pd.DataFrame,
     source_date: date,
 ) -> None:
-    """Skriver diagnostik när tabellformatet inte känns igen."""
+    """Skriver diagnostik när formatet inte känns igen."""
     print(
         "FI backfill: okänt tabellformat "
         f"för {source_date}."
@@ -345,7 +394,9 @@ def print_table_diagnostic(
     ):
         values = [
             repr(value)
-            for value in table.iloc[index].tolist()
+            for value in table.iloc[
+                index
+            ].tolist()
         ]
 
         print(
@@ -363,17 +414,21 @@ def prepare_table(
     till normaliserbara kolumner.
     """
     # FI:s äldre aggregatfiler, exempelvis
-    # 2022-05-25, består av exakt två kolumner
-    # och saknar rubrikrad.
+    # 2022-05-25, består av exakt två
+    # kolumner och saknar rubrikrad.
     if table.shape[1] == 2:
-        first_column = table.iloc[:, 0]
+        first_column = table.iloc[
+            :, 0
+        ]
 
         second_column = pd.to_numeric(
             table.iloc[:, 1],
             errors="coerce",
         )
 
-        non_empty = first_column.notna()
+        non_empty = (
+            first_column.notna()
+        )
 
         numeric_ratio = (
             second_column.notna().sum()
@@ -384,9 +439,11 @@ def prepare_table(
         )
 
         if numeric_ratio >= 0.90:
-            return prepare_historical_two_column_table(
-                table,
-                source_date,
+            return (
+                prepare_historical_two_column_table(
+                    table,
+                    source_date,
+                )
             )
 
     header_row = find_header_row(
@@ -401,16 +458,17 @@ def prepare_table(
 
         raise FIError(
             "Kunde inte identifiera "
-            "rubrikraden i FI:s historiska "
-            f"fil för {source_date}."
+            "rubrikraden i FI:s "
+            "historiska fil för "
+            f"{source_date}."
         )
 
-    candidate = (
-        table
-        .iloc[header_row]
-        .astype(str)
-        .str.strip()
-    )
+    candidate = [
+        str(value).strip()
+        for value in table.iloc[
+            header_row
+        ].tolist()
+    ]
 
     result = (
         table
@@ -420,9 +478,7 @@ def prepare_table(
         .copy()
     )
 
-    result.columns = (
-        candidate.tolist()
-    )
+    result.columns = candidate
 
     result = result.reset_index(
         drop=True
@@ -611,17 +667,17 @@ def backfill(
     Hämtar historiska aggregerade
     blankningspositioner.
 
-    Före 2022-06-09 används FI:s kända
-    veckovisa publiceringsdatum.
+    Före 2022-06-09 används FI:s
+    kända veckovisa publiceringsdatum.
 
     Från 2022-06-09 används varje
     kalenderdag.
 
-    Befintliga datum hoppas över för att
-    processen ska vara idempotent.
+    Befintliga datum hoppas över för
+    att processen ska vara idempotent.
 
-    Ett saknat historiskt datum är normalt
-    och räknas inte som ett fel.
+    Ett saknat historiskt datum är
+    normalt och räknas inte som ett fel.
     """
     if end is None:
         end = (
