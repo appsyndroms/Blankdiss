@@ -30,6 +30,7 @@ from datetime import date, datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -37,26 +38,17 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 
-RAW_DIR = (
-    ROOT
-    / "data"
-    / "raw"
-    / "fi"
-    / "aggregate"
-)
-
+RAW_DIR = ROOT / "data" / "raw" / "fi" / "aggregate"
 SOURCE_DIR = RAW_DIR / "source"
 SNAPSHOT_DIR = RAW_DIR / "snapshots"
-
-MANIFEST_PATH = (
-    RAW_DIR
-    / "manifest.json"
-)
+MANIFEST_PATH = RAW_DIR / "manifest.json"
 
 FI_URL = (
     "https://www.fi.se/sv/vara-register/"
     "blankningsregistret/"
 )
+
+STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 HEADERS = {
     "User-Agent": (
@@ -68,9 +60,7 @@ HEADERS = {
         "text/html,application/xhtml+xml,"
         "application/xml;q=0.9,*/*;q=0.8"
     ),
-    "Accept-Language": (
-        "sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7"
-    ),
+    "Accept-Language": "sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7",
 }
 
 
@@ -78,15 +68,20 @@ class FIError(Exception):
     """Kontrollerat fel i FI-flödet."""
 
 
+def now_stockholm() -> datetime:
+    return datetime.now(STOCKHOLM)
+
+
+def fetched_at() -> str:
+    """Tidpunkt då FI-data hämtades, med svensk tidszon."""
+    return now_stockholm().isoformat(timespec="seconds")
+
+
 def normalize_text(value) -> str:
     if value is None:
         return ""
 
-    return (
-        str(value)
-        .replace("\xa0", " ")
-        .strip()
-    )
+    return str(value).replace("\xa0", " ").strip()
 
 
 def normalize_percent(value) -> float | None:
@@ -99,7 +94,6 @@ def normalize_percent(value) -> float | None:
         0,49    -> 0.49
         7.1 %   -> 7.1
 
-    Viktigt:
     pandas måste läsa svensk decimalnotation korrekt innan
     denna funktion körs.
     """
@@ -110,10 +104,7 @@ def normalize_percent(value) -> float | None:
     try:
         if pd.isna(value):
             return None
-    except (
-        TypeError,
-        ValueError,
-    ):
+    except (TypeError, ValueError):
         pass
 
     text = normalize_text(value)
@@ -122,18 +113,13 @@ def normalize_percent(value) -> float | None:
         return None
 
     text = (
-        text
-        .replace("%", "")
+        text.replace("%", "")
         .replace("\xa0", "")
         .replace(" ", "")
         .replace(",", ".")
     )
 
-    text = re.sub(
-        r"[^0-9.\-]",
-        "",
-        text,
-    )
+    text = re.sub(r"[^0-9.\-]", "", text)
 
     if not text:
         return None
@@ -156,10 +142,7 @@ def normalize_date(value) -> str | None:
     try:
         if pd.isna(value):
             return None
-    except (
-        TypeError,
-        ValueError,
-    ):
+    except (TypeError, ValueError):
         pass
 
     text = normalize_text(value)
@@ -183,9 +166,7 @@ def normalize_date(value) -> str | None:
     if pd.isna(parsed):
         return None
 
-    return parsed.strftime(
-        "%Y-%m-%d"
-    )
+    return parsed.strftime("%Y-%m-%d")
 
 
 def resolve_column(
@@ -194,9 +175,7 @@ def resolve_column(
 ) -> str | None:
 
     normalized = {
-        column: normalize_text(
-            column
-        ).lower()
+        column: normalize_text(column).lower()
         for column in columns
     }
 
@@ -255,17 +234,11 @@ def find_aggregate_url(
             text,
         )
 
-        clean_text = (
-            " ".join(
-                clean_text.split()
-            )
-            .lower()
-        )
+        clean_text = " ".join(
+            clean_text.split()
+        ).lower()
 
-        if (
-            "aggregerade positioner"
-            in clean_text
-        ):
+        if "aggregerade positioner" in clean_text:
             return urljoin(
                 FI_URL,
                 href,
@@ -326,10 +299,11 @@ def download_source(
             "FI Excel-filen var tom."
         )
 
-    if url.lower().endswith(".xls"):
-        extension = ".xls"
-    else:
-        extension = ".xlsx"
+    extension = (
+        ".xls"
+        if url.lower().endswith(".xls")
+        else ".xlsx"
+    )
 
     return data, extension
 
@@ -446,7 +420,7 @@ def find_current_table(
 
 def normalize_current_table(
     table: pd.DataFrame,
-    snapshot_date: str,
+    fetched_at_value: str,
 ) -> list[dict]:
 
     issuer_column = resolve_column(
@@ -481,6 +455,8 @@ def normalize_current_table(
             "summa blankning",
         ],
     )
+
+    source_date = fetched_at_value[:10]
 
     records: list[dict] = []
 
@@ -524,7 +500,8 @@ def normalize_current_table(
 
         records.append(
             {
-                "snapshot_date": snapshot_date,
+                "fetched_at": fetched_at_value,
+                "source_date": source_date,
                 "position_date": position_date,
                 "lei": lei,
                 "issuer": issuer,
@@ -537,6 +514,8 @@ def normalize_current_table(
 
 
 def fetch_current() -> list[dict]:
+
+    fetched_at_value = fetched_at()
 
     html = fetch_html()
 
@@ -562,7 +541,7 @@ def fetch_current() -> list[dict]:
 
     return normalize_current_table(
         table,
-        date.today().isoformat(),
+        fetched_at_value,
     )
 
 
@@ -575,13 +554,24 @@ def write_snapshot(
         exist_ok=True,
     )
 
-    snapshot_date = date.today().isoformat()
+    if records and records[0].get(
+        "fetched_at"
+    ):
+        fetched = datetime.fromisoformat(
+            records[0]["fetched_at"]
+        )
+    else:
+        fetched = now_stockholm()
+
+    filename_timestamp = fetched.strftime(
+        "%Y-%m-%d_%H-%M-%S"
+    )
 
     path = (
         SNAPSHOT_DIR
         / (
             "fi_aggregate_"
-            f"{snapshot_date}.jsonl"
+            f"{filename_timestamp}.jsonl"
         )
     )
 
@@ -604,7 +594,8 @@ def write_snapshot(
 
 def normalize_dataframe(
     table: pd.DataFrame,
-    default_snapshot_date: str,
+    default_source_date: str,
+    fetched_at_value: str,
 ) -> list[dict]:
 
     if table.empty:
@@ -677,9 +668,7 @@ def normalize_dataframe(
                 )
             )
 
-        snapshot_date = (
-            default_snapshot_date
-        )
+        source_date = default_source_date
 
         if date_column:
 
@@ -690,7 +679,7 @@ def normalize_dataframe(
             )
 
             if candidate_date:
-                snapshot_date = candidate_date
+                source_date = candidate_date
 
         short_interest_pct = normalize_percent(
             row.get(
@@ -703,8 +692,9 @@ def normalize_dataframe(
 
         records.append(
             {
-                "snapshot_date": snapshot_date,
-                "position_date": snapshot_date,
+                "fetched_at": fetched_at_value,
+                "source_date": source_date,
+                "position_date": source_date,
                 "lei": lei,
                 "issuer": issuer,
                 "short_interest_pct": short_interest_pct,
@@ -717,6 +707,7 @@ def normalize_dataframe(
 
 def parse_excel(
     data: bytes,
+    fetched_at_value: str,
 ) -> list[dict]:
 
     try:
@@ -728,8 +719,8 @@ def parse_excel(
             "Kunde inte öppna FI:s Excel-fil."
         ) from exc
 
-    default_snapshot_date = (
-        date.today().isoformat()
+    default_source_date = (
+        fetched_at_value[:10]
     )
 
     records: list[dict] = []
@@ -750,7 +741,8 @@ def parse_excel(
         records.extend(
             normalize_dataframe(
                 table,
-                default_snapshot_date,
+                default_source_date,
+                fetched_at_value,
             )
         )
 
@@ -772,30 +764,38 @@ def write_records_by_date(
 
     for record in records:
 
-        snapshot = record[
-            "snapshot_date"
-        ]
+        source = (
+            record.get(
+                "source_date"
+            )
+            or record.get(
+                "position_date"
+            )
+        )
+
+        if not source:
+            continue
 
         try:
-            snapshot_date = date.fromisoformat(
-                snapshot
+            source_date = date.fromisoformat(
+                source
             )
         except ValueError:
             continue
 
         if not (
             start_date
-            <= snapshot_date
+            <= source_date
             <= end_date
         ):
             continue
 
         grouped.setdefault(
-            snapshot,
+            source,
             [],
         ).append(record)
 
-    for snapshot_date in sorted(
+    for source_date in sorted(
         grouped
     ):
 
@@ -803,7 +803,7 @@ def write_records_by_date(
             SNAPSHOT_DIR
             / (
                 "fi_aggregate_"
-                f"{snapshot_date}.jsonl"
+                f"{source_date}.jsonl"
             )
         )
 
@@ -813,7 +813,7 @@ def write_records_by_date(
         ) as handle:
 
             for record in grouped[
-                snapshot_date
+                source_date
             ]:
                 handle.write(
                     json.dumps(
@@ -824,7 +824,7 @@ def write_records_by_date(
                 )
 
         written_dates.append(
-            snapshot_date
+            source_date
         )
 
     return written_dates
@@ -965,8 +965,11 @@ def run_backfill(
             f"{local_file}"
         )
 
+    backfill_fetched_at = fetched_at()
+
     records = parse_excel(
-        data
+        data,
+        backfill_fetched_at,
     )
 
     if records:
