@@ -749,7 +749,6 @@ def check_forward_returns(
             "price_match_available"
         ].fillna(False)
 
-        invalid = 0
         nonfinite = 0
 
         for value in values.loc[
@@ -1135,6 +1134,11 @@ def check_threshold_logic(
 
     Vi testar endast rader där både aktuell och
     föregående short-interest finns.
+
+    Viktigt:
+    itertuples(name=None) används här eftersom
+    pandas annars kan ändra kolumnnamn som börjar
+    med underscore, exempelvis "_current".
     """
 
     failures: list[dict[str, Any]] = []
@@ -1192,19 +1196,30 @@ def check_threshold_logic(
             "_current"
         ].shift(1)
 
-        for row in working.itertuples(
-            index=False
+        columns_to_check = [
+            "security_key",
+            "snapshot_date",
+            "_current",
+            "_previous",
+            above_column,
+            entered_column,
+            exited_column,
+        ]
+
+        for (
+            security_key,
+            snapshot_date,
+            current,
+            previous,
+            actual_above,
+            actual_entered,
+            actual_exited,
+        ) in working[
+            columns_to_check
+        ].itertuples(
+            index=False,
+            name=None,
         ):
-            current = getattr(
-                row,
-                "_current",
-            )
-
-            previous = getattr(
-                row,
-                "_previous",
-            )
-
             if (
                 pd.isna(current)
                 or pd.isna(previous)
@@ -1226,24 +1241,15 @@ def check_threshold_logic(
             )
 
             actual_above = bool(
-                getattr(
-                    row,
-                    above_column,
-                )
+                actual_above
             )
 
             actual_entered = bool(
-                getattr(
-                    row,
-                    entered_column,
-                )
+                actual_entered
             )
 
             actual_exited = bool(
-                getattr(
-                    row,
-                    exited_column,
-                )
+                actual_exited
             )
 
             if (
@@ -1258,22 +1264,34 @@ def check_threshold_logic(
                     {
                         "threshold": threshold,
                         "security_key": str(
-                            getattr(
-                                row,
-                                "security_key",
-                            )
+                            security_key
                         ),
                         "snapshot_date": str(
-                            getattr(
-                                row,
-                                "snapshot_date",
-                            )
+                            snapshot_date
                         ),
                         "current": float(
                             current
                         ),
                         "previous": float(
                             previous
+                        ),
+                        "expected_above": bool(
+                            expected_above
+                        ),
+                        "actual_above": bool(
+                            actual_above
+                        ),
+                        "expected_entered": bool(
+                            expected_entered
+                        ),
+                        "actual_entered": bool(
+                            actual_entered
+                        ),
+                        "expected_exited": bool(
+                            expected_exited
+                        ),
+                        "actual_exited": bool(
+                            actual_exited
                         ),
                     }
                 )
