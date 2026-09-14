@@ -1,0 +1,42 @@
+name: FI historisk data - QC
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qc-fi-history:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Kontrollera att rekonstruerad historik finns
+        run: |
+          test -f data/processed/fi/aggregate/reconstructed.jsonl
+          echo "Rekonstruerad FI-historik hittad."
+      - name: Kör ekonomisk och strukturell QC
+        run: |
+          python -m fi.qc_reconstructed_aggregate
+      - name: Visa QC-resultat
+        run: |
+          echo "=========================================="
+          echo "FI REKONSTRUKTION QC"
+          echo "=========================================="
+          cat \
+            data/processed/fi/aggregate/reconstructed_qc.json
+      - name: Spara QC-rapport som artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fi-reconstructed-qc
+          path: |
+            data/processed/fi/aggregate/reconstructed_qc.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
