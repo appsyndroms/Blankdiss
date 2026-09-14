@@ -47,8 +47,6 @@ def historical_urls(
     historisk aggregatfil.
     FI:s historiska filer följer formatet:
         aggregerade-blankningspositioner-YYYY-MM-DD.xlsx
-    Vi provar både XLSX och ODS eftersom FI:s
-    äldre historiska filer kan ha annat format.
     """
     date_text = source_date.isoformat()
     base = (
@@ -68,9 +66,10 @@ def detect_file_format(
 ) -> str:
     """
     Identifierar filformat utifrån filens bytes.
-    Detta är mer tillförlitligt än filändelsen
-    eftersom servern kan returnera ett annat
-    format än URL:en antyder.
+    XLSX och ODS är båda ZIP-baserade, så ZIP
+    används som första signal. Det faktiska
+    kalkylbladsformatet avgörs därefter av
+    parsern.
     """
     if data.startswith(
         b"PK\x03\x04"
@@ -129,11 +128,8 @@ def download_historical_file(
     Hämtar en daterad FI-fil.
     Returnerar None om FI inte har någon fil
     för datumet.
-    Viktigt:
     Funktionen litar inte på filändelsen.
-    Den loggar i stället vad FI faktiskt
-    returnerar så att formatproblem kan
-    diagnostiseras utan gissningar.
+    Den loggar vad FI faktiskt returnerar.
     """
     for url in historical_urls(
         source_date
@@ -214,15 +210,157 @@ def download_historical_file(
             url,
         )
     return None
+def print_table_diagnostic(
+    table: pd.DataFrame,
+    source_date: date,
+) -> None:
+    """
+    Skriver ut diagnostik för en historisk
+    FI-tabell när rubrikerna inte känns igen.
+    """
+    print(
+        "FI backfill: kunde inte identifiera "
+        f"kolumnerna för {source_date}."
+    )
+    print(
+        "FI backfill: "
+        f"tabellens shape={table.shape}"
+    )
+    print(
+        "FI backfill: kolumnindex="
+        f"{list(table.columns)!r}"
+    )
+    preview_rows = min(
+        25,
+        len(table),
+    )
+    print(
+        "FI backfill: "
+        f"första {preview_rows} rader:"
+    )
+    for index in range(
+        preview_rows
+    ):
+        values = [
+            repr(value)
+            for value in table.iloc[index].tolist()
+        ]
+        print(
+            f"  [{index}] "
+            + " | ".join(values)
+        )
+def find_header_row(
+    table: pd.DataFrame,
+) -> int | None:
+    """
+    Försöker hitta rubrikraden i en FI-fil.
+    Historiska FI-filer kan ha andra rubriker
+    än dagens aggregatfil, därför används flera
+    signaler.
+    """
+    for header_row in range(
+        min(30, len(table))
+    ):
+        values = (
+            table
+            .iloc[header_row]
+            .astype(str)
+            .str.strip()
+        )
+        text = (
+            " | ".join(
+                values.tolist()
+            )
+            .lower()
+        )
+        # Dagens/nyare struktur.
+        if (
+            "emittentens namn" in text
+            and "summa blankning" in text
+        ):
+            return header_row
+        # Alternativ stavning.
+        if (
+            "emittent" in text
+            and "blankning" in text
+            and (
+                "lei" in text
+                or "positionsdatum" in text
+                or "position" in text
+            )
+        ):
+            return header_row
+        # Historiska filer kan använda
+        # "issuer" / "short".
+        if (
+            "issuer" in text
+            and (
+                "short" in text
+                or "position" in text
+            )
+        ):
+            return header_row
+    return None
+def prepare_table(
+    table: pd.DataFrame,
+    source_date: date,
+) -> pd.DataFrame:
+    """
+    Försöker omvandla en rå Excel-tabell till
+    en tabell med identifierbara kolumner.
+    """
+    header_row = find_header_row(
+        table
+    )
+    if header_row is None:
+        print_table_diagnostic(
+            table,
+            source_date,
+        )
+        raise FIError(
+            "Kunde inte identifiera "
+            "rubrikraden i FI:s historiska "
+            f"fil för {source_date}."
+        )
+    candidate = (
+        table
+        .iloc[header_row]
+        .astype(str)
+        .str.strip()
+    )
+    result = (
+        table
+        .iloc[
+            header_row + 1 :
+        ]
+        .copy()
+    )
+    result.columns = (
+        candidate.tolist()
+    )
+    result = result.reset_index(
+        drop=True
+    )
+    print(
+        "FI backfill: identifierad "
+        f"rubrikrad={header_row}"
+    )
+    print(
+        "FI backfill: kolumner="
+        f"{list(result.columns)!r}"
+    )
+    return result
 def read_aggregate_file(
     data: bytes,
     source_date: date,
 ) -> pd.DataFrame:
     """
     Läser en historisk FI-aggregatfil.
-    Stödjer XLSX och ODS.
-    Filformatet diagnostiseras först så att
-    felmeddelanden blir tydligare.
+    För ZIP-baserade filer provas först XLSX.
+    Om XLSX lyckas läser vi inte filen med ODS
+    bara för att rubrikerna inte hittades.
+    Detta är viktigt eftersom både XLSX och ODS
+    är ZIP-baserade.
     """
     file_format = detect_file_format(
         data
@@ -233,144 +371,86 @@ def read_aggregate_file(
         f"format={file_format}"
     )
     errors: list[str] = []
-    engines: list[str]
+    # FI-filen vi har sett är XLSX.
+    # Prova därför XLSX först.
     if file_format == "zip":
-        engines = [
-            "openpyxl",
-            "odf",
-        ]
-    elif file_format == "ole":
-        engines = [
-            "xlrd",
-        ]
-    else:
-        engines = [
-            "openpyxl",
-            "odf",
-            "xlrd",
-        ]
-    for engine in engines:
         try:
             table = pd.read_excel(
                 BytesIO(data),
-                engine=engine,
+                engine="openpyxl",
                 header=None,
             )
             print(
                 "FI backfill: "
-                f"parser={engine}, "
+                "parser=openpyxl, "
                 f"shape={table.shape}"
             )
-            # Försök först hitta rubrikraden
-            # dynamiskt.
-            for header_row in range(
-                min(20, len(table))
-            ):
-                candidate = (
-                    table
-                    .iloc[header_row]
-                    .astype(str)
-                    .str.strip()
-                )
-                text = (
-                    " | ".join(
-                        candidate.tolist()
-                    )
-                    .lower()
-                )
-                if (
-                    "emittentens namn" in text
-                    and "summa blankning" in text
-                ):
-                    result = (
-                        table
-                        .iloc[
-                            header_row + 1 :
-                        ]
-                        .copy()
-                    )
-                    result.columns = (
-                        candidate.tolist()
-                    )
-                    print(
-                        "FI backfill: "
-                        f"rubrikrad={header_row}"
-                    )
-                    return result.reset_index(
-                        drop=True
-                    )
-            # Alternativ rubrikdetektion.
-            for header_row in range(
-                min(20, len(table))
-            ):
-                candidate = (
-                    table
-                    .iloc[header_row]
-                    .astype(str)
-                    .str.strip()
-                )
-                text = (
-                    " | ".join(
-                        candidate.tolist()
-                    )
-                    .lower()
-                )
-                if (
-                    "emittent" in text
-                    and (
-                        "blankning" in text
-                        or "blanknings" in text
-                    )
-                ):
-                    result = (
-                        table
-                        .iloc[
-                            header_row + 1 :
-                        ]
-                        .copy()
-                    )
-                    result.columns = (
-                        candidate.tolist()
-                    )
-                    print(
-                        "FI backfill: "
-                        "alternativ rubrikrad="
-                        f"{header_row}"
-                    )
-                    return result.reset_index(
-                        drop=True
-                    )
-            # Fallback för FI:s äldre fasta
-            # filstruktur.
-            if table.shape[1] >= 4:
-                print(
-                    "FI backfill: "
-                    "använder fallback "
-                    "för första fyra kolumner."
-                )
-                result = (
-                    table
-                    .iloc[7:, :4]
-                    .copy()
-                )
-                result.columns = [
-                    "Emittentens namn",
-                    "Emittentens LEI-kod",
-                    "Summa blankning %",
-                    "Positionsdatum",
-                ]
-                return result.reset_index(
-                    drop=True
-                )
+            return prepare_table(
+                table,
+                source_date,
+            )
+        except FIError:
+            # Detta är ett riktigt innehålls-/formatfel
+            # och ska inte maskeras av ett senare ODS-fel.
+            raise
         except Exception as exc:
             errors.append(
-                f"{engine}: {exc}"
+                f"openpyxl: {exc}"
             )
             print(
                 "FI backfill: "
-                f"parser={engine} misslyckades: "
+                f"parser=openpyxl misslyckades: "
                 f"{exc}"
             )
+        # Om openpyxl misslyckades helt kan filen
+        # fortfarande vara ODS.
+        try:
+            table = pd.read_excel(
+                BytesIO(data),
+                engine="odf",
+                header=None,
+            )
+            print(
+                "FI backfill: "
+                "parser=odf, "
+                f"shape={table.shape}"
+            )
+            return prepare_table(
+                table,
+                source_date,
+            )
+        except FIError:
+            raise
+        except Exception as exc:
+            errors.append(
+                f"odf: {exc}"
+            )
+    elif file_format == "ole":
+        try:
+            table = pd.read_excel(
+                BytesIO(data),
+                engine="xlrd",
+                header=None,
+            )
+            print(
+                "FI backfill: "
+                "parser=xlrd, "
+                f"shape={table.shape}"
+            )
+            return prepare_table(
+                table,
+                source_date,
+            )
+        except FIError:
+            raise
+        except Exception as exc:
+            errors.append(
+                f"xlrd: {exc}"
+            )
+    else:
+        errors.append(
+            "okänt filformat"
+        )
     raise FIError(
         "Kunde inte läsa historisk "
         f"FI-fil för {source_date}: "
