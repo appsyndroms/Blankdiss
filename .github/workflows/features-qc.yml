@@ -1,0 +1,59 @@
+name: Features QC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  features-qc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Kontrollera feature-data
+        run: |
+          test -f data/processed/analysis/features.jsonl
+          echo "Feature-dataset hittad."
+
+      - name: Kontrollera prisdata
+        run: |
+          test -n "$(find data/raw/prices -maxdepth 1 -name 'prices_*.jsonl' -print -quit)"
+          echo "Prisdata hittad."
+
+      - name: Kör Feature QC
+        run: |
+          python -m analysis.features_qc
+
+      - name: Visa QC-rapport
+        if: always()
+        run: |
+          if [ -f data/processed/analysis/features_qc.json ]; then
+            cat data/processed/analysis/features_qc.json
+          else
+            echo "Ingen QC-rapport skapades."
+          fi
+
+      - name: Spara QC-rapport som artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: features-qc
+          path: |
+            data/processed/analysis/features_qc.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
