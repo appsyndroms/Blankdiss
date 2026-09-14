@@ -1,124 +1,106 @@
-"""Hämtning och normalisering av FI:s aggregatfil."""
-
+"""HTTP-klient för Finansinspektionens blankningsregister."""
 from __future__ import annotations
-
-from io import BytesIO
-
-import pandas as pd
-
-from .client import fetch_aggregate
-from .errors import FIError
-from .normalize import (
-    fetched_at,
-    normalize_records,
+from urllib.parse import urljoin
+import requests
+from .config import (
+    FI_AGGREGATE_TIMEOUT,
+    FI_AGGREGATE_URL,
+    FI_URL,
+    HEADERS,
 )
-
-
-def read_aggregate_file(
-    data: bytes,
-) -> pd.DataFrame:
-    """
-    Läser FI:s aggregerade ODS-fil.
-
-    FI:s aggregatfil har sex metadata-/rubrikrader
-    före själva tabellen.
-    """
-
+from .errors import FIError
+def fetch_html() -> str:
+    """Hämtar FI:s blankningsregister."""
     try:
-        dataframe = pd.read_excel(
-            BytesIO(data),
-            engine="odf",
-            skiprows=6,
-            header=None,
+        response = requests.get(
+            FI_URL,
+            headers=HEADERS,
+            timeout=30,
         )
-    except ImportError as exc:
+    except requests.RequestException as exc:
         raise FIError(
-            "ODS-stöd saknas. Installera odfpy."
+            "HTTP-fel vid hämtning från FI: "
+            f"{type(exc).__name__}"
         ) from exc
-    except Exception as exc:
+    if response.status_code != 200:
         raise FIError(
-            "Kunde inte läsa FI:s aggregerade "
-            "ODS-fil."
+            "FI svarade med HTTP "
+            f"{response.status_code}."
+        )
+    if not response.text.strip():
+        raise FIError(
+            "FI returnerade ett tomt HTML-svar."
+        )
+    return response.text
+def download_file(
+    url: str,
+) -> tuple[bytes, str]:
+    """
+    Hämtar en fil från FI.
+    Behålls som generell klientfunktion.
+    """
+    try:
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        raise FIError(
+            "HTTP-fel vid hämtning av FI-fil: "
+            f"{type(exc).__name__}"
         ) from exc
-
-    if dataframe.empty:
+    if response.status_code != 200:
         raise FIError(
-            "FI:s aggregatfil innehöll inga rader."
+            "FI-fil svarade med HTTP "
+            f"{response.status_code}: {url}"
         )
-
-    if len(dataframe.columns) != 4:
+    data = response.content
+    if not data:
         raise FIError(
-            "FI:s aggregatfil hade oväntat antal "
-            f"kolumner: {len(dataframe.columns)} "
-            "(förväntade 4)."
+            f"FI-filen var tom: {url}"
         )
-
-    dataframe.columns = [
-        "Emittentens namn",
-        "Emittentens LEI-kod",
-        "Summa blankning %",
-        "Positionsdatum",
-    ]
-
-    return dataframe
-
-
-def fetch_current() -> list[dict]:
+    lowered = url.lower()
+    if lowered.endswith(".xls"):
+        extension = ".xls"
+    elif lowered.endswith(".xlsx"):
+        extension = ".xlsx"
+    else:
+        extension = ".ods"
+    return data, extension
+def fetch_aggregate() -> bytes:
     """
-    Hämtar FI:s aktuella aggregerade blankning.
-
-    Källa:
-        GetBlankningsregisterAggregat
-
-    Datan är FI:s egen aggregering och ska därför
-    inte rekonstrueras från positionsinnehavare.
+    Hämtar FI:s aggregerade blankningsfil.
+    Detta är FI:s riktiga aggregatkälla och innehåller
+    den aggregerade korta nettopositionen över 0,1 %.
     """
-
-    fetched_at_value = fetched_at()
-
-    data = fetch_aggregate()
-
-    dataframe = read_aggregate_file(
-        data
+    try:
+        response = requests.get(
+            FI_AGGREGATE_URL,
+            headers=HEADERS,
+            timeout=FI_AGGREGATE_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise FIError(
+            "HTTP-fel vid hämtning av FI:s "
+            "aggregerade blankningsfil: "
+            f"{type(exc).__name__}"
+        ) from exc
+    if response.status_code != 200:
+        raise FIError(
+            "FI:s aggregat-endpoint svarade med HTTP "
+            f"{response.status_code}."
+        )
+    data = response.content
+    if not data:
+        raise FIError(
+            "FI:s aggregat-endpoint returnerade "
+            "en tom fil."
+        )
+    return data
+def absolute_url(href: str) -> str:
+    """Gör en relativ FI-länk absolut."""
+    return urljoin(
+        FI_URL,
+        href,
     )
-
-    try:
-        source_dates = (
-            pd.to_datetime(
-                dataframe["Positionsdatum"],
-                errors="coerce",
-            )
-            .dropna()
-        )
-
-        if source_dates.empty:
-            raise ValueError(
-                "Ingen giltig positionsdatumkolumn."
-            )
-
-        source_date = (
-            source_dates
-            .max()
-            .date()
-            .isoformat()
-        )
-
-        records = normalize_records(
-            dataframe,
-            fetched_at_value,
-            source_date,
-        )
-
-    except ValueError as exc:
-        raise FIError(
-            "Kunde inte normalisera FI:s "
-            f"aggregatdata: {exc}"
-        ) from exc
-
-    if not records:
-        raise FIError(
-            "FI:s aggregatfil innehöll inga "
-            "giltiga observationer."
-        )
-
-    return records
