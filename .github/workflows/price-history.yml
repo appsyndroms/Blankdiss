@@ -31,25 +31,25 @@ jobs:
 
       - name: Rensa gamla prisfiler
         run: |
+          mkdir -p data/raw/prices
           rm -f data/raw/prices/prices_*.jsonl
           rm -f data/raw/prices/price_qc.json
 
       - name: Hämta historiska priser
         run: |
-          python -m prices \
-            --start 2022-05-25 \
-            --end 2026-09-12
+          python -m prices --start 2022-05-25 --end 2026-09-12
 
       - name: Kontrollera prisdata
         run: |
           test -d data/raw/prices
           ls -lh data/raw/prices
+          test -n "$(find data/raw/prices -maxdepth 1 -name 'prices_*.jsonl' -print -quit)"
 
       - name: Kör price QC
         run: |
           python -m prices.qc
 
-      - name: Spara prisdata som artifact
+      - name: Spara prisdata och QC som artifact
         uses: actions/upload-artifact@v7
         with:
           name: price-historical-data
@@ -65,7 +65,7 @@ jobs:
         run: |
           git status --short
 
-      - name: Committera prisdata, QC och mappning
+      - name: Committera prisdata och mappning
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
