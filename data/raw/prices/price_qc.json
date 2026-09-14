@@ -1,0 +1,204 @@
+{
+  "dataset_summary": {
+    "price_file": "prices_2022-05-25_2026-09-12.jsonl",
+    "rows": 291600,
+    "valid_rows": 277762,
+    "invalid_rows": 13838,
+    "duplicate_rows": 0,
+    "unique_price_symbols": 269,
+    "unique_price_isins": 1,
+    "first_price_date": "2022-05-25",
+    "last_price_date": "2026-09-11"
+  },
+  "invalid_row_breakdown": {
+    "missing_symbol": 0,
+    "missing_date": 0,
+    "bad_date": 0,
+    "missing_close": 0,
+    "nonfinite_close": 13838
+  },
+  "mapping_summary": {
+    "mapping_entries": 274,
+    "mapped_symbols": 270,
+    "unresolved_instruments": 0,
+    "duplicate_yahoo_symbols": 3,
+    "mapped_symbols_without_prices": 1,
+    "price_symbols_without_mapping": 0,
+    "unresolved_examples": [],
+    "duplicate_yahoo_symbol_examples": {
+      "SIVE.ST": [
+        "254900UBKNY2EJ588J53",
+        "549300BWNI7ZPOHOHV76",
+        "549300ZNNKE1UFGNNE47"
+      ],
+      "PDX.ST": [
+        "529900QNSZUY53R5WW95",
+        "549300K4HA8EBLSL3B97"
+      ],
+      "SCA-B.ST": [
+        "549300FW5JDRV1IJ0M67",
+        "549300HGV012CNC8JD22"
+      ]
+    },
+    "mapped_symbols_without_prices_examples": [
+      "VSURE.ST"
+    ],
+    "price_symbols_without_mapping_examples": []
+  },
+  "price_quality": {
+    "symbols_with_1080_observations": 0,
+    "symbols_with_less_than_1000_observations": 18,
+    "largest_observation_count": 1079,
+    "smallest_observation_count": 82,
+    "gaps_over_7_days": 0,
+    "large_price_moves_ge_50pct": 107,
+    "large_price_move_examples": [
+      {
+        "yahoo_symbol": "SIVE.ST",
+        "date": "2026-03-16",
+        "previous_close": 4.23799991607666,
+        "close": 7.364999771118164,
+        "relative_change": 0.7378480219358599
+      },
+      {
+        "yahoo_symbol": "SIVE.ST",
+        "date": "2026-06-02",
+        "previous_close": 60.849998474121094,
+        "close": 97.44999694824219,
+        "relative_change": 0.6014790368431433
+      },
+      {
+        "yahoo_symbol": "IMMU.ST",
+        "date": "2023-11-09",
+        "previous_close": 7.260000228881836,
+        "close": 11.180000305175781,
+        "relative_change": 0.5399448970675436
+      },
+      {
+        "yahoo_symbol": "ABSL-B.ST",
+        "date": "2026-03-12",
+        "previous_close": 9.579999923706055,
+        "close": 4.710000038146973,
+        "relative_change": 0.508350722791562
+      },
+      {
+        "yahoo_symbol": "IRIS.ST",
+        "date": "2022-10-28",
+        "previous_close": 8.300000190734863,
+        "close": 4.0,
+        "relative_change": 0.5180723002313752
+      },
+      {
+        "yahoo_symbol": "IRIS.ST",
+        "date": "2025-10-15",
+        "previous_close": 0.11999999731779099,
+        "close": 0.19050000607967377,
+        "relative_change": 0.5875000861473401
+      },
+      {
+        "yahoo_symbol": "IRIS.ST",
+        "date": "2026-04-27",
+        "previous_close": 0.10300000011920929,
+        "close": 0.289000004529953,
+        "relative_change": 1.80582528345119
+      },
+      {
+        "yahoo_symbol": "IRIS.ST",
+        "date": "2026-04-28",
+        "previous_close": 0.289000004529953,
+        "close": 0.5879999995231628,
+        "relative_change": 1.0346020425830837
+      },
+      {
+        "yahoo_symbol": "VOLO.ST",
+        "date": "2026-06-08",
+        "previous_close": 84.9000015258789,
+        "close": 32.07185363769531,
+        "relative_change": 0.6222396576998966
+      },
+      {
+        "yahoo_symbol": "ACE.ST",
+        "date": "2023-08-08",
+        "previous_close": 16.239999771118164,
+        "close": 4.78000020980835,
+        "relative_change": 0.7056650075630367
+      },
+      {
+        "yahoo_symbol": "ACE.ST",
+        "date": "2026-07-03",
+        "previous_close": 3.2799999713897705,
+        "close": 0.8080000281333923,
+        "relative_change": 0.7536585258593663
+      },
+      {
+        "yahoo_symbol": "INQ.ST",
+        "date": "2024-07-11",
+        "previous_close": 0.20800000429153442,
+        "close": 0.3409999907016754,
+        "relative_change": 0.6394229983944
+      },
+      {
+        "yahoo_symbol": "INQ.ST",
+        "date": "2026-03-26",
+        "previous_close": 0.056699998676776886,
+        "close": 0.10199999809265137,
+        "relative_change": 0.7989418072848808
+      },
+      {
+        "yahoo_symbol": "INQ.ST",
+        "date": "2026-05-22",
+        "previous_close": 0.0689999982714653,
+        "close": 0.11500000208616257,
+        "relative_change": 0.6666667386529543
+      },
+      {
+        "yahoo_symbol": "CTM.ST",
+        "date": "2026-02-11",
+        "previous_close": 1.9199999570846558,
+        "close": 3.0250000953674316,
+        "relative_change": 0.5755209182195073
+      },
+      {
+        "yahoo_symbol": "VPLAY-B.ST",
+        "date": "2023-06-05",
+        "previous_close": 68.45079803466797,
+        "close": 25.53998374938965,
+        "relative_change": 0.626885522409037
+      },
+      {
+        "yahoo_symbol": "VPLAY-B.ST",
+        "date": "2023-12-01",
+        "previous_close": 7.191281795501709,
+        "close": 1.8403359651565552,
+        "relative_change": 0.7440879084577492
+      },
+      {
+        "yahoo_symbol": "VPLAY-B.ST",
+        "date": "2024-01-16",
+        "previous_close": 1.2633329629898071,
+        "close": 3.4539999961853027,
+        "relative_change": 1.7340377377718834
+      },
+      {
+        "yahoo_symbol": "HILB-B.ST",
+        "date": "2022-12-15",
+        "previous_close": 1.0399999618530273,
+        "close": 2.0199999809265137,
+        "relative_change": 0.9423077452112252
+      },
+      {
+        "yahoo_symbol": "HILB-B.ST",
+        "date": "2024-08-27",
+        "previous_close": 4.239999771118164,
+        "close": 7.0,
+        "relative_change": 0.6509434853469283
+      }
+    ],
+    "gap_examples": []
+  },
+  "integrity": {
+    "invalid_rows": 13838,
+    "duplicate_rows": 0,
+    "passed": true
+  }
+}
