@@ -1,43 +1,15 @@
-"""Normalisering av Finansinspektionens blankningsdata."""
+# fi/normalize.py
 
 from __future__ import annotations
 
-import re
-from datetime import datetime
-from typing import Iterable
-from zoneinfo import ZoneInfo
+from typing import Any
 
 import pandas as pd
 
 
-STOCKHOLM = ZoneInfo(
-    "Europe/Stockholm"
-)
-
-
-def now_stockholm() -> datetime:
-    """Aktuell tid i Europe/Stockholm."""
-
-    return datetime.now(
-        STOCKHOLM
-    )
-
-
-def fetched_at() -> str:
-    """
-    ISO-tidsstämpel för när FI-data hämtades.
-    """
-
-    return now_stockholm().isoformat(
-        timespec="seconds"
-    )
-
-
-def normalize_text(
+def normalize_percent(
     value: object,
-) -> str | None:
-    """Normaliserar text från FI-tabellen."""
-
+) -> float | None:
     if value is None:
         return None
 
@@ -49,75 +21,33 @@ def normalize_text(
     if not text:
         return None
 
-    text = re.sub(
-        r"\s+",
-        " ",
-        text,
+    text = (
+        text.replace("%", "")
+        .replace("\xa0", "")
+        .replace(" ", "")
+        .replace(",", ".")
     )
 
-    return text
-
-
-def normalize_percent(
-    value: object,
-) -> float | None:
-    """
-    Normaliserar procentvärden från FI.
-
-    Exempel:
-
-        '7,10 %' -> 7.10
-        '0,49 %' -> 0.49
-        7.1      -> 7.1
-
-    Värdet representerar procentenheter,
-    inte decimalform.
-    """
-
-    if value is None:
+    try:
+        result = float(text)
+    except ValueError:
         return None
 
-    if pd.isna(value):
+    if not 0 <= result <= 100:
         return None
 
-    if isinstance(
-        value,
-        (int, float),
-    ):
-        result = float(value)
-    else:
-        text = str(value).strip()
-
-        if not text:
-            return None
-
-        text = (
-            text.replace("%", "")
-            .replace("\xa0", "")
-            .replace(" ", "")
-            .replace(",", ".")
-        )
-
-        try:
-            result = float(text)
-        except ValueError:
-            return None
-
-    if result < 0 or result > 100:
-        raise ValueError(
-            f"Orimligt procentvärde från FI: {result}"
-        )
-
-    return round(
-        result,
-        6,
-    )
+    return result
 
 
 def normalize_date(
     value: object,
 ) -> str | None:
-    """Normaliserar ett datum till YYYY-MM-DD."""
+    """
+    Normaliserar ett datum till YYYY-MM-DD.
+
+    FI levererar dessa datum som ISO-format:
+    YYYY-MM-DD.
+    """
 
     if value is None:
         return None
@@ -138,7 +68,7 @@ def normalize_date(
 
     parsed = pd.to_datetime(
         text,
-        dayfirst=True,
+        format="%Y-%m-%d",
         errors="coerce",
     )
 
@@ -148,167 +78,155 @@ def normalize_date(
     return parsed.date().isoformat()
 
 
-def normalize_column_name(
+def normalize_lei(
     value: object,
-) -> str:
-    """Normaliserar ett kolumnnamn för jämförelser."""
+) -> str | None:
+    if value is None:
+        return None
 
-    text = normalize_text(value)
+    if pd.isna(value):
+        return None
 
-    if text is None:
-        return ""
+    text = str(value).strip()
 
-    text = text.lower()
+    if not text:
+        return None
 
-    text = (
-        text.replace("å", "a")
-        .replace("ä", "a")
-        .replace("ö", "o")
-    )
-
-    text = re.sub(
-        r"[^a-z0-9]+",
-        " ",
-        text,
-    )
-
-    return re.sub(
-        r"\s+",
-        " ",
-        text,
-    ).strip()
+    return text
 
 
-def resolve_column(
-    columns: Iterable[object],
-    candidates: Iterable[str],
-) -> object | None:
-    """
-    Hittar en kolumn utifrån flera möjliga namn.
-    """
+def normalize_issuer(
+    value: object,
+) -> str | None:
+    if value is None:
+        return None
 
-    normalized = {
-        normalize_column_name(column): column
-        for column in columns
-    }
+    if pd.isna(value):
+        return None
 
-    for candidate in candidates:
-        key = normalize_column_name(
-            candidate
-        )
+    text = str(value).strip()
 
-        if key in normalized:
-            return normalized[key]
+    if not text:
+        return None
 
-    return None
+    return text
 
 
 def normalize_records(
-    table: pd.DataFrame,
-    fetched_at_value: str,
-    source_date: str,
-) -> list[dict]:
-    """
-    Gör FI-tabellen till Blankdiss standardformat.
-    """
+    dataframe: pd.DataFrame,
+    *,
+    fetched_at: str,
+) -> list[dict[str, Any]]:
+    columns = {
+        str(column).strip(): column
+        for column in dataframe.columns
+    }
 
-    issuer_column = resolve_column(
-        table.columns,
-        [
-            "Emittentens namn",
-            "Emittent",
-        ],
+    issuer_column = next(
+        (
+            columns[name]
+            for name in (
+                "Emittentens namn",
+                "Emittent",
+            )
+            if name in columns
+        ),
+        None,
     )
 
-    lei_column = resolve_column(
-        table.columns,
-        [
-            "Emittentens LEI-kod",
-            "LEI-kod",
-            "LEI",
-        ],
+    lei_column = next(
+        (
+            columns[name]
+            for name in (
+                "Emittentens LEI-kod",
+                "LEI-kod",
+                "LEI",
+            )
+            if name in columns
+        ),
+        None,
     )
 
-    position_date_column = resolve_column(
-        table.columns,
-        [
-            "Positionsdatum senaste position",
-            "Positionsdatum",
-        ],
+    position_date_column = next(
+        (
+            columns[name]
+            for name in (
+                "Positionsdatum senaste position",
+                "Positionsdatum",
+            )
+            if name in columns
+        ),
+        None,
     )
 
-    short_interest_column = resolve_column(
-        table.columns,
-        [
-            "Summa blankning %",
-            "Summa blankning",
-        ],
+    short_interest_column = next(
+        (
+            columns[name]
+            for name in (
+                "Summa blankning %",
+                "Summa blankning",
+            )
+            if name in columns
+        ),
+        None,
     )
 
-    if not issuer_column:
+    if issuer_column is None:
         raise ValueError(
-            "Kolumnen för emittent saknas."
+            "Kunde inte hitta kolumn för emittent."
         )
 
-    if not lei_column:
+    if position_date_column is None:
         raise ValueError(
-            "Kolumnen för LEI saknas."
+            "Kunde inte hitta kolumn för positionsdatum."
         )
 
-    if not position_date_column:
+    if short_interest_column is None:
         raise ValueError(
-            "Kolumnen för positionsdatum saknas."
+            "Kunde inte hitta kolumn för summa blankning."
         )
 
-    if not short_interest_column:
-        raise ValueError(
-            "Kolumnen för summa blankning saknas."
-        )
+    source_date = fetched_at[:10]
 
-    records: list[dict] = []
+    records: list[dict[str, Any]] = []
 
-    for _, row in table.iterrows():
-        issuer = normalize_text(
+    for _, row in dataframe.iterrows():
+        issuer = normalize_issuer(
             row[issuer_column]
-        )
-
-        lei = normalize_text(
-            row[lei_column]
         )
 
         position_date = normalize_date(
             row[position_date_column]
         )
 
-        short_interest = normalize_percent(
+        short_interest_pct = normalize_percent(
             row[short_interest_column]
         )
 
-        if not issuer:
+        lei = (
+            normalize_lei(row[lei_column])
+            if lei_column is not None
+            else None
+        )
+
+        if issuer is None:
             continue
 
-        if not lei:
+        if position_date is None:
             continue
 
-        if short_interest is None:
+        if short_interest_pct is None:
             continue
 
         records.append(
             {
-                "fetched_at": fetched_at_value,
+                "fetched_at": fetched_at,
                 "source_date": source_date,
                 "position_date": position_date,
                 "lei": lei,
                 "issuer": issuer,
-                "short_interest_pct": short_interest,
+                "short_interest_pct": short_interest_pct,
             }
         )
-
-    records.sort(
-        key=lambda record: (
-            record["issuer"].lower(),
-            record["lei"],
-        )
-    )
 
     return records
