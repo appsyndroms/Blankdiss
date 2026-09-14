@@ -602,17 +602,25 @@ def clean_for_json(
 ) -> pd.DataFrame:
     frame = frame.copy()
 
-    for column in frame.columns:
-        if "date" in column:
-            frame[column] = (
-                pd.to_datetime(
-                    frame[column],
-                    errors="coerce",
-                )
-                .dt.strftime(
-                    "%Y-%m-%d"
-                )
+    date_columns = {
+        "snapshot_date",
+        "previous_snapshot_date",
+        "price_date",
+    }
+
+    for column in date_columns:
+        if column not in frame.columns:
+            continue
+
+        frame[column] = (
+            pd.to_datetime(
+                frame[column],
+                errors="coerce",
             )
+            .dt.strftime(
+                "%Y-%m-%d"
+            )
+        )
 
     frame = frame.astype(object)
 
