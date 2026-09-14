@@ -1,0 +1,41 @@
+name: Analysera FI historiska positioner
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analysera GetHistFile
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install odfpy
+
+      - name: Analysera FI:s historiska fil
+        run: |
+          python -m fi.historical_probe | tee fi-historical-analysis.txt
+
+      - name: Ladda upp analys
+        uses: actions/upload-artifact@v4
+        with:
+          name: fi-historical-analysis
+          path: |
+            fi-historical-analysis.txt
+            data/diagnostics/fi/
+          if-no-files-found: error
+          retention-days: 14
