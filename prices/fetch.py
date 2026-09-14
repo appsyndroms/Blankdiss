@@ -1,204 +1,171 @@
-"""
-Hämtar och sparar historiska prisdata från Yahoo Finance.
-"""
 from __future__ import annotations
-import json
+from datetime import date
 from pathlib import Path
+from typing import Any
 import yfinance as yf
-ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = (
-    ROOT
-    / "data"
-    / "raw"
-    / "prices"
-)
-PRICE_TIMEOUT_SECONDS = 20
-def extract_close_series(
+OUTPUT_DIR = Path("data/raw/prices")
+def _valid_symbol(symbol: Any) -> bool:
+    if symbol is None:
+        return False
+    value = str(symbol).strip()
+    if not value:
+        return False
+    if value.upper() in {
+        "NONE",
+        "NULL",
+        "NAN",
+        "NAT",
+    }:
+        return False
+    return True
+def _extract_close(
     data,
     symbol: str,
 ):
     """
-    Hämtar Close från yfinance.
-    Hanterar både vanliga kolumner och MultiIndex.
+    Handle both the normal yfinance MultiIndex result and simpler
+    DataFrame layouts.
     """
-    if data is None:
-        return None
-    if data.empty:
-        return None
-    if "Close" not in data.columns:
-        return None
-    close = data["Close"]
-    if hasattr(
-        close,
-        "columns",
-    ):
-        if symbol in close.columns:
-            close = close[
-                symbol
-            ]
-        elif len(
-            close.columns
-        ) == 1:
-            close = close.iloc[
-                :,
-                0
-            ]
-        else:
-            return None
-    return close
-def fetch_prices(
-    instruments: list[dict],
-    start: str,
-    end: str | None = None,
-) -> list[dict]:
-    if not instruments:
-        return []
-    symbols = [
-        instrument[
-            "yahoo_symbol"
-        ]
-        for instrument in instruments
-    ]
-    symbols = list(
-        dict.fromkeys(
-            symbols
-        )
-    )
-    print(
-        "Priser: hämtar "
-        f"{len(symbols)} instrument "
-        "i en batch..."
-    )
-    try:
-        data = yf.download(
-            symbols,
-            start=start,
-            end=end,
-            auto_adjust=False,
-            progress=False,
-            actions=False,
-            threads=True,
-            timeout=PRICE_TIMEOUT_SECONDS,
-        )
-    except Exception as exc:
-        print(
-            "Priser: FEL vid "
-            "batchhämtning - "
-            f"{type(exc).__name__}: {exc}"
-        )
-        return []
     if data is None or data.empty:
-        print(
-            "Priser: Yahoo returnerade "
-            "ingen prisdata."
-        )
-        return []
-    instrument_by_symbol = {
-        instrument[
-            "yahoo_symbol"
-        ]: instrument
-        for instrument in instruments
-    }
-    records: list[
-        dict
-    ] = []
-    for symbol in symbols:
-        instrument = (
-            instrument_by_symbol[
-                symbol
-            ]
-        )
-        close = extract_close_series(
-            data,
-            symbol,
-        )
-        if close is None:
+        return None
+    # MultiIndex columns:
+    #
+    # ('Close', 'VOLV-B.ST')
+    #
+    if hasattr(data.columns, "levels"):
+        try:
+            if "Close" in data.columns.get_level_values(0):
+                close = data["Close"]
+                if hasattr(close, "columns"):
+                    if symbol in close.columns:
+                        return close[symbol]
+                    if len(close.columns) == 1:
+                        return close.iloc[:, 0]
+                return close
+        except Exception:
+            pass
+    # Standard single-level DataFrame.
+    if "Close" in data.columns:
+        return data["Close"]
+    return None
+def fetch_prices(
+    *,
+    instruments: list[dict[str, Any]],
+    start: date,
+    end: date,
+) -> list[dict[str, Any]]:
+    valid_instruments = []
+    skipped = 0
+    for instrument in instruments:
+        symbol = instrument.get("yahoo_symbol")
+        if not _valid_symbol(symbol):
+            skipped += 1
             print(
-                "Pris: saknas - "
+                "Pris: hoppar över ogiltig Yahoo-symbol - "
                 f"{symbol}"
             )
             continue
-        symbol_records = 0
-        for timestamp, value in close.items():
-            if value is None:
-                continue
+        valid_instruments.append(instrument)
+    if skipped:
+        print(
+            f"Pris: {skipped} instrument hoppades över "
+            "eftersom Yahoo-symbol saknas."
+        )
+    symbols = sorted(
+        {
+            instrument["yahoo_symbol"]
+            for instrument in valid_instruments
+        }
+    )
+    if not symbols:
+        print(
+            "Pris: inga giltiga Yahoo-symboler att hämta."
+        )
+        return []
+    print(
+        f"Priser: hämtar {len(symbols)} instrument i en batch..."
+    )
+    data = yf.download(
+        tickers=symbols,
+        start=start.isoformat(),
+        end=end.isoformat(),
+        auto_adjust=False,
+        actions=False,
+        threads=True,
+        timeout=20,
+        progress=False,
+        group_by="column",
+    )
+    if data is None or data.empty:
+        print(
+            "Pris: Yahoo returnerade ingen prisdata."
+        )
+        return []
+    instrument_by_symbol = {
+        instrument["yahoo_symbol"]: instrument
+        for instrument in valid_instruments
+    }
+    records: list[dict[str, Any]] = []
+    for symbol in symbols:
+        instrument = instrument_by_symbol[symbol]
+        close_series = _extract_close(
+            data,
+            symbol,
+        )
+        if close_series is None:
+            print(
+                f"Pris: saknas - {symbol}"
+            )
+            continue
+        count = 0
+        for timestamp, value in close_series.items():
             try:
-                price = float(
-                    value
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-            if price <= 0:
+                close = float(value)
+            except (TypeError, ValueError):
                 continue
             records.append(
                 {
-                    "date": timestamp.strftime(
-                        "%Y-%m-%d"
-                    ),
-                    "isin": instrument.get(
-                        "isin"
-                    ),
-                    "lei": instrument.get(
-                        "lei"
-                    ),
-                    "issuer": instrument.get(
-                        "issuer"
-                    ),
-                    "ticker": instrument.get(
-                        "ticker"
-                    ),
+                    "date": timestamp.strftime("%Y-%m-%d"),
+                    "isin": instrument.get("isin"),
+                    "lei": instrument.get("lei"),
+                    "issuer": instrument.get("issuer"),
+                    "ticker": instrument.get("ticker"),
                     "yahoo_symbol": symbol,
-                    "mapping_source": (
-                        instrument.get(
-                            "mapping_source"
-                        )
+                    "mapping_source": instrument.get(
+                        "mapping_source"
                     ),
-                    "close": price,
+                    "close": close,
                 }
             )
-            symbol_records += 1
+            count += 1
         print(
-            "Pris: "
-            f"{symbol} - "
-            f"{symbol_records} observationer"
+            f"Pris: {symbol} - {count} observationer"
         )
     return records
-def write_jsonl(
-    records: list[dict],
-    start: str,
-    end: str | None = None,
+def save_prices(
+    records: list[dict[str, Any]],
+    *,
+    start: date,
+    end: date,
 ) -> Path:
-    RAW_DIR.mkdir(
+    OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
-    end_label = (
-        end
-        if end is not None
-        else "latest"
+    output = (
+        OUTPUT_DIR
+        / f"prices_{start.isoformat()}_{end.isoformat()}.jsonl"
     )
-    filename = (
-        "prices_"
-        f"{start}_"
-        f"{end_label}.jsonl"
-    )
-    path = (
-        RAW_DIR
-        / filename
-    )
-    with path.open(
+    with output.open(
         "w",
         encoding="utf-8",
     ) as handle:
         for record in records:
             handle.write(
-                json.dumps(
+                __import__("json").dumps(
                     record,
                     ensure_ascii=False,
                 )
-                + "\n"
             )
-    return path
+            handle.write("\n")
+    return output
