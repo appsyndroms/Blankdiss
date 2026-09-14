@@ -79,7 +79,16 @@ def run_qc():
     dates = set()
     issuers = set()
     isins = set()
-    previous_by_issuer = {}
+    # IMPORTANT:
+    # The time series is identified by issuer + ISIN.
+    #
+    # The previous implementation used only issuer, which caused
+    # different ISINs belonging to the same issuer to be compared
+    # against each other.
+    previous_by_security = {}
+    # Tracks duplicate observations for the same issuer + ISIN + date.
+    # These are not treated as time-series changes.
+    observations_by_security_date = defaultdict(int)
     isin_to_issuers = defaultdict(set)
     issuer_to_isins = defaultdict(set)
     market = defaultdict(
@@ -98,6 +107,7 @@ def run_qc():
         "issuer_isin_conflicts": [],
         "isin_issuer_conflicts": [],
         "market_wide_changes": [],
+        "same_security_same_date": [],
         "invalid_rows": [],
     }
     first_date = None
@@ -184,55 +194,64 @@ def run_qc():
                 "max_individual_position_pct": max_position,
                 "max_position_share_pct": concentration,
             }
-            previous = previous_by_issuer.get(issuer)
+            security_key = (issuer, isin)
+            security_date_key = (issuer, isin, date)
+            observations_by_security_date[
+                security_date_key
+            ] += 1
+            # Multiple observations for the same security on the same
+            # date are not a time-series change. We therefore do not
+            # compare them with each other.
+            if observations_by_security_date[security_date_key] > 1:
+                add(
+                    findings["same_security_same_date"],
+                    {
+                        "snapshot_date": date,
+                        "issuer": issuer,
+                        "isin": isin or None,
+                        "reason": (
+                            "multiple_observations_same_security_same_date"
+                        ),
+                    },
+                )
+                continue
+            previous = previous_by_security.get(security_key)
             if previous is not None:
                 previous_date = pd.Timestamp(
                     previous["snapshot_date"]
                 )
                 current_date = pd.Timestamp(date)
+                # Only compare observations when they are genuinely
+                # later in time. Same-day observations are not changes.
+                if current_date <= previous_date:
+                    continue
                 gap_days = (
                     current_date - previous_date
                 ).days
                 previous_short = previous[
                     "short_interest_pct"
                 ]
-                delta = (
-                    short_interest - previous_short
-                )
+                delta = short_interest - previous_short
                 absolute_delta = abs(delta)
                 stats = market[date]
                 stats["observations"] += 1
-                stats["absolute_change_sum"] += (
-                    absolute_delta
-                )
-                if (
-                    absolute_delta
-                    >= MARKET_ABSOLUTE_CHANGE_PP
-                ):
+                stats["absolute_change_sum"] += absolute_delta
+                if absolute_delta >= MARKET_ABSOLUTE_CHANGE_PP:
                     stats["changes_ge_1pp"] += 1
-                if (
-                    absolute_delta
-                    >= ABSOLUTE_JUMP_PP
-                ):
+                if absolute_delta >= ABSOLUTE_JUMP_PP:
                     stats["changes_ge_3pp"] += 1
                 base = {
                     **current,
-                    "previous_snapshot_date": previous[
-                        "snapshot_date"
-                    ],
+                    "previous_snapshot_date": (
+                        previous["snapshot_date"]
+                    ),
                     "previous_short_interest_pct": (
                         previous_short
                     ),
-                    "delta_pp": round(
-                        delta,
-                        6,
-                    ),
+                    "delta_pp": round(delta, 6),
                     "gap_days": gap_days,
                 }
-                if (
-                    absolute_delta
-                    >= ABSOLUTE_JUMP_PP
-                ):
+                if absolute_delta >= ABSOLUTE_JUMP_PP:
                     add(
                         findings["large_absolute_jumps"],
                         {
@@ -241,28 +260,18 @@ def run_qc():
                                 absolute_delta,
                                 6,
                             ),
-                            "reason": (
-                                "large_absolute_jump"
-                            ),
+                            "reason": "large_absolute_jump",
                         },
                     )
-                if (
-                    previous_short
-                    >= RELATIVE_JUMP_MIN_PREVIOUS
-                ):
+                if previous_short >= RELATIVE_JUMP_MIN_PREVIOUS:
                     relative = (
                         absolute_delta
                         / previous_short
                         * 100.0
                     )
-                    if (
-                        relative
-                        >= RELATIVE_JUMP_PERCENT
-                    ):
+                    if relative >= RELATIVE_JUMP_PERCENT:
                         add(
-                            findings[
-                                "large_relative_jumps"
-                            ],
+                            findings["large_relative_jumps"],
                             {
                                 **base,
                                 "relative_change_percent": round(
@@ -311,9 +320,7 @@ def run_qc():
                             "previous_active_holders": (
                                 previous_holders
                             ),
-                            "holder_delta": (
-                                holder_delta
-                            ),
+                            "holder_delta": holder_delta,
                             "holder_relative_change_percent": (
                                 round(
                                     holder_relative,
@@ -345,18 +352,21 @@ def run_qc():
                             "previous_max_position_share_pct": (
                                 previous_concentration
                             ),
-                            "concentration_delta_pp": (
-                                round(
-                                    concentration_delta,
-                                    6,
-                                )
+                            "concentration_delta_pp": round(
+                                concentration_delta,
+                                6,
                             ),
                             "reason": (
                                 "large_concentration_change"
                             ),
                         },
                     )
-            previous_by_issuer[issuer] = current
+            # Only update the previous observation after processing
+            # the current one.
+            previous_by_security[security_key] = current
+    # ------------------------------------------------------------
+    # ISIN / issuer consistency diagnostics
+    # ------------------------------------------------------------
     for isin, names in sorted(
         isin_to_issuers.items()
     ):
@@ -385,9 +395,10 @@ def run_qc():
                     ),
                 },
             )
-    for date, stats in sorted(
-        market.items()
-    ):
+    # ------------------------------------------------------------
+    # Market-wide changes
+    # ------------------------------------------------------------
+    for date, stats in sorted(market.items()):
         if stats["observations"] == 0:
             continue
         share = (
@@ -413,20 +424,25 @@ def run_qc():
                         6,
                     ),
                     "share_ge_3pp": round(
-                        stats["changes_ge_3pp"]
-                        / stats["observations"],
+                        (
+                            stats["changes_ge_3pp"]
+                            / stats["observations"]
+                        ),
                         6,
                     ),
                     "mean_absolute_change_pp": round(
-                        stats["absolute_change_sum"]
-                        / stats["observations"],
+                        (
+                            stats["absolute_change_sum"]
+                            / stats["observations"]
+                        ),
                         6,
                     ),
-                    "reason": (
-                        "market_wide_change"
-                    ),
+                    "reason": "market_wide_change",
                 },
             )
+    # ------------------------------------------------------------
+    # Dataset ordering
+    # ------------------------------------------------------------
     date_order_ok = True
     previous_date = None
     with INPUT.open("r", encoding="utf-8") as handle:
@@ -451,14 +467,15 @@ def run_qc():
                 date_order_ok = False
                 break
             previous_date = current_date
+    # ------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------
     category_counts = {
         key: len(value)
         for key, value in findings.items()
     }
     result = {
-        "dataset": (
-            "reconstructed_fi_aggregate"
-        ),
+        "dataset": "reconstructed_fi_aggregate",
         "input_file": str(
             INPUT.relative_to(ROOT)
         ),
@@ -517,6 +534,15 @@ def run_qc():
                 "Findings are candidates for review, "
                 "not automatic data errors."
             ),
+            "time_series_identity": (
+                "Time-series changes are calculated "
+                "per issuer + ISIN, not issuer alone."
+            ),
+            "same_day_observations": (
+                "Multiple observations for the same "
+                "issuer + ISIN on the same date are "
+                "not treated as time-series changes."
+            ),
             "threshold_transitions": (
                 "A missing issuer observation is not "
                 "treated as zero because FI's individual "
@@ -529,9 +555,7 @@ def run_qc():
                 "the reverse mapping is more suspicious."
             ),
         },
-        "reconstruction_metadata": (
-            load_metadata()
-        ),
+        "reconstruction_metadata": load_metadata(),
     }
     OUTPUT.parent.mkdir(
         parents=True,
@@ -551,18 +575,10 @@ def main():
     result = run_qc()
     summary = result["dataset_summary"]
     counts = result["finding_counts"]
-    print(
-        "=========================================="
-    )
-    print(
-        "QC AV REKONSTRUERAT FI-AGGREGAT"
-    )
-    print(
-        "=========================================="
-    )
-    print(
-        f"Rows: {summary['rows']}"
-    )
+    print("==========================================")
+    print("QC AV REKONSTRUERAT FI-AGGREGAT")
+    print("==========================================")
+    print(f"Rows: {summary['rows']}")
     print(
         f"Snapshot dates: "
         f"{summary['unique_snapshot_dates']}"
@@ -583,9 +599,7 @@ def main():
     )
     print()
     for key, value in counts.items():
-        print(
-            f"  {key}: {value}"
-        )
+        print(f"  {key}: {value}")
     print()
     print(
         "Strukturell integritet: "
