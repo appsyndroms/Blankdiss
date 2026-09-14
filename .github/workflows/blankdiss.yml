@@ -29,7 +29,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Fetch FI data
+      - name: Backfill FI data
+        run: |
+          python -m src.backfill_fi --days 90
+      - name: Fetch current FI data
         run: |
           python -m src.fetch_fi
       - name: Fetch prices
