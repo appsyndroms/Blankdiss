@@ -109,7 +109,3 @@ jobs:
             data/processed/ml/ml_results.jsonl
             data/processed/ml/runs/*.json
           if-no-files-found: error
-
-Detta är alltså enda filen vi ändrar nu. Den stämmer med den struktur som faktiskt finns i repot.
-
-När den är committad bör nästa körning komma förbi felet test -f blankdiss/__init__.py.
