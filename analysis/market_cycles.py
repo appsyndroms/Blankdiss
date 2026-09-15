@@ -2,7 +2,7 @@
 Market-adjusted returns and recurring short-interest cycle analysis.
 This module performs two diagnostic analyses:
 1. Market-adjusted returns
-   - Downloads OMXSPI (^OMXSPI) history from FRED
+   - Downloads OMXSPI history from FRED
    - Calculates market forward returns for 5/20/60 trading observations
    - Calculates abnormal stock returns relative to OMXSPI
 2. Short-interest cycles
@@ -44,12 +44,8 @@ HORIZONS = (
     20,
     60,
 )
-# Minimum difference between a local peak/trough and
-# its surrounding local base, expressed in percentage points.
 MIN_PROMINENCE_PP = 0.25
-# Minimum calendar days between separate events.
 MIN_EVENT_SEPARATION_DAYS = 30
-# Local window used when calculating prominence.
 PROMINENCE_WINDOW_DAYS = 180
 def load_features() -> pd.DataFrame:
     """Load the existing feature dataset."""
@@ -140,9 +136,11 @@ def download_market_data(
 ) -> pd.DataFrame:
     """
     Download daily OMXSPI history from FRED.
-    FRED series NASDAQOMXSPI is sourced from Nasdaq and provides
-    long daily historical coverage, unlike the restricted
-    Yahoo/yfinance history observed in GitHub Actions.
+    FRED's NASDAQOMXSPI series is sourced from Nasdaq and provides
+    long daily historical coverage.
+    The FRED data endpoint may expose the observations as DATE/VALUE
+    or DATE/NASDAQOMXSPI, so the loader normalizes those columns
+    explicitly instead of depending on one exact value-column name.
     A buffer is retained on both sides so that the first and last
     observations can still be used for forward-return calculations.
     """
@@ -162,37 +160,75 @@ def download_market_data(
         "https://fred.stlouisfed.org/"
         "graph/fredgraph.csv"
         "?id=NASDAQOMXSPI"
+        "&cosd=2008-11-17"
+        "&coed=2099-12-31"
     )
     response = requests.get(
         url,
         timeout=60,
+        headers={
+            "User-Agent": (
+                "Blankdiss/1.0 "
+                "(market analysis)"
+            )
+        },
     )
     response.raise_for_status()
-    data = pd.read_csv(
-        StringIO(response.text)
-    )
-    required_columns = {
-        "DATE",
-        "NASDAQOMXSPI",
-    }
-    missing = required_columns.difference(
-        data.columns
-    )
-    if missing:
+    content = response.text
+    if not content.strip():
         raise RuntimeError(
-            "FRED-data saknar kolumner: "
-            + ", ".join(
-                sorted(missing)
-            )
+            "FRED returnerade ett tomt svar."
+        )
+    data = pd.read_csv(
+        StringIO(content),
+        sep=",",
+    )
+    data.columns = [
+        str(column).strip()
+        for column in data.columns
+    ]
+    print(
+        "FRED-kolumner: "
+        + ", ".join(
+            str(column)
+            for column in data.columns
+        )
+    )
+    date_column = None
+    value_column = None
+    for column in data.columns:
+        normalized = (
+            str(column)
+            .strip()
+            .upper()
+        )
+        if normalized == "DATE":
+            date_column = column
+        elif normalized in {
+            "VALUE",
+            "NASDAQOMXSPI",
+        }:
+            value_column = column
+    if date_column is None:
+        raise RuntimeError(
+            "FRED-data saknar datumkolumn. "
+            f"Kolumner som mottogs: "
+            f"{list(data.columns)}"
+        )
+    if value_column is None:
+        raise RuntimeError(
+            "FRED-data saknar värdekolumn. "
+            f"Kolumner som mottogs: "
+            f"{list(data.columns)}"
         )
     market = pd.DataFrame(
         {
             "market_date": pd.to_datetime(
-                data["DATE"],
+                data[date_column],
                 errors="coerce",
             ),
             "market_close": pd.to_numeric(
-                data["NASDAQOMXSPI"],
+                data[value_column],
                 errors="coerce",
             ),
         }
@@ -228,7 +264,10 @@ def download_market_data(
     if market.empty:
         raise RuntimeError(
             "FRED/NASDAQOMXSPI innehåller inga "
-            "observationer inom det begärda intervallet."
+            "observationer inom det begärda intervallet. "
+            f"Begärt intervall: "
+            f"{requested_start.date()} -> "
+            f"{requested_end.date()}"
         )
     if len(market) < 500:
         raise RuntimeError(
