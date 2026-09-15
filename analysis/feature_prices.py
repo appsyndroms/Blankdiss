@@ -16,10 +16,10 @@ from analysis.feature_utils import (
 )
 
 
-def find_price_file(
+def find_price_files(
     price_dir: Path,
-) -> Path:
-    files = list(
+) -> list[Path]:
+    files = sorted(
         price_dir.glob(
             "prices_*.jsonl"
         )
@@ -31,24 +31,29 @@ def find_price_file(
             f"hittades i {price_dir}"
         )
 
-    def start_date(path: Path) -> str:
-        parts = path.stem.split("_")
+    return files
 
-        if len(parts) < 2:
-            return "9999-12-31"
 
-        return parts[1]
+def find_price_file(
+    price_dir: Path,
+) -> Path:
+    """
+    Bakåtkompatibel wrapper.
 
-    return min(
-        files,
-        key=lambda path: (
-            start_date(path),
-            path.name,
-        ),
+    Returnerar den äldsta prisfilen eftersom den
+    normalt innehåller starten på den historiska serien.
+
+    Nya featurebyggen ska använda find_price_files().
+    """
+
+    files = find_price_files(
+        price_dir
     )
 
+    return files[0]
 
-def load_prices(
+
+def _load_price_file(
     path: Path,
 ) -> pd.DataFrame:
     frame = pd.read_json(
@@ -56,8 +61,11 @@ def load_prices(
         lines=True,
     )
 
-    missing = PRICE_REQUIRED_COLUMNS.difference(
-        frame.columns
+    missing = (
+        PRICE_REQUIRED_COLUMNS
+        .difference(
+            frame.columns
+        )
     )
 
     if missing:
@@ -67,6 +75,57 @@ def load_prices(
                 sorted(missing)
             )
         )
+
+    return frame
+
+
+def load_prices(
+    paths: Path | list[Path],
+) -> pd.DataFrame:
+    """
+    Läs in en eller flera prisfiler.
+
+    Alla filer slås ihop och dubbla
+    (yahoo_symbol, date)-observationer tas bort.
+
+    Den här funktionen gör att featurebygget kan
+    använda den kompletta lokala prisarkivet.
+    """
+
+    if isinstance(
+        paths,
+        Path,
+    ):
+        paths = [paths]
+
+    if not paths:
+        raise FileNotFoundError(
+            "Ingen prisfil angavs."
+        )
+
+    frames: list[
+        pd.DataFrame
+    ] = []
+
+    for path in paths:
+        frame = _load_price_file(
+            path
+        )
+
+        if not frame.empty:
+            frames.append(
+                frame
+            )
+
+    if not frames:
+        raise ValueError(
+            "Alla prisfiler var tomma."
+        )
+
+    frame = pd.concat(
+        frames,
+        ignore_index=True,
+    )
 
     frame["date"] = pd.to_datetime(
         frame["date"],
@@ -78,7 +137,9 @@ def load_prices(
         errors="coerce",
     )
 
-    frame["isin"] = frame["isin"].where(
+    frame["isin"] = frame[
+        "isin"
+    ].where(
         frame["isin"].notna(),
         None,
     )
@@ -100,9 +161,31 @@ def load_prices(
     frame = frame.loc[
         frame["date"].notna()
         & frame["close"].notna()
-        & np.isfinite(frame["close"])
+        & np.isfinite(
+            frame["close"]
+        )
         & (frame["close"] > 0)
     ].copy()
+
+    # Samma Yahoo-symbol + datum får bara förekomma en gång.
+    # Keep="last" gör att nyare prisfiler vinner vid eventuell
+    # överlappning.
+    frame = (
+        frame.sort_values(
+            [
+                "yahoo_symbol",
+                "date",
+            ],
+            kind="mergesort",
+        )
+        .drop_duplicates(
+            subset=[
+                "yahoo_symbol",
+                "date",
+            ],
+            keep="last",
+        )
+    )
 
     frame["security_key"] = [
         security_key(
@@ -115,13 +198,16 @@ def load_prices(
         )
     ]
 
-    return frame.sort_values(
-        [
-            "security_key",
-            "date",
-            "yahoo_symbol",
-        ],
-        kind="mergesort",
+    return (
+        frame.sort_values(
+            [
+                "security_key",
+                "date",
+                "yahoo_symbol",
+            ],
+            kind="mergesort",
+        )
+        .reset_index(drop=True)
     )
 
 
@@ -165,7 +251,9 @@ def add_price_history_features(
     def previous_return(
         days: int,
     ) -> float:
-        previous_idx = entry_idx - days
+        previous_idx = (
+            entry_idx - days
+        )
 
         if previous_idx < 0:
             return np.nan
@@ -175,7 +263,9 @@ def add_price_history_features(
         ]
 
         if (
-            not np.isfinite(previous_price)
+            not np.isfinite(
+                previous_price
+            )
             or previous_price <= 0
         ):
             return np.nan
@@ -186,17 +276,17 @@ def add_price_history_features(
             - 1.0
         )
 
-    result["price_return_5d"] = (
-        previous_return(5)
-    )
+    result[
+        "price_return_5d"
+    ] = previous_return(5)
 
-    result["price_return_20d"] = (
-        previous_return(20)
-    )
+    result[
+        "price_return_20d"
+    ] = previous_return(20)
 
-    result["price_return_60d"] = (
-        previous_return(60)
-    )
+    result[
+        "price_return_60d"
+    ] = previous_return(60)
 
     start_20 = max(
         0,
@@ -208,27 +298,35 @@ def add_price_history_features(
     ]
 
     if len(history_20) >= 2:
-        result["price_volatility_20d"] = (
-            float(
-                pd.Series(
-                    history_20
-                ).pct_change().std()
+        result[
+            "price_volatility_20d"
+        ] = float(
+            pd.Series(
+                history_20
             )
+            .pct_change()
+            .std()
         )
     else:
-        result["price_volatility_20d"] = (
-            np.nan
-        )
+        result[
+            "price_volatility_20d"
+        ] = np.nan
 
     high_20 = (
-        np.nanmax(history_20)
+        np.nanmax(
+            history_20
+        )
         if len(history_20)
         else np.nan
     )
 
-    result["price_distance_from_20d_high"] = (
+    result[
+        "price_distance_from_20d_high"
+    ] = (
         entry_price / high_20 - 1.0
-        if np.isfinite(high_20)
+        if np.isfinite(
+            high_20
+        )
         and high_20 > 0
         else np.nan
     )
@@ -243,14 +341,20 @@ def add_price_history_features(
     ]
 
     high_60 = (
-        np.nanmax(history_60)
+        np.nanmax(
+            history_60
+        )
         if len(history_60)
         else np.nan
     )
 
-    result["price_distance_from_60d_high"] = (
+    result[
+        "price_distance_from_60d_high"
+    ] = (
         entry_price / high_60 - 1.0
-        if np.isfinite(high_60)
+        if np.isfinite(
+            high_60
+        )
         and high_60 > 0
         else np.nan
     )
@@ -267,10 +371,14 @@ def attach_prices(
         prices
     )
 
-    rows: list[dict[str, Any]] = []
+    rows: list[
+        dict[str, Any]
+    ] = []
 
     stats = {
-        "fi_rows": int(len(fi)),
+        "fi_rows": int(
+            len(fi)
+        ),
         "matched_rows": 0,
         "unmatched_rows": 0,
         "matched_by_isin": 0,
@@ -292,30 +400,40 @@ def attach_prices(
         ):
             mapping_source = (
                 "isin"
-                if normalize_text(row.isin)
+                if normalize_text(
+                    row.isin
+                )
                 else "issuer"
             )
 
         if (
             series is None
-            and not normalize_text(row.isin)
+            and not normalize_text(
+                row.isin
+            )
         ):
             series = lookup.get(
                 "ISSUER:"
-                + normalize_text(row.issuer)
+                + normalize_text(
+                    row.issuer
+                )
             )
 
             if (
                 series is not None
                 and not series.empty
             ):
-                mapping_source = "issuer"
+                mapping_source = (
+                    "issuer"
+                )
 
         if (
             series is None
             or series.empty
         ):
-            stats["unmatched_rows"] += 1
+            stats[
+                "unmatched_rows"
+            ] += 1
             continue
 
         dates = series[
@@ -337,16 +455,29 @@ def attach_prices(
             )
         )
 
-        if entry_idx >= len(series):
-            stats["unmatched_rows"] += 1
+        if entry_idx >= len(
+            series
+        ):
+            stats[
+                "unmatched_rows"
+            ] += 1
             continue
 
-        stats["matched_rows"] += 1
+        stats[
+            "matched_rows"
+        ] += 1
 
-        if mapping_source == "isin":
-            stats["matched_by_isin"] += 1
+        if (
+            mapping_source
+            == "isin"
+        ):
+            stats[
+                "matched_by_isin"
+            ] += 1
         else:
-            stats["matched_by_issuer"] += 1
+            stats[
+                "matched_by_issuer"
+            ] += 1
 
         entry = series.iloc[
             entry_idx
@@ -358,30 +489,38 @@ def attach_prices(
 
         result = row._asdict()
 
-        result["price_date"] = (
-            entry["date"]
-        )
+        result[
+            "price_date"
+        ] = entry["date"]
 
-        result["close"] = entry_price
+        result[
+            "close"
+        ] = entry_price
 
-        result["close_on_signal_date"] = (
-            entry_price
-        )
+        result[
+            "close_on_signal_date"
+        ] = entry_price
 
-        result["days_from_fi_to_price"] = (
+        result[
+            "days_from_fi_to_price"
+        ] = (
             entry["date"]
             - row.snapshot_date
         ).days
 
-        result["price_match_available"] = True
+        result[
+            "price_match_available"
+        ] = True
 
-        result["yahoo_symbol"] = (
-            entry["yahoo_symbol"]
-        )
+        result[
+            "yahoo_symbol"
+        ] = entry[
+            "yahoo_symbol"
+        ]
 
-        result["price_mapping_source"] = (
-            mapping_source
-        )
+        result[
+            "price_mapping_source"
+        ] = mapping_source
 
         add_price_history_features(
             result,
