@@ -2924,6 +2924,15 @@
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:549300V2QS9QL4C1KQ31": {
+    "isin": null,
+    "issuer": "Cynca Nordic AB (publ)",
+    "lei": "549300V2QS9QL4C1KQ31",
+    "map_key": "LEI:549300V2QS9QL4C1KQ31",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "CYNCA.ST"
+  },
   "LEI:549300V74XQ05PK42789": {
     "isin": null,
     "issuer": "Serstech AB",
