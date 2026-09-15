@@ -43,6 +43,7 @@ class TargetConfig:
     name: str
     return_column: str
     threshold: float = 0.0
+    direction: str = "above"
 
 
 TARGETS = (
@@ -51,16 +52,19 @@ TARGETS = (
         name="positive_5d",
         return_column="forward_return_5d",
         threshold=0.0,
+        direction="above",
     ),
     TargetConfig(
         name="positive_20d",
         return_column="forward_return_20d",
         threshold=0.0,
+        direction="above",
     ),
     TargetConfig(
         name="positive_60d",
         return_column="forward_return_60d",
         threshold=0.0,
+        direction="above",
     ),
 
     # Ekonomiskt mer intressanta positiva rörelser.
@@ -68,33 +72,42 @@ TARGETS = (
         name="up_5pct_5d",
         return_column="forward_return_5d",
         threshold=0.05,
+        direction="above",
     ),
     TargetConfig(
         name="up_5pct_20d",
         return_column="forward_return_20d",
         threshold=0.05,
+        direction="above",
     ),
     TargetConfig(
         name="up_10pct_60d",
         return_column="forward_return_60d",
         threshold=0.10,
+        direction="above",
     ),
 
     # Relevanta för blankningscaset.
+    #
+    # direction="below" betyder:
+    # target = 1 när avkastningen är <= threshold.
     TargetConfig(
         name="down_5pct_5d",
         return_column="forward_return_5d",
         threshold=-0.05,
+        direction="below",
     ),
     TargetConfig(
         name="down_5pct_20d",
         return_column="forward_return_20d",
         threshold=-0.05,
+        direction="below",
     ),
     TargetConfig(
         name="down_10pct_60d",
         return_column="forward_return_60d",
         threshold=-0.10,
+        direction="below",
     ),
 )
 
