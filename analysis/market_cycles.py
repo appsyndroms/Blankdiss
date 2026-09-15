@@ -167,12 +167,13 @@ def _parse_nasdaq_number(
         "1,123.45" -> 1123.45
         "$1,123.45" -> 1123.45
         "1,123.45%" -> 1123.45
-    The OMXSPI historical endpoint returns index
-    values as strings.
     """
     if value is None:
         return float("nan")
-    if isinstance(value, (int, float)):
+    if isinstance(
+        value,
+        (int, float),
+    ):
         return float(value)
     text = str(value).strip()
     if not text:
@@ -313,7 +314,9 @@ def download_market_data(
             else ""
         )
     )
-    market_rows: list[dict[str, Any]] = []
+    market_rows: list[
+        dict[str, Any]
+    ] = []
     for row in rows:
         if not isinstance(
             row,
@@ -1039,10 +1042,7 @@ def _json_value(
         return float(value)
     if isinstance(
         value,
-        (
-            pd.Timestamp,
-            pd.NaT.__class__,
-        ),
+        pd.Timestamp,
     ):
         if pd.isna(value):
             return None
@@ -1177,17 +1177,20 @@ def main() -> None:
         CYCLE_SUMMARY_PATH,
         summaries,
     )
+    companies_with_cycles = sum(
+        1
+        for summary in summaries
+        if summary[
+            "cycle_event_count"
+        ] > 0
+    )
     print(
         "Short-cycle events: "
         f"{len(events):,}"
     )
     print(
         "Bolag med cycle events: "
-        f"{sum("
-            "1 "
-            "for summary in summaries "
-            "if summary['cycle_event_count'] > 0"
-        ):,}"
+        f"{companies_with_cycles:,}"
     )
     print(
         "Cycle events skrivna: "
