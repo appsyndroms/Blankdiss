@@ -178,11 +178,11 @@ def download_market_data(
     end_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """
-    Download daily OMXSPI history.
+    Download daily OMXSPI history in chunks.
 
-    Yahoo/yfinance can behave unexpectedly when a long historical
-    start/end range is requested for index symbols. We therefore
-    request the complete daily history and filter locally.
+    Yahoo/yfinance appears to limit historical data for ^OMXSPI
+    to roughly six months per request. We therefore download the
+    required period in six-month chunks and combine the results.
 
     A buffer is retained on both sides so that the first and last
     observations can still be used for forward-return calculations.
@@ -202,58 +202,105 @@ def download_market_data(
         f"Laddar marknadsdata: {MARKET_SYMBOL}"
     )
 
-    data = yf.download(
-        MARKET_SYMBOL,
-        period="max",
-        interval="1d",
-        auto_adjust=False,
-        progress=False,
-        threads=False,
-    )
+    chunks: list[pd.DataFrame] = []
 
-    if data.empty:
-        raise RuntimeError(
-            "Kunde inte hämta OMXSPI-data."
+    chunk_start = requested_start
+
+    while chunk_start <= requested_end:
+        chunk_end = min(
+            chunk_start
+            + pd.DateOffset(months=6),
+            requested_end,
         )
 
-    if isinstance(
-        data.columns,
-        pd.MultiIndex,
-    ):
-        if "Close" not in (
-            data.columns
-            .get_level_values(0)
-        ):
-            raise RuntimeError(
-                "OMXSPI-data saknar Close-kolumn."
+        start = chunk_start.strftime(
+            "%Y-%m-%d"
+        )
+
+        end = chunk_end.strftime(
+            "%Y-%m-%d"
+        )
+
+        print(
+            "Laddar OMXSPI-chunk: "
+            f"{start} -> {end}"
+        )
+
+        data = yf.download(
+            MARKET_SYMBOL,
+            start=start,
+            end=end,
+            auto_adjust=False,
+            progress=False,
+            threads=False,
+        )
+
+        if data.empty:
+            print(
+                "Varning: inga OMXSPI-data "
+                "för detta intervall."
+            )
+        else:
+            if isinstance(
+                data.columns,
+                pd.MultiIndex,
+            ):
+                if "Close" not in (
+                    data.columns
+                    .get_level_values(0)
+                ):
+                    raise RuntimeError(
+                        "OMXSPI-data saknar "
+                        "Close-kolumn."
+                    )
+
+                close = data["Close"]
+
+                if isinstance(
+                    close,
+                    pd.DataFrame,
+                ):
+                    close = close.iloc[:, 0]
+
+            else:
+                if "Close" not in data.columns:
+                    raise RuntimeError(
+                        "OMXSPI-data saknar "
+                        "Close-kolumn."
+                    )
+
+                close = data["Close"]
+
+            chunk = pd.DataFrame(
+                {
+                    "market_date": pd.to_datetime(
+                        close.index
+                    ),
+                    "market_close": pd.to_numeric(
+                        close,
+                        errors="coerce",
+                    ),
+                }
             )
 
-        close = data["Close"]
+            chunks.append(chunk)
 
-        if isinstance(
-            close,
-            pd.DataFrame,
-        ):
-            close = close.iloc[:, 0]
+        # Move one day forward to avoid requesting the
+        # same boundary date in the next chunk.
+        chunk_start = (
+            chunk_end
+            + pd.Timedelta(days=1)
+        )
 
-    else:
-        if "Close" not in data.columns:
-            raise RuntimeError(
-                "OMXSPI-data saknar Close-kolumn."
-            )
+    if not chunks:
+        raise RuntimeError(
+            "Kunde inte hämta någon "
+            "OMXSPI-data."
+        )
 
-        close = data["Close"]
-
-    market = pd.DataFrame(
-        {
-            "market_date": pd.to_datetime(
-                close.index
-            ),
-            "market_close": pd.to_numeric(
-                close,
-                errors="coerce",
-            ),
-        }
+    market = pd.concat(
+        chunks,
+        ignore_index=True,
     )
 
     market = (
@@ -274,8 +321,6 @@ def download_market_data(
         .reset_index(drop=True)
     )
 
-    # Keep only the period required by the feature dataset,
-    # including the buffers needed for forward returns.
     market = market[
         (
             market["market_date"]
@@ -291,6 +336,14 @@ def download_market_data(
         raise RuntimeError(
             "OMXSPI-data innehåller inga "
             "observationer inom det begärda intervallet."
+        )
+
+    if len(market) < 500:
+        raise RuntimeError(
+            "För få OMXSPI-observationer: "
+            f"{len(market)}. "
+            "Marknadsanalysen avbryts för att "
+            "förhindra analys på ofullständig historik."
         )
 
     print(
