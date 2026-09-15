@@ -440,6 +440,33 @@ jobs:
           )
           PY
 
+      - name: Verify signal backtest package
+        run: |
+          test -f analysis/signal_backtest/__init__.py
+          test -f analysis/signal_backtest/__main__.py
+          test -f analysis/signal_backtest/config.py
+          test -f analysis/signal_backtest/metrics.py
+          test -f analysis/signal_backtest/reporting.py
+          test -f analysis/signal_backtest/runner.py
+
+          echo "Signal backtest-paket finns."
+
+      - name: Run signal backtest
+        run: |
+          python -m analysis.signal_backtest
+
+      - name: Verify signal backtest result
+        run: |
+          test -f data/processed/ml/signal_backtest.json
+
+          echo
+          echo "================================"
+          echo "SIGNAL BACKTEST KLAR"
+          echo "================================"
+
+          echo "Resultat:"
+          ls -lh data/processed/ml/signal_backtest.json
+
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -448,5 +475,6 @@ jobs:
             data/processed/ml/latest_run.json
             data/processed/ml/ml_results.jsonl
             data/processed/ml/diagnostics.json
+            data/processed/ml/signal_backtest.json
             data/processed/ml/runs/*.json
           if-no-files-found: error
