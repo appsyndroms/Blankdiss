@@ -70,6 +70,7 @@
     "matched_rows": 119560,
     "unmatched_rows": 82680,
     "matched_by_isin": 119560,
-    "matched_by_issuer": 0
+    "matched_by_issuer": 0,
+    "full_rebuild": 1
   }
 }
