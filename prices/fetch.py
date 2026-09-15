@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import yfinance as yf
 
 
@@ -41,9 +42,6 @@ def _normalise_date(
 ) -> date:
     """
     Convert a date or ISO date string to a date object.
-
-    __main__.py passes command-line arguments as strings,
-    while other callers may pass datetime.date objects.
     """
 
     if isinstance(value, datetime):
@@ -78,8 +76,6 @@ def _extract_close(
     if data is None or data.empty:
         return None
 
-    # MultiIndex:
-    # ('Close', 'VOLV-B.ST')
     if hasattr(
         data.columns,
         "levels",
@@ -117,107 +113,136 @@ def _extract_close(
         except Exception:
             pass
 
-    # Ordinary DataFrame:
     if "Close" in data.columns:
         return data["Close"]
 
     return None
 
 
-def fetch_prices(
-    instruments: list[dict[str, Any]],
-    start: str | date,
-    end: str | date | None = None,
-) -> list[dict[str, Any]]:
+def _existing_latest_dates(
+    price_dir: Path,
+) -> dict[str, date]:
     """
-    Fetch historical closing prices from Yahoo Finance.
+    Läs befintliga prisfiler och hitta senaste
+    sparade datum per Yahoo-symbol.
 
-    start/end may be supplied either as:
-      - ISO date strings, e.g. "2022-05-25"
-      - datetime.date objects
-
-    If end is omitted, today is used as the exclusive
-    Yahoo Finance end date.
-
-    Instruments without a valid Yahoo symbol are skipped.
-
-    Non-finite prices, such as NaN and +/-inf, are skipped.
-    They must never enter the persisted JSONL price dataset.
+    Detta används för inkrementell hämtning.
     """
 
-    start_date = _normalise_date(
-        start
+    latest: dict[str, date] = {}
+
+    files = sorted(
+        price_dir.glob(
+            "prices_*.jsonl"
+        )
     )
 
-    if end is None:
-        end_date = date.today()
-    else:
-        end_date = _normalise_date(
-            end
-        )
-
-    if end_date <= start_date:
-        raise ValueError(
-            "End date must be later "
-            "than start date: "
-            f"{start_date} -> {end_date}"
-        )
-
-    valid_instruments: list[
-        dict[str, Any]
-    ] = []
-
-    skipped = 0
-
-    for instrument in instruments:
-        symbol = instrument.get(
-            "yahoo_symbol"
-        )
-
-        if not _valid_symbol(
-            symbol
+    for path in files:
+        try:
+            frame = pd.read_json(
+                path,
+                lines=True,
+            )
+        except (
+            ValueError,
+            OSError,
         ):
-            skipped += 1
             continue
 
-        valid_instruments.append(
-            instrument
+        required = {
+            "date",
+            "yahoo_symbol",
+        }
+
+        if not required.issubset(
+            frame.columns
+        ):
+            continue
+
+        frame["date"] = pd.to_datetime(
+            frame["date"],
+            errors="coerce",
         )
 
-    if skipped:
-        print(
-            f"Pris: {skipped} instrument "
-            "hoppades över eftersom "
-            "Yahoo-symbol saknas."
+        frame["yahoo_symbol"] = (
+            frame["yahoo_symbol"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
         )
+
+        frame = frame.loc[
+            frame["date"].notna()
+            & frame["yahoo_symbol"].ne("")
+        ]
+
+        for symbol, group in frame.groupby(
+            "yahoo_symbol",
+            sort=False,
+        ):
+            latest_timestamp = group[
+                "date"
+            ].max()
+
+            latest_date = (
+                latest_timestamp.date()
+            )
+
+            previous = latest.get(
+                symbol
+            )
+
+            if (
+                previous is None
+                or latest_date > previous
+            ):
+                latest[symbol] = latest_date
+
+    return latest
+
+
+def _download_batch(
+    instruments: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """
+    Hämtar ett intervall från Yahoo för en grupp instrument.
+    """
+
+    if not instruments:
+        return []
 
     symbols = sorted(
         {
             instrument[
                 "yahoo_symbol"
             ]
-            for instrument
-            in valid_instruments
+            for instrument in instruments
+            if _valid_symbol(
+                instrument.get(
+                    "yahoo_symbol"
+                )
+            )
         }
     )
 
     if not symbols:
-        print(
-            "Pris: inga giltiga "
-            "Yahoo-symboler att hämta."
-        )
         return []
 
     print(
-        "Priser: hämtar "
-        f"{len(symbols)} instrument "
-        "i en batch..."
+        "Pris: Yahoo-hämtning - "
+        f"{len(symbols)} instrument, "
+        f"{start_date.isoformat()} -> "
+        f"{end_date.isoformat()}."
     )
 
     data = yf.download(
         tickers=symbols,
         start=start_date.isoformat(),
-        end=end_date.isoformat(),
+        end=(
+            end_date + timedelta(days=1)
+        ).isoformat(),
         auto_adjust=False,
         actions=False,
         threads=True,
@@ -229,7 +254,7 @@ def fetch_prices(
     if data is None or data.empty:
         print(
             "Pris: Yahoo returnerade "
-            "ingen prisdata."
+            "ingen data för intervallet."
         )
         return []
 
@@ -237,8 +262,7 @@ def fetch_prices(
         instrument[
             "yahoo_symbol"
         ]: instrument
-        for instrument
-        in valid_instruments
+        for instrument in instruments
     }
 
     records: list[
@@ -287,12 +311,22 @@ def fetch_prices(
                 skipped_nonfinite += 1
                 continue
 
+            timestamp_date = (
+                pd.Timestamp(
+                    timestamp
+                ).date()
+            )
+
+            if (
+                timestamp_date < start_date
+                or timestamp_date > end_date
+            ):
+                continue
+
             records.append(
                 {
                     "date": (
-                        timestamp.strftime(
-                            "%Y-%m-%d"
-                        )
+                        timestamp_date.isoformat()
                     ),
                     "isin": instrument.get(
                         "isin"
@@ -324,20 +358,176 @@ def fetch_prices(
             symbols_without_prices += 1
 
     print(
-        "Pris: sammanfattning - "
-        f"{symbols_with_prices} symboler "
-        "med prisdata, "
-        f"{symbols_without_prices} utan "
-        "användbara priser."
+        "Pris: Yahoo-resultat - "
+        f"{symbols_with_prices} symboler med data, "
+        f"{symbols_without_prices} utan användbara priser."
     )
 
     if skipped_nonfinite:
         print(
             "Pris: "
-            f"{skipped_nonfinite} "
-            "icke-finit prisvärden "
+            f"{skipped_nonfinite} icke-finit prisvärden "
             "filtrerades bort."
         )
+
+    return records
+
+
+def fetch_prices(
+    instruments: list[dict[str, Any]],
+    start: str | date,
+    end: str | date | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Hämta prisdata inkrementellt.
+
+    Om det redan finns lokal historik för ett instrument
+    hämtas endast data efter instrumentets senaste lokala datum.
+
+    Detta innebär att:
+
+        python -m prices --start 2022-01-01
+
+    första gången hämtar historiken från 2022.
+
+    Nästa gång hämtas endast det som saknas.
+    """
+
+    start_date = _normalise_date(
+        start
+    )
+
+    if end is None:
+        end_date = date.today()
+    else:
+        end_date = _normalise_date(
+            end
+        )
+
+    if end_date <= start_date:
+        raise ValueError(
+            "End date must be later "
+            "than start date: "
+            f"{start_date} -> {end_date}"
+        )
+
+    valid_instruments: list[
+        dict[str, Any]
+    ] = []
+
+    skipped = 0
+
+    for instrument in instruments:
+        symbol = instrument.get(
+            "yahoo_symbol"
+        )
+
+        if not _valid_symbol(
+            symbol
+        ):
+            skipped += 1
+            continue
+
+        valid_instruments.append(
+            instrument
+        )
+
+    if skipped:
+        print(
+            f"Pris: {skipped} instrument "
+            "hoppades över eftersom "
+            "Yahoo-symbol saknas."
+        )
+
+    if not valid_instruments:
+        print(
+            "Pris: inga giltiga "
+            "Yahoo-symboler att hämta."
+        )
+        return []
+
+    latest_local = (
+        _existing_latest_dates(
+            OUTPUT_DIR
+        )
+    )
+
+    instruments_to_fetch: dict[
+        date,
+        list[dict[str, Any]],
+    ] = {}
+
+    already_current = 0
+
+    for instrument in valid_instruments:
+        symbol = instrument[
+            "yahoo_symbol"
+        ]
+
+        local_latest = latest_local.get(
+            symbol
+        )
+
+        if local_latest is None:
+            fetch_start = start_date
+        else:
+            fetch_start = max(
+                start_date,
+                local_latest
+                + timedelta(days=1),
+            )
+
+        if fetch_start >= end_date:
+            already_current += 1
+            continue
+
+        instruments_to_fetch.setdefault(
+            fetch_start,
+            [],
+        ).append(
+            instrument
+        )
+
+    if already_current:
+        print(
+            "Pris: lokal historik är redan aktuell "
+            f"för {already_current} instrument."
+        )
+
+    if not instruments_to_fetch:
+        print(
+            "Pris: ingen Yahoo-hämtning behövs."
+        )
+        return []
+
+    print(
+        "Pris: inkrementell hämtning - "
+        f"{sum(len(v) for v in instruments_to_fetch.values())} "
+        "instrument."
+    )
+
+    records: list[
+        dict[str, Any]
+    ] = []
+
+    for fetch_start, batch in sorted(
+        instruments_to_fetch.items(),
+        key=lambda item: item[0],
+    ):
+        batch_records = _download_batch(
+            batch,
+            fetch_start,
+            end_date - timedelta(days=1),
+        )
+
+        records.extend(
+            batch_records
+        )
+
+    print(
+        "Pris: inkrementell hämtning klar - "
+        f"{len(records):,} nya observationer."
+    )
 
     return records
 
@@ -349,33 +539,58 @@ def write_jsonl(
     end: str | date | None = None,
 ) -> Path:
     """
-    Write price records as JSONL.
+    Skriv prisdata som JSONL.
 
-    The filename is generated from start/end.
-
-    Example:
-        prices_2022-05-25_2026-09-12.jsonl
+    När records kommer från en inkrementell hämtning
+    används faktiskt första och sista observationsdatum
+    i filnamnet.
     """
+
+    if not records:
+        raise ValueError(
+            "Kan inte skriva prisfil: "
+            "records är tom."
+        )
 
     start_date = _normalise_date(
         start
     )
 
-    if end is None:
-        end_label = "latest"
-    else:
-        end_date = _normalise_date(
-            end
+    record_dates: list[date] = []
+
+    for record in records:
+        value = record.get(
+            "date"
         )
 
-        if end_date < start_date:
-            raise ValueError(
-                "End date must not be "
-                "earlier than start date: "
-                f"{start_date} -> {end_date}"
-            )
+        if value is None:
+            continue
 
-        end_label = end_date.isoformat()
+        try:
+            record_dates.append(
+                _normalise_date(
+                    str(value)
+                )
+            )
+        except ValueError:
+            continue
+
+    if record_dates:
+        actual_start = min(
+            record_dates
+        )
+        actual_end = max(
+            record_dates
+        )
+    else:
+        actual_start = start_date
+
+        if end is None:
+            actual_end = actual_start
+        else:
+            actual_end = _normalise_date(
+                end
+            )
 
     OUTPUT_DIR.mkdir(
         parents=True,
@@ -386,9 +601,9 @@ def write_jsonl(
         OUTPUT_DIR
         / (
             "prices_"
-            f"{start_date.isoformat()}"
+            f"{actual_start.isoformat()}"
             "_"
-            f"{end_label}"
+            f"{actual_end.isoformat()}"
             ".jsonl"
         )
     )
@@ -437,13 +652,16 @@ def write_jsonl(
                 )
             )
 
-            handle.write("\n")
+            handle.write(
+                "\n"
+            )
 
             written += 1
 
     print(
         "Pris: JSONL skriven - "
-        f"{written} rader."
+        f"{written:,} rader -> "
+        f"{output.name}"
     )
 
     if skipped:
@@ -463,8 +681,7 @@ def save_prices(
     end: str | date,
 ) -> Path:
     """
-    Convenience wrapper for writing
-    the standard price filename.
+    Convenience wrapper.
     """
 
     return write_jsonl(
