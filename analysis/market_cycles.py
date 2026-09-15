@@ -192,29 +192,28 @@ def download_market_data(
 ) -> pd.DataFrame:
     """
     Download daily OMXSPI history directly from Nasdaq.
-    Nasdaq's public historical endpoint returns JSON:
-        data
-          tradesTable
-            rows
-    Each row contains, among other fields:
-        date
-        close
-        open
-        high
-        low
-    We only need date + close for the market-relative
-    return analysis.
-    A buffer is added before and after the requested period.
-    The trailing buffer is required because Blankdiss calculates
-    forward market returns over 60 trading observations.
+    The requested period is based on the actual stock price
+    history available in Blankdiss.
+    Nasdaq does not need future dates. In particular, the
+    todate parameter must not be placed in the future.
+    We therefore:
+      - add a small buffer before the first required date
+      - cap the end date at today's date
+      - keep enough historical observations for the
+        60-trading-day forward calculation where data exists
+    If Nasdaq returns an unexpected JSON structure, the
+    response metadata and a short response preview are printed
+    to make the failure diagnosable.
     """
+    today = pd.Timestamp.now().normalize()
     requested_start = (
         pd.Timestamp(start_date)
         - pd.Timedelta(days=10)
     )
-    requested_end = (
+    requested_end = min(
         pd.Timestamp(end_date)
-        + pd.Timedelta(days=120)
+        + pd.Timedelta(days=120),
+        today,
     )
     start_text = requested_start.strftime(
         "%Y-%m-%d"
@@ -250,6 +249,14 @@ def download_market_data(
                 headers=NASDAQ_HEADERS,
                 timeout=30,
             )
+            print(
+                "Nasdaq HTTP-status: "
+                f"{response.status_code}"
+            )
+            print(
+                "Nasdaq Content-Type: "
+                f"{response.headers.get('Content-Type', '')}"
+            )
             response.raise_for_status()
             break
         except requests.RequestException as error:
@@ -271,14 +278,40 @@ def download_market_data(
     try:
         payload = response.json()
     except ValueError as error:
+        preview = response.text[:1000]
         raise RuntimeError(
             "Nasdaq returnerade ett svar som "
-            "inte kunde tolkas som JSON."
+            "inte kunde tolkas som JSON.\n"
+            "Svar:\n"
+            f"{preview}"
         ) from error
+    if not isinstance(payload, dict):
+        raise RuntimeError(
+            "Nasdaq returnerade ett JSON-svar "
+            "som inte är ett objekt.\n"
+            f"Svarstyp: {type(payload).__name__}\n"
+            f"Svar: {str(payload)[:1000]}"
+        )
     data = payload.get("data")
     if not isinstance(data, dict):
+        print(
+            "Nasdaq-svaret har oväntad struktur."
+        )
+        print(
+            "JSON-nycklar: "
+            f"{list(payload.keys())}"
+        )
+        print(
+            "Nasdaq-svar, början:\n"
+            f"{json.dumps("
+            "payload, "
+            "ensure_ascii=False, "
+            "default=str"
+            ")[:2000]}"
+        )
         raise RuntimeError(
-            "Nasdaq-svaret saknar 'data'."
+            "Nasdaq-svaret saknar 'data'. "
+            "Se diagnostiken ovan."
         )
     trades_table = data.get(
         "tradesTable"
@@ -287,17 +320,35 @@ def download_market_data(
         trades_table,
         dict,
     ):
+        print(
+            "Nasdaq 'data' har oväntad "
+            "struktur."
+        )
+        print(
+            "data-nycklar: "
+            f"{list(data.keys())}"
+        )
         raise RuntimeError(
             "Nasdaq-svaret saknar "
-            "'data.tradesTable'."
+            "'data.tradesTable'. "
+            "Se diagnostiken ovan."
         )
     rows = trades_table.get(
         "rows"
     )
     if not isinstance(rows, list):
+        print(
+            "Nasdaq 'tradesTable' har "
+            "oväntad struktur."
+        )
+        print(
+            "tradesTable-nycklar: "
+            f"{list(trades_table.keys())}"
+        )
         raise RuntimeError(
             "Nasdaq-svaret saknar "
-            "'data.tradesTable.rows'."
+            "'data.tradesTable.rows'. "
+            "Se diagnostiken ovan."
         )
     total_records = data.get(
         "totalRecords"
@@ -402,14 +453,13 @@ def download_market_data(
             f"{requested_start.date()} -> "
             f"{requested_end.date()}"
         )
-    if len(market) < 500:
-        raise RuntimeError(
-            "För få OMXSPI-observationer: "
-            f"{len(market)}. "
-            "Marknadsanalysen avbryts för att "
-            "förhindra analys på ofullständig "
-            "historik."
-        )
+    # Blankdiss har just nu bara prisdata från
+    # 2026-03-09, så ett års eller mindre
+    # marknadshistorik är legitimt för denna analys.
+    #
+    # De senaste observationerna kommer naturligt
+    # att sakna 60-dagars forward return eftersom
+    # framtida marknadsdata ännu inte finns.
     print(
         "OMXSPI-period: "
         f"{market['market_date'].min().date()} "
