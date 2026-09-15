@@ -178,21 +178,25 @@ def download_market_data(
     end_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """
-    Download OMXSPI history.
+    Download daily OMXSPI history.
 
-    A buffer is added on both sides so that the first and last
+    Yahoo/yfinance can behave unexpectedly when a long historical
+    start/end range is requested for index symbols. We therefore
+    request the complete daily history and filter locally.
+
+    A buffer is retained on both sides so that the first and last
     observations can still be used for forward-return calculations.
     """
 
-    start = (
+    requested_start = (
         start_date
         - pd.Timedelta(days=10)
-    ).strftime("%Y-%m-%d")
+    )
 
-    end = (
+    requested_end = (
         end_date
         + pd.Timedelta(days=120)
-    ).strftime("%Y-%m-%d")
+    )
 
     print(
         f"Laddar marknadsdata: {MARKET_SYMBOL}"
@@ -200,10 +204,11 @@ def download_market_data(
 
     data = yf.download(
         MARKET_SYMBOL,
-        start=start,
-        end=end,
+        period="max",
+        interval="1d",
         auto_adjust=False,
         progress=False,
+        threads=False,
     )
 
     if data.empty:
@@ -267,6 +272,32 @@ def download_market_data(
             "market_date"
         )
         .reset_index(drop=True)
+    )
+
+    # Keep only the period required by the feature dataset,
+    # including the buffers needed for forward returns.
+    market = market[
+        (
+            market["market_date"]
+            >= requested_start
+        )
+        & (
+            market["market_date"]
+            <= requested_end
+        )
+    ].reset_index(drop=True)
+
+    if market.empty:
+        raise RuntimeError(
+            "OMXSPI-data innehåller inga "
+            "observationer inom det begärda intervallet."
+        )
+
+    print(
+        "OMXSPI-period: "
+        f"{market['market_date'].min().date()} "
+        "-> "
+        f"{market['market_date'].max().date()}"
     )
 
     return market
@@ -1584,7 +1615,7 @@ def main() -> None:
         "MARKET & CYCLE ANALYSIS KLAR"
     )
     print(
-        "==========================================" 
+        "=========================================="
     )
 
 
