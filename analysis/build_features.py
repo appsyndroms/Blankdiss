@@ -8,7 +8,6 @@ from analysis.feature_config import (
     FI_PATH,
     METADATA_PATH,
     OUTPUT_DIR,
-    OUTPUT_PATH,
     PRICE_DIR,
 )
 from analysis.feature_fi import (
@@ -35,7 +34,9 @@ from analysis.feature_utils import (
     feature_key,
 )
 CHUNK_SIZE_MB = 20
-CHUNK_SIZE_BYTES = CHUNK_SIZE_MB * 1024 * 1024
+CHUNK_SIZE_BYTES = (
+    CHUNK_SIZE_MB * 1024 * 1024
+)
 CHUNK_PREFIX = "features_"
 def feature_chunk_paths() -> list[Path]:
     """Returnerar alla genererade feature-chunks."""
@@ -54,14 +55,17 @@ def write_features(
     """
     Skriver feature-datasetet som JSONL-chunks.
     Alla tidigare chunks rensas först.
-    Ingen enskild fil blir större än CHUNK_SIZE_MB.
+    Ingen enskild fil blir större än
+    CHUNK_SIZE_MB.
     """
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
     remove_feature_chunks()
-    clean = clean_for_json(frame)
+    clean = clean_for_json(
+        frame
+    )
     paths: list[Path] = []
     chunk_number = 1
     rows: list[str] = []
@@ -83,7 +87,9 @@ def write_features(
             "".join(rows),
             encoding="utf-8",
         )
-        paths.append(path)
+        paths.append(
+            path
+        )
         chunk_number += 1
         rows = []
         current_size = 0
@@ -106,7 +112,9 @@ def write_features(
             > CHUNK_SIZE_BYTES
         ):
             flush()
-        rows.append(line)
+        rows.append(
+            line
+        )
         current_size += line_size
     flush()
     return paths
@@ -166,8 +174,13 @@ def load_existing_metadata() -> dict[str, Any]:
             "r",
             encoding="utf-8",
         ) as handle:
-            data = json.load(handle)
-        if isinstance(data, dict):
+            data = json.load(
+                handle
+            )
+        if isinstance(
+            data,
+            dict,
+        ):
             return data
     except (
         OSError,
@@ -348,9 +361,10 @@ def main() -> None:
     print(
         f"{len(prices):,} prisobservationer"
     )
-    existing = load_existing(
-        OUTPUT_PATH
-    )
+    # Chunk-formatet är nu den enda källan
+    # till befintliga features. Ingen OUTPUT_PATH
+    # eller gammal monolitisk features-fil används.
+    existing = load_existing()
     full_rebuild, reason = requires_full_rebuild(
         existing,
         price_files,
