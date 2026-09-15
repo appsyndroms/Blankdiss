@@ -50,10 +50,11 @@ jobs:
       # ---------------------------------------------------------
       # Features
       #
-      # Signal backtest behöver features.jsonl.
+      # TODO:
+      # När artifact-lineage är hårdnad ska detta hämta exakt
+      # det feature-artifact som ML Training använde.
       #
-      # För workflow_run hämtar vi den senaste lyckade
-      # Features QC-körningen.
+      # Tills dess används senaste lyckade Features QC.
       # ---------------------------------------------------------
       - name: Download latest successful Features QC
         env:
@@ -112,7 +113,10 @@ jobs:
           echo "Signal backtest-paket finns."
 
       # ---------------------------------------------------------
-      # Run
+      # Run signal backtest
+      #
+      # Den här körningen skriver redan ut hela resultatet.
+      # Därför behövs inget separat Python-summary-steg.
       # ---------------------------------------------------------
       - name: Run signal backtest
         run: |
@@ -125,163 +129,12 @@ jobs:
         run: |
           test -f data/processed/ml/signal_backtest.json
 
-          echo "Signal backtest klart."
           echo
+          echo "================================"
+          echo "SIGNAL BACKTEST KLAR"
+          echo "================================"
           echo "Resultat:"
           ls -lh data/processed/ml/signal_backtest.json
-
-      # ---------------------------------------------------------
-      # Print summary
-      #
-      # Använder python -c i stället för heredoc.
-      # Det eliminerar warningen:
-      #
-      #   warning: here-document ... wanted `PY`
-      #
-      # och läser rätt nivå i signal_backtest.json.
-      # ---------------------------------------------------------
-      - name: Print signal backtest summary
-        env:
-          RESULT_PATH: data/processed/ml/signal_backtest.json
-        run: |
-          python -c '
-          import json
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["RESULT_PATH"])
-          data = json.loads(path.read_text(encoding="utf-8"))
-
-          print()
-          print("================================")
-          print("BLANKDISS SIGNAL BACKTEST")
-          print("================================")
-
-          feature_sets = data.get("feature_sets", [])
-          targets = data.get("targets", [])
-
-          print(
-              f"Feature sets: {", ".join(feature_sets)}"
-          )
-          print(
-              f"Targets: {", ".join(targets)}"
-          )
-          print()
-
-          for result in data.get("results", []):
-              print("--------------------------------")
-
-              print(
-                  f"Feature set: "
-                  f"{result.get("feature_set", "?")}"
-              )
-
-              print(
-                  f"Target: "
-                  f"{result.get("target", "?")}"
-              )
-
-              print(
-                  f"Features: "
-                  f"{result.get("feature_count", "?")}"
-              )
-
-              for window in result.get("windows", []):
-                  window_info = window.get("window", {})
-
-                  train_end = window_info.get(
-                      "train_end",
-                      "?"
-                  )
-
-                  validation_end = window_info.get(
-                      "validation_end",
-                      "?"
-                  )
-
-                  test_end = window_info.get(
-                      "test_end",
-                      "?"
-                  )
-
-                  print()
-
-                  print(
-                      "Window: "
-                      f"{train_end} -> "
-                      f"{validation_end} -> "
-                      f"{test_end}"
-                  )
-
-                  print(
-                      "Selected model: "
-                      f"{window.get("selected_model", "?")}"
-                  )
-
-                  print(
-                      "Validation AUC: "
-                      f"{window.get("validation_roc_auc", "?")}"
-                  )
-
-                  print(
-                      "Test AUC: "
-                      f"{window.get("test_roc_auc", "?")}"
-                  )
-
-                  print(
-                      "Test rows: "
-                      f"{window.get("test_rows", "?")}"
-                  )
-
-                  prediction_buckets = window.get(
-                      "prediction_buckets",
-                      {}
-                  )
-
-                  for year, bucket_data in prediction_buckets.items():
-                      print()
-                      print(
-                          f"  {year}:"
-                      )
-
-                      buckets = bucket_data.get(
-                          "buckets",
-                          []
-                      )
-
-                      for bucket in buckets:
-                          fraction = (
-                              bucket.get(
-                                  "top_fraction",
-                                  0
-                              ) * 100
-                          )
-
-                          event_rate = bucket.get(
-                              "event_rate"
-                          )
-
-                          lift = bucket.get(
-                              "event_rate_lift_ratio"
-                          )
-
-                          mean_return = bucket.get(
-                              "mean_return"
-                          )
-
-                          median_return = bucket.get(
-                              "median_return"
-                          )
-
-                          print(
-                              f"    Top {fraction:g}%: "
-                              f"event_rate={event_rate}, "
-                              f"lift={lift}x, "
-                              f"mean_return={mean_return}, "
-                              f"median_return={median_return}"
-                          )
-
-                  print()
 
       # ---------------------------------------------------------
       # Upload result
