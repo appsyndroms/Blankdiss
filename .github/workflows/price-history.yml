@@ -6,6 +6,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: price-history-main
+  cancel-in-progress: false
+
 jobs:
   price-history:
     runs-on: ubuntu-latest
@@ -13,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -42,8 +48,14 @@ jobs:
       - name: Kontrollera prisdata
         run: |
           test -d data/raw/prices
+
           ls -lh data/raw/prices
-          test -n "$(find data/raw/prices -maxdepth 1 -name 'prices_*.jsonl' -print -quit)"
+
+          test -n "$(find data/raw/prices \
+            -maxdepth 1 \
+            -name 'prices_*.jsonl' \
+            -print \
+            -quit)"
 
       - name: Kör price QC
         run: |
@@ -79,5 +91,29 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Add historical stock price data and QC"
-          git push
+          git commit \
+            -m "Add historical stock price data and QC"
+
+          for attempt in 1 2 3 4 5; do
+            echo "Push attempt $attempt..."
+
+            git fetch origin main
+
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Push lyckades."
+                exit 0
+              fi
+            else
+              echo "Rebase misslyckades."
+              git rebase --abort || true
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              echo "Remote ändrades, försöker igen..."
+              sleep 5
+            fi
+          done
+
+          echo "Kunde inte pusha efter 5 försök."
+          exit 1
