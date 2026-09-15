@@ -7,17 +7,16 @@ Detta analyssteg gör två saker:
 2. Identifierar återkommande lokala toppar och dalar i
    short interest för enskilda bolag.
 
-Marknadsdata hämtas direkt från Nasdaq GIW:s
-Equities Index Level History Service.
+Marknadsdata hämtas via Yahoo Finance med yfinance.
 
-Nasdaq-endpoint:
-    https://indexes.nasdaqomx.com/reports2/history.ashx
+Yahoo-symbol:
+    ^OMXSPI
 
 Marknadsdata persisteras lokalt som JSONL.
 
 Arkitektur:
 
-    Nasdaq GIW / OMXSPI
+    Yahoo Finance / yfinance / ^OMXSPI
         |
         v
     data/raw/market/omxspi.jsonl
@@ -34,26 +33,16 @@ Arkitektur:
 Marknadsdata är diagnostik/analysdata och används ännu inte
 som ML-feature.
 
-Nasdaq GIW History Service enligt specifikationen:
-    IndexSymbol
-    StartDate
-    EndDate
-    Type
-    FileType
+Yahoo/yfinance används här eftersom den tidigare direkta
+Yahoo HTTP-klientlösningen gav HTTP 429 i GitHub Actions.
 
-Vi använder:
-    IndexSymbol = OMXSPI
-    Type = CSV
-    FileType = EOD
-
-Parsern accepterar semikolon, komma och pipe eftersom Nasdaq
-har använt olika CSV-separatorer i olika GIW-specifikationer.
+Viktigt:
+    Vi accepterar inte ett tomt eller felaktigt svar som giltig
+    marknadsdata. Data valideras innan den sparas.
 """
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 import math
 from pathlib import Path
@@ -61,7 +50,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import requests
+import yfinance as yf
 
 
 FEATURES_PATH = Path(
@@ -87,27 +76,9 @@ SHORT_CYCLES_SUMMARY_PATH = Path(
 
 MARKET_SYMBOL = "OMXSPI"
 
-MARKET_SOURCE = "NASDAQ"
+MARKET_SOURCE = "YAHOO_FINANCE"
 
-MARKET_SOURCE_SERIES = "OMXSPI"
-
-NASDAQ_HISTORY_URL = (
-    "https://indexes.nasdaqomx.com/"
-    "reports2/history.ashx"
-)
-
-NASDAQ_HEADERS = {
-    "User-Agent": (
-        "Blankdiss/1.0 "
-        "(market analysis; "
-        "OMXSPI)"
-    ),
-    "Accept": (
-        "text/csv,text/plain,"
-        "application/octet-stream,"
-        "*/*"
-    ),
-}
+MARKET_SOURCE_SERIES = "^OMXSPI"
 
 
 RETURN_HORIZONS = (
@@ -123,7 +94,10 @@ MIN_DAYS_BETWEEN_CYCLE_EVENTS = 30
 
 CYCLE_LOOKBACK_DAYS = 180
 
-REQUEST_TIMEOUT_SECONDS = 60
+
+YAHOO_START_PADDING_DAYS = 10
+
+YAHOO_DOWNLOAD_TIMEOUT_SECONDS = 60
 
 
 def _parse_number(
@@ -131,16 +105,6 @@ def _parse_number(
 ) -> float:
     """
     Konvertera ett numeriskt värde till float.
-
-    Hanterar exempelvis:
-
-        1234.56
-        1,234.56
-        1 234,56
-        1234,56
-
-    Nasdaq levererar normalt indexvärden med punkt som
-    decimaltecken, men parsern är medvetet tolerant.
     """
 
     if value is None:
@@ -155,9 +119,6 @@ def _parse_number(
     text = str(value).strip()
 
     if not text:
-        return math.nan
-
-    if text == ".":
         return math.nan
 
     text = (
@@ -316,437 +277,116 @@ def load_features() -> pd.DataFrame:
     return frame
 
 
-def _looks_like_html(
-    text: str,
-) -> bool:
+def _validate_market_frame(
+    market: pd.DataFrame,
+    source: str,
+) -> pd.DataFrame:
     """
-    Kontrollera om svaret uppenbart är HTML.
+    Strikt validering av marknadsdata.
 
-    Detta är viktigt eftersom Nasdaq tidigare har
-    returnerat HTTP 200 tillsammans med en HTML-felsida.
-    """
-
-    preview = text[:5000].lower()
-
-    html_markers = (
-        "<html",
-        "<!doctype",
-        "<head",
-        "<body",
-        "<title",
-        "<form",
-        "<script",
-    )
-
-    return any(
-        marker in preview
-        for marker in html_markers
-    )
-
-
-def _detect_delimiter(
-    text: str,
-) -> str:
-    """
-    Detektera Nasdaq-svarets separator.
-
-    Nasdaq GIW har dokumenterats med både komma,
-    semikolon och pipe i olika versioner.
-
-    Prioriteringsordning:
-        ;
-        ,
-        |
-
-    Om csv.Sniffer lyckas används dess resultat.
+    Vi accepterar inte:
+        - tom data
+        - ogiltiga datum
+        - NaN
+        - oändliga värden
+        - negativa/noll priser
+        - dubbletter per handelsdag
     """
 
-    sample_lines = [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip()
-    ]
-
-    if not sample_lines:
+    if market is None or market.empty:
         raise RuntimeError(
-            "Nasdaq-svaret innehåller inga rader."
+            f"{source} returnerade ingen "
+            "marknadsdata."
         )
 
-    sample = "\n".join(
-        sample_lines[:10]
-    )
-
-    try:
-        dialect = csv.Sniffer().sniff(
-            sample,
-            delimiters=";,|",
-        )
-
-        if dialect.delimiter in (
-            ";",
-            ",",
-            "|",
-        ):
-            return dialect.delimiter
-
-    except csv.Error:
-        pass
-
-    counts = {
-        ";": sample.count(";"),
-        ",": sample.count(","),
-        "|": sample.count("|"),
+    required_columns = {
+        "market_date",
+        "market_close",
     }
 
-    delimiter = max(
-        counts,
-        key=counts.get,
+    missing = (
+        required_columns
+        - set(market.columns)
     )
 
-    if counts[delimiter] == 0:
+    if missing:
         raise RuntimeError(
-            "Kunde inte identifiera separator "
-            "i Nasdaq-svaret."
+            f"{source} saknar obligatoriska "
+            f"kolumner: {sorted(missing)}"
         )
 
-    return delimiter
+    result = market.copy()
 
-
-def _normalize_column_name(
-    value: Any,
-) -> str:
-    """
-    Normalisera kolumnnamn för tolerant parsing.
-    """
-
-    return (
-        str(value)
-        .strip()
-        .lower()
-        .replace(
-            "\ufeff",
-            "",
-        )
-        .replace(
-            " ",
-            "",
-        )
-        .replace(
-            "_",
-            "",
-        )
-    )
-
-
-def _find_column(
-    columns: list[Any],
-    candidates: tuple[str, ...],
-) -> Any | None:
-    """
-    Hitta en kolumn genom normaliserat namn.
-    """
-
-    normalized = {
-        _normalize_column_name(column): column
-        for column in columns
-    }
-
-    for candidate in candidates:
-        found = normalized.get(
-            _normalize_column_name(
-                candidate
-            )
-        )
-
-        if found is not None:
-            return found
-
-    return None
-
-
-def _parse_nasdaq_date(
-    value: Any,
-) -> pd.Timestamp:
-    """
-    Tolka Nasdaq Trade Date.
-
-    Nasdaq GIW anger YYYYMMDD i aktuell
-    History Service-specifikation.
-
-    Vi accepterar även:
-        YYYY-MM-DD
-        YYYY/MM/DD
-    """
-
-    if value is None:
-        return pd.NaT
-
-    text = str(value).strip()
-
-    if not text:
-        return pd.NaT
-
-    text = (
-        text
-        .replace(
-            "\ufeff",
-            "",
-        )
-        .strip()
-    )
-
-    for fmt in (
-        "%Y%m%d",
-        "%Y-%m-%d",
-        "%Y/%m/%d",
-    ):
-        try:
-            return pd.Timestamp.strptime(
-                text,
-                fmt,
-            )
-
-        except (ValueError, TypeError):
-            pass
-
-    parsed = pd.to_datetime(
-        text,
+    result["market_date"] = pd.to_datetime(
+        result["market_date"],
         errors="coerce",
     )
 
-    if pd.isna(parsed):
-        return pd.NaT
-
-    return pd.Timestamp(parsed)
-
-
-def _parse_nasdaq_csv(
-    text: str,
-) -> pd.DataFrame:
-    """
-    Tolka Nasdaq GIW History Service.
-
-    Förväntad information:
-
-        Trade Date
-        Index Value
-        Net Change
-        High
-        Low
-
-    Vi använder endast:
-
-        Trade Date
-        Index Value
-
-    Parsern accepterar både header och headerlösa svar.
-
-    Den accepterar även separatorerna:
-
-        ;
-        ,
-        |
-    """
-
-    if not text.strip():
-        raise RuntimeError(
-            "Nasdaq returnerade ett tomt svar."
-        )
-
-    if _looks_like_html(text):
-        preview = text[:2000]
-
-        raise RuntimeError(
-            "Nasdaq returnerade HTML i stället "
-            "för marknadsdata.\n"
-            "Svar, början:\n"
-            f"{preview}"
-        )
-
-    delimiter = _detect_delimiter(
-        text
+    result["market_close"] = pd.to_numeric(
+        result["market_close"],
+        errors="coerce",
     )
 
-    print(
-        "Nasdaq CSV-separator: "
-        f"{repr(delimiter)}"
+    invalid_dates = int(
+        result["market_date"].isna().sum()
     )
 
-    lines = [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip()
-    ]
+    invalid_prices = int(
+        result["market_close"].isna().sum()
+    )
 
-    if not lines:
+    if invalid_dates:
         raise RuntimeError(
-            "Nasdaq-svaret innehåller inga "
-            "icke-tomma rader."
+            f"{source} innehåller "
+            f"{invalid_dates} ogiltiga datum."
         )
 
-    reader = csv.reader(
-        io.StringIO(
-            "\n".join(lines)
-        ),
-        delimiter=delimiter,
-    )
-
-    rows = list(reader)
-
-    if not rows:
+    if invalid_prices:
         raise RuntimeError(
-            "Nasdaq-svaret kunde inte parsas."
+            f"{source} innehåller "
+            f"{invalid_prices} ogiltiga "
+            "indexvärden."
         )
 
-    first_row = [
-        str(value).strip()
-        for value in rows[0]
-    ]
-
-    first_row_normalized = {
-        _normalize_column_name(value)
-        for value in first_row
-    }
-
-    has_header = (
-        "tradedate"
-        in first_row_normalized
-        or
-        "indexvalue"
-        in first_row_normalized
+    nonfinite = ~np.isfinite(
+        result["market_close"].to_numpy(
+            dtype=float
+        )
     )
 
-    if has_header:
-        header = first_row
-
-        data_rows = rows[1:]
-
-        trade_date_index = None
-        index_value_index = None
-
-        for index, column in enumerate(
-            header
-        ):
-            normalized = (
-                _normalize_column_name(
-                    column
-                )
-            )
-
-            if normalized == "tradedate":
-                trade_date_index = index
-
-            elif normalized == "indexvalue":
-                index_value_index = index
-
-        if (
-            trade_date_index is None
-            or index_value_index is None
-        ):
-            raise RuntimeError(
-                "Nasdaq-svaret innehåller en "
-                "header men saknar Trade Date "
-                "eller Index Value.\n"
-                f"Kolumner: {header}"
-            )
-
-    else:
-        """
-        Headerlös fallback.
-
-        Enligt GIW History Service är de första
-        relevanta fälten:
-
-            Trade Date
-            Index Value
-
-        Därför använder vi kolumn 0 och 1.
-        """
-
-        trade_date_index = 0
-        index_value_index = 1
-
-        data_rows = rows
-
-    parsed_rows: list[
-        dict[str, Any]
-    ] = []
-
-    invalid_rows = 0
-
-    for row in data_rows:
-        if len(row) <= max(
-            trade_date_index,
-            index_value_index,
-        ):
-            invalid_rows += 1
-            continue
-
-        raw_date = row[
-            trade_date_index
-        ]
-
-        raw_value = row[
-            index_value_index
-        ]
-
-        market_date = _parse_nasdaq_date(
-            raw_date
-        )
-
-        market_close = _parse_number(
-            raw_value
-        )
-
-        if pd.isna(
-            market_date
-        ):
-            invalid_rows += 1
-            continue
-
-        if not np.isfinite(
-            market_close
-        ):
-            invalid_rows += 1
-            continue
-
-        if market_close <= 0:
-            invalid_rows += 1
-            continue
-
-        parsed_rows.append(
-            {
-                "market_date": market_date,
-                "market_close": market_close,
-            }
-        )
-
-    result = pd.DataFrame(
-        parsed_rows
-    )
-
-    if result.empty:
-        preview = "\n".join(
-            lines[:20]
-        )
-
+    if nonfinite.any():
         raise RuntimeError(
-            "Nasdaq-svaret innehåller inga "
-            "giltiga OMXSPI-observationer.\n"
-            "Parserad separator: "
-            f"{repr(delimiter)}\n"
-            "Svar, början:\n"
-            f"{preview}"
+            f"{source} innehåller "
+            f"{int(nonfinite.sum())} "
+            "icke-finit(a) indexvärden."
+        )
+
+    nonpositive = (
+        result["market_close"] <= 0
+    )
+
+    if nonpositive.any():
+        raise RuntimeError(
+            f"{source} innehåller "
+            f"{int(nonpositive.sum())} "
+            "icke-positiva indexvärden."
+        )
+
+    duplicate_dates = int(
+        result["market_date"]
+        .duplicated()
+        .sum()
+    )
+
+    if duplicate_dates:
+        raise RuntimeError(
+            f"{source} innehåller "
+            f"{duplicate_dates} dubbletter "
+            "av handelsdagar."
         )
 
     result = (
         result
-        .drop_duplicates(
-            subset=[
-                "market_date",
-            ],
-            keep="last",
-        )
         .sort_values(
             "market_date"
         )
@@ -755,227 +395,233 @@ def _parse_nasdaq_csv(
         )
     )
 
-    print(
-        "Nasdaq-parsering:"
-    )
-
-    print(
-        "  Giltiga observationer: "
-        f"{len(result):,}"
-    )
-
-    print(
-        "  Ogiltiga/skippade rader: "
-        f"{invalid_rows:,}"
-    )
-
-    print(
-        "  Datum: "
-        f"{result['market_date'].min().date()}"
-        " -> "
-        f"{result['market_date'].max().date()}"
-    )
-
-    print(
-        "  Första värde: "
-        f"{result.iloc[0]['market_close']}"
-    )
-
-    print(
-        "  Sista värde: "
-        f"{result.iloc[-1]['market_close']}"
-    )
-
     return result
 
 
-def _validate_nasdaq_response(
-    response: requests.Response,
-) -> None:
+def _normalize_yahoo_columns(
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
     """
-    Validera HTTP-svaret innan parsern körs.
+    Normalisera yfinance-kolumner.
 
-    HTTP 200 är inte tillräckligt.
-    Nasdaq får inte returnera HTML eller ett tomt svar.
+    yfinance kan returnera exempelvis:
+
+        Close
+        High
+        Low
+        Open
+        Volume
+
+    eller MultiIndex:
+
+        ('Close', '^OMXSPI')
+        ('High', '^OMXSPI')
+        ...
+
+    Vi reducerar detta till ett enkelt DataFrame.
     """
 
-    print(
-        "Nasdaq HTTP-status: "
-        f"{response.status_code}"
-    )
+    result = frame.copy()
 
-    print(
-        "Nasdaq Content-Type: "
-        f"{response.headers.get('Content-Type', '')}"
-    )
-
-    print(
-        "Nasdaq Content-Length: "
-        f"{response.headers.get('Content-Length', '')}"
-    )
-
-    try:
-        response.raise_for_status()
-
-    except requests.HTTPError as error:
-        preview = response.text[:2000]
-
-        print(
-            "Nasdaq-svar, början:\n"
-            f"{preview}"
-        )
-
-        raise RuntimeError(
-            "Nasdaq returnerade HTTP-fel: "
-            f"{response.status_code}"
-        ) from error
-
-    if not response.text.strip():
-        raise RuntimeError(
-            "Nasdaq returnerade HTTP 200 men "
-            "svaret är tomt."
-        )
-
-    if _looks_like_html(
-        response.text
+    if isinstance(
+        result.columns,
+        pd.MultiIndex,
     ):
-        preview = response.text[:2000]
+        close_candidates = []
 
-        print(
-            "Nasdaq returnerade HTML trots "
-            "HTTP 200."
+        for column in result.columns:
+            parts = [
+                str(part)
+                for part in column
+            ]
+
+            if any(
+                part.lower() == "close"
+                for part in parts
+            ):
+                close_candidates.append(
+                    column
+                )
+
+        if not close_candidates:
+            raise RuntimeError(
+                "Yahoo/yfinance returnerade "
+                "MultiIndex-data men ingen "
+                "Close-kolumn kunde hittas."
+            )
+
+        close_column = (
+            close_candidates[0]
         )
 
-        print(
-            "Svar, början:\n"
-            f"{preview}"
+        close = result[
+            close_column
+        ]
+
+        if isinstance(
+            close,
+            pd.DataFrame,
+        ):
+            if close.shape[1] != 1:
+                raise RuntimeError(
+                    "Yahoo/yfinance returnerade "
+                    "flera Close-kolumner för "
+                    f"{MARKET_SOURCE_SERIES}."
+                )
+
+            close = close.iloc[
+                :,
+                0
+            ]
+
+    else:
+
+        normalized_columns = {
+            str(column).strip().lower(): column
+            for column in result.columns
+        }
+
+        close_column = (
+            normalized_columns.get(
+                "close"
+            )
         )
 
-        raise RuntimeError(
-            "Nasdaq returnerade HTML i stället "
-            "för OMXSPI-data."
-        )
+        if close_column is None:
+            raise RuntimeError(
+                "Yahoo/yfinance returnerade "
+                "ingen Close-kolumn.\n"
+                f"Kolumner: {list(result.columns)}"
+            )
+
+        close = result[
+            close_column
+        ]
+
+    output = pd.DataFrame(
+        {
+            "market_date": result.index,
+            "market_close": close,
+        }
+    )
+
+    return output
 
 
-def download_market_data(
+def _download_yahoo(
     start_date: pd.Timestamp,
     end_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """
-    Hämta OMXSPI direkt från Nasdaq GIW.
+    Hämta OMXSPI via yfinance.
 
-    Nasdaq GIW History Service:
+    Vi använder download() direkt eftersom det
+    ger en enkel DataFrame och inte kräver att
+    vi håller ett Ticker-objekt vid liv.
 
-        /reports2/history.ashx
-
-    Parametrar:
-
-        IndexSymbol = OMXSPI
-        StartDate
-        EndDate
-        Type = CSV
-        FileType = EOD
-
-    Vi hämtar ett litet överlapp runt intervallet
-    så att inkrementella uppdateringar inte riskerar
-    att lämna luckor vid helger eller korrigerade
-    observationer.
+    end-datumet görs exklusivt genom yfinance,
+    därför lägger vi till en extra kalenderdag.
     """
 
     requested_start = (
         pd.Timestamp(start_date)
-        - pd.Timedelta(days=10)
+        - pd.Timedelta(
+            days=YAHOO_START_PADDING_DAYS
+        )
     )
 
     requested_end = (
         pd.Timestamp(end_date)
-        + pd.Timedelta(days=10)
-    )
-
-    start_text = (
-        requested_start.strftime(
-            "%Y-%m-%d"
+        + pd.Timedelta(
+            days=YAHOO_START_PADDING_DAYS
         )
     )
 
-    end_text = (
-        requested_end.strftime(
-            "%Y-%m-%d"
+    yahoo_end = (
+        requested_end
+        + pd.Timedelta(
+            days=1
         )
     )
 
-    params = {
-        "IndexSymbol": MARKET_SOURCE_SERIES,
-        "StartDate": start_text,
-        "EndDate": end_text,
-        "Type": "CSV",
-        "FileType": "EOD",
-    }
-
     print(
-        "Laddar marknadsdata direkt "
-        "från Nasdaq GIW."
+        "Laddar OMXSPI via Yahoo Finance."
     )
 
     print(
-        "Nasdaq URL: "
-        f"{NASDAQ_HISTORY_URL}"
-    )
-
-    print(
-        "Nasdaq IndexSymbol: "
+        "Yahoo-symbol: "
         f"{MARKET_SOURCE_SERIES}"
     )
 
     print(
-        "Nasdaq-intervall: "
-        f"{start_text} -> {end_text}"
-    )
-
-    print(
-        "Nasdaq Type: CSV"
-    )
-
-    print(
-        "Nasdaq FileType: EOD"
+        "Yahoo-intervall: "
+        f"{requested_start.date()}"
+        " -> "
+        f"{requested_end.date()}"
     )
 
     try:
-        response = requests.get(
-            NASDAQ_HISTORY_URL,
-            params=params,
-            headers=NASDAQ_HEADERS,
-            timeout=REQUEST_TIMEOUT_SECONDS,
+        raw = yf.download(
+            MARKET_SOURCE_SERIES,
+            start=requested_start.strftime(
+                "%Y-%m-%d"
+            ),
+            end=yahoo_end.strftime(
+                "%Y-%m-%d"
+            ),
+            interval="1d",
+            auto_adjust=False,
+            actions=False,
+            progress=False,
+            threads=False,
+            timeout=YAHOO_DOWNLOAD_TIMEOUT_SECONDS,
         )
 
-    except requests.RequestException as error:
+    except Exception as error:
         raise RuntimeError(
-            "Kunde inte hämta OMXSPI "
-            "från Nasdaq GIW: "
+            "Yahoo/yfinance kunde inte "
+            "hämta OMXSPI: "
             f"{error}"
         ) from error
 
-    print(
-        "Nasdaq faktisk URL:"
-    )
+    if raw is None:
+        raise RuntimeError(
+            "Yahoo/yfinance returnerade None."
+        )
 
     print(
-        response.url
+        "Yahoo rå-data:"
     )
-
-    _validate_nasdaq_response(
-        response
-    )
-
-    preview = response.text[:2000]
 
     print(
-        "Nasdaq-svar, början:\n"
-        f"{preview}"
+        f"  Rader: {len(raw):,}"
     )
 
-    market = _parse_nasdaq_csv(
-        response.text
+    print(
+        f"  Kolumner: {list(raw.columns)}"
+    )
+
+    if raw.empty:
+        raise RuntimeError(
+            "Yahoo/yfinance returnerade "
+            "en tom DataFrame för "
+            f"{MARKET_SOURCE_SERIES}."
+        )
+
+    market = _normalize_yahoo_columns(
+        raw
+    )
+
+    market["market_date"] = pd.to_datetime(
+        market["market_date"],
+        errors="coerce",
+    ).tz_localize(
+        None
+    )
+
+    market["market_close"] = pd.to_numeric(
+        market["market_close"],
+        errors="coerce",
     )
 
     market = market[
@@ -987,27 +633,47 @@ def download_market_data(
             market["market_date"]
             <= requested_end
         )
-    ].reset_index(
-        drop=True
+    ].copy()
+
+    market = _validate_market_frame(
+        market,
+        "Yahoo/yfinance",
     )
 
-    if market.empty:
-        raise RuntimeError(
-            "Nasdaq/OMXSPI innehåller inga "
-            "observationer inom det begärda "
-            "intervallet."
-        )
+    print(
+        "Yahoo-parsering:"
+    )
 
     print(
-        "OMXSPI-period efter filtrering: "
+        "  Giltiga observationer: "
+        f"{len(market):,}"
+    )
+
+    print(
+        "  Datum: "
         f"{market['market_date'].min().date()}"
         " -> "
         f"{market['market_date'].max().date()}"
     )
 
     print(
-        "OMXSPI-observationer: "
-        f"{len(market):,}"
+        "  Första värde: "
+        f"{market.iloc[0]['market_close']}"
+    )
+
+    print(
+        "  Sista värde: "
+        f"{market.iloc[-1]['market_close']}"
+    )
+
+    print(
+        "Senaste fem OMXSPI-observationer:"
+    )
+
+    print(
+        market.tail(5).to_string(
+            index=False
+        )
     )
 
     return market
@@ -1104,7 +770,7 @@ def load_raw_market_data() -> pd.DataFrame:
         frame["market_close"] > 0
     ]
 
-    return (
+    frame = (
         frame
         .drop_duplicates(
             subset=[
@@ -1119,6 +785,8 @@ def load_raw_market_data() -> pd.DataFrame:
         )
     )
 
+    return frame
+
 
 def merge_and_persist_market_data(
     existing: pd.DataFrame,
@@ -1127,8 +795,8 @@ def merge_and_persist_market_data(
     """
     Slå ihop lokal och ny marknadsdata.
 
-    Den lokala filen blir därmed den
-    långsiktiga historiska OMXSPI-serien.
+    Ny Yahoo-data ersätter eventuella gamla
+    observationer för samma handelsdag.
     """
 
     combined = pd.concat(
@@ -1187,6 +855,11 @@ def merge_and_persist_market_data(
         )
     )
 
+    combined = _validate_market_frame(
+        combined,
+        "Sammanslagen OMXSPI-historik",
+    )
+
     MARKET_RAW_PATH.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -1200,6 +873,7 @@ def merge_and_persist_market_data(
         for record in combined.to_dict(
             orient="records"
         ):
+
             cleaned = {
                 key: _json_value(value)
                 for key, value in record.items()
@@ -1449,15 +1123,6 @@ def detect_local_extrema(
     """
     Identifiera lokala toppar och dalar
     i short interest.
-
-    Ett event måste:
-
-      - ha minst 0.25 procentenheters
-        prominence
-      - ligga minst 30 dagar från
-        föregående event
-      - ha en lokal referensnivå inom
-        180 dagar
     """
 
     values = pd.to_numeric(
@@ -1646,11 +1311,6 @@ def detect_short_cycles(
 ]:
     """
     Identifiera blankningscykler per bolag.
-
-    Returnerar:
-
-      1. Alla identifierade toppar/dalar.
-      2. Summering per bolag.
     """
 
     cycle_rows: list[
@@ -1913,10 +1573,6 @@ def market_covers_required_interval(
     """
     Kontrollera om lokal marknadsdata täcker
     hela det intervall som krävs.
-
-    Vi använder datumgränser snarare än antal
-    kalenderdagar eftersom marknadsserien bara
-    innehåller handelsdagar.
     """
 
     if market.empty:
@@ -1945,18 +1601,14 @@ def update_market_data(
     Uppdatera lokal OMXSPI-data.
 
     Första körningen:
-        hämta hela det historiska intervallet.
+        hämta hela intervallet från Yahoo.
 
     Senare körningar:
-        hämta från strax före senaste lokala
-        observation till required_end.
+        komplettera från strax före senaste
+        lokala observation till required_end.
 
-    Om extern källa misslyckas och lokal data
-    redan täcker hela intervallet används den
-    lokala datan.
-
-    Om lokal data inte täcker intervallet
-    stoppas analysen.
+    Om lokal data redan täcker intervallet
+    används den utan extern hämtning.
     """
 
     if existing.empty:
@@ -1966,20 +1618,10 @@ def update_market_data(
             "finns ännu."
         )
 
-        try:
-
-            downloaded = download_market_data(
-                required_start,
-                required_end,
-            )
-
-        except RuntimeError as error:
-
-            raise RuntimeError(
-                "Kunde inte bygga OMXSPI-historik "
-                "från Nasdaq och ingen lokal "
-                "marknadsdata finns."
-            ) from error
+        downloaded = _download_yahoo(
+            required_start,
+            required_end,
+        )
 
         return merge_and_persist_market_data(
             existing,
@@ -2018,7 +1660,7 @@ def update_market_data(
         required_start,
         existing_end
         - pd.Timedelta(
-            days=10
+            days=YAHOO_START_PADDING_DAYS
         ),
     )
 
@@ -2038,43 +1680,10 @@ def update_market_data(
         f"{download_end.date()}"
     )
 
-    try:
-
-        downloaded = download_market_data(
-            download_start,
-            download_end,
-        )
-
-    except RuntimeError as error:
-
-        print(
-            "VARNING: Kunde inte uppdatera "
-            "OMXSPI från Nasdaq."
-        )
-
-        print(
-            f"Orsak: {error}"
-        )
-
-        if market_covers_required_interval(
-            existing,
-            required_start,
-            required_end,
-        ):
-
-            print(
-                "Lokal historik täcker ändå "
-                "hela det nödvändiga intervallet."
-            )
-
-            return existing
-
-        raise RuntimeError(
-            "Nasdaq kunde inte uppdatera "
-            "marknadsdata och den lokala "
-            "historiken täcker inte hela "
-            "det nödvändiga intervallet."
-        ) from error
+    downloaded = _download_yahoo(
+        download_start,
+        download_end,
+    )
 
     return merge_and_persist_market_data(
         existing,
@@ -2096,11 +1705,11 @@ def main() -> None:
     )
 
     print(
-        "Marknadskälla: Nasdaq GIW"
+        "Marknadskälla: Yahoo Finance"
     )
 
     print(
-        "Index: OMXSPI"
+        "Yahoo-symbol: ^OMXSPI"
     )
 
     features = load_features()
