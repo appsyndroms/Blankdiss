@@ -54,6 +54,21 @@
     "forward_return_20d",
     "forward_return_60d"
   ],
+  "chunk_size_mb": 20,
+  "chunk_count": 11,
+  "chunks": [
+    "features_0001.jsonl",
+    "features_0002.jsonl",
+    "features_0003.jsonl",
+    "features_0004.jsonl",
+    "features_0005.jsonl",
+    "features_0006.jsonl",
+    "features_0007.jsonl",
+    "features_0008.jsonl",
+    "features_0009.jsonl",
+    "features_0010.jsonl",
+    "features_0011.jsonl"
+  ],
   "price_files": [
     "prices_2022-01-01_latest.jsonl",
     "prices_2022-05-25_2026-09-12.jsonl",

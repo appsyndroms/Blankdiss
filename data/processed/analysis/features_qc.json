@@ -1,0 +1,144 @@
+{
+  "dataset": "Blankdiss FI + price features",
+  "status": "WARN",
+  "feature_files": [
+    "data/processed/analysis/features_0001.jsonl",
+    "data/processed/analysis/features_0002.jsonl",
+    "data/processed/analysis/features_0003.jsonl",
+    "data/processed/analysis/features_0004.jsonl",
+    "data/processed/analysis/features_0005.jsonl",
+    "data/processed/analysis/features_0006.jsonl",
+    "data/processed/analysis/features_0007.jsonl",
+    "data/processed/analysis/features_0008.jsonl",
+    "data/processed/analysis/features_0009.jsonl",
+    "data/processed/analysis/features_0010.jsonl",
+    "data/processed/analysis/features_0011.jsonl"
+  ],
+  "price_files": [
+    "data/raw/prices/prices_2022-01-01_latest.jsonl",
+    "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
+    "data/raw/prices/prices_2026-03-19_latest.jsonl"
+  ],
+  "rows": 119560,
+  "symbols": 213,
+  "fi_period": {
+    "start": "2022-05-25",
+    "end": "2026-09-11"
+  },
+  "checks": {
+    "required_columns": {
+      "status": "PASS",
+      "missing_columns": []
+    },
+    "date_integrity": {
+      "status": "PASS",
+      "invalid_snapshot_dates": 0,
+      "invalid_price_dates": 0,
+      "price_before_fi": 0,
+      "negative_days_from_fi_to_price": 0
+    },
+    "match_distances": {
+      "status": "PASS",
+      "matched_rows": 119560,
+      "same_day": 117311,
+      "one_day": 1154,
+      "two_days": 625,
+      "three_days": 340,
+      "four_to_five_days": 130,
+      "more_than_five_days": 0,
+      "more_than_ten_days": 0,
+      "max_calendar_days": 5,
+      "median_calendar_days": 0.0
+    },
+    "first_price_problem": {
+      "status": "WARN",
+      "fi_rows_before_first_price": 2,
+      "symbols_without_price_history": 0,
+      "rows_without_price_history": 0
+    },
+    "mapping_integrity": {
+      "status": "PASS",
+      "feature_symbols": 213,
+      "mapping_symbols": 289,
+      "unknown_yahoo_symbols": [],
+      "rows_with_unknown_symbols": 0
+    },
+    "mapping_sources": {
+      "status": "PASS",
+      "sources": {
+        "isin": 119560
+      },
+      "unexpected_sources": []
+    },
+    "identity_consistency": {
+      "status": "PASS",
+      "security_keys_with_multiple_yahoo_symbols": 0,
+      "examples": []
+    },
+    "duplicate_features": {
+      "status": "PASS",
+      "duplicate_rows": 0,
+      "duplicate_groups": 0
+    },
+    "price_values": {
+      "status": "PASS",
+      "missing_close_with_price_match": 0,
+      "nonpositive_close": 0,
+      "nonfinite_close": 0
+    },
+    "forward_returns": {
+      "status": "PASS",
+      "windows": {
+        "forward_return_1d": {
+          "non_null": 119560,
+          "null": 0,
+          "nonfinite": 0,
+          "invalid_with_price": 0
+        },
+        "forward_return_5d": {
+          "non_null": 118930,
+          "null": 630,
+          "nonfinite": 0,
+          "invalid_with_price": 0
+        },
+        "forward_return_20d": {
+          "non_null": 116942,
+          "null": 2618,
+          "nonfinite": 0,
+          "invalid_with_price": 0
+        },
+        "forward_return_60d": {
+          "non_null": 111190,
+          "null": 8370,
+          "nonfinite": 0,
+          "invalid_with_price": 0
+        }
+      }
+    },
+    "forward_return_alignment": {
+      "status": "PASS",
+      "mismatches_found": 0,
+      "examples": []
+    },
+    "price_leakage": {
+      "status": "PASS",
+      "forbidden_future_price_columns": []
+    },
+    "unmatched_rows": {
+      "status": "PASS",
+      "total_rows": 119560,
+      "rows_with_price": 119560,
+      "rows_without_price": 0,
+      "symbols_without_price": 0
+    },
+    "feature_numeric_values": {
+      "status": "PASS",
+      "invalid_by_column": {}
+    },
+    "threshold_logic": {
+      "status": "PASS",
+      "failures_found": 0,
+      "examples": []
+    }
+  }
+}
