@@ -1,46 +1,107 @@
 name: Blankdiss Signal Backtest
+
 on:
   workflow_dispatch:
+
   workflow_run:
     workflows:
       - "Blankdiss ML Training"
     types:
       - completed
+
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: signal-backtest-main
+  cancel-in-progress: false
+
 jobs:
   signal-backtest:
     name: Kör signal backtest
     runs-on: ubuntu-latest
+
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main'
       )
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Verify feature dataset
         run: |
           test -f data/processed/analysis/features_metadata.json
           test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
+
           echo "Feature-dataset finns."
+
           echo
           echo "Feature-filer:"
           ls -lh data/processed/analysis/features_*.jsonl
+
           echo
           echo "Feature metadata:"
           cat data/processed/analysis/features_metadata.json
+
+      - name: Verify Feature QC
+        run: |
+          test -f data/processed/analysis/features_qc.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "data/processed/analysis/features_qc.json"
+          )
+
+          data = json.loads(
+              path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          status = data.get("status")
+
+          print(f"Feature QC status: {status}")
+
+          if status == "FAIL":
+              raise SystemExit(
+                  "Feature QC är FAIL."
+              )
+
+          if status == "WARN":
+              print(
+                  "Feature QC är WARN. "
+                  "Backtest fortsätter."
+              )
+
+          elif status == "PASS":
+              print(
+                  "Feature QC är PASS."
+              )
+
+          else:
+              raise SystemExit(
+                  f"Okänd Feature QC-status: {status}"
+              )
+          PY
+
       - name: Verify signal backtest package
         run: |
           test -f analysis/signal_backtest/__init__.py
@@ -49,19 +110,25 @@ jobs:
           test -f analysis/signal_backtest/metrics.py
           test -f analysis/signal_backtest/reporting.py
           test -f analysis/signal_backtest/runner.py
+
           echo "Signal backtest-paket finns."
+
       - name: Run signal backtest
         run: |
           python -m analysis.signal_backtest
+
       - name: Verify signal backtest result
         run: |
           test -f data/processed/ml/signal_backtest.json
+
           echo
           echo "================================"
           echo "SIGNAL BACKTEST KLAR"
           echo "================================"
+
           echo "Resultat:"
           ls -lh data/processed/ml/signal_backtest.json
+
       - name: Upload signal backtest artifact
         uses: actions/upload-artifact@v4
         with:
