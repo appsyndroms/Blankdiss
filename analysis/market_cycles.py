@@ -136,44 +136,95 @@ def download_market_data(
 ) -> pd.DataFrame:
     """
     Download daily OMXSPI history from FRED.
-    FRED's NASDAQOMXSPI series is sourced from Nasdaq and provides
-    long daily historical coverage.
-    The FRED data endpoint may expose the observations as DATE/VALUE
-    or DATE/NASDAQOMXSPI, so the loader normalizes those columns
-    explicitly instead of depending on one exact value-column name.
-    A buffer is retained on both sides so that the first and last
-    observations can still be used for forward-return calculations.
+    Only the period needed by Blankdiss is requested. This avoids
+    downloading the complete FRED history on every GitHub Actions run.
+    FRED's NASDAQOMXSPI series is sourced from Nasdaq and is available
+    as daily observations.
+    The request uses a small buffer before the first stock observation
+    and a larger buffer after the last stock observation so that
+    5/20/60-trading-day forward market returns can be calculated.
     """
     requested_start = (
-        start_date
+        pd.Timestamp(start_date)
         - pd.Timedelta(days=10)
     )
     requested_end = (
-        end_date
+        pd.Timestamp(end_date)
         + pd.Timedelta(days=120)
+    )
+    start_text = requested_start.strftime(
+        "%Y-%m-%d"
+    )
+    end_text = requested_end.strftime(
+        "%Y-%m-%d"
     )
     print(
         "Laddar marknadsdata: "
         "FRED/NASDAQOMXSPI"
     )
+    print(
+        "FRED-intervall: "
+        f"{start_text} -> {end_text}"
+    )
     url = (
         "https://fred.stlouisfed.org/"
         "graph/fredgraph.csv"
-        "?id=NASDAQOMXSPI"
-        "&cosd=2008-11-17"
-        "&coed=2099-12-31"
     )
-    response = requests.get(
-        url,
-        timeout=60,
-        headers={
+    params = {
+        "id": MARKET_SYMBOL,
+        "cosd": start_text,
+        "coed": end_text,
+    }
+    session = requests.Session()
+    session.headers.update(
+        {
             "User-Agent": (
                 "Blankdiss/1.0 "
                 "(market analysis)"
-            )
-        },
+            ),
+            "Accept": (
+                "text/csv,text/plain,"
+                "application/octet-stream,*/*"
+            ),
+        }
     )
-    response.raise_for_status()
+    response = None
+    last_error: Exception | None = None
+    # GitHub Actions can occasionally have slow external
+    # connections. Retry a few times rather than failing the
+    # entire Blankdiss build on one transient timeout.
+    for attempt in range(1, 4):
+        try:
+            print(
+                "FRED-försök "
+                f"{attempt}/3..."
+            )
+            response = session.get(
+                url,
+                params=params,
+                timeout=(
+                    15,
+                    90,
+                ),
+            )
+            response.raise_for_status()
+            break
+        except requests.RequestException as error:
+            last_error = error
+            print(
+                "FRED-anrop misslyckades: "
+                f"{error}"
+            )
+            if attempt < 3:
+                print(
+                    "Försöker igen..."
+                )
+    if response is None:
+        raise RuntimeError(
+            "Kunde inte hämta "
+            "NASDAQOMXSPI från FRED efter "
+            "3 försök."
+        ) from last_error
     content = response.text
     if not content.strip():
         raise RuntimeError(
@@ -251,6 +302,11 @@ def download_market_data(
         )
         .reset_index(drop=True)
     )
+    if market.empty:
+        raise RuntimeError(
+            "FRED/NASDAQOMXSPI innehåller inga "
+            "giltiga observationer."
+        )
     market = market[
         (
             market["market_date"]
