@@ -11,7 +11,7 @@ This module performs two diagnostic analyses:
 2. Short-interest cycles
    - Detects local short-interest peaks and troughs
    - Requires a minimum local prominence
-   - Requires minimum separation between peaks/troughs
+   - Requires minimum separation between events
    - Measures subsequent stock and abnormal returns
    - Produces per-company cycle summaries
 
@@ -59,11 +59,11 @@ HORIZONS = (
     60,
 )
 
-# Minimum difference between a local peak and its
-# surrounding local base, expressed in percentage points.
+# Minimum difference between a local peak/trough and
+# its surrounding local base, expressed in percentage points.
 MIN_PROMINENCE_PP = 0.25
 
-# Minimum calendar days between separate peaks/troughs.
+# Minimum calendar days between separate events.
 MIN_EVENT_SEPARATION_DAYS = 30
 
 # Local window used when calculating prominence.
@@ -90,7 +90,9 @@ def load_features() -> pd.DataFrame:
             if not line:
                 continue
 
-            rows.append(json.loads(line))
+            rows.append(
+                json.loads(line)
+            )
 
     if not rows:
         raise ValueError(
@@ -110,12 +112,15 @@ def load_features() -> pd.DataFrame:
     }
 
     missing = sorted(
-        required.difference(frame.columns)
+        required.difference(
+            frame.columns
+        )
     )
 
     if missing:
         raise ValueError(
-            "Följande kolumner saknas i feature-datasetet: "
+            "Följande kolumner saknas i "
+            "feature-datasetet: "
             + ", ".join(missing)
         )
 
@@ -135,7 +140,9 @@ def load_features() -> pd.DataFrame:
     )
 
     for horizon in HORIZONS:
-        column = f"forward_return_{horizon}d"
+        column = (
+            f"forward_return_{horizon}d"
+        )
 
         frame[column] = pd.to_numeric(
             frame[column],
@@ -151,13 +158,17 @@ def load_features() -> pd.DataFrame:
         ]
     )
 
-    frame = frame.sort_values(
-        [
-            "security_key",
-            "snapshot_date",
-            "price_date",
-        ]
-    ).reset_index(drop=True)
+    frame = (
+        frame
+        .sort_values(
+            [
+                "security_key",
+                "snapshot_date",
+                "price_date",
+            ]
+        )
+        .reset_index(drop=True)
+    )
 
     return frame
 
@@ -169,7 +180,7 @@ def download_market_data(
     """
     Download OMXSPI history.
 
-    A small buffer is added on both sides so that the first/last
+    A buffer is added on both sides so that the first and last
     observations can still be used for forward-return calculations.
     """
 
@@ -200,18 +211,25 @@ def download_market_data(
             "Kunde inte hämta OMXSPI-data."
         )
 
-    # yfinance can return MultiIndex columns.
-    if isinstance(data.columns, pd.MultiIndex):
-        if "Close" in data.columns.get_level_values(0):
-            close = data["Close"]
-
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-
-        else:
+    if isinstance(
+        data.columns,
+        pd.MultiIndex,
+    ):
+        if "Close" not in (
+            data.columns
+            .get_level_values(0)
+        ):
             raise RuntimeError(
                 "OMXSPI-data saknar Close-kolumn."
             )
+
+        close = data["Close"]
+
+        if isinstance(
+            close,
+            pd.DataFrame,
+        ):
+            close = close.iloc[:, 0]
 
     else:
         if "Close" not in data.columns:
@@ -233,16 +251,21 @@ def download_market_data(
         }
     )
 
-    market = market.dropna(
-        subset=["market_close"]
-    )
-
     market = (
         market
-        .drop_duplicates(
-            subset=["market_date"]
+        .dropna(
+            subset=[
+                "market_close"
+            ]
         )
-        .sort_values("market_date")
+        .drop_duplicates(
+            subset=[
+                "market_date"
+            ]
+        )
+        .sort_values(
+            "market_date"
+        )
         .reset_index(drop=True)
     )
 
@@ -281,7 +304,7 @@ def build_market_returns(
     market: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Align each stock price_date with OMXSPI and calculate
+    Align stock price_date with OMXSPI and calculate
     market forward returns.
     """
 
@@ -289,9 +312,11 @@ def build_market_returns(
 
     market = market.copy()
 
-    market_returns = calculate_forward_returns(
-        market["market_close"],
-        HORIZONS,
+    market_returns = (
+        calculate_forward_returns(
+            market["market_close"],
+            HORIZONS,
+        )
     )
 
     market = pd.concat(
@@ -333,14 +358,19 @@ def build_market_returns(
         ] = np.nan
 
     if valid.any():
-        target_positions = market_index[valid]
+        target_positions = (
+            market_index[valid]
+        )
 
         result.loc[
             valid,
             "market_date",
-        ] = market.iloc[
-            target_positions
-        ]["market_date"].to_numpy()
+        ] = (
+            market.iloc[
+                target_positions
+            ]["market_date"]
+            .to_numpy()
+        )
 
         for horizon in HORIZONS:
             column = (
@@ -350,9 +380,12 @@ def build_market_returns(
             result.loc[
                 valid,
                 column,
-            ] = market.iloc[
-                target_positions
-            ][column].to_numpy()
+            ] = (
+                market.iloc[
+                    target_positions
+                ][column]
+                .to_numpy()
+            )
 
     for horizon in HORIZONS:
         stock_column = (
@@ -388,18 +421,16 @@ def local_prominence(
     event_type: str,
 ) -> float:
     """
-    Calculate local prominence for one candidate peak/trough.
+    Calculate local prominence for one candidate.
 
-    For a peak:
-        prominence =
-            peak - max(left minimum, right minimum)
+    Peak:
+        peak - max(left minimum, right minimum)
 
-    For a trough:
-        prominence =
-            min(left maximum, right maximum) - trough
+    Trough:
+        min(left maximum, right maximum) - trough
 
-    The calculation is deliberately restricted to a finite
-    time window rather than using the entire company history.
+    The calculation is restricted to a finite local window
+    instead of using the entire company history.
     """
 
     event_date = dates.iloc[position]
@@ -423,21 +454,17 @@ def local_prominence(
         & (dates <= window_end)
     )
 
-    window_positions = np.flatnonzero(
+    positions = np.flatnonzero(
         mask.to_numpy()
     )
 
-    left_positions = (
-        window_positions[
-            window_positions < position
-        ]
-    )
+    left_positions = positions[
+        positions < position
+    ]
 
-    right_positions = (
-        window_positions[
-            window_positions > position
-        ]
-    )
+    right_positions = positions[
+        positions > position
+    ]
 
     if len(left_positions) < 2:
         return 0.0
@@ -451,35 +478,45 @@ def local_prominence(
 
     if event_type == "peak":
         left_base = float(
-            values.iloc[left_positions].min()
+            values.iloc[
+                left_positions
+            ].min()
         )
 
         right_base = float(
-            values.iloc[right_positions].min()
+            values.iloc[
+                right_positions
+            ].min()
         )
 
-        base = max(
-            left_base,
-            right_base,
+        return (
+            current_value
+            - max(
+                left_base,
+                right_base,
+            )
         )
-
-        return current_value - base
 
     if event_type == "trough":
         left_base = float(
-            values.iloc[left_positions].max()
+            values.iloc[
+                left_positions
+            ].max()
         )
 
         right_base = float(
-            values.iloc[right_positions].max()
+            values.iloc[
+                right_positions
+            ].max()
         )
 
-        base = min(
-            left_base,
-            right_base,
+        return (
+            min(
+                left_base,
+                right_base,
+            )
+            - current_value
         )
-
-        return base - current_value
 
     raise ValueError(
         f"Okänd event_type: {event_type}"
@@ -493,22 +530,28 @@ def candidate_events(
     """
     Find candidate local peaks or troughs.
 
-    A candidate must be strictly higher/lower than the immediate
+    Candidates must be higher/lower than their immediate
     neighbouring observations.
     """
 
     values = (
-        company["short_interest_pct"]
+        company[
+            "short_interest_pct"
+        ]
         .astype(float)
         .reset_index(drop=True)
     )
 
     dates = (
-        company["snapshot_date"]
+        company[
+            "snapshot_date"
+        ]
         .reset_index(drop=True)
     )
 
-    candidates: list[dict[str, Any]] = []
+    candidates: list[
+        dict[str, Any]
+    ] = []
 
     if len(company) < 3:
         return candidates
@@ -518,7 +561,9 @@ def candidate_events(
         len(company) - 1,
     ):
         previous_value = float(
-            values.iloc[position - 1]
+            values.iloc[
+                position - 1
+            ]
         )
 
         current_value = float(
@@ -526,19 +571,25 @@ def candidate_events(
         )
 
         next_value = float(
-            values.iloc[position + 1]
+            values.iloc[
+                position + 1
+            ]
         )
 
         if event_type == "peak":
             is_candidate = (
-                current_value >= previous_value
-                and current_value > next_value
+                current_value
+                >= previous_value
+                and current_value
+                > next_value
             )
 
         elif event_type == "trough":
             is_candidate = (
-                current_value <= previous_value
-                and current_value < next_value
+                current_value
+                <= previous_value
+                and current_value
+                < next_value
             )
 
         else:
@@ -556,15 +607,24 @@ def candidate_events(
             event_type=event_type,
         )
 
-        if prominence < MIN_PROMINENCE_PP:
+        if (
+            prominence
+            < MIN_PROMINENCE_PP
+        ):
             continue
 
         candidates.append(
             {
                 "position": position,
-                "snapshot_date": dates.iloc[position],
-                "short_interest_pct": current_value,
-                "prominence_pp": prominence,
+                "snapshot_date": (
+                    dates.iloc[position]
+                ),
+                "short_interest_pct": (
+                    current_value
+                ),
+                "prominence_pp": (
+                    prominence
+                ),
             }
         )
 
@@ -572,16 +632,17 @@ def candidate_events(
 
 
 def select_separated_events(
-    candidates: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    candidates: list[
+        dict[str, Any]
+    ],
+) -> list[
+    dict[str, Any]
+]:
     """
-    Enforce minimum separation between events.
+    Enforce minimum event separation.
 
     If two events occur within the minimum separation window,
-    retain the event with the greatest prominence.
-
-    This prevents a noisy rise/fall/rise sequence from being
-    interpreted as multiple independent cycles.
+    retain the one with the greatest prominence.
     """
 
     if not candidates:
@@ -596,7 +657,9 @@ def select_separated_events(
         reverse=True,
     )
 
-    selected: list[dict[str, Any]] = []
+    selected: list[
+        dict[str, Any]
+    ] = []
 
     for candidate in candidates:
         candidate_date = pd.Timestamp(
@@ -625,10 +688,13 @@ def select_separated_events(
                 break
 
         if not conflicts:
-            selected.append(candidate)
+            selected.append(
+                candidate
+            )
 
     selected.sort(
-        key=lambda event: event["snapshot_date"]
+        key=lambda event:
+            event["snapshot_date"]
     )
 
     return selected
@@ -640,7 +706,7 @@ def detect_company_events(
     list[dict[str, Any]],
     list[dict[str, Any]],
 ]:
-    """Detect robust peaks and troughs for one company."""
+    """Detect robust peaks and troughs."""
 
     peaks = select_separated_events(
         candidate_events(
@@ -663,10 +729,12 @@ def row_for_event(
     company: pd.DataFrame,
     snapshot_date: pd.Timestamp,
 ) -> pd.Series | None:
-    """Return the feature row closest to an event date."""
+    """Return the feature row matching an event date."""
 
     matches = company[
-        company["snapshot_date"]
+        company[
+            "snapshot_date"
+        ]
         == snapshot_date
     ]
 
@@ -678,21 +746,29 @@ def row_for_event(
 
 def build_cycle_records(
     company: pd.DataFrame,
-    peaks: list[dict[str, Any]],
-    troughs: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    peaks: list[
+        dict[str, Any]
+    ],
+    troughs: list[
+        dict[str, Any]
+    ],
+) -> list[
+    dict[str, Any]
+]:
     """
-    Build cycle records.
+    Build event records.
 
     Each peak is connected to the next trough and next peak.
-    This gives us both the immediate post-peak behaviour and
-    the length of the recurring cycle.
     """
 
-    records: list[dict[str, Any]] = []
+    records: list[
+        dict[str, Any]
+    ] = []
 
     security_key = str(
-        company["security_key"].iloc[0]
+        company[
+            "security_key"
+        ].iloc[0]
     )
 
     ordered_events = sorted(
@@ -710,12 +786,13 @@ def build_cycle_records(
             )
             for event in troughs
         ],
-        key=lambda item: item[1][
-            "snapshot_date"
-        ],
+        key=lambda item:
+            item[1]["snapshot_date"],
     )
 
-    for event_type, event in ordered_events:
+    for event_type, event in (
+        ordered_events
+    ):
         event_date = pd.Timestamp(
             event["snapshot_date"]
         )
@@ -734,7 +811,8 @@ def build_cycle_records(
                 for trough in troughs
                 if pd.Timestamp(
                     trough["snapshot_date"]
-                ) > event_date
+                )
+                > event_date
             ]
 
             following_peaks = [
@@ -742,7 +820,8 @@ def build_cycle_records(
                 for peak in peaks
                 if pd.Timestamp(
                     peak["snapshot_date"]
-                ) > event_date
+                )
+                > event_date
             ]
 
             next_trough = (
@@ -757,28 +836,43 @@ def build_cycle_records(
                 else None
             )
 
-            record: dict[str, Any] = {
+            record: dict[
+                str,
+                Any,
+            ] = {
                 "security_key": security_key,
                 "event_type": "peak",
-                "snapshot_date": event_date.strftime(
-                    "%Y-%m-%d"
+                "snapshot_date": (
+                    event_date.strftime(
+                        "%Y-%m-%d"
+                    )
                 ),
-                "price_date": pd.Timestamp(
-                    event_row["price_date"]
-                ).strftime(
-                    "%Y-%m-%d"
+                "price_date": (
+                    pd.Timestamp(
+                        event_row[
+                            "price_date"
+                        ]
+                    ).strftime(
+                        "%Y-%m-%d"
+                    )
                 ),
                 "short_interest_pct": float(
-                    event["short_interest_pct"]
+                    event[
+                        "short_interest_pct"
+                    ]
                 ),
                 "prominence_pp": float(
-                    event["prominence_pp"]
+                    event[
+                        "prominence_pp"
+                    ]
                 ),
             }
 
             if next_trough is not None:
                 trough_date = pd.Timestamp(
-                    next_trough["snapshot_date"]
+                    next_trough[
+                        "snapshot_date"
+                    ]
                 )
 
                 trough_row = row_for_event(
@@ -788,8 +882,10 @@ def build_cycle_records(
 
                 record[
                     "next_trough_date"
-                ] = trough_date.strftime(
-                    "%Y-%m-%d"
+                ] = (
+                    trough_date.strftime(
+                        "%Y-%m-%d"
+                    )
                 )
 
                 record[
@@ -842,13 +938,17 @@ def build_cycle_records(
 
             if next_peak is not None:
                 next_peak_date = pd.Timestamp(
-                    next_peak["snapshot_date"]
+                    next_peak[
+                        "snapshot_date"
+                    ]
                 )
 
                 record[
                     "next_peak_date"
-                ] = next_peak_date.strftime(
-                    "%Y-%m-%d"
+                ] = (
+                    next_peak_date.strftime(
+                        "%Y-%m-%d"
+                    )
                 )
 
                 record[
@@ -889,7 +989,8 @@ def build_cycle_records(
                 for peak in peaks
                 if pd.Timestamp(
                     peak["snapshot_date"]
-                ) > event_date
+                )
+                > event_date
             ]
 
             next_peak = (
@@ -901,31 +1002,45 @@ def build_cycle_records(
             record = {
                 "security_key": security_key,
                 "event_type": "trough",
-                "snapshot_date": event_date.strftime(
-                    "%Y-%m-%d"
+                "snapshot_date": (
+                    event_date.strftime(
+                        "%Y-%m-%d"
+                    )
                 ),
-                "price_date": pd.Timestamp(
-                    event_row["price_date"]
-                ).strftime(
-                    "%Y-%m-%d"
+                "price_date": (
+                    pd.Timestamp(
+                        event_row[
+                            "price_date"
+                        ]
+                    ).strftime(
+                        "%Y-%m-%d"
+                    )
                 ),
                 "short_interest_pct": float(
-                    event["short_interest_pct"]
+                    event[
+                        "short_interest_pct"
+                    ]
                 ),
                 "prominence_pp": float(
-                    event["prominence_pp"]
+                    event[
+                        "prominence_pp"
+                    ]
                 ),
             }
 
             if next_peak is not None:
                 next_peak_date = pd.Timestamp(
-                    next_peak["snapshot_date"]
+                    next_peak[
+                        "snapshot_date"
+                    ]
                 )
 
                 record[
                     "next_peak_date"
-                ] = next_peak_date.strftime(
-                    "%Y-%m-%d"
+                ] = (
+                    next_peak_date.strftime(
+                        "%Y-%m-%d"
+                    )
                 )
 
                 record[
@@ -979,7 +1094,9 @@ def _safe_float(
     ):
         return None
 
-    if not np.isfinite(numeric):
+    if not np.isfinite(
+        numeric
+    ):
         return None
 
     return numeric
@@ -987,32 +1104,44 @@ def _safe_float(
 
 def build_company_summary(
     company: pd.DataFrame,
-    peaks: list[dict[str, Any]],
-    troughs: list[dict[str, Any]],
+    peaks: list[
+        dict[str, Any]
+    ],
+    troughs: list[
+        dict[str, Any]
+    ],
 ) -> dict[str, Any]:
     """Build one summary row per company."""
 
     security_key = str(
-        company["security_key"].iloc[0]
+        company[
+            "security_key"
+        ].iloc[0]
     )
 
     peak_prominences = [
         float(
-            event["prominence_pp"]
+            event[
+                "prominence_pp"
+            ]
         )
         for event in peaks
     ]
 
     trough_prominences = [
         float(
-            event["prominence_pp"]
+            event[
+                "prominence_pp"
+            ]
         )
         for event in troughs
     ]
 
     peak_dates = [
         pd.Timestamp(
-            event["snapshot_date"]
+            event[
+                "snapshot_date"
+            ]
         )
         for event in peaks
     ]
@@ -1027,26 +1156,46 @@ def build_company_summary(
             int(
                 (
                     peak_dates[index]
-                    - peak_dates[index - 1]
+                    - peak_dates[
+                        index - 1
+                    ]
                 ).days
             )
         )
 
-    summary: dict[str, Any] = {
+    return {
         "security_key": security_key,
         "observations": int(
             len(company)
         ),
-        "first_snapshot_date": pd.Timestamp(
-            company["snapshot_date"].min()
-        ).strftime("%Y-%m-%d"),
-        "last_snapshot_date": pd.Timestamp(
-            company["snapshot_date"].max()
-        ).strftime("%Y-%m-%d"),
-        "peak_count": len(peaks),
-        "trough_count": len(troughs),
+        "first_snapshot_date": (
+            pd.Timestamp(
+                company[
+                    "snapshot_date"
+                ].min()
+            ).strftime(
+                "%Y-%m-%d"
+            )
+        ),
+        "last_snapshot_date": (
+            pd.Timestamp(
+                company[
+                    "snapshot_date"
+                ].max()
+            ).strftime(
+                "%Y-%m-%d"
+            )
+        ),
+        "peak_count": len(
+            peaks
+        ),
+        "trough_count": len(
+            troughs
+        ),
         "max_peak_prominence_pp": (
-            max(peak_prominences)
+            max(
+                peak_prominences
+            )
             if peak_prominences
             else None
         ),
@@ -1060,7 +1209,9 @@ def build_company_summary(
             else None
         ),
         "max_trough_prominence_pp": (
-            max(trough_prominences)
+            max(
+                trough_prominences
+            )
             if trough_prominences
             else None
         ),
@@ -1091,15 +1242,10 @@ def build_company_summary(
             if cycle_lengths
             else None
         ),
+        "repeated_cycle_candidate": (
+            len(peaks) >= 3
+        ),
     }
-
-    # A company with repeated peaks is especially interesting
-    # for the "cyclical shorting" hypothesis.
-    summary[
-        "repeated_cycle_candidate"
-    ] = len(peaks) >= 3
-
-    return summary
 
 
 def analyze_cycles(
@@ -1110,8 +1256,13 @@ def analyze_cycles(
 ]:
     """Run cycle analysis for all companies."""
 
-    cycle_records: list[dict[str, Any]] = []
-    summaries: list[dict[str, Any]] = []
+    cycle_records: list[
+        dict[str, Any]
+    ] = []
+
+    summaries: list[
+        dict[str, Any]
+    ] = []
 
     grouped = frame.groupby(
         "security_key",
@@ -1120,7 +1271,9 @@ def analyze_cycles(
 
     company_count = 0
 
-    for security_key, company in grouped:
+    for security_key, company in (
+        grouped
+    ):
         company_count += 1
 
         company = (
@@ -1131,17 +1284,23 @@ def analyze_cycles(
                     "price_date",
                 ]
             )
-            .reset_index(drop=True)
+            .reset_index(
+                drop=True
+            )
         )
 
-        peaks, troughs = detect_company_events(
-            company
+        peaks, troughs = (
+            detect_company_events(
+                company
+            )
         )
 
-        company_records = build_cycle_records(
-            company,
-            peaks,
-            troughs,
+        company_records = (
+            build_cycle_records(
+                company,
+                peaks,
+                troughs,
+            )
         )
 
         cycle_records.extend(
@@ -1156,26 +1315,50 @@ def analyze_cycles(
             )
         )
 
+    peak_count = sum(
+        1
+        for record in cycle_records
+        if record[
+            "event_type"
+        ]
+        == "peak"
+    )
+
+    trough_count = sum(
+        1
+        for record in cycle_records
+        if record[
+            "event_type"
+        ]
+        == "trough"
+    )
+
     print(
-        f"Analyserade bolag: {company_count}"
+        f"Analyserade bolag: "
+        f"{company_count}"
     )
 
     print(
         f"Identifierade toppar: "
-        f"{sum(1 for record in cycle_records if record['event_type'] == 'peak')}"
+        f"{peak_count}"
     )
 
     print(
         f"Identifierade dalar: "
-        f"{sum(1 for record in cycle_records if record['event_type'] == 'trough')}"
+        f"{trough_count}"
     )
 
-    return cycle_records, summaries
+    return (
+        cycle_records,
+        summaries,
+    )
 
 
 def write_jsonl(
     path: Path,
-    rows: list[dict[str, Any]],
+    rows: list[
+        dict[str, Any]
+    ],
 ) -> None:
     """Write JSON Lines output."""
 
@@ -1201,7 +1384,9 @@ def write_jsonl(
 
 def write_summary(
     path: Path,
-    summaries: list[dict[str, Any]],
+    summaries: list[
+        dict[str, Any]
+    ],
 ) -> None:
     """Write cycle summary JSON."""
 
@@ -1228,8 +1413,12 @@ def write_summary(
 
     output = {
         "configuration": {
-            "market_symbol": MARKET_SYMBOL,
-            "horizons": list(HORIZONS),
+            "market_symbol": (
+                MARKET_SYMBOL
+            ),
+            "horizons": list(
+                HORIZONS
+            ),
             "min_prominence_pp": (
                 MIN_PROMINENCE_PP
             ),
@@ -1247,7 +1436,9 @@ def write_summary(
             repeated
         ),
         "companies": summaries,
-        "repeated_cycle_candidates": repeated,
+        "repeated_cycle_candidates": (
+            repeated
+        ),
     }
 
     path.parent.mkdir(
@@ -1295,12 +1486,17 @@ def main() -> None:
     )
 
     market = download_market_data(
-        start_date=frame["price_date"].min(),
-        end_date=frame["price_date"].max(),
+        start_date=frame[
+            "price_date"
+        ].min(),
+        end_date=frame[
+            "price_date"
+        ].max(),
     )
 
     print(
-        f"OMXSPI-observationer: {len(market):,}"
+        f"OMXSPI-observationer: "
+        f"{len(market):,}"
     )
 
     result = build_market_returns(
@@ -1316,12 +1512,10 @@ def main() -> None:
         np.nan,
     )
 
-    market_rows = (
-        result
-        .to_dict(orient="records")
+    market_rows = result.to_dict(
+        orient="records"
     )
 
-    # Convert timestamps into JSON-safe strings.
     for row in market_rows:
         for key, value in list(
             row.items()
@@ -1353,9 +1547,9 @@ def main() -> None:
         market_rows,
     )
 
-    print()
     print(
-        f"Skrev: {MARKET_RETURNS_PATH}"
+        f"Skrev: "
+        f"{MARKET_RETURNS_PATH}"
     )
 
     cycle_records, summaries = (
@@ -1373,11 +1567,13 @@ def main() -> None:
     )
 
     print(
-        f"Skrev: {CYCLES_PATH}"
+        f"Skrev: "
+        f"{CYCLES_PATH}"
     )
 
     print(
-        f"Skrev: {CYCLE_SUMMARY_PATH}"
+        f"Skrev: "
+        f"{CYCLE_SUMMARY_PATH}"
     )
 
     print()
@@ -1388,7 +1584,7 @@ def main() -> None:
         "MARKET & CYCLE ANALYSIS KLAR"
     )
     print(
-        "=========================================="
+        "==========================================" 
     )
 
 
