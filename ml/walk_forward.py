@@ -182,12 +182,6 @@ def train_window(
             y_train,
         )
 
-        validation_probabilities = (
-            model.predict_proba(
-                validation
-            )[:, 1]
-        )
-
         validation_score = (
             _validation_score(
                 model,
