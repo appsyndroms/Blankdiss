@@ -1,8 +1,11 @@
 """Huvudprogram för iterativ Blankdiss ML-träning."""
 from __future__ import annotations
+
 import json
 from datetime import datetime
+
 import pandas as pd
+
 from ml.config import (
     LATEST_RESULT_PATH,
     ML_OUTPUT_DIR,
@@ -11,14 +14,18 @@ from ml.config import (
     TARGETS,
     WALK_FORWARD_WINDOWS,
 )
+
 from ml.dataset import (
     dataset_summary,
     load_features,
     prepare_ml_data,
 )
+
 from ml.walk_forward import (
     train_window,
 )
+
+
 def append_jsonl(
     path,
     records,
@@ -27,6 +34,7 @@ def append_jsonl(
         parents=True,
         exist_ok=True,
     )
+
     with path.open(
         "a",
         encoding="utf-8",
@@ -39,29 +47,38 @@ def append_jsonl(
                 )
                 + "\n"
             )
+
+
 def main() -> None:
     print(
         "Blankdiss ML: startar."
     )
+
     ML_OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     RUNS_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     features = load_features()
+
     print(
         "Features: "
         f"{len(features):,}"
     )
+
     all_results = []
+
     for target in TARGETS:
         print(
             "Target: "
             f"{target.name}"
         )
+
         (
             data,
             y,
@@ -70,7 +87,9 @@ def main() -> None:
             features,
             target,
         )
+
         data = data.copy()
+
         data["target_return"] = pd.to_numeric(
             features.loc[
                 data.index,
@@ -78,11 +97,13 @@ def main() -> None:
             ],
             errors="coerce",
         )
+
         summary = dataset_summary(
             data,
             y,
             feature_columns,
         )
+
         print(
             "Dataset: "
             f"{summary['rows']:,} rader, "
@@ -90,6 +111,7 @@ def main() -> None:
             f"positiv rate "
             f"{summary['positive_rate']:.3f}"
         )
+
         for window in WALK_FORWARD_WINDOWS:
             print(
                 "Window: "
@@ -97,12 +119,14 @@ def main() -> None:
                 f"{window.validation_end} -> "
                 f"{window.test_end}"
             )
+
             results = train_window(
                 data,
                 y,
                 feature_columns,
                 window,
             )
+
             for result in results:
                 record = {
                     "target": target.name,
@@ -112,9 +136,11 @@ def main() -> None:
                     "dataset_summary": summary,
                     **result,
                 }
+
                 all_results.append(
                     record
                 )
+
                 print(
                     "  "
                     f"{result['model']}: "
@@ -123,13 +149,16 @@ def main() -> None:
                     f"test AUC="
                     f"{result['test']['roc_auc']:.4f}"
                 )
+
     run_id = datetime.utcnow().strftime(
         "%Y%m%dT%H%M%SZ"
     )
+
     run_path = (
         RUNS_DIR
         / f"run_{run_id}.json"
     )
+
     run_document = {
         "run_id": run_id,
         "created_at": (
@@ -139,6 +168,7 @@ def main() -> None:
         ),
         "results": all_results,
     }
+
     with run_path.open(
         "w",
         encoding="utf-8",
@@ -149,10 +179,12 @@ def main() -> None:
             ensure_ascii=False,
             indent=2,
         )
+
     append_jsonl(
         RESULTS_PATH,
         all_results,
     )
+
     with LATEST_RESULT_PATH.open(
         "w",
         encoding="utf-8",
@@ -163,12 +195,16 @@ def main() -> None:
             ensure_ascii=False,
             indent=2,
         )
+
     print(
         "Blankdiss ML: klart."
     )
+
     print(
         "Resultat: "
         f"{run_path}"
     )
+
+
 if __name__ == "__main__":
     main()
