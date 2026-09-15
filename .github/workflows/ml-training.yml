@@ -1,58 +1,97 @@
 name: Blankdiss ML Training
+
 on:
   workflow_dispatch:
+
   workflow_run:
     workflows:
       - "Features QC"
     types:
       - completed
+
 permissions:
   contents: read
   actions: read
+
 jobs:
   train-ml:
     name: Träna Blankdiss ML
     runs-on: ubuntu-latest
+
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main'
       )
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Download feature artifact from Features QC
+
+      - name: Download feature artifact from triggering Features QC
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           mkdir -p data/processed/analysis
+
           gh run download "$RUN_ID" \
             --repo "${{ github.repository }}" \
             --name features-and-qc \
             --dir data/processed/analysis
-      - name: Build features for manual run
+
+      - name: Download latest successful Features QC for manual run
         if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python -m analysis.build_features
+          mkdir -p data/processed/analysis
+
+          RUN_ID="$(
+            gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow "features-qc.yml" \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId'
+          )"
+
+          if [ -z "$RUN_ID" ]; then
+            echo "Ingen lyckad Features QC-körning hittades."
+            exit 1
+          fi
+
+          echo "Hämtar Features QC run: $RUN_ID"
+
+          gh run download "$RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --name features-and-qc \
+            --dir data/processed/analysis
+
       - name: Verify feature dataset
         run: |
           test -f data/processed/analysis/features.jsonl
           test -f data/processed/analysis/features_metadata.json
+
           echo "Feature-dataset finns."
+
           echo
           echo "Filer:"
           ls -lh data/processed/analysis/
+
       - name: Verify ML package
         run: |
           test -f __init__.py
@@ -63,43 +102,54 @@ jobs:
           test -f ml/evaluate.py
           test -f ml/walk_forward.py
           test -f ml/train.py
+
           echo "ML-paket finns."
+
       - name: Run ML training
         run: |
           python -m ml.train
+
       - name: Verify ML results
         run: |
           test -f data/processed/ml/latest_run.json
           test -f data/processed/ml/ml_results.jsonl
           test -d data/processed/ml/runs
+
           echo "ML-resultat skapade."
+
           echo
           echo "Resultat:"
           ls -lh data/processed/ml/
+
           echo
           echo "Runs:"
           ls -lh data/processed/ml/runs/
+
       - name: Print latest ML result
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+
           path = Path(
               "data/processed/ml/latest_run.json"
           )
+
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
+
           print(
               json.dumps(
                   data,
                   ensure_ascii=False,
-                  indent=2
+                  indent=2,
               )
           )
           PY
+
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
         with:
