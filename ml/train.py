@@ -4,8 +4,6 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-import pandas as pd
-
 from ml.config import (
     LATEST_RESULT_PATH,
     ML_OUTPUT_DIR,
@@ -86,16 +84,6 @@ def main() -> None:
         ) = prepare_ml_data(
             features,
             target,
-        )
-
-        data = data.copy()
-
-        data["target_return"] = pd.to_numeric(
-            features.loc[
-                data.index,
-                target.return_column,
-            ],
-            errors="coerce",
         )
 
         summary = dataset_summary(
