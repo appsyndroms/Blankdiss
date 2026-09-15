@@ -4,25 +4,41 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from ml.config import (
-    FEATURES_PATH,
+    FEATURES_DIR,
+    FEATURES_GLOB,
     FEATURE_EXCLUDE_COLUMNS,
     FI_ONLY_EXCLUDE_COLUMNS,
     PRICE_FEATURE_COLUMNS,
     TargetConfig,
 )
 def load_features() -> pd.DataFrame:
-    if not FEATURES_PATH.exists():
-        raise FileNotFoundError(
-            f"Saknar feature-data: {FEATURES_PATH}"
+    """Läser alla feature-chunks som ett dataset."""
+    paths = sorted(
+        FEATURES_DIR.glob(
+            FEATURES_GLOB
         )
-    frame = pd.read_json(
-        FEATURES_PATH,
-        lines=True,
     )
-    if frame.empty:
+    if not paths:
+        raise FileNotFoundError(
+            "Saknar feature-data: "
+            f"{FEATURES_DIR / FEATURES_GLOB}"
+        )
+    frames: list[pd.DataFrame] = []
+    for path in paths:
+        frame = pd.read_json(
+            path,
+            lines=True,
+        )
+        if not frame.empty:
+            frames.append(frame)
+    if not frames:
         raise ValueError(
             "Feature-dataset är tomt."
         )
+    frame = pd.concat(
+        frames,
+        ignore_index=True,
+    )
     frame["snapshot_date"] = pd.to_datetime(
         frame["snapshot_date"],
         errors="coerce",
@@ -38,6 +54,12 @@ def load_features() -> pd.DataFrame:
         kind="mergesort",
     ).reset_index(
         drop=True
+    )
+    print(
+        f"Läste {len(paths)} feature-chunks."
+    )
+    print(
+        f"Feature-rader: {len(frame):,}"
     )
     return frame
 def build_target(
@@ -152,12 +174,6 @@ def prepare_ml_data(
         :,
         feature_columns,
     ] = X
-    # Ta bort features som saknar ALLA observerade
-    # värden i just det dataset som ska användas.
-    #
-    # En sådan kolumn kan inte imputeras med median
-    # och skulle annars ge sklearn-varningar samt
-    # i praktiken inte bidra med någon information.
     all_missing = [
         column
         for column in feature_columns
