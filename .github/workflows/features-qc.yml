@@ -1,79 +1,95 @@
 name: Features - build och QC
+
 on:
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
 concurrency:
-  group: features-qc-main
+  group: features-qc
   cancel-in-progress: false
+
 jobs:
   features-qc:
+    name: Bygg och kontrollera features
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Kontrollera FI-historik
         run: |
           test -f data/processed/fi/aggregate/reconstructed.jsonl
           echo "FI rekonstruerad historik hittad."
+
       - name: Kontrollera prisdata
         run: |
           test -n "$(find data/raw/prices -maxdepth 1 -name 'prices_*.jsonl' -print -quit)"
           echo "Prisdata hittad."
+
       - name: Kontrollera instrumentmappning
         run: |
           test -f data/analysis/instrument_map.json
           echo "Instrumentmappning hittad."
+
       - name: Bygg features
         run: |
           python -m analysis.build_features
+
       - name: Kontrollera feature-data
         run: |
           test -f data/processed/analysis/features_metadata.json
           test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
+
           echo "Feature-dataset skapad."
+
           echo
           echo "Feature-filer:"
           ls -lh data/processed/analysis/features_*.jsonl
-          ls -lh data/processed/analysis/features_metadata.json
+
       - name: Kontrollera feature-storlek
         run: |
           python - <<'PY'
           from pathlib import Path
+
           paths = sorted(
-              Path("data/processed/analysis").glob(
-                  "features_*.jsonl"
-              )
+              Path("data/processed/analysis").glob("features_*.jsonl")
           )
+
           if not paths:
-              raise SystemExit(
-                  "Inga feature-chunks hittades."
-              )
+              raise SystemExit("Inga feature-chunks hittades.")
+
           limit = 20 * 1024 * 1024
+
           for path in paths:
               size = path.stat().st_size
-              mb = size / 1024 / 1024
               print(
-                  f"{path.name}: {mb:.2f} MB"
+                  f"{path.name}: "
+                  f"{size / 1024 / 1024:.2f} MB"
               )
+
               if size > limit:
                   raise SystemExit(
                       f"{path.name} är större än 20 MB."
                   )
           PY
+
       - name: Kör Feature QC
         run: |
           python -m analysis.features_qc
+
       - name: Visa Feature QC
         if: always()
         run: |
@@ -82,59 +98,48 @@ jobs:
           else
             echo "Ingen Feature QC-rapport skapades."
           fi
+
       - name: Kontrollera Feature QC-status
         run: |
           test -f data/processed/analysis/features_qc.json
+
           python - <<'PY'
           import json
           from pathlib import Path
+
           path = Path(
               "data/processed/analysis/features_qc.json"
           )
+
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
+
           status = data.get("status")
-          print(
-              f"Feature QC status: {status}"
-          )
+
+          print(f"Feature QC status: {status}")
+
           if status == "FAIL":
-              raise SystemExit(
-                  "Feature QC failed with status: FAIL"
-              )
+              raise SystemExit("Feature QC FAIL")
+
           if status == "WARN":
               print(
-                  "Feature QC har status WARN."
+                  "Feature QC WARN - fortsätter."
               )
-              print(
-                  "Varningar tillåts och workflow fortsätter."
-              )
+
           elif status == "PASS":
               print(
-                  "Feature QC har status PASS."
+                  "Feature QC PASS."
               )
+
           else:
               raise SystemExit(
-                  "Feature QC returnerade okänd status: "
-                  f"{status}"
+                  f"Okänd Feature QC-status: {status}"
               )
           PY
-      - name: Commit features till Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            data/processed/analysis/features_*.jsonl \
-            data/processed/analysis/features_metadata.json \
-            data/processed/analysis/features_qc.json
-          if git diff --cached --quiet; then
-            echo "Inga feature-förändringar att committa."
-            exit 0
-          fi
-          git commit -m "Update generated feature dataset"
-          git push origin HEAD:main
+
       - name: Spara feature-data och QC som artifact
         if: always()
         uses: actions/upload-artifact@v7
