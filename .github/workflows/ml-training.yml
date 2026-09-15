@@ -34,6 +34,7 @@ jobs:
           echo "Feature-filer:"
           ls -lh data/processed/analysis/features_*.jsonl
           echo
+          echo "Feature metadata:"
           cat data/processed/analysis/features_metadata.json
       - name: Verify ML package
         run: |
