@@ -151,9 +151,40 @@ jobs:
         run: |
           python -m analysis.update_market
 
+      - name: Prepare legacy feature view for market cycles
+        run: |
+          set -e
+
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          chunks = sorted(
+              Path("data/processed/analysis").glob("features_*.jsonl")
+          )
+
+          if not chunks:
+              raise SystemExit("Inga feature-chunks hittades.")
+
+          target = Path("data/processed/analysis/features.jsonl")
+
+          with target.open("wb") as output:
+              for chunk in chunks:
+                  print(f"Lägger till {chunk.name} ...")
+                  with chunk.open("rb") as source:
+                      shutil.copyfileobj(source, output)
+
+          print(f"Legacy featurefil skapad: {target}")
+          PY
+
       - name: Analyze market and short cycles
         run: |
           python -m analysis.market_cycles
+
+      - name: Remove temporary legacy feature view
+        if: always()
+        run: |
+          rm -f data/processed/analysis/features.jsonl
 
       - name: Build web
         run: |
