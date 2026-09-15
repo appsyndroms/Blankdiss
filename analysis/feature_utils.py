@@ -1,90 +1,271 @@
-"""Gemensamma hjälpfunktioner för feature-bygget."""
+"""Läser och förbereder Blankdiss-data för ML."""
 from __future__ import annotations
 
-import re
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
+from ml.config import (
+    FEATURES_PATH,
+    FEATURE_EXCLUDE_COLUMNS,
+    FI_ONLY_EXCLUDE_COLUMNS,
+    TargetConfig,
+)
 
-def normalize_text(
-    value: Any,
-) -> str:
-    if value is None or pd.isna(value):
-        return ""
 
-    text = str(value).strip().upper()
+def load_features() -> pd.DataFrame:
+    if not FEATURES_PATH.exists():
+        raise FileNotFoundError(
+            f"Saknar feature-data: {FEATURES_PATH}"
+        )
 
-    text = re.sub(
-        r"[^A-Z0-9ÅÄÖÉÜÆØ]+",
-        " ",
-        text,
+    frame = pd.read_json(
+        FEATURES_PATH,
+        lines=True,
     )
 
-    return re.sub(
-        r"\s+",
-        " ",
-        text,
-    ).strip()
+    if frame.empty:
+        raise ValueError(
+            "Feature-dataset är tomt."
+        )
 
-
-def security_key(
-    isin: Any,
-    issuer: Any,
-) -> str:
-    isin_text = normalize_text(
-        isin
+    frame["snapshot_date"] = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
     )
 
-    if isin_text:
-        return f"ISIN:{isin_text}"
+    frame = frame.loc[
+        frame["snapshot_date"].notna()
+    ].copy()
 
-    return (
-        "ISSUER:"
-        f"{normalize_text(issuer)}"
+    frame = frame.sort_values(
+        [
+            "snapshot_date",
+            "security_key",
+        ],
+        kind="mergesort",
+    ).reset_index(
+        drop=True
     )
 
+    return frame
 
-def clean_for_json(
+
+def build_target(
     frame: pd.DataFrame,
-) -> pd.DataFrame:
-    frame = frame.copy()
+    target: TargetConfig,
+) -> pd.Series:
+    if target.return_column not in frame.columns:
+        raise ValueError(
+            "Saknar target-kolumn: "
+            f"{target.return_column}"
+        )
 
-    date_columns = {
-        "snapshot_date",
-        "previous_snapshot_date",
-        "price_date",
-    }
+    returns = pd.to_numeric(
+        frame[target.return_column],
+        errors="coerce",
+    )
 
-    for column in date_columns:
-        if column not in frame.columns:
+    result = pd.Series(
+        np.nan,
+        index=frame.index,
+        dtype=float,
+    )
+
+    valid = returns.notna()
+
+    if target.direction == "above":
+        result.loc[valid] = (
+            returns.loc[valid]
+            > target.threshold
+        ).astype(float)
+
+    elif target.direction == "below":
+        result.loc[valid] = (
+            returns.loc[valid]
+            <= target.threshold
+        ).astype(float)
+
+    else:
+        raise ValueError(
+            "Okänd target direction: "
+            f"{target.direction!r}. "
+            "Förväntade 'above' eller 'below'."
+        )
+
+    return result
+
+
+def get_feature_columns(
+    frame: pd.DataFrame,
+    include_price_features: bool,
+) -> list[str]:
+    if include_price_features:
+        excluded = FEATURE_EXCLUDE_COLUMNS
+    else:
+        excluded = FI_ONLY_EXCLUDE_COLUMNS
+
+    columns: list[str] = []
+
+    for column in frame.columns:
+        if column in excluded:
             continue
 
-        frame[column] = (
-            pd.to_datetime(
-                frame[column],
-                errors="coerce",
+        if column.startswith(
+            "forward_return_"
+        ):
+            continue
+
+        if pd.api.types.is_bool_dtype(
+            frame[column]
+        ):
+            columns.append(column)
+            continue
+
+        if pd.api.types.is_numeric_dtype(
+            frame[column]
+        ):
+            columns.append(column)
+
+    if not columns:
+        raise ValueError(
+            "Hittade inga numeriska "
+            "ML-features."
+        )
+
+    return columns
+
+
+def prepare_ml_data(
+    frame: pd.DataFrame,
+    target: TargetConfig,
+    include_price_features: bool,
+) -> tuple[
+    pd.DataFrame,
+    pd.Series,
+    list[str],
+]:
+    target_values = build_target(
+        frame,
+        target,
+    )
+
+    feature_columns = get_feature_columns(
+        frame,
+        include_price_features,
+    )
+
+    data = frame[
+        [
+            "snapshot_date",
+            "security_key",
+            target.return_column,
+        ]
+        + feature_columns
+    ].copy()
+
+    valid_target = target_values.notna()
+
+    data = data.loc[
+        valid_target
+    ].copy()
+
+    target_values = target_values.loc[
+        valid_target
+    ].copy()
+
+    data = data.replace(
+        [np.inf, -np.inf],
+        np.nan,
+    )
+
+    # Ta bort features som saknar ALLA observerade
+    # värden i hela datasetet.
+    #
+    # Features som endast saknar värden i ett
+    # specifikt walk-forward-träningsfönster
+    # hanteras senare i walk_forward.py.
+    all_missing = [
+        column
+        for column in feature_columns
+        if data[column].notna().sum() == 0
+    ]
+
+    if all_missing:
+        print(
+            "Tar bort helt tomma ML-features "
+            "i hela datasetet:"
+        )
+
+        for column in all_missing:
+            print(
+                f"  {column}"
             )
-            .dt.strftime(
+
+        feature_columns = [
+            column
+            for column in feature_columns
+            if column not in all_missing
+        ]
+
+    if not feature_columns:
+        raise ValueError(
+            "Alla ML-features saknar "
+            "observerade värden."
+        )
+
+    data["target_return"] = pd.to_numeric(
+        data[target.return_column],
+        errors="coerce",
+    )
+
+    data = data.drop(
+        columns=[
+            target.return_column
+        ]
+    )
+
+    return (
+        data,
+        target_values.astype(int),
+        feature_columns,
+    )
+
+
+def dataset_summary(
+    frame: pd.DataFrame,
+    y: pd.Series,
+    feature_columns: list[str],
+) -> dict[str, Any]:
+    return {
+        "rows": int(
+            len(frame)
+        ),
+        "features": int(
+            len(feature_columns)
+        ),
+        "positive": int(
+            y.sum()
+        ),
+        "negative": int(
+            (y == 0).sum()
+        ),
+        "positive_rate": float(
+            y.mean()
+        ),
+        "date_start": (
+            frame["snapshot_date"]
+            .min()
+            .strftime(
                 "%Y-%m-%d"
             )
-        )
-
-    frame = frame.astype(object)
-
-    return frame.where(
-        pd.notna(frame),
-        None,
-    )
-
-
-def feature_key(
-    frame: pd.DataFrame,
-) -> pd.Series:
-    return (
-        frame["security_key"].astype(str)
-        + "|"
-        + frame["snapshot_date"].dt.strftime(
-            "%Y-%m-%d"
-        )
-    )
+        ),
+        "date_end": (
+            frame["snapshot_date"]
+            .max()
+            .strftime(
+                "%Y-%m-%d"
+            )
+        ),
+    }
