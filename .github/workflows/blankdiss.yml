@@ -40,6 +40,17 @@ jobs:
       - name: Build features
         run: |
           python -m analysis.build_features
+      - name: Verify feature dataset
+        run: |
+          test -f data/processed/analysis/features_metadata.json
+          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
+          echo "Feature-dataset finns."
+          echo
+          echo "Feature-filer:"
+          ls -lh data/processed/analysis/features_*.jsonl
+          echo
+          echo "Feature metadata:"
+          cat data/processed/analysis/features_metadata.json
       - name: Build events
         run: |
           python -m events
@@ -52,9 +63,6 @@ jobs:
       - name: Analyze market and short cycles
         run: |
           python -m analysis.market_cycles
-      - name: Train ML baseline
-        run: |
-          python -m ml.train
       - name: Build web
         run: |
           python web_build.py
@@ -86,22 +94,13 @@ jobs:
         with:
           name: blankdiss-analysis-data-${{ github.run_id }}
           path: |
-            data/processed/analysis/features.jsonl
+            data/processed/analysis/features_*.jsonl
             data/processed/analysis/features_metadata.json
+            data/processed/analysis/features_qc.json
             data/processed/analysis/market_adjusted_returns.jsonl
             data/processed/analysis/short_cycles.jsonl
             data/processed/analysis/short_cycles_summary.json
           retention-days: 14
-          if-no-files-found: error
-      - name: Archive ML results
-        uses: actions/upload-artifact@v4
-        with:
-          name: blankdiss-ml-results-${{ github.run_id }}
-          path: |
-            data/processed/ml/latest_run.json
-            data/processed/ml/ml_results.jsonl
-            data/processed/ml/runs/*.json
-          retention-days: 30
           if-no-files-found: error
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
