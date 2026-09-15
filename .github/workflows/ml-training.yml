@@ -1,0 +1,85 @@
+name: Blankdiss ML Training
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "Features QC"
+    types:
+      - completed
+permissions:
+  contents: read
+jobs:
+  train-ml:
+    name: Träna Blankdiss ML
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Verify feature dataset
+        run: |
+          test -f data/processed/analysis/features.jsonl
+          test -f data/processed/analysis/features_metadata.json
+          echo "Feature-dataset finns."
+      - name: Verify ML package
+        run: |
+          test -f blankdiss/ml/__init__.py
+          test -f blankdiss/ml/config.py
+          test -f blankdiss/ml/dataset.py
+          test -f blankdiss/ml/models.py
+          test -f blankdiss/ml/evaluate.py
+          test -f blankdiss/ml/walk_forward.py
+          test -f blankdiss/ml/train.py
+          echo "ML-paket finns."
+      - name: Run ML training
+        run: |
+          python -m blankdiss.ml.train
+      - name: Verify ML results
+        run: |
+          test -f data/processed/ml/latest_run.json
+          test -f data/processed/ml/ml_results.jsonl
+          test -d data/processed/ml/runs
+          echo "ML-resultat skapade."
+      - name: Print latest ML result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path(
+              "data/processed/ml/latest_run.json"
+          )
+          data = json.loads(
+              path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          print(
+              json.dumps(
+                  data,
+                  ensure_ascii=False,
+                  indent=2,
+              )
+          )
+          PY
+      - name: Upload ML artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ml-training-results
+          path: |
+            data/processed/ml/latest_run.json
+            data/processed/ml/ml_results.jsonl
+            data/processed/ml/runs/*.json
+          if-no-files-found: error
