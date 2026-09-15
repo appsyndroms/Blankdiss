@@ -102,6 +102,89 @@ def write_metadata(
         )
 
 
+def load_existing_metadata() -> dict[str, Any]:
+    if not METADATA_PATH.exists():
+        return {}
+
+    try:
+        with METADATA_PATH.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            data = json.load(handle)
+
+        if isinstance(data, dict):
+            return data
+
+    except (
+        OSError,
+        json.JSONDecodeError,
+        TypeError,
+    ):
+        pass
+
+    return {}
+
+
+def requires_full_rebuild(
+    existing: pd.DataFrame,
+    price_files: list[Path],
+) -> tuple[bool, str]:
+    """
+    Avgör om befintligt feature-arkiv måste byggas om.
+
+    Full rebuild krävs framför allt när feature-arkivet skapades
+    med en äldre uppsättning prisfiler. Detta var tidigare möjligt
+    eftersom build_features bara använde en enda prisfil.
+
+    När metadata och aktuell prisfiluppsättning överensstämmer
+    fortsätter jobbet normalt inkrementellt.
+    """
+
+    if existing.empty:
+        return (
+            True,
+            "Inget befintligt feature-arkiv finns.",
+        )
+
+    metadata = load_existing_metadata()
+
+    stored_files = metadata.get(
+        "price_files"
+    )
+
+    if not isinstance(
+        stored_files,
+        list,
+    ):
+        return (
+            True,
+            "Feature-metadata saknar prisfil-lista.",
+        )
+
+    stored_files = sorted(
+        str(name)
+        for name in stored_files
+    )
+
+    current_files = sorted(
+        path.name
+        for path in price_files
+    )
+
+    if stored_files != current_files:
+        return (
+            True,
+            "Feature-arkivet är byggt med en annan "
+            "uppsättning prisfiler än den aktuella lokala historiken.",
+        )
+
+    return (
+        False,
+        "Feature-arkivet är byggt med aktuell prisfiluppsättning.",
+    )
+
+
 def build_full_history(
     fi: pd.DataFrame,
     prices: pd.DataFrame,
@@ -270,14 +353,41 @@ def main() -> None:
         OUTPUT_PATH
     )
 
-    if existing.empty:
+    full_rebuild, reason = (
+        requires_full_rebuild(
+            existing,
+            price_files,
+        )
+    )
+
+    print(
+        "Featurejobb: "
+        f"{reason}"
+    )
+
+    if full_rebuild:
+        print(
+            "Featurejobb: "
+            "bygger om hela feature-historiken."
+        )
+
         features, stats = (
             build_full_history(
                 fi,
                 prices,
             )
         )
+
+        stats[
+            "full_rebuild"
+        ] = 1
+
     else:
+        print(
+            "Featurejobb: "
+            "fortsätter inkrementellt."
+        )
+
         features, stats = (
             build_incremental(
                 fi,
@@ -285,6 +395,10 @@ def main() -> None:
                 existing,
             )
         )
+
+        stats[
+            "full_rebuild"
+        ] = 0
 
     features = (
         features.sort_values(
