@@ -1,24 +1,19 @@
 name: Blankdiss ML Training
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - "Features - build och QC"
-    types:
-      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - "data/processed/analysis/features_*.jsonl"
+      - "data/processed/analysis/features_metadata.json"
+      - "data/processed/analysis/features_qc.json"
 permissions:
   contents: read
-  actions: read
 jobs:
   train-ml:
     name: Träna Blankdiss ML
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,13 +27,14 @@ jobs:
           pip install -r requirements.txt
       - name: Verify feature dataset
         run: |
-          test -f data/processed/analysis/features.jsonl
           test -f data/processed/analysis/features_metadata.json
+          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
           echo "Feature-dataset finns."
           echo
-          echo "Filer:"
-          ls -lh data/processed/analysis/features.jsonl
-          ls -lh data/processed/analysis/features_metadata.json
+          echo "Feature-filer:"
+          ls -lh data/processed/analysis/features_*.jsonl
+          echo
+          cat data/processed/analysis/features_metadata.json
       - name: Verify ML package
         run: |
           test -f __init__.py
@@ -73,11 +69,8 @@ jobs:
         run: |
           test -f data/processed/ml/diagnostics.json
           echo "ML-diagnostik skapad."
-          echo
-          echo "Diagnostics:"
           ls -lh data/processed/ml/diagnostics.json
       - name: Print ML diagnostics summary
-        shell: bash
         run: |
           python - <<'PY'
           import json
@@ -202,25 +195,16 @@ jobs:
                               )
                               * 100
                           )
-                          event_rate = bucket.get(
-                              "event_rate",
-                              0,
-                          )
-                          lift_ratio = bucket.get(
-                              "event_rate_lift_ratio"
-                          )
-                          mean_return = bucket.get(
-                              "mean_return"
-                          )
-                          median_return = bucket.get(
-                              "median_return"
-                          )
                           print(
                               f"    Top {fraction:.0f}%: "
-                              f"event_rate={event_rate:.4f}, "
-                              f"lift_ratio={lift_ratio}, "
-                              f"mean_return={mean_return}, "
-                              f"median_return={median_return}"
+                              f"event_rate="
+                              f"{bucket.get('event_rate', 0):.4f}, "
+                              f"lift_ratio="
+                              f"{bucket.get('event_rate_lift_ratio')}, "
+                              f"mean_return="
+                              f"{bucket.get('mean_return')}, "
+                              f"median_return="
+                              f"{bucket.get('median_return')}"
                           )
                   print()
                   print("Top features:")
@@ -242,7 +226,6 @@ jobs:
                       )
                   print()
       - name: Print latest ML result
-        shell: bash
         run: |
           python - <<'PY'
           import json
