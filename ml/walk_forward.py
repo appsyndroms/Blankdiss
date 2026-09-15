@@ -69,6 +69,43 @@ def _split(
     )
 
 
+def _features_available_in_training(
+    train: pd.DataFrame,
+    feature_columns: list[str],
+) -> list[str]:
+    """
+    Returnerar endast features som har minst
+    ett observerat värde i training-datasetet.
+
+    Viktigt:
+    - endast training används för beslutet
+    - validation/test får inte påverka featurevalet
+    - förhindrar all-NaN-kolumner i sklearn-imputern
+    """
+
+    available: list[str] = []
+    removed: list[str] = []
+
+    for column in feature_columns:
+        if train[column].notna().any():
+            available.append(column)
+        else:
+            removed.append(column)
+
+    if removed:
+        print(
+            "Tar bort features som saknar "
+            "observerade värden i training:"
+        )
+
+        for column in removed:
+            print(
+                f"  {column}"
+            )
+
+    return available
+
+
 def roc_auc_safe(
     y_true,
     probabilities,
@@ -122,17 +159,17 @@ def train_window(
     train = data.loc[
         train_mask,
         feature_columns,
-    ]
+    ].copy()
 
     validation = data.loc[
         validation_mask,
         feature_columns,
-    ]
+    ].copy()
 
     test = data.loc[
         test_mask,
         feature_columns,
-    ]
+    ].copy()
 
     y_train = y.loc[
         train_mask
@@ -169,6 +206,39 @@ def train_window(
         np.unique(y_test)
     ) < 2:
         return []
+
+    # ---------------------------------------------------------
+    # Viktigt:
+    #
+    # En feature får bara användas om den har minst ett
+    # observerat värde i TRAINING-perioden.
+    #
+    # Vi tittar inte på validation/test när vi fattar detta
+    # beslut. Det förhindrar både sklearn-varningar och
+    # framtidsläckage.
+    # ---------------------------------------------------------
+
+    available_features = (
+        _features_available_in_training(
+            train,
+            feature_columns,
+        )
+    )
+
+    if not available_features:
+        return []
+
+    train = train[
+        available_features
+    ]
+
+    validation = validation[
+        available_features
+    ]
+
+    test = test[
+        available_features
+    ]
 
     models = build_models(
         RANDOM_STATE
@@ -242,6 +312,10 @@ def train_window(
                 ),
                 "test": metrics,
                 "return_buckets": bucket_results,
+                "features": available_features,
+                "feature_count": int(
+                    len(available_features)
+                ),
                 "window": {
                     "train_end": (
                         window.train_end
