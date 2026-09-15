@@ -2,7 +2,7 @@
 Market-adjusted returns and recurring short-interest cycle analysis.
 This module performs two diagnostic analyses:
 1. Market-adjusted returns
-   - Downloads OMXSPI history from FRED
+   - Downloads OMXSPI history directly from Nasdaq
    - Calculates market forward returns for 5/20/60 trading observations
    - Calculates abnormal stock returns relative to OMXSPI
 2. Short-interest cycles
@@ -17,7 +17,6 @@ fed into the ML models.
 """
 from __future__ import annotations
 import json
-from io import StringIO
 from pathlib import Path
 from typing import Any
 import numpy as np
@@ -30,15 +29,22 @@ OUTPUT_DIR = Path(
     "data/processed/analysis"
 )
 MARKET_RETURNS_PATH = (
-    OUTPUT_DIR / "market_adjusted_returns.jsonl"
+    OUTPUT_DIR
+    / "market_adjusted_returns.jsonl"
 )
 CYCLES_PATH = (
-    OUTPUT_DIR / "short_cycles.jsonl"
+    OUTPUT_DIR
+    / "short_cycles.jsonl"
 )
 CYCLE_SUMMARY_PATH = (
-    OUTPUT_DIR / "short_cycles_summary.json"
+    OUTPUT_DIR
+    / "short_cycles_summary.json"
 )
-MARKET_SYMBOL = "NASDAQOMXSPI"
+MARKET_SYMBOL = "OMXSPI"
+NASDAQ_HISTORICAL_URL = (
+    "https://api.nasdaq.com/api/quote/"
+    f"{MARKET_SYMBOL}/historical"
+)
 HORIZONS = (
     5,
     20,
@@ -47,6 +53,28 @@ HORIZONS = (
 MIN_PROMINENCE_PP = 0.25
 MIN_EVENT_SEPARATION_DAYS = 30
 PROMINENCE_WINDOW_DAYS = 180
+NASDAQ_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 "
+        "(X11; Linux x86_64) "
+        "AppleWebKit/537.36 "
+        "(KHTML, like Gecko) "
+        "Chrome/131.0.0.0 "
+        "Safari/537.36"
+    ),
+    "Accept": (
+        "application/json, text/plain, */*"
+    ),
+    "Accept-Language": (
+        "en-US,en;q=0.9"
+    ),
+    "Referer": (
+        "https://www.nasdaq.com/"
+    ),
+    "Origin": (
+        "https://www.nasdaq.com"
+    ),
+}
 def load_features() -> pd.DataFrame:
     """Load the existing feature dataset."""
     if not FEATURES_PATH.exists():
@@ -130,19 +158,54 @@ def load_features() -> pd.DataFrame:
         .reset_index(drop=True)
     )
     return frame
+def _parse_nasdaq_number(
+    value: Any,
+) -> float:
+    """
+    Parse Nasdaq numeric strings.
+    Examples:
+        "1,123.45" -> 1123.45
+        "$1,123.45" -> 1123.45
+        "1,123.45%" -> 1123.45
+    The OMXSPI historical endpoint returns index
+    values as strings.
+    """
+    if value is None:
+        return float("nan")
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text:
+        return float("nan")
+    text = (
+        text
+        .replace(",", "")
+        .replace("$", "")
+        .replace("%", "")
+        .strip()
+    )
+    return float(text)
 def download_market_data(
     start_date: pd.Timestamp,
     end_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """
-    Download daily OMXSPI history from FRED.
-    Only the period needed by Blankdiss is requested. This avoids
-    downloading the complete FRED history on every GitHub Actions run.
-    FRED's NASDAQOMXSPI series is sourced from Nasdaq and is available
-    as daily observations.
-    The request uses a small buffer before the first stock observation
-    and a larger buffer after the last stock observation so that
-    5/20/60-trading-day forward market returns can be calculated.
+    Download daily OMXSPI history directly from Nasdaq.
+    Nasdaq's public historical endpoint returns JSON:
+        data
+          tradesTable
+            rows
+    Each row contains, among other fields:
+        date
+        close
+        open
+        high
+        low
+    We only need date + close for the market-relative
+    return analysis.
+    A buffer is added before and after the requested period.
+    The trailing buffer is required because Blankdiss calculates
+    forward market returns over 60 trading observations.
     """
     requested_start = (
         pd.Timestamp(start_date)
@@ -160,59 +223,38 @@ def download_market_data(
     )
     print(
         "Laddar marknadsdata: "
-        "FRED/NASDAQOMXSPI"
+        "Nasdaq/OMXSPI"
     )
     print(
-        "FRED-intervall: "
+        "Nasdaq-intervall: "
         f"{start_text} -> {end_text}"
     )
-    url = (
-        "https://fred.stlouisfed.org/"
-        "graph/fredgraph.csv"
-    )
     params = {
-        "id": MARKET_SYMBOL,
-        "cosd": start_text,
-        "coed": end_text,
+        "assetclass": "index",
+        "fromdate": start_text,
+        "todate": end_text,
+        "limit": 5000,
     }
-    session = requests.Session()
-    session.headers.update(
-        {
-            "User-Agent": (
-                "Blankdiss/1.0 "
-                "(market analysis)"
-            ),
-            "Accept": (
-                "text/csv,text/plain,"
-                "application/octet-stream,*/*"
-            ),
-        }
-    )
     response = None
     last_error: Exception | None = None
-    # GitHub Actions can occasionally have slow external
-    # connections. Retry a few times rather than failing the
-    # entire Blankdiss build on one transient timeout.
     for attempt in range(1, 4):
         try:
             print(
-                "FRED-försök "
+                "Nasdaq-försök "
                 f"{attempt}/3..."
             )
-            response = session.get(
-                url,
+            response = requests.get(
+                NASDAQ_HISTORICAL_URL,
                 params=params,
-                timeout=(
-                    15,
-                    90,
-                ),
+                headers=NASDAQ_HEADERS,
+                timeout=30,
             )
             response.raise_for_status()
             break
         except requests.RequestException as error:
             last_error = error
             print(
-                "FRED-anrop misslyckades: "
+                "Nasdaq-anrop misslyckades: "
                 f"{error}"
             )
             if attempt < 3:
@@ -222,76 +264,112 @@ def download_market_data(
     if response is None:
         raise RuntimeError(
             "Kunde inte hämta "
-            "NASDAQOMXSPI från FRED efter "
+            "OMXSPI från Nasdaq efter "
             "3 försök."
         ) from last_error
-    content = response.text
-    if not content.strip():
+    try:
+        payload = response.json()
+    except ValueError as error:
         raise RuntimeError(
-            "FRED returnerade ett tomt svar."
+            "Nasdaq returnerade ett svar som "
+            "inte kunde tolkas som JSON."
+        ) from error
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise RuntimeError(
+            "Nasdaq-svaret saknar 'data'."
         )
-    data = pd.read_csv(
-        StringIO(content),
-        sep=",",
+    trades_table = data.get(
+        "tradesTable"
     )
-    data.columns = [
-        str(column).strip()
-        for column in data.columns
-    ]
+    if not isinstance(
+        trades_table,
+        dict,
+    ):
+        raise RuntimeError(
+            "Nasdaq-svaret saknar "
+            "'data.tradesTable'."
+        )
+    rows = trades_table.get(
+        "rows"
+    )
+    if not isinstance(rows, list):
+        raise RuntimeError(
+            "Nasdaq-svaret saknar "
+            "'data.tradesTable.rows'."
+        )
+    total_records = data.get(
+        "totalRecords"
+    )
     print(
-        "FRED-kolumner: "
-        + ", ".join(
-            str(column)
-            for column in data.columns
+        "Nasdaq returnerade "
+        f"{len(rows):,} rader"
+        + (
+            f" av {total_records:,}"
+            if isinstance(
+                total_records,
+                int,
+            )
+            else ""
         )
     )
-    date_column = None
-    value_column = None
-    for column in data.columns:
-        normalized = (
-            str(column)
-            .strip()
-            .upper()
+    market_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(
+            row,
+            dict,
+        ):
+            continue
+        raw_date = row.get(
+            "date"
         )
-        if normalized == "DATE":
-            date_column = column
-        elif normalized in {
-            "VALUE",
-            "NASDAQOMXSPI",
-        }:
-            value_column = column
-    if date_column is None:
-        raise RuntimeError(
-            "FRED-data saknar datumkolumn. "
-            f"Kolumner som mottogs: "
-            f"{list(data.columns)}"
+        raw_close = row.get(
+            "close"
         )
-    if value_column is None:
-        raise RuntimeError(
-            "FRED-data saknar värdekolumn. "
-            f"Kolumner som mottogs: "
-            f"{list(data.columns)}"
+        if raw_date is None:
+            continue
+        if raw_close is None:
+            continue
+        try:
+            market_date = pd.to_datetime(
+                str(raw_date),
+                format="%m/%d/%Y",
+                errors="coerce",
+            )
+            market_close = (
+                _parse_nasdaq_number(
+                    raw_close
+                )
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            continue
+        if pd.isna(market_date):
+            continue
+        if not np.isfinite(
+            market_close
+        ):
+            continue
+        if market_close <= 0:
+            continue
+        market_rows.append(
+            {
+                "market_date": market_date,
+                "market_close": market_close,
+            }
         )
     market = pd.DataFrame(
-        {
-            "market_date": pd.to_datetime(
-                data[date_column],
-                errors="coerce",
-            ),
-            "market_close": pd.to_numeric(
-                data[value_column],
-                errors="coerce",
-            ),
-        }
+        market_rows
     )
+    if market.empty:
+        raise RuntimeError(
+            "Nasdaq/OMXSPI innehåller inga "
+            "giltiga observationer."
+        )
     market = (
         market
-        .dropna(
-            subset=[
-                "market_date",
-                "market_close",
-            ]
-        )
         .drop_duplicates(
             subset=[
                 "market_date",
@@ -302,11 +380,6 @@ def download_market_data(
         )
         .reset_index(drop=True)
     )
-    if market.empty:
-        raise RuntimeError(
-            "FRED/NASDAQOMXSPI innehåller inga "
-            "giltiga observationer."
-        )
     market = market[
         (
             market["market_date"]
@@ -319,8 +392,9 @@ def download_market_data(
     ].reset_index(drop=True)
     if market.empty:
         raise RuntimeError(
-            "FRED/NASDAQOMXSPI innehåller inga "
-            "observationer inom det begärda intervallet. "
+            "Nasdaq/OMXSPI innehåller inga "
+            "observationer inom det begärda "
+            "intervallet. "
             f"Begärt intervall: "
             f"{requested_start.date()} -> "
             f"{requested_end.date()}"
@@ -330,7 +404,8 @@ def download_market_data(
             "För få OMXSPI-observationer: "
             f"{len(market)}. "
             "Marknadsanalysen avbryts för att "
-            "förhindra analys på ofullständig historik."
+            "förhindra analys på ofullständig "
+            "historik."
         )
     print(
         "OMXSPI-period: "
@@ -350,7 +425,9 @@ def calculate_forward_returns(
     """
     Calculate forward returns using trading observations.
     Example:
-        horizon=5 means close[t+5] / close[t] - 1.
+        horizon=5
+    means:
+        close[t+5] / close[t] - 1
     """
     result = pd.DataFrame(
         index=prices.index
@@ -371,6 +448,8 @@ def build_market_returns(
     """
     Align stock price_date with OMXSPI and calculate
     market forward returns.
+    The first OMXSPI trading observation on or after
+    the stock's price_date is used.
     """
     result = frame.copy()
     market = market.copy()
@@ -470,8 +549,8 @@ def local_prominence(
         peak - max(left minimum, right minimum)
     Trough:
         min(left maximum, right maximum) - trough
-    The calculation is restricted to a finite local window
-    instead of using the entire company history.
+    The calculation is restricted to a finite local
+    window instead of using the entire company history.
     """
     event_date = dates.iloc[position]
     window_start = (
@@ -592,16 +671,16 @@ def candidate_events(
         if event_type == "peak":
             is_candidate = (
                 current_value
-                >= previous_value
+                > previous_value
                 and current_value
-                > next_value
+                >= next_value
             )
         elif event_type == "trough":
             is_candidate = (
                 current_value
-                <= previous_value
+                < previous_value
                 and current_value
-                < next_value
+                <= next_value
             )
         else:
             raise ValueError(
@@ -610,93 +689,95 @@ def candidate_events(
         if not is_candidate:
             continue
         prominence = local_prominence(
-            values=values,
-            dates=dates,
-            position=position,
-            event_type=event_type,
+            values,
+            dates,
+            position,
+            event_type,
         )
-        if (
-            prominence
-            < MIN_PROMINENCE_PP
-        ):
+        if prominence < MIN_PROMINENCE_PP:
             continue
         candidates.append(
             {
                 "position": position,
-                "snapshot_date": (
-                    dates.iloc[position]
-                ),
+                "snapshot_date": dates.iloc[
+                    position
+                ],
                 "short_interest_pct": (
                     current_value
                 ),
-                "prominence_pp": (
-                    prominence
-                ),
+                "event_type": event_type,
+                "prominence_pp": prominence,
             }
         )
     return candidates
 def select_separated_events(
-    candidates: list[
-        dict[str, Any]
-    ],
-) -> list[
-    dict[str, Any]
-]:
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """
-    Enforce minimum event separation.
-    If two events occur within the minimum separation window,
-    retain the one with the greatest prominence.
+    Keep meaningful events separated in time.
+    When two candidates occur too close together,
+    keep the more prominent event.
     """
     if not candidates:
         return []
-    candidates = sorted(
+    ordered = sorted(
         candidates,
-        key=lambda event: (
-            event["prominence_pp"],
-            event["snapshot_date"],
-        ),
-        reverse=True,
+        key=lambda item: item[
+            "snapshot_date"
+        ],
     )
     selected: list[
         dict[str, Any]
     ] = []
-    for candidate in candidates:
-        candidate_date = pd.Timestamp(
-            candidate["snapshot_date"]
-        )
-        conflicts = False
-        for existing in selected:
-            existing_date = pd.Timestamp(
-                existing["snapshot_date"]
-            )
-            separation = abs(
-                (
-                    candidate_date
-                    - existing_date
-                ).days
-            )
-            if (
-                separation
-                < MIN_EVENT_SEPARATION_DAYS
-            ):
-                conflicts = True
-                break
-        if not conflicts:
+    for candidate in ordered:
+        if not selected:
             selected.append(
                 candidate
             )
-    selected.sort(
-        key=lambda event:
-            event["snapshot_date"]
-    )
+            continue
+        previous = selected[-1]
+        days_apart = abs(
+            (
+                candidate[
+                    "snapshot_date"
+                ]
+                - previous[
+                    "snapshot_date"
+                ]
+            ).days
+        )
+        if (
+            days_apart
+            >= MIN_EVENT_SEPARATION_DAYS
+        ):
+            selected.append(
+                candidate
+            )
+            continue
+        if (
+            candidate[
+                "prominence_pp"
+            ]
+            > previous[
+                "prominence_pp"
+            ]
+        ):
+            selected[-1] = candidate
     return selected
-def detect_company_events(
+def detect_company_cycles(
     company: pd.DataFrame,
-) -> tuple[
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-]:
-    """Detect robust peaks and troughs."""
+) -> list[dict[str, Any]]:
+    """
+    Detect recurring short-interest peaks and troughs
+    for one security.
+    """
+    company = (
+        company
+        .sort_values(
+            "snapshot_date"
+        )
+        .reset_index(drop=True)
+    )
     peaks = select_separated_events(
         candidate_events(
             company,
@@ -709,474 +790,121 @@ def detect_company_events(
             "trough",
         )
     )
-    return peaks, troughs
-def row_for_event(
-    company: pd.DataFrame,
-    snapshot_date: pd.Timestamp,
-) -> pd.Series | None:
-    """Return the feature row matching an event date."""
-    matches = company[
-        company[
+    events = (
+        peaks
+        + troughs
+    )
+    events.sort(
+        key=lambda item: item[
             "snapshot_date"
         ]
-        == snapshot_date
-    ]
-    if matches.empty:
-        return None
-    return matches.iloc[0]
-def build_cycle_records(
+    )
+    return events
+def attach_event_outcomes(
+    events: list[dict[str, Any]],
     company: pd.DataFrame,
-    peaks: list[
-        dict[str, Any]
-    ],
-    troughs: list[
-        dict[str, Any]
-    ],
-) -> list[
-    dict[str, Any]
-]:
+) -> list[dict[str, Any]]:
     """
-    Build event records.
-    Each peak is connected to the next trough and next peak.
+    Attach stock and abnormal forward returns to
+    detected cycle events.
+    The event itself is based on short-interest history.
+    Returns are read from the feature row corresponding
+    to the event snapshot.
     """
-    records: list[
+    if not events:
+        return []
+    result: list[
         dict[str, Any]
     ] = []
-    security_key = str(
-        company[
-            "security_key"
-        ].iloc[0]
-    )
-    ordered_events = sorted(
-        [
-            (
-                "peak",
-                event,
-            )
-            for event in peaks
+    for event in events:
+        event_date = event[
+            "snapshot_date"
         ]
-        + [
-            (
-                "trough",
-                event,
-            )
-            for event in troughs
-        ],
-        key=lambda item:
-            item[1]["snapshot_date"],
-    )
-    for event_type, event in (
-        ordered_events
-    ):
-        event_date = pd.Timestamp(
-            event["snapshot_date"]
-        )
-        event_row = row_for_event(
-            company,
-            event_date,
-        )
-        if event_row is None:
-            continue
-        if event_type == "peak":
-            following_troughs = [
-                trough
-                for trough in troughs
-                if pd.Timestamp(
-                    trough["snapshot_date"]
-                )
-                > event_date
-            ]
-            following_peaks = [
-                peak
-                for peak in peaks
-                if pd.Timestamp(
-                    peak["snapshot_date"]
-                )
-                > event_date
-            ]
-            next_trough = (
-                following_troughs[0]
-                if following_troughs
-                else None
-            )
-            next_peak = (
-                following_peaks[0]
-                if following_peaks
-                else None
-            )
-            record: dict[
-                str,
-                Any,
-            ] = {
-                "security_key": security_key,
-                "event_type": "peak",
-                "snapshot_date": (
-                    event_date.strftime(
-                        "%Y-%m-%d"
-                    )
-                ),
-                "price_date": (
-                    pd.Timestamp(
-                        event_row[
-                            "price_date"
-                        ]
-                    ).strftime(
-                        "%Y-%m-%d"
-                    )
-                ),
-                "short_interest_pct": float(
-                    event[
-                        "short_interest_pct"
-                    ]
-                ),
-                "prominence_pp": float(
-                    event[
-                        "prominence_pp"
-                    ]
-                ),
-            }
-            if next_trough is not None:
-                trough_date = pd.Timestamp(
-                    next_trough[
-                        "snapshot_date"
-                    ]
-                )
-                trough_row = row_for_event(
-                    company,
-                    trough_date,
-                )
-                record[
-                    "next_trough_date"
-                ] = (
-                    trough_date.strftime(
-                        "%Y-%m-%d"
-                    )
-                )
-                record[
-                    "days_to_next_trough"
-                ] = int(
-                    (
-                        trough_date
-                        - event_date
-                    ).days
-                )
-                record[
-                    "next_trough_short_interest_pct"
-                ] = float(
-                    next_trough[
-                        "short_interest_pct"
-                    ]
-                )
-                if trough_row is not None:
-                    for horizon in HORIZONS:
-                        record[
-                            f"forward_return_to_trough_{horizon}d"
-                        ] = _safe_float(
-                            trough_row[
-                                f"forward_return_{horizon}d"
-                            ]
-                        )
-                        record[
-                            f"abnormal_return_to_trough_{horizon}d"
-                        ] = _safe_float(
-                            trough_row[
-                                f"abnormal_return_{horizon}d"
-                            ]
-                        )
-            else:
-                record[
-                    "next_trough_date"
-                ] = None
-                record[
-                    "days_to_next_trough"
-                ] = None
-                record[
-                    "next_trough_short_interest_pct"
-                ] = None
-            if next_peak is not None:
-                next_peak_date = pd.Timestamp(
-                    next_peak[
-                        "snapshot_date"
-                    ]
-                )
-                record[
-                    "next_peak_date"
-                ] = (
-                    next_peak_date.strftime(
-                        "%Y-%m-%d"
-                    )
-                )
-                record[
-                    "days_to_next_peak"
-                ] = int(
-                    (
-                        next_peak_date
-                        - event_date
-                    ).days
-                )
-                record[
-                    "next_peak_short_interest_pct"
-                ] = float(
-                    next_peak[
-                        "short_interest_pct"
-                    ]
-                )
-            else:
-                record[
-                    "next_peak_date"
-                ] = None
-                record[
-                    "days_to_next_peak"
-                ] = None
-                record[
-                    "next_peak_short_interest_pct"
-                ] = None
-            records.append(record)
-        else:
-            following_peaks = [
-                peak
-                for peak in peaks
-                if pd.Timestamp(
-                    peak["snapshot_date"]
-                )
-                > event_date
-            ]
-            next_peak = (
-                following_peaks[0]
-                if following_peaks
-                else None
-            )
-            record = {
-                "security_key": security_key,
-                "event_type": "trough",
-                "snapshot_date": (
-                    event_date.strftime(
-                        "%Y-%m-%d"
-                    )
-                ),
-                "price_date": (
-                    pd.Timestamp(
-                        event_row[
-                            "price_date"
-                        ]
-                    ).strftime(
-                        "%Y-%m-%d"
-                    )
-                ),
-                "short_interest_pct": float(
-                    event[
-                        "short_interest_pct"
-                    ]
-                ),
-                "prominence_pp": float(
-                    event[
-                        "prominence_pp"
-                    ]
-                ),
-            }
-            if next_peak is not None:
-                next_peak_date = pd.Timestamp(
-                    next_peak[
-                        "snapshot_date"
-                    ]
-                )
-                record[
-                    "next_peak_date"
-                ] = (
-                    next_peak_date.strftime(
-                        "%Y-%m-%d"
-                    )
-                )
-                record[
-                    "days_to_next_peak"
-                ] = int(
-                    (
-                        next_peak_date
-                        - event_date
-                    ).days
-                )
-                record[
-                    "next_peak_short_interest_pct"
-                ] = float(
-                    next_peak[
-                        "short_interest_pct"
-                    ]
-                )
-            else:
-                record[
-                    "next_peak_date"
-                ] = None
-                record[
-                    "days_to_next_peak"
-                ] = None
-                record[
-                    "next_peak_short_interest_pct"
-                ] = None
-            records.append(record)
-    return records
-def _safe_float(
-    value: Any,
-) -> float | None:
-    """Convert numeric values while preserving missing values."""
-    if value is None:
-        return None
-    try:
-        numeric = float(value)
-    except (
-        TypeError,
-        ValueError,
-    ):
-        return None
-    if not np.isfinite(
-        numeric
-    ):
-        return None
-    return numeric
-def build_company_summary(
-    company: pd.DataFrame,
-    peaks: list[
-        dict[str, Any]
-    ],
-    troughs: list[
-        dict[str, Any]
-    ],
-) -> dict[str, Any]:
-    """Build one summary row per company."""
-    security_key = str(
-        company[
-            "security_key"
-        ].iloc[0]
-    )
-    peak_prominences = [
-        float(
-            event[
-                "prominence_pp"
-            ]
-        )
-        for event in peaks
-    ]
-    trough_prominences = [
-        float(
-            event[
-                "prominence_pp"
-            ]
-        )
-        for event in troughs
-    ]
-    peak_dates = [
-        pd.Timestamp(
-            event[
+        matches = company[
+            company[
                 "snapshot_date"
             ]
-        )
-        for event in peaks
-    ]
-    cycle_lengths: list[int] = []
-    for index in range(
-        1,
-        len(peak_dates),
-    ):
-        cycle_lengths.append(
-            int(
-                (
-                    peak_dates[index]
-                    - peak_dates[
-                        index - 1
-                    ]
-                ).days
-            )
-        )
-    return {
-        "security_key": security_key,
-        "observations": int(
-            len(company)
-        ),
-        "first_snapshot_date": (
-            pd.Timestamp(
-                company[
-                    "snapshot_date"
-                ].min()
-            ).strftime(
-                "%Y-%m-%d"
-            )
-        ),
-        "last_snapshot_date": (
-            pd.Timestamp(
-                company[
-                    "snapshot_date"
-                ].max()
-            ).strftime(
-                "%Y-%m-%d"
-            )
-        ),
-        "peak_count": len(
-            peaks
-        ),
-        "trough_count": len(
-            troughs
-        ),
-        "max_peak_prominence_pp": (
-            max(
-                peak_prominences
-            )
-            if peak_prominences
-            else None
-        ),
-        "median_peak_prominence_pp": (
-            float(
-                np.median(
-                    peak_prominences
+            == event_date
+        ]
+        if matches.empty:
+            continue
+        row = matches.iloc[0]
+        item: dict[str, Any] = {
+            "security_key": str(
+                row["security_key"]
+            ),
+            "snapshot_date": (
+                event_date.strftime(
+                    "%Y-%m-%d"
                 )
-            )
-            if peak_prominences
-            else None
-        ),
-        "max_trough_prominence_pp": (
-            max(
-                trough_prominences
-            )
-            if trough_prominences
-            else None
-        ),
-        "median_trough_prominence_pp": (
-            float(
-                np.median(
-                    trough_prominences
+            ),
+            "price_date": (
+                row["price_date"].strftime(
+                    "%Y-%m-%d"
                 )
+            ),
+            "event_type": event[
+                "event_type"
+            ],
+            "short_interest_pct": float(
+                event[
+                    "short_interest_pct"
+                ]
+            ),
+            "prominence_pp": float(
+                event[
+                    "prominence_pp"
+                ]
+            ),
+        }
+        for horizon in HORIZONS:
+            stock_column = (
+                f"forward_return_{horizon}d"
             )
-            if trough_prominences
-            else None
-        ),
-        "median_days_between_peaks": (
-            float(
-                np.median(
-                    cycle_lengths
-                )
+            abnormal_column = (
+                f"abnormal_return_{horizon}d"
             )
-            if cycle_lengths
-            else None
-        ),
-        "mean_days_between_peaks": (
-            float(
-                np.mean(
-                    cycle_lengths
-                )
+            stock_value = pd.to_numeric(
+                row.get(
+                    stock_column
+                ),
+                errors="coerce",
             )
-            if cycle_lengths
-            else None
-        ),
-        "repeated_cycle_candidate": (
-            len(peaks) >= 3
-        ),
-    }
-def analyze_cycles(
+            abnormal_value = pd.to_numeric(
+                row.get(
+                    abnormal_column
+                ),
+                errors="coerce",
+            )
+            item[
+                stock_column
+            ] = (
+                None
+                if pd.isna(stock_value)
+                else float(stock_value)
+            )
+            item[
+                abnormal_column
+            ] = (
+                None
+                if pd.isna(abnormal_value)
+                else float(abnormal_value)
+            )
+        result.append(item)
+    return result
+def build_cycle_analysis(
     frame: pd.DataFrame,
 ) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
 ]:
-    """Run cycle analysis for all companies."""
-    cycle_records: list[
+    """
+    Detect cycles for every security.
+    Returns:
+        events
+        summaries
+    """
+    all_events: list[
         dict[str, Any]
     ] = []
     summaries: list[
@@ -1186,84 +914,149 @@ def analyze_cycles(
         "security_key",
         sort=False,
     )
-    company_count = 0
-    for security_key, company in (
-        grouped
-    ):
-        company_count += 1
-        company = (
+    for security_key, company in grouped:
+        events = detect_company_cycles(
             company
-            .sort_values(
-                [
-                    "snapshot_date",
-                    "price_date",
+        )
+        events = attach_event_outcomes(
+            events,
+            company,
+        )
+        all_events.extend(
+            events
+        )
+        peaks = [
+            event
+            for event in events
+            if event[
+                "event_type"
+            ] == "peak"
+        ]
+        troughs = [
+            event
+            for event in events
+            if event[
+                "event_type"
+            ] == "trough"
+        ]
+        summary: dict[str, Any] = {
+            "security_key": str(
+                security_key
+            ),
+            "cycle_event_count": len(
+                events
+            ),
+            "peak_count": len(
+                peaks
+            ),
+            "trough_count": len(
+                troughs
+            ),
+        }
+        for event_type, event_list in (
+            (
+                "peak",
+                peaks,
+            ),
+            (
+                "trough",
+                troughs,
+            ),
+        ):
+            for horizon in HORIZONS:
+                column = (
+                    f"abnormal_return_{horizon}d"
+                )
+                values = [
+                    event[column]
+                    for event in event_list
+                    if event.get(column)
+                    is not None
                 ]
-            )
-            .reset_index(
-                drop=True
-            )
-        )
-        peaks, troughs = (
-            detect_company_events(
-                company
-            )
-        )
-        company_records = (
-            build_cycle_records(
-                company,
-                peaks,
-                troughs,
-            )
-        )
-        cycle_records.extend(
-            company_records
-        )
+                if values:
+                    summary[
+                        f"{event_type}_mean_abnormal_return_{horizon}d"
+                    ] = float(
+                        np.mean(values)
+                    )
+                    summary[
+                        f"{event_type}_median_abnormal_return_{horizon}d"
+                    ] = float(
+                        np.median(values)
+                    )
+                else:
+                    summary[
+                        f"{event_type}_mean_abnormal_return_{horizon}d"
+                    ] = None
+                    summary[
+                        f"{event_type}_median_abnormal_return_{horizon}d"
+                    ] = None
         summaries.append(
-            build_company_summary(
-                company,
-                peaks,
-                troughs,
-            )
+            summary
         )
-    peak_count = sum(
-        1
-        for record in cycle_records
-        if record[
-            "event_type"
-        ]
-        == "peak"
-    )
-    trough_count = sum(
-        1
-        for record in cycle_records
-        if record[
-            "event_type"
-        ]
-        == "trough"
-    )
-    print(
-        f"Analyserade bolag: "
-        f"{company_count}"
-    )
-    print(
-        f"Identifierade toppar: "
-        f"{peak_count}"
-    )
-    print(
-        f"Identifierade dalar: "
-        f"{trough_count}"
+    summaries.sort(
+        key=lambda item: (
+            -item[
+                "cycle_event_count"
+            ],
+            item[
+                "security_key"
+            ],
+        )
     )
     return (
-        cycle_records,
+        all_events,
         summaries,
     )
+def _json_value(
+    value: Any,
+) -> Any:
+    """
+    Convert pandas/numpy values to JSON-safe
+    Python values.
+    """
+    if value is None:
+        return None
+    if isinstance(
+        value,
+        (
+            np.integer,
+            np.int64,
+            np.int32,
+        ),
+    ):
+        return int(value)
+    if isinstance(
+        value,
+        (
+            np.floating,
+            np.float64,
+            np.float32,
+        ),
+    ):
+        if not np.isfinite(value):
+            return None
+        return float(value)
+    if isinstance(
+        value,
+        (
+            pd.Timestamp,
+            pd.NaT.__class__,
+        ),
+    ):
+        if pd.isna(value):
+            return None
+        return value.strftime(
+            "%Y-%m-%d"
+        )
+    if pd.isna(value):
+        return None
+    return value
 def write_jsonl(
     path: Path,
-    rows: list[
-        dict[str, Any]
-    ],
+    rows: list[dict[str, Any]],
 ) -> None:
-    """Write JSON Lines output."""
+    """Write rows as UTF-8 JSONL."""
     path.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -1273,9 +1066,13 @@ def write_jsonl(
         encoding="utf-8",
     ) as handle:
         for row in rows:
+            clean_row = {
+                key: _json_value(value)
+                for key, value in row.items()
+            }
             handle.write(
                 json.dumps(
-                    row,
+                    clean_row,
                     ensure_ascii=False,
                     allow_nan=False,
                 )
@@ -1283,75 +1080,34 @@ def write_jsonl(
             )
 def write_summary(
     path: Path,
-    summaries: list[
-        dict[str, Any]
-    ],
+    summaries: list[dict[str, Any]],
 ) -> None:
-    """Write cycle summary JSON."""
-    repeated = [
-        summary
-        for summary in summaries
-        if summary[
-            "repeated_cycle_candidate"
-        ]
-    ]
-    repeated.sort(
-        key=lambda summary: (
-            summary[
-                "peak_count"
-            ],
-            summary[
-                "max_peak_prominence_pp"
-            ]
-            or 0.0,
-        ),
-        reverse=True,
-    )
-    output = {
-        "configuration": {
-            "market_symbol": (
-                MARKET_SYMBOL
-            ),
-            "horizons": list(
-                HORIZONS
-            ),
-            "min_prominence_pp": (
-                MIN_PROMINENCE_PP
-            ),
-            "min_event_separation_days": (
-                MIN_EVENT_SEPARATION_DAYS
-            ),
-            "prominence_window_days": (
-                PROMINENCE_WINDOW_DAYS
-            ),
-        },
-        "company_count": len(
-            summaries
-        ),
-        "repeated_cycle_company_count": len(
-            repeated
-        ),
-        "companies": summaries,
-        "repeated_cycle_candidates": (
-            repeated
-        ),
-    }
+    """Write cycle summaries as JSON."""
     path.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
-    path.write_text(
-        json.dumps(
-            output,
+    clean_summaries = []
+    for summary in summaries:
+        clean_summaries.append(
+            {
+                key: _json_value(value)
+                for key, value in summary.items()
+            }
+        )
+    with path.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        json.dump(
+            clean_summaries,
+            handle,
             ensure_ascii=False,
             indent=2,
             allow_nan=False,
-        ),
-        encoding="utf-8",
-    )
+        )
+        handle.write("\n")
 def main() -> None:
-    """Run the complete market/cycle analysis."""
-    print()
     print(
         "=========================================="
     )
@@ -1361,10 +1117,10 @@ def main() -> None:
     print(
         "=========================================="
     )
-    print()
     frame = load_features()
     print(
-        f"Feature-rader: {len(frame):,}"
+        "Feature-rader: "
+        f"{len(frame):,}"
     )
     print(
         "Datum: "
@@ -1372,88 +1128,80 @@ def main() -> None:
         "-> "
         f"{frame['snapshot_date'].max().date()}"
     )
+    price_dates = frame[
+        "price_date"
+    ].dropna()
+    if price_dates.empty:
+        raise RuntimeError(
+            "Feature-datasetet innehåller inga "
+            "price_date-värden."
+        )
     market = download_market_data(
-        start_date=frame[
-            "price_date"
-        ].min(),
-        end_date=frame[
-            "price_date"
-        ].max(),
+        price_dates.min(),
+        price_dates.max(),
     )
-    print(
-        f"OMXSPI-observationer: "
-        f"{len(market):,}"
-    )
-    result = build_market_returns(
+    market_frame = build_market_returns(
         frame,
         market,
     )
-    result = result.replace(
-        [
-            np.inf,
-            -np.inf,
-        ],
-        np.nan,
+    market_rows = (
+        market_frame
+        .replace(
+            {
+                pd.NaT: None,
+                np.nan: None,
+            }
+        )
+        .to_dict(
+            orient="records"
+        )
     )
-    market_rows = result.to_dict(
-        orient="records"
-    )
-    for row in market_rows:
-        for key, value in list(
-            row.items()
-        ):
-            if isinstance(
-                value,
-                pd.Timestamp,
-            ):
-                if pd.isna(value):
-                    row[key] = None
-                else:
-                    row[key] = (
-                        value.strftime(
-                            "%Y-%m-%d"
-                        )
-                    )
-            elif pd.isna(value):
-                row[key] = None
-            elif isinstance(
-                value,
-                np.generic,
-            ):
-                row[key] = value.item()
     write_jsonl(
         MARKET_RETURNS_PATH,
         market_rows,
     )
     print(
-        f"Skrev: "
+        "Market-adjusted returns skrivna: "
         f"{MARKET_RETURNS_PATH}"
     )
-    cycle_records, summaries = (
-        analyze_cycles(result)
+    events, summaries = (
+        build_cycle_analysis(
+            market_frame
+        )
     )
     write_jsonl(
         CYCLES_PATH,
-        cycle_records,
+        events,
     )
     write_summary(
         CYCLE_SUMMARY_PATH,
         summaries,
     )
     print(
-        f"Skrev: "
+        "Short-cycle events: "
+        f"{len(events):,}"
+    )
+    print(
+        "Bolag med cycle events: "
+        f"{sum("
+            "1 "
+            "for summary in summaries "
+            "if summary['cycle_event_count'] > 0"
+        ):,}"
+    )
+    print(
+        "Cycle events skrivna: "
         f"{CYCLES_PATH}"
     )
     print(
-        f"Skrev: "
+        "Cycle summary skriven: "
         f"{CYCLE_SUMMARY_PATH}"
     )
-    print()
     print(
         "=========================================="
     )
     print(
-        "MARKET & CYCLE ANALYSIS KLAR"
+        "MARKET & SHORT CYCLE ANALYSIS KLAR"
     )
     print(
         "=========================================="
