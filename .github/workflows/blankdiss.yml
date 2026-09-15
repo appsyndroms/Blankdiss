@@ -49,6 +49,10 @@ jobs:
         run: |
           python -m prices
 
+      - name: Build features
+        run: |
+          python -m analysis.build_features
+
       - name: Build events
         run: |
           python -m events
