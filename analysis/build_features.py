@@ -439,6 +439,120 @@ def build_price_lookup(
     }
 
 
+def add_price_history_features(
+    result: dict[str, Any],
+    series: pd.DataFrame,
+    entry_idx: int,
+    entry_price: float,
+) -> None:
+    """
+    Beräknar prisfeatures enbart från observationer
+    på eller före signal-dagen.
+
+    Ingen framtida prisinformation används.
+    """
+
+    closes = pd.to_numeric(
+        series["close"],
+        errors="coerce",
+    ).to_numpy(
+        dtype=float
+    )
+
+    def previous_return(
+        days: int,
+    ) -> float:
+        previous_idx = entry_idx - days
+
+        if previous_idx < 0:
+            return np.nan
+
+        previous_price = closes[
+            previous_idx
+        ]
+
+        if (
+            not np.isfinite(previous_price)
+            or previous_price <= 0
+        ):
+            return np.nan
+
+        return (
+            entry_price
+            / previous_price
+            - 1.0
+        )
+
+    result["price_return_5d"] = (
+        previous_return(5)
+    )
+
+    result["price_return_20d"] = (
+        previous_return(20)
+    )
+
+    result["price_return_60d"] = (
+        previous_return(60)
+    )
+
+    start_20 = max(
+        0,
+        entry_idx - 20,
+    )
+
+    history_20 = closes[
+        start_20:entry_idx + 1
+    ]
+
+    if len(history_20) >= 2:
+        result["price_volatility_20d"] = (
+            float(
+                pd.Series(
+                    history_20
+                ).pct_change().std()
+            )
+        )
+    else:
+        result["price_volatility_20d"] = (
+            np.nan
+        )
+
+    high_20 = (
+        np.nanmax(history_20)
+        if len(history_20)
+        else np.nan
+    )
+
+    result["price_distance_from_20d_high"] = (
+        entry_price / high_20 - 1.0
+        if np.isfinite(high_20)
+        and high_20 > 0
+        else np.nan
+    )
+
+    start_60 = max(
+        0,
+        entry_idx - 60,
+    )
+
+    history_60 = closes[
+        start_60:entry_idx + 1
+    ]
+
+    high_60 = (
+        np.nanmax(history_60)
+        if len(history_60)
+        else np.nan
+    )
+
+    result["price_distance_from_60d_high"] = (
+        entry_price / high_60 - 1.0
+        if np.isfinite(high_60)
+        and high_60 > 0
+        else np.nan
+    )
+
+
 def attach_prices(
     fi: pd.DataFrame,
     prices: pd.DataFrame,
@@ -564,6 +678,13 @@ def attach_prices(
 
         result["price_mapping_source"] = (
             mapping_source
+        )
+
+        add_price_history_features(
+            result,
+            series,
+            entry_idx,
+            entry_price,
         )
 
         for horizon in RETURN_HORIZONS:
@@ -718,7 +839,16 @@ def refresh_incomplete_returns(
         "price_match_available",
         "yahoo_symbol",
         "price_mapping_source",
-        *return_columns,
+        "price_return_5d",
+        "price_return_20d",
+        "price_return_60d",
+        "price_volatility_20d",
+        "price_distance_from_20d_high",
+        "price_distance_from_60d_high",
+        "forward_return_1d",
+        "forward_return_5d",
+        "forward_return_20d",
+        "forward_return_60d",
     ]
 
     for column in update_columns:
@@ -731,58 +861,7 @@ def refresh_incomplete_returns(
     return current.reset_index()
 
 
-def validate_output_columns(
-    frame: pd.DataFrame,
-) -> None:
-    required = {
-        "snapshot_date",
-        "issuer",
-        "isin",
-        "security_key",
-        "yahoo_symbol",
-        "price_mapping_source",
-        "price_date",
-        "close",
-        "close_on_signal_date",
-        "days_from_fi_to_price",
-        "price_match_available",
-        "short_interest_pct",
-        "active_holders",
-        "max_individual_position_pct",
-        "max_position_share_pct",
-        "forward_return_1d",
-        "forward_return_5d",
-        "forward_return_20d",
-        "forward_return_60d",
-        "above_1_0pct",
-        "entered_above_1_0pct",
-        "exited_below_1_0pct",
-        "above_2_0pct",
-        "entered_above_2_0pct",
-        "exited_below_2_0pct",
-        "above_3_0pct",
-        "entered_above_3_0pct",
-        "exited_below_3_0pct",
-        "above_5_0pct",
-        "entered_above_5_0pct",
-        "exited_below_5_0pct",
-    }
-
-    missing = required.difference(
-        frame.columns
-    )
-
-    if missing:
-        raise RuntimeError(
-            "Featurejobb saknar "
-            "förväntade outputkolumner: "
-            + ", ".join(
-                sorted(missing)
-            )
-        )
-
-
-def write_jsonl(
+def write_features(
     frame: pd.DataFrame,
 ) -> None:
     OUTPUT_DIR.mkdir(
@@ -790,285 +869,41 @@ def write_jsonl(
         exist_ok=True,
     )
 
-    with OUTPUT_PATH.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        for record in frame.to_dict(
-            orient="records"
-        ):
-            handle.write(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                    allow_nan=False,
-                )
-                + "\n"
-            )
-
-
-def main() -> None:
-    print(
-        "Featurejobb: startar inkrementellt."
+    clean = clean_for_json(
+        frame
     )
 
-    fi = load_fi()
-
-    price_file = find_price_file()
-
-    prices = load_prices(
-        price_file
+    clean.to_json(
+        OUTPUT_PATH,
+        orient="records",
+        lines=True,
+        force_ascii=False,
     )
 
-    existing = load_existing()
 
-    print(
-        "Featurejobb: "
-        f"{len(fi):,} "
-        "FI-observationer lästa."
-    )
-
-    print(
-        "Featurejobb: "
-        f"{len(prices):,} "
-        "prisobservationer lästa."
-    )
-
-    print(
-        "Featurejobb: prisfil = "
-        f"{price_file.name}"
-    )
-
-    if existing.empty:
-        print(
-            "Featurejobb: ingen befintlig "
-            "feature-fil -> bygger "
-            "initial historik."
-        )
-
-        result, stats = attach_prices(
-            add_fi_features(fi),
-            prices,
-        )
-
-    else:
-        existing_keys = set(
-            feature_key(existing)
-        )
-
-        candidates = fi.loc[
-            ~feature_key(fi).isin(
-                existing_keys
-            )
-        ].copy()
-
-        print(
-            "Featurejobb: "
-            f"{len(existing):,} "
-            "befintliga feature-rader."
-        )
-
-        print(
-            "Featurejobb: "
-            f"{len(candidates):,} "
-            "nya FI-observationer."
-        )
-
-        if candidates.empty:
-            result = (
-                refresh_incomplete_returns(
-                    existing,
-                    prices,
-                )
-            )
-
-            stats = {
-                "matched_rows": 0,
-                "unmatched_rows": 0,
-                "matched_by_isin": 0,
-                "matched_by_issuer": 0,
-            }
-
-        else:
-            context_keys = (
-                candidates[
-                    "security_key"
-                ].unique()
-            )
-
-            context = (
-                fi.loc[
-                    fi["security_key"].isin(
-                        context_keys
-                    )
-                ]
-                .sort_values(
-                    [
-                        "security_key",
-                        "snapshot_date",
-                    ]
-                )
-                .groupby(
-                    "security_key",
-                    sort=False,
-                )
-                .tail(1)
-            )
-
-            context = context.loc[
-                ~feature_key(
-                    context
-                ).isin(
-                    set(
-                        feature_key(
-                            candidates
-                        )
-                    )
-                )
-            ]
-
-            combined = pd.concat(
-                [
-                    context,
-                    candidates,
-                ],
-                ignore_index=True,
-            )
-
-            built = add_fi_features(
-                combined
-            )
-
-            candidate_keys = set(
-                feature_key(candidates)
-            )
-
-            built = built.loc[
-                feature_key(
-                    built
-                ).isin(candidate_keys)
-            ].copy()
-
-            new_rows, stats = attach_prices(
-                built,
-                prices,
-            )
-
-            result = pd.concat(
-                [
-                    existing,
-                    new_rows,
-                ],
-                ignore_index=True,
-            )
-
-            result = (
-                refresh_incomplete_returns(
-                    result,
-                    prices,
-                )
-            )
-
-    if result.empty:
-        raise RuntimeError(
-            "Featurejobb gav 0 "
-            "matchade FI-observationer."
-        )
-
-    validate_output_columns(
-        result
-    )
-
-    result = (
-        result
-        .sort_values(
-            [
-                "security_key",
-                "snapshot_date",
-            ],
-            kind="mergesort",
-        )
-        .drop_duplicates(
-            [
-                "security_key",
-                "snapshot_date",
-            ],
-            keep="last",
-        )
-    )
-
-    json_result = clean_for_json(
-        result
-    )
-
-    write_jsonl(
-        json_result
-    )
-
+def write_metadata(
+    stats: dict[str, Any],
+    frame: pd.DataFrame,
+    price_file: Path,
+) -> None:
     metadata = {
-        "source": {
-            "fi_file": str(
-                FI_PATH.relative_to(
-                    ROOT
-                )
-            ),
-            "price_file": str(
-                price_file.relative_to(
-                    ROOT
-                )
-            ),
-        },
-        "build_mode": "incremental",
-        "fi_rows": len(fi),
-        "price_rows": len(prices),
-        "feature_rows": len(result),
-        "matched_fi_rows": stats.get(
-            "matched_rows",
-            0,
+        "feature_rows": int(
+            len(frame)
         ),
-        "unmatched_fi_rows": stats.get(
-            "unmatched_rows",
-            0,
+        "columns": list(
+            frame.columns
         ),
-        "matched_by_isin": stats.get(
-            "matched_by_isin",
-            0,
+        "price_file": price_file.name,
+        "price_file_path": str(
+            price_file
         ),
-        "matched_by_issuer": stats.get(
-            "matched_by_issuer",
-            0,
-        ),
-        "security_keys_fi": int(
-            fi["security_key"].nunique()
-        ),
-        "security_keys_prices": int(
-            prices["security_key"].nunique()
-        ),
-        "return_horizons_trading_days": list(
-            RETURN_HORIZONS
-        ),
-        "entry_price_rule": (
-            "first available "
-            "trading-day close on "
-            "or after FI snapshot date"
-        ),
-        "forward_return_rule": (
-            "close at Nth subsequent "
-            "trading day divided by "
-            "entry close minus 1"
-        ),
-        "identity_rule": (
-            "ISIN first; exact "
-            "normalized issuer fallback "
-            "only when ISIN is absent"
-        ),
-        "missing_fi_observation_rule": (
-            "not interpreted as zero"
-        ),
-        "feature_columns": list(
-            result.columns
-        ),
+        "stats": stats,
     }
+
+    METADATA_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     with METADATA_PATH.open(
         "w",
@@ -1081,14 +916,197 @@ def main() -> None:
             indent=2,
         )
 
+
+def main() -> None:
     print(
-        "Featurejobb: "
-        f"{len(result):,} rader "
-        f"-> {OUTPUT_PATH}"
+        "Featurejobb: startar."
+    )
+
+    fi = load_fi()
+
+    print(
+        f"{len(fi):,} FI-observationer"
+    )
+
+    price_file = find_price_file()
+
+    prices = load_prices(
+        price_file
     )
 
     print(
-        "Featurejobb: färdig."
+        f"{len(prices):,} prisobservationer"
+    )
+
+    existing = load_existing()
+
+    # Första körningen: bygg hela historiken.
+    if existing.empty:
+        enriched = add_fi_features(
+            fi
+        )
+
+        features, stats = attach_prices(
+            enriched,
+            prices,
+        )
+
+    else:
+        existing_keys = set(
+            feature_key(existing)
+        )
+
+        fi_keys = feature_key(
+            fi
+        )
+
+        new_mask = ~fi_keys.isin(
+            existing_keys
+        )
+
+        new_fi = fi.loc[
+            new_mask
+        ].copy()
+
+        if new_fi.empty:
+            features = existing.copy()
+
+            features = (
+                refresh_incomplete_returns(
+                    features,
+                    prices,
+                )
+            )
+
+            stats = {
+                "fi_rows": int(
+                    len(fi)
+                ),
+                "new_fi_rows": 0,
+                "matched_rows": 0,
+                "unmatched_rows": 0,
+            }
+
+        else:
+            # Viktigt:
+            # vi måste hämta senaste gamla observation
+            # FÖRE den första nya observationen per bolag.
+            first_new_dates = (
+                new_fi.groupby(
+                    "security_key"
+                )["snapshot_date"]
+                .min()
+            )
+
+            context_mask = (
+                fi["security_key"]
+                .isin(
+                    first_new_dates.index
+                )
+                & fi.apply(
+                    lambda row: (
+                        row["snapshot_date"]
+                        < first_new_dates.get(
+                            row["security_key"],
+                            pd.Timestamp.max,
+                        )
+                    ),
+                    axis=1,
+                )
+            )
+
+            context = (
+                fi.loc[
+                    context_mask
+                ]
+                .sort_values(
+                    [
+                        "security_key",
+                        "snapshot_date",
+                    ],
+                    kind="mergesort",
+                )
+                .groupby(
+                    "security_key",
+                    sort=False,
+                )
+                .tail(1)
+            )
+
+            work = pd.concat(
+                [
+                    context,
+                    new_fi,
+                ],
+                ignore_index=True,
+            )
+
+            work = add_fi_features(
+                work
+            )
+
+            new_features, stats = attach_prices(
+                work,
+                prices,
+            )
+
+            new_keys = set(
+                feature_key(
+                    new_fi
+                )
+            )
+
+            new_features = (
+                new_features.loc[
+                    feature_key(
+                        new_features
+                    ).isin(new_keys)
+                ]
+                .copy()
+            )
+
+            existing = (
+                refresh_incomplete_returns(
+                    existing,
+                    prices,
+                )
+            )
+
+            features = pd.concat(
+                [
+                    existing,
+                    new_features,
+                ],
+                ignore_index=True,
+            )
+
+    features = features.sort_values(
+        [
+            "snapshot_date",
+            "security_key",
+        ],
+        kind="mergesort",
+    ).reset_index(
+        drop=True
+    )
+
+    write_features(
+        features
+    )
+
+    write_metadata(
+        stats,
+        features,
+        price_file,
+    )
+
+    print(
+        f"{len(features):,} rader -> "
+        f"{OUTPUT_PATH.name}"
+    )
+
+    print(
+        "Featurejobb: klart."
     )
 
 
