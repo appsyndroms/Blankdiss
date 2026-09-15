@@ -180,6 +180,55 @@ def prepare_ml_data(
         feature_columns,
     ] = X
 
+    # Ta bort features som saknar ALLA observerade
+    # värden i just det dataset som ska användas.
+    #
+    # En sådan kolumn kan inte imputeras med median
+    # och skulle annars ge sklearn-varningar samt
+    # i praktiken inte bidra med någon information.
+    all_missing = [
+        column
+        for column in feature_columns
+        if data[column].notna().sum() == 0
+    ]
+
+    if all_missing:
+        print(
+            "Tar bort helt tomma ML-features:"
+        )
+
+        for column in all_missing:
+            print(
+                f"  {column}"
+            )
+
+        feature_columns = [
+            column
+            for column in feature_columns
+            if column not in all_missing
+        ]
+
+        if not feature_columns:
+            raise ValueError(
+                "Alla ML-features saknar "
+                "observerade värden."
+            )
+
+        X = data[
+            feature_columns
+        ].copy()
+
+    data = data[
+        [
+            "snapshot_date",
+            "security_key",
+        ]
+        + feature_columns
+        + [
+            target.return_column
+        ]
+    ].copy()
+
     data["target_return"] = pd.to_numeric(
         data[target.return_column],
         errors="coerce",
