@@ -7,12 +7,12 @@ Detta analyssteg gör två saker:
 2. Identifierar återkommande lokala toppar och dalar i
    short interest för enskilda bolag.
 
-Marknadsdata hämtas från Nasdaqs GIW-historiktjänst och
-persisteras lokalt som JSONL.
+Marknadsdata hämtas från Yahoo Finance för OMXSPI (^OMXSPI)
+och persisteras lokalt som JSONL.
 
 Arkitektur:
 
-    Nasdaq GIW
+    Yahoo Finance
         |
         v
     data/raw/market/omxspi.jsonl
@@ -65,12 +65,15 @@ SHORT_CYCLES_SUMMARY_PATH = Path(
 
 MARKET_SYMBOL = "OMXSPI"
 
-NASDAQ_HISTORY_URL = (
-    "https://indexes.nasdaqomx.com/"
-    "reports2/history.ashx"
+YAHOO_SYMBOL = "^OMXSPI"
+
+YAHOO_CHART_URL = (
+    "https://query1.finance.yahoo.com/"
+    "v8/finance/chart/"
+    "%5EOMXSPI"
 )
 
-NASDAQ_HEADERS = {
+YAHOO_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) "
         "AppleWebKit/537.36 "
@@ -78,14 +81,10 @@ NASDAQ_HEADERS = {
         "Chrome/131.0 Safari/537.36"
     ),
     "Accept": (
-        "text/csv,application/csv,"
-        "text/plain,application/json,*/*"
+        "application/json,text/plain,*/*"
     ),
     "Accept-Language": (
         "sv-SE,sv;q=0.9,en;q=0.8"
-    ),
-    "Referer": (
-        "https://indexes.nasdaqomx.com/"
     ),
 }
 
@@ -286,201 +285,127 @@ def load_features() -> pd.DataFrame:
     return frame
 
 
-def _parse_nasdaq_history(
-    text: str,
+def _parse_yahoo_chart(
+    payload: dict[str, Any],
 ) -> pd.DataFrame:
     """
-    Tolka CSV-svaret från Nasdaqs GIW
-    history-tjänst.
+    Tolka Yahoo Finance Chart API-svaret.
 
-    GIW-dokumentationen anger CSV som ett
-    stödd format. Formatet kan innehålla
-    varierande rubriker/metadata, därför
-    försöker vi först hitta den rad som
-    representerar kolumnnamnen.
+    Yahoo Chart API returnerar tidsstämplar
+    separat från quote-data.
+
+    Vi använder:
+
+        timestamp
+        indicators.quote[0].close
     """
 
-    if not text.strip():
-        raise RuntimeError(
-            "Nasdaq returnerade ett tomt svar."
-        )
-
-    lines = [
-        line.strip()
-        for line in text.splitlines()
-        if line.strip()
-    ]
-
-    if not lines:
-        raise RuntimeError(
-            "Nasdaq returnerade inga rader."
-        )
-
-    print(
-        "Nasdaq CSV-rader: "
-        f"{len(lines):,}"
+    chart = payload.get(
+        "chart"
     )
 
-    preview = "\n".join(
-        lines[:10]
-    )
-
-    print(
-        "Nasdaq CSV början:\n"
-        f"{preview}"
-    )
-
-    candidates = []
-
-    for separator in (
-        ",",
-        ";",
-        "|",
-        "\t",
-    ):
-        try:
-            parsed = pd.read_csv(
-                pd.io.common.StringIO(
-                    text
-                ),
-                sep=separator,
-                engine="python",
-            )
-
-        except Exception:
-            continue
-
-        if parsed.empty:
-            continue
-
-        candidates.append(
-            parsed
-        )
-
-    if not candidates:
-        raise RuntimeError(
-            "Kunde inte tolka Nasdaq-svaret "
-            "som CSV."
-        )
-
-    best: pd.DataFrame | None = None
-
-    for candidate in candidates:
-        normalized_columns = [
-            str(column)
-            .strip()
-            .lower()
-            for column in candidate.columns
-        ]
-
-        has_date = any(
-            (
-                "date" in column
-                or "trade" in column
-            )
-            for column in normalized_columns
-        )
-
-        has_value = any(
-            (
-                "value" in column
-                or "index" in column
-                or "close" in column
-            )
-            for column in normalized_columns
-        )
-
-        if has_date and has_value:
-            best = candidate
-            break
-
-    if best is None:
-        raise RuntimeError(
-            "Nasdaq CSV kunde läsas men "
-            "innehåller inte förväntade "
-            "datum-/indexkolumner.\n"
-            f"Kolumner: "
-            f"{list(candidates[0].columns)}"
-        )
-
-    frame = best.copy()
-
-    column_map = {}
-
-    for column in frame.columns:
-        normalized = (
-            str(column)
-            .strip()
-            .lower()
-        )
-
-        if (
-            "trade date" in normalized
-            or normalized == "date"
-            or normalized.endswith(
-                "date"
-            )
-        ):
-            column_map[column] = (
-                "market_date"
-            )
-
-        elif (
-            "index value" in normalized
-            or normalized == "value"
-        ):
-            column_map[column] = (
-                "market_close"
-            )
-
-        elif (
-            normalized == "close"
-            or normalized.endswith(
-                "close"
-            )
-        ):
-            column_map[column] = (
-                "market_close"
-            )
-
-    frame = frame.rename(
-        columns=column_map
-    )
-
-    if (
-        "market_date"
-        not in frame.columns
+    if not isinstance(
+        chart,
+        dict,
     ):
         raise RuntimeError(
-            "Nasdaq-svaret saknar "
-            "datumkolumn."
+            "Yahoo-svaret saknar "
+            "'chart'-objekt."
         )
 
-    if (
-        "market_close"
-        not in frame.columns
+    error = chart.get(
+        "error"
+    )
+
+    if error:
+        raise RuntimeError(
+            "Yahoo Chart API returnerade "
+            f"fel: {error}"
+        )
+
+    results = chart.get(
+        "result"
+    )
+
+    if not results:
+        raise RuntimeError(
+            "Yahoo-svaret innehåller "
+            "inga resultat."
+        )
+
+    result = results[0]
+
+    timestamps = result.get(
+        "timestamp"
+    )
+
+    indicators = result.get(
+        "indicators"
+    )
+
+    if not timestamps:
+        raise RuntimeError(
+            "Yahoo-svaret saknar "
+            "timestamps."
+        )
+
+    if not isinstance(
+        indicators,
+        dict,
     ):
         raise RuntimeError(
-            "Nasdaq-svaret saknar "
-            "indexvärde."
+            "Yahoo-svaret saknar "
+            "'indicators'."
         )
 
-    frame["market_date"] = pd.to_datetime(
-        frame["market_date"],
-        errors="coerce",
+    quotes = indicators.get(
+        "quote"
     )
 
-    frame["market_close"] = (
-        frame["market_close"]
-        .map(_parse_number)
+    if not quotes:
+        raise RuntimeError(
+            "Yahoo-svaret saknar "
+            "'quote'."
+        )
+
+    quote = quotes[0]
+
+    closes = quote.get(
+        "close"
     )
 
-    frame = frame[
-        [
-            "market_date",
-            "market_close",
-        ]
-    ].copy()
+    if closes is None:
+        raise RuntimeError(
+            "Yahoo-svaret saknar "
+            "close-värden."
+        )
+
+    if len(timestamps) != len(
+        closes
+    ):
+        raise RuntimeError(
+            "Yahoo-svaret har olika "
+            "antal timestamps och "
+            "close-värden."
+        )
+
+    frame = pd.DataFrame(
+        {
+            "market_date": pd.to_datetime(
+                timestamps,
+                unit="s",
+                utc=True,
+            ).tz_convert(
+                "Europe/Stockholm"
+            ).tz_localize(
+                None
+            ).normalize(),
+            "market_close": [
+                _parse_number(value)
+                for value in closes
+            ],
+        }
+    )
 
     frame = frame.dropna(
         subset=[
@@ -516,7 +441,7 @@ def _parse_nasdaq_history(
 
     if frame.empty:
         raise RuntimeError(
-            "Nasdaq-svaret innehåller "
+            "Yahoo-svaret innehåller "
             "inga giltiga OMXSPI-observationer."
         )
 
@@ -528,26 +453,17 @@ def download_market_data(
     end_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """
-    Hämta OMXSPI från Nasdaqs GIW
-    Index Level History Service.
+    Hämta OMXSPI från Yahoo Finance.
 
-    Nasdaq dokumenterar tjänsten som:
+    Symbol:
 
-        reports2/history.ashx
+        ^OMXSPI
 
-    med parametrarna:
+    Yahoo Finance identifierar ^OMXSPI som
+    OMX Stockholm_PI.
 
-        IndexSymbol
-        StartDate
-        EndDate
-        Type
-        FileType
-
-    Vi använder:
-
-        IndexSymbol=OMXSPI
-        Type=CSV
-        FileType=EOD
+    Vi använder Chart API med dagliga
+    observationer.
     """
 
     today = pd.Timestamp.now().normalize()
@@ -563,6 +479,25 @@ def download_market_data(
         today,
     )
 
+    start_timestamp = int(
+        requested_start
+        .tz_localize(
+            "Europe/Stockholm"
+        )
+        .timestamp()
+    )
+
+    end_timestamp = int(
+        (
+            requested_end
+            + pd.Timedelta(days=1)
+        )
+        .tz_localize(
+            "Europe/Stockholm"
+        )
+        .timestamp()
+    )
+
     start_text = requested_start.strftime(
         "%Y-%m-%d"
     )
@@ -573,20 +508,21 @@ def download_market_data(
 
     print(
         "Laddar marknadsdata: "
-        "Nasdaq GIW/OMXSPI"
+        "Yahoo Finance/"
+        f"{YAHOO_SYMBOL}"
     )
 
     print(
-        "Nasdaq-intervall: "
+        "Yahoo-intervall: "
         f"{start_text} -> {end_text}"
     )
 
     params = {
-        "IndexSymbol": MARKET_SYMBOL,
-        "StartDate": start_text,
-        "EndDate": end_text,
-        "Type": "CSV",
-        "FileType": "EOD",
+        "period1": start_timestamp,
+        "period2": end_timestamp,
+        "interval": "1d",
+        "events": "history",
+        "includeAdjustedClose": "true",
     }
 
     response = None
@@ -595,24 +531,24 @@ def download_market_data(
     for attempt in range(1, 4):
         try:
             print(
-                "Nasdaq-försök "
+                "Yahoo-försök "
                 f"{attempt}/3..."
             )
 
             response = requests.get(
-                NASDAQ_HISTORY_URL,
+                YAHOO_CHART_URL,
                 params=params,
-                headers=NASDAQ_HEADERS,
+                headers=YAHOO_HEADERS,
                 timeout=30,
             )
 
             print(
-                "Nasdaq HTTP-status: "
+                "Yahoo HTTP-status: "
                 f"{response.status_code}"
             )
 
             print(
-                "Nasdaq Content-Type: "
+                "Yahoo Content-Type: "
                 f"{response.headers.get('Content-Type', '')}"
             )
 
@@ -624,7 +560,7 @@ def download_market_data(
             last_error = error
 
             print(
-                "Nasdaq-anrop misslyckades: "
+                "Yahoo-anrop misslyckades: "
                 f"{error}"
             )
 
@@ -638,77 +574,48 @@ def download_market_data(
     if response is None:
         raise RuntimeError(
             "Kunde inte hämta "
-            "OMXSPI från Nasdaq efter "
+            "OMXSPI från Yahoo efter "
             "3 försök."
         ) from last_error
 
-    content_type = (
-        response.headers
-        .get(
-            "Content-Type",
-            "",
+    try:
+        payload = response.json()
+
+    except ValueError as error:
+        preview = response.text[:2000]
+
+        print(
+            "Yahoo-svar, början:\n"
+            f"{preview}"
         )
-        .lower()
+
+        raise RuntimeError(
+            "Yahoo returnerade inte giltig "
+            "JSON."
+        ) from error
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        raise RuntimeError(
+            "Yahoo returnerade ett "
+            "oväntat svar."
+        )
+
+    payload_preview = json.dumps(
+        payload,
+        ensure_ascii=False,
+        default=str,
+    )[:2000]
+
+    print(
+        "Yahoo-svar, början:\n"
+        f"{payload_preview}"
     )
 
-    if (
-        "json" in content_type
-        and response.text.strip()
-    ):
-        try:
-            payload = response.json()
-
-        except ValueError:
-            payload = None
-
-        if isinstance(
-            payload,
-            dict,
-        ):
-            print(
-                "Nasdaq returnerade JSON "
-                "i stället för CSV."
-            )
-
-            print(
-                "JSON-nycklar: "
-                f"{list(payload.keys())}"
-            )
-
-            status = payload.get(
-                "status"
-            )
-
-            if status is not None:
-                status_preview = json.dumps(
-                    status,
-                    ensure_ascii=False,
-                    default=str,
-                )
-
-                print(
-                    "Nasdaq status:\n"
-                    f"{status_preview}"
-                )
-
-            message = payload.get(
-                "message"
-            )
-
-            if message:
-                print(
-                    "Nasdaq message: "
-                    f"{message}"
-                )
-
-            raise RuntimeError(
-                "Nasdaq GIW returnerade "
-                "JSON i stället för "
-                "historiska indexdata."
-            )
-
-    market = _parse_nasdaq_history(
-        response.text
+    market = _parse_yahoo_chart(
+        payload
     )
 
     market = market[
@@ -726,7 +633,7 @@ def download_market_data(
 
     if market.empty:
         raise RuntimeError(
-            "Nasdaq/OMXSPI innehåller inga "
+            "Yahoo/OMXSPI innehåller inga "
             "observationer inom det begärda "
             "intervallet."
         )
@@ -1532,6 +1439,12 @@ def write_summary(
 
     payload = {
         "market_symbol": MARKET_SYMBOL,
+        "market_source": (
+            "Yahoo Finance"
+        ),
+        "market_source_symbol": (
+            YAHOO_SYMBOL
+        ),
         "min_cycle_prominence_pct": (
             MIN_CYCLE_PROMINENCE
         ),
