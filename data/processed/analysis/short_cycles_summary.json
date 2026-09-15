@@ -5,7 +5,7 @@
   "min_cycle_prominence_pct": 0.25,
   "min_days_between_events": 30,
   "cycle_lookback_days": 180,
-  "companies_with_cycles": 141,
+  "companies_with_cycles": 142,
   "companies": [
     {
       "security_key": "ISIN:SE0009554454",
@@ -446,6 +446,14 @@
       "troughs": 6,
       "first_event": "2023-11-02",
       "last_event": "2025-03-21"
+    },
+    {
+      "security_key": "ISIN:SE0003303627",
+      "cycle_events": 10,
+      "peaks": 4,
+      "troughs": 6,
+      "first_event": "2022-06-10",
+      "last_event": "2023-08-14"
     },
     {
       "security_key": "ISIN:SE0006625471",

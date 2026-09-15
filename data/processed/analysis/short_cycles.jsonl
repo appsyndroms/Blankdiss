@@ -575,6 +575,16 @@
 {"security_key": "ISIN:SE0002591420", "snapshot_date": "2026-06-15", "event_type": "peak", "short_interest_pct": 4.27, "prominence_pct": 0.8099999999999996}
 {"security_key": "ISIN:SE0002591420", "snapshot_date": "2026-07-17", "event_type": "peak", "short_interest_pct": 5.17, "prominence_pct": 1.71}
 {"security_key": "ISIN:SE0002591420", "snapshot_date": "2026-08-26", "event_type": "trough", "short_interest_pct": 4.87, "prominence_pct": 0.2999999999999998}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2022-06-10", "event_type": "peak", "short_interest_pct": 6.23, "prominence_pct": 1.1600000000000001}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2022-07-15", "event_type": "trough", "short_interest_pct": 6.04, "prominence_pct": 0.71}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2022-09-19", "event_type": "peak", "short_interest_pct": 6.45, "prominence_pct": 1.38}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2022-10-21", "event_type": "peak", "short_interest_pct": 6.22, "prominence_pct": 1.1499999999999995}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2022-12-14", "event_type": "trough", "short_interest_pct": 5.07, "prominence_pct": 1.6799999999999997}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2023-02-02", "event_type": "trough", "short_interest_pct": 4.55, "prominence_pct": 1.9000000000000004}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2023-04-28", "event_type": "peak", "short_interest_pct": 5.29, "prominence_pct": 0.7400000000000002}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2023-06-07", "event_type": "trough", "short_interest_pct": 5.22, "prominence_pct": 0.3600000000000003}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2023-07-10", "event_type": "trough", "short_interest_pct": 5.27, "prominence_pct": 0.5900000000000007}
+{"security_key": "ISIN:SE0003303627", "snapshot_date": "2023-08-14", "event_type": "trough", "short_interest_pct": 5.13, "prominence_pct": 0.7300000000000004}
 {"security_key": "ISIN:SE0003756758", "snapshot_date": "2022-10-11", "event_type": "peak", "short_interest_pct": 0.93, "prominence_pct": 0.43000000000000005}
 {"security_key": "ISIN:SE0003756758", "snapshot_date": "2022-12-30", "event_type": "peak", "short_interest_pct": 1.1, "prominence_pct": 0.6000000000000001}
 {"security_key": "ISIN:SE0003756758", "snapshot_date": "2023-03-31", "event_type": "peak", "short_interest_pct": 1.2, "prominence_pct": 0.59}
