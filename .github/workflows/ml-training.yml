@@ -1,64 +1,54 @@
 name: Blankdiss ML Training
-
 on:
   workflow_dispatch:
-
   workflow_run:
     workflows:
       - "Features QC"
     types:
       - completed
-
 permissions:
   contents: read
   actions: read
-
 jobs:
   train-ml:
     name: Träna Blankdiss ML
     runs-on: ubuntu-latest
-
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main'
       )
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Download feature artifact from triggering Features QC
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
+          rm -rf data/processed/analysis
           mkdir -p data/processed/analysis
-
           gh run download "$RUN_ID" \
             --repo "${{ github.repository }}" \
             --name features-and-qc \
             --dir data/processed/analysis
-
       - name: Download latest successful Features QC for manual run
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          rm -rf data/processed/analysis
           mkdir -p data/processed/analysis
-
           RUN_ID="$(
             gh run list \
               --repo "${{ github.repository }}" \
@@ -68,30 +58,23 @@ jobs:
               --json databaseId \
               --jq '.[0].databaseId'
           )"
-
           if [ -z "$RUN_ID" ]; then
             echo "Ingen lyckad Features QC-körning hittades."
             exit 1
           fi
-
           echo "Hämtar Features QC run: $RUN_ID"
-
           gh run download "$RUN_ID" \
             --repo "${{ github.repository }}" \
             --name features-and-qc \
             --dir data/processed/analysis
-
       - name: Verify feature dataset
         run: |
           test -f data/processed/analysis/features.jsonl
           test -f data/processed/analysis/features_metadata.json
-
           echo "Feature-dataset finns."
-
           echo
           echo "Filer:"
           ls -lh data/processed/analysis/
-
       - name: Verify ML package
         run: |
           test -f __init__.py
@@ -103,128 +86,99 @@ jobs:
           test -f ml/walk_forward.py
           test -f ml/train.py
           test -f ml/diagnostics.py
-
           echo "ML-paket finns."
-
       - name: Run ML training
         run: |
           python -m ml.train
-
       - name: Verify ML results
         run: |
           test -f data/processed/ml/latest_run.json
           test -f data/processed/ml/ml_results.jsonl
           test -d data/processed/ml/runs
-
           echo "ML-resultat skapade."
-
           echo
           echo "Resultat:"
           ls -lh data/processed/ml/
-
           echo
           echo "Runs:"
           ls -lh data/processed/ml/runs/
-
       - name: Run ML diagnostics
         run: |
           python -m ml.diagnostics
-
       - name: Verify ML diagnostics
         run: |
           test -f data/processed/ml/diagnostics.json
-
           echo "ML-diagnostik skapad."
-
           echo
           echo "Diagnostics:"
           ls -lh data/processed/ml/diagnostics.json
-
       - name: Print ML diagnostics summary
         shell: bash
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
           path = Path("data/processed/ml/diagnostics.json")
-
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
-
           print()
           print("================================")
           print("BLANKDISS ML DIAGNOSTICS")
           print("================================")
-
           print(
               f"Target: {data.get('target', 'unknown')}"
           )
-
           print(
               f"Feature set: {data.get('feature_set', 'unknown')}"
           )
-
           print(
               f"Features: "
               f"{data.get('feature_count', len(data.get('feature_columns', [])))}"
           )
-
           print()
-
           for window in data.get("windows", []):
               window_info = window.get(
                   "window",
                   {}
               )
-
               companies = window.get(
                   "company_diagnostics",
                   {}
               )
-
               print(
                   "Window: "
                   f"{window_info.get('train_end', '?')} -> "
                   f"{window_info.get('validation_end', '?')} -> "
                   f"{window_info.get('test_end', '?')}"
               )
-
               print(
                   "Selected model: "
                   f"{window.get('selected_model', '?')}"
               )
-
               print(
                   "Validation AUC: "
                   f"{window.get('validation_roc_auc', '?')}"
               )
-
               print(
                   "Test AUC: "
                   f"{window.get('test_roc_auc', '?')}"
               )
-
               print(
                   "Test rows: "
                   f"{window.get('test_rows', '?')}"
               )
-
               print(
                   "Company median AUC: "
                   f"{companies.get('median_company_auc', '?')}"
               )
-
               print(
                   "Company mean AUC: "
                   f"{companies.get('mean_company_auc', '?')}"
               )
-
               print("Top features:")
-
               for feature in window.get(
                   "feature_importance",
                   []
@@ -232,38 +186,31 @@ jobs:
                   importance = feature.get(
                       "importance"
                   )
-
                   if importance is None:
                       importance = feature.get(
                           "importance_mean"
                       )
-
                   print(
                       "  "
                       f"{feature.get('feature', '?')}: "
                       f"{importance if importance is not None else '?'}"
                   )
-
               print()
           PY
-
       - name: Print latest ML result
         shell: bash
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
           path = Path(
               "data/processed/ml/latest_run.json"
           )
-
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
-
           print(
               json.dumps(
                   data,
@@ -272,7 +219,6 @@ jobs:
               )
           )
           PY
-
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
         with:
