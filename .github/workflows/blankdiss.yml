@@ -36,7 +36,7 @@ jobs:
           python -u -m fi
       - name: Fetch prices
         run: |
-          python -m prices
+          python -m prices --start 2022-01-01
       - name: Build features
         run: |
           python -m analysis.build_features
