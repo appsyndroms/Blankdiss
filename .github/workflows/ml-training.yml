@@ -1,4 +1,5 @@
 name: Blankdiss ML Training
+
 on:
   workflow_dispatch:
   push:
@@ -8,47 +9,56 @@ on:
       - "data/processed/analysis/features_*.jsonl"
       - "data/processed/analysis/features_metadata.json"
       - "data/processed/analysis/features_qc.json"
+
 permissions:
   contents: read
+
 concurrency:
   group: ml-training-main
   cancel-in-progress: false
+
 jobs:
   train-ml:
     name: Träna Blankdiss ML
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Inspect checkout
+
+      - name: Fetch FI aggregate
+        run: |
+          python -u -m fi
+
+      - name: Fetch prices
+        run: |
+          python -m prices --start 2022-01-01
+
+      - name: Build features
+        run: |
+          python -m analysis.build_features
+
+      - name: Inspect feature dataset
         run: |
           echo "================================"
-          echo "CHECKOUT DEBUG"
+          echo "FEATURE DATASET"
           echo "================================"
+
           echo
           echo "Commit:"
           git rev-parse HEAD
-          echo
-          echo "Senaste commit:"
-          git log -1 --oneline
-          echo
-          echo "Git status:"
-          git status --short
-          echo
-          echo "Analysis-filer:"
-          find data/processed/analysis \
-            -maxdepth 1 \
-            -type f \
-            -printf '%f\n' \
-            | sort
+
           echo
           echo "Feature-filer:"
           find data/processed/analysis \
@@ -56,6 +66,7 @@ jobs:
             -name 'features_*.jsonl' \
             -printf '%f\n' \
             | sort
+
           echo
           echo "Metadata:"
           if [ -f data/processed/analysis/features_metadata.json ]; then
@@ -63,62 +74,111 @@ jobs:
           else
             echo "features_metadata.json SAKNAS."
           fi
+
           echo
           echo "QC:"
           if [ -f data/processed/analysis/features_qc.json ]; then
             echo "features_qc.json finns."
           else
-            echo "features_qc.json SAKNAS."
+            echo "features_qc.json SAKNAS ännu."
           fi
+
       - name: Verify feature dataset
         run: |
-          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
+          test -f data/processed/analysis/features_metadata.json
+
+          test -n "$(
+            find data/processed/analysis \
+              -maxdepth 1 \
+              -name 'features_*.jsonl' \
+              -print \
+              -quit
+          )"
+
           echo "Feature-dataset finns."
+
           echo
           echo "Feature-filer:"
           ls -lh data/processed/analysis/features_*.jsonl
+
           echo
           echo "Feature metadata:"
-          if [ -f data/processed/analysis/features_metadata.json ]; then
-            cat data/processed/analysis/features_metadata.json
-          else
-            echo "Feature metadata saknas."
-            echo "Metadata behövs inte för själva ML-träningen."
-          fi
-      - name: Verify Feature QC
+          cat data/processed/analysis/features_metadata.json
+
+      - name: Kontrollera feature-storlek
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = sorted(
+              Path("data/processed/analysis").glob("features_*.jsonl")
+          )
+
+          if not paths:
+              raise SystemExit("Inga feature-chunks hittades.")
+
+          limit = 20 * 1024 * 1024
+
+          for path in paths:
+              size = path.stat().st_size
+              mb = size / 1024 / 1024
+
+              print(f"{path.name}: {mb:.2f} MB")
+
+              if size > limit:
+                  raise SystemExit(
+                      f"{path.name} är större än 20 MB."
+                  )
+          PY
+
+      - name: Run Feature QC
+        run: |
+          python -m analysis.features_qc
+
+      - name: Kontrollera Feature QC-status
         run: |
           test -f data/processed/analysis/features_qc.json
+
           python - <<'PY'
           import json
           from pathlib import Path
+
           path = Path(
               "data/processed/analysis/features_qc.json"
           )
+
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
+
           status = data.get("status")
+
           print(f"Feature QC status: {status}")
+
           if status == "FAIL":
               raise SystemExit(
-                  "Feature QC är FAIL."
+                  "Feature QC failed with status: FAIL"
               )
+
           if status == "WARN":
               print(
-                  "Feature QC är WARN. "
-                  "ML fortsätter."
+                  "Feature QC har status WARN. "
+                  "Varningar tillåts och workflow fortsätter."
               )
+
           elif status == "PASS":
               print(
-                  "Feature QC är PASS."
+                  "Feature QC har status PASS."
               )
+
           else:
               raise SystemExit(
-                  f"Okänd Feature QC-status: {status}"
+                  f"Feature QC returnerade okänd status: {status}"
               )
           PY
+
       - name: Verify ML package
         run: |
           test -f __init__.py
@@ -130,96 +190,124 @@ jobs:
           test -f ml/walk_forward.py
           test -f ml/train.py
           test -f ml/diagnostics.py
+
           echo "ML-paket finns."
+
       - name: Run ML training
         run: |
           python -m ml.train
+
       - name: Verify ML results
         run: |
           test -f data/processed/ml/latest_run.json
           test -f data/processed/ml/ml_results.jsonl
           test -d data/processed/ml/runs
+
           echo "ML-resultat skapade."
+
           echo
           echo "Resultat:"
           ls -lh data/processed/ml/
+
           echo
           echo "Runs:"
           ls -lh data/processed/ml/runs/
+
       - name: Run ML diagnostics
         run: |
           python -m ml.diagnostics
+
       - name: Verify ML diagnostics
         run: |
           test -f data/processed/ml/diagnostics.json
+
           echo "ML-diagnostik skapad."
+
           ls -lh data/processed/ml/diagnostics.json
+
       - name: Print ML diagnostics summary
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+
           path = Path(
               "data/processed/ml/diagnostics.json"
           )
+
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
+
           print()
           print("================================")
           print("BLANKDISS PRICE SIGNAL DIAGNOSTICS")
           print("================================")
+
           print(
               f"Experiment: "
               f"{data.get('experiment', '?')}"
           )
+
           print(
               f"Feature sets: "
               f"{', '.join(data.get('feature_sets', []))}"
           )
+
           print(
               f"Targets: "
               f"{', '.join(data.get('targets', []))}"
           )
+
           print()
+
           for result in data.get(
               "results",
               [],
           ):
               print("--------------------------------")
+
               print(
                   f"Feature set: "
                   f"{result.get('feature_set', '?')}"
               )
+
               print(
                   f"Target: "
                   f"{result.get('target', '?')}"
               )
+
               print(
                   f"Features: "
                   f"{result.get('feature_count', '?')}"
               )
+
               summary = result.get(
                   "dataset_summary",
                   {},
               )
+
               print(
                   f"Rows: "
                   f"{summary.get('rows', '?')}"
               )
+
               print(
                   f"Baseline event rate: "
                   f"{summary.get('positive_rate', '?')}"
               )
+
               print(
                   f"Date range: "
                   f"{summary.get('date_start', '?')} "
                   f"-> "
                   f"{summary.get('date_end', '?')}"
               )
+
               print()
+
               for window in result.get(
                   "windows",
                   [],
@@ -228,6 +316,7 @@ jobs:
                       "window",
                       {},
                   )
+
                   print(
                       "Window: "
                       f"{window_info.get('train_end', '?')} "
@@ -236,38 +325,48 @@ jobs:
                       "-> "
                       f"{window_info.get('test_end', '?')}"
                   )
+
                   print(
                       "Selected model: "
                       f"{window.get('selected_model', '?')}"
                   )
+
                   print(
                       "Validation AUC: "
                       f"{window.get('validation_roc_auc', '?')}"
                   )
+
                   print(
                       "Test AUC: "
                       f"{window.get('test_roc_auc', '?')}"
                   )
+
                   print(
                       "Test rows: "
                       f"{window.get('test_rows', '?')}"
                   )
+
                   print(
                       "Test event rate: "
                       f"{window.get('test_positive_rate', '?')}"
                   )
+
                   print()
+
                   print("Prediction buckets:")
+
                   prediction_buckets = window.get(
                       "prediction_buckets",
                       {},
                   )
+
                   for year, bucket_data in prediction_buckets.items():
                       print(
                           f"  {year}: "
                           f"baseline="
                           f"{bucket_data.get('baseline_event_rate', '?')}"
                       )
+
                       for bucket in bucket_data.get(
                           "buckets",
                           [],
@@ -279,6 +378,7 @@ jobs:
                               )
                               * 100
                           )
+
                           print(
                               f"    Top {fraction:.0f}%: "
                               f"event_rate="
@@ -290,8 +390,10 @@ jobs:
                               f"median_return="
                               f"{bucket.get('median_return')}"
                           )
+
                   print()
                   print("Top features:")
+
                   for feature in window.get(
                       "feature_importance",
                       [],
@@ -299,29 +401,36 @@ jobs:
                       importance = feature.get(
                           "importance"
                       )
+
                       if importance is None:
                           importance = feature.get(
                               "importance_mean"
                           )
+
                       print(
                           "  "
                           f"{feature.get('feature', '?')}: "
                           f"{importance if importance is not None else '?'}"
                       )
+
                   print()
+
       - name: Print latest ML result
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+
           path = Path(
               "data/processed/ml/latest_run.json"
           )
+
           data = json.loads(
               path.read_text(
                   encoding="utf-8"
               )
           )
+
           print(
               json.dumps(
                   data,
@@ -330,6 +439,7 @@ jobs:
               )
           )
           PY
+
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
         with:
