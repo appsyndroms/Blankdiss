@@ -137,6 +137,7 @@ def prepare_ml_data(
         [
             "snapshot_date",
             "security_key",
+            target.return_column,
         ]
         + feature_columns
     ].copy()
@@ -168,6 +169,15 @@ def prepare_ml_data(
         :,
         feature_columns,
     ] = X
+
+    data["target_return"] = pd.to_numeric(
+        data[target.return_column],
+        errors="coerce",
+    )
+
+    data = data.drop(
+        columns=[target.return_column]
+    )
 
     return (
         data,
