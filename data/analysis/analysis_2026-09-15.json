@@ -19,7 +19,7 @@
     },
     {
       "bucket": "Minskning",
-      "events": 53,
+      "events": 55,
       "median_1d": null,
       "mean_1d": null,
       "positive_1d": null,
@@ -35,7 +35,7 @@
     },
     {
       "bucket": "0–0,25 pp",
-      "events": 92,
+      "events": 93,
       "median_1d": -0.003845178265695137,
       "mean_1d": -0.08801125677435835,
       "positive_1d": 0.16666666666666666,
