@@ -3,10 +3,12 @@ Uppdatera OMXSPI-historik för Blankdiss.
 
 Regler:
 - Historik byggs från och med 2022-01-01.
-- Före 18:00 Europe/Stockholm hämtas högst senaste färdiga handelsdag.
-- Från 18:00 hämtas även dagens OMXSPI-värde om Yahoo har publicerat det.
+- Före 18:00 Europe/Stockholm används högst senaste färdiga handelsdag.
+- Från 18:00 får även dagens OMXSPI-värde användas.
+- All market_date-data sparas som timezone-naiva kalenderdatum.
 - Hela perioden hämtas från Yahoo varje gång.
 - Hämtad data slås ihop med lokal JSONL och ersätter samma datum.
+- Lokala observationer efter tillåtet slutdatum tas bort.
 """
 
 from __future__ import annotations
@@ -37,20 +39,56 @@ MARKET_UPDATE_TIME = time(18, 0)
 
 def _target_end_date(now: pd.Timestamp) -> pd.Timestamp:
     """
-    Bestäm senaste datum som får användas.
+    Bestäm senaste kalenderdatum som får användas.
 
     Före 18:00:
         endast senaste avslutade kalenderdag.
 
     Från 18:00:
         dagens värde får användas.
+
+    Returnerar alltid ett timezone-naivt Timestamp eftersom
+    market_date i Blankdiss representerar handelsdagar,
+    inte tidpunkter.
     """
     local_now = now.tz_convert(STOCKHOLM_TZ)
 
     if local_now.time() >= MARKET_UPDATE_TIME:
-        return local_now.normalize()
+        target = local_now.normalize()
+    else:
+        target = (
+            local_now - pd.Timedelta(days=1)
+        ).normalize()
 
-    return (local_now - pd.Timedelta(days=1)).normalize()
+    return target.tz_localize(None)
+
+
+def _normalize_market_dates(
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Normalisera market_date till timezone-naiva kalenderdatum.
+    """
+    frame = frame.copy()
+
+    frame["market_date"] = pd.to_datetime(
+        frame["market_date"],
+        errors="coerce",
+    )
+
+    if getattr(frame["market_date"].dt, "tz", None) is not None:
+        frame["market_date"] = (
+            frame["market_date"]
+            .dt.tz_convert(STOCKHOLM_TZ)
+            .dt.tz_localize(None)
+        )
+
+    frame["market_date"] = (
+        frame["market_date"]
+        .dt.normalize()
+    )
+
+    return frame
 
 
 def _download_history(
@@ -63,6 +101,9 @@ def _download_history(
     Yahoo har ett exklusivt end-datum, därför skickas
     end_date + 1 dag till yf.download().
     """
+    start_date = pd.Timestamp(start_date).tz_localize(None)
+    end_date = pd.Timestamp(end_date).tz_localize(None)
+
     yahoo_end = end_date + pd.Timedelta(days=1)
 
     print("Laddar OMXSPI via Yahoo Finance.")
@@ -102,21 +143,7 @@ def _download_history(
             "market_date/market_close."
         )
 
-    market["market_date"] = pd.to_datetime(
-        market["market_date"],
-        errors="coerce",
-    )
-
-    if getattr(market["market_date"].dt, "tz", None) is not None:
-        market["market_date"] = (
-            market["market_date"]
-            .dt.tz_localize(None)
-        )
-
-    market["market_date"] = (
-        market["market_date"]
-        .dt.normalize()
-    )
+    market = _normalize_market_dates(market)
 
     market["market_close"] = pd.to_numeric(
         market["market_close"],
@@ -148,7 +175,9 @@ def main() -> None:
     print("BLANKDISS OMXSPI UPDATE")
     print("==========================================")
 
-    now = pd.Timestamp.now(tz=STOCKHOLM_TZ)
+    now = pd.Timestamp.now(
+        tz=STOCKHOLM_TZ,
+    )
 
     print(
         "Aktuell tid Stockholm:",
@@ -176,18 +205,42 @@ def main() -> None:
     existing = load_raw_market_data()
 
     if existing.empty:
-        print("Ingen lokal OMXSPI-historik finns ännu.")
+        print(
+            "Ingen lokal OMXSPI-historik finns ännu."
+        )
     else:
+        existing = _normalize_market_dates(existing)
+
         print(
             "Lokal OMXSPI-historik:",
             f"{len(existing)} rader",
         )
+
         print(
             "Lokalt intervall:",
             f"{existing['market_date'].min().strftime('%Y-%m-%d')}"
             " -> "
             f"{existing['market_date'].max().strftime('%Y-%m-%d')}",
         )
+
+        # Om workflowet körs före 18:00 får en eventuell
+        # tidigare intradagsobservation från idag inte ligga kvar.
+        before_filter = len(existing)
+
+        existing = existing[
+            existing["market_date"] <= target_end
+        ].copy()
+
+        removed_future = (
+            before_filter - len(existing)
+        )
+
+        if removed_future:
+            print(
+                "Tar bort lokala observationer efter "
+                "tillåtet slutdatum:",
+                removed_future,
+            )
 
     downloaded = _download_history(
         MARKET_START_DATE,
@@ -201,9 +254,7 @@ def main() -> None:
         )
         return
 
-    # Säkerhetskontroll:
-    # även om Yahoo skulle returnera något oväntat får
-    # vi aldrig skriva ett datum efter target_end.
+    # Extra säkerhetskontroll.
     downloaded = downloaded[
         downloaded["market_date"] <= target_end
     ].copy()
@@ -248,6 +299,41 @@ def main() -> None:
         downloaded,
     )
 
+    market = _normalize_market_dates(market)
+
+    # Säkerställ att den sparade datamängden inte innehåller
+    # observationer efter tillåtet slutdatum.
+    market = market[
+        market["market_date"] <= target_end
+    ].copy()
+
+    # Säkerställ unik sorterad historik.
+    market = (
+        market[
+            [
+                "market_date",
+                "market_close",
+            ]
+        ]
+        .drop_duplicates(
+            subset=["market_date"],
+            keep="last",
+        )
+        .sort_values("market_date")
+        .reset_index(drop=True)
+    )
+
+    # Skriv den slutligt validerade datamängden.
+    merge_and_persist_market_data(
+        pd.DataFrame(
+            columns=[
+                "market_date",
+                "market_close",
+            ]
+        ),
+        market,
+    )
+
     print()
     print(
         "Sparad OMXSPI-historik:",
@@ -264,9 +350,6 @@ def main() -> None:
         f"{market['market_date'].max().strftime('%Y-%m-%d')}",
     )
 
-    # Slutlig invariant:
-    # filen får aldrig innehålla ett datum efter det datum
-    # som updatern uttryckligen tillät.
     future_rows = market[
         market["market_date"] > target_end
     ]
@@ -278,13 +361,11 @@ def main() -> None:
             f"{len(future_rows)} rader."
         )
 
-    # Kontrollera att historiken verkligen börjar 2022-01-01
-    # eller senare. Vi kräver inte att 2022-01-01 är en
-    # handelsdag eftersom datumet var en helgdag.
     if market["market_date"].min() > MARKET_START_DATE:
         raise RuntimeError(
             "OMXSPI-historiken börjar för sent. "
-            f"Förväntade data från {MARKET_START_DATE:%Y-%m-%d}, "
+            f"Förväntade data från "
+            f"{MARKET_START_DATE:%Y-%m-%d}, "
             f"men första observation är "
             f"{market['market_date'].min():%Y-%m-%d}."
         )
