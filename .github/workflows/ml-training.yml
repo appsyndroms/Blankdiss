@@ -102,6 +102,7 @@ jobs:
           test -f ml/evaluate.py
           test -f ml/walk_forward.py
           test -f ml/train.py
+          test -f ml/diagnostics.py
 
           echo "ML-paket finns."
 
@@ -124,6 +125,98 @@ jobs:
           echo
           echo "Runs:"
           ls -lh data/processed/ml/runs/
+
+      - name: Run ML diagnostics
+        run: |
+          python -m ml.diagnostics
+
+      - name: Verify ML diagnostics
+        run: |
+          test -f data/processed/ml/diagnostics.json
+
+          echo "ML-diagnostik skapad."
+
+          echo
+          echo "Diagnostics:"
+          ls -lh data/processed/ml/diagnostics.json
+
+      - name: Print ML diagnostics summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "data/processed/ml/diagnostics.json"
+          )
+
+          data = json.loads(
+              path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          print()
+          print("================================")
+          print("BLANKDISS ML DIAGNOSTICS")
+          print("================================")
+
+          print(
+              f"Target: {data['target']}"
+          )
+
+          print(
+              f"Feature set: {data['feature_set']}"
+          )
+
+          print(
+              f"Rows: {data['dataset_rows']}"
+          )
+
+          print()
+
+          for window in data["windows"]:
+              print(
+                  "Window: "
+                  f"{window['window']['train_end']} -> "
+                  f"{window['window']['validation_end']} -> "
+                  f"{window['window']['test_end']}"
+              )
+
+              print(
+                  "Selected model: "
+                  f"{window['selected_model']}"
+              )
+
+              print(
+                  "Test AUC: "
+                  f"{window['test']['roc_auc']}"
+              )
+
+              print(
+                  "Company median AUC: "
+                  f"{window['companies']['median_auc']}"
+              )
+
+              print(
+                  "Company mean AUC: "
+                  f"{window['companies']['mean_auc']}"
+              )
+
+              print(
+                  "Top features:"
+              )
+
+              for feature in window[
+                  "feature_importance"
+              ][:10]:
+                  print(
+                      "  "
+                      f"{feature['feature']}: "
+                      f"{feature['importance_mean']:.6f}"
+                  )
+
+              print()
 
       - name: Print latest ML result
         run: |
@@ -157,5 +250,6 @@ jobs:
           path: |
             data/processed/ml/latest_run.json
             data/processed/ml/ml_results.jsonl
+            data/processed/ml/diagnostics.json
             data/processed/ml/runs/*.json
           if-no-files-found: error
