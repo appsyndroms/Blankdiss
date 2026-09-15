@@ -55,18 +55,18 @@ jobs:
           ls -lh data/processed/analysis/
       - name: Verify ML package
         run: |
-          test -f blankdiss/__init__.py
-          test -f blankdiss/ml/__init__.py
-          test -f blankdiss/ml/config.py
-          test -f blankdiss/ml/dataset.py
-          test -f blankdiss/ml/models.py
-          test -f blankdiss/ml/evaluate.py
-          test -f blankdiss/ml/walk_forward.py
-          test -f blankdiss/ml/train.py
+          test -f __init__.py
+          test -f ml/__init__.py
+          test -f ml/config.py
+          test -f ml/dataset.py
+          test -f ml/models.py
+          test -f ml/evaluate.py
+          test -f ml/walk_forward.py
+          test -f ml/train.py
           echo "ML-paket finns."
       - name: Run ML training
         run: |
-          python -m blankdiss.ml.train
+          python -m ml.train
       - name: Verify ML results
         run: |
           test -f data/processed/ml/latest_run.json
@@ -109,3 +109,7 @@ jobs:
             data/processed/ml/ml_results.jsonl
             data/processed/ml/runs/*.json
           if-no-files-found: error
+
+Detta är alltså enda filen vi ändrar nu. Den stämmer med den struktur som faktiskt finns i repot.
+
+När den är committad bör nästa körning komma förbi felet test -f blankdiss/__init__.py.
