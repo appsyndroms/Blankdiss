@@ -1,16 +1,33 @@
 """
 Marknadsrelativ avkastning och cykliska blankningsmönster.
 
-Detta är ett diagnostiskt analyssteg ovanpå de befintliga
-Blankdiss-featuresen.
-
-Det gör två saker:
+Detta analyssteg gör två saker:
 
 1. Jämför aktiernas framtida avkastning med OMXSPI.
 2. Identifierar återkommande lokala toppar och dalar i
    short interest för enskilda bolag.
 
-Resultaten används ännu inte som ML-features.
+Marknadsdata hämtas från Nasdaqs GIW-historiktjänst och
+persisteras lokalt som JSONL.
+
+Arkitektur:
+
+    Nasdaq GIW
+        |
+        v
+    data/raw/market/omxspi.jsonl
+        |
+        v
+    market_cycles.py
+        |
+        +--> market_adjusted_returns.jsonl
+        |
+        +--> short_cycles.jsonl
+        |
+        +--> short_cycles_summary.json
+
+Marknadsdata är diagnostik/analysdata och används ännu inte
+som ML-feature.
 """
 
 from __future__ import annotations
@@ -30,6 +47,10 @@ FEATURES_PATH = Path(
     "data/processed/analysis/features.jsonl"
 )
 
+MARKET_RAW_PATH = Path(
+    "data/raw/market/omxspi.jsonl"
+)
+
 MARKET_ADJUSTED_PATH = Path(
     "data/processed/analysis/market_adjusted_returns.jsonl"
 )
@@ -44,9 +65,9 @@ SHORT_CYCLES_SUMMARY_PATH = Path(
 
 MARKET_SYMBOL = "OMXSPI"
 
-NASDAQ_HISTORICAL_URL = (
-    "https://api.nasdaq.com/api/quote/"
-    "OMXSPI/historical"
+NASDAQ_HISTORY_URL = (
+    "https://indexes.nasdaqomx.com/"
+    "reports2/history.ashx"
 )
 
 NASDAQ_HEADERS = {
@@ -57,11 +78,14 @@ NASDAQ_HEADERS = {
         "Chrome/131.0 Safari/537.36"
     ),
     "Accept": (
-        "application/json, text/plain, */*"
+        "text/csv,application/csv,"
+        "text/plain,application/json,*/*"
     ),
-    "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
+    "Accept-Language": (
+        "sv-SE,sv;q=0.9,en;q=0.8"
+    ),
     "Referer": (
-        "https://indexes.nasdaq.com/"
+        "https://indexes.nasdaqomx.com/"
     ),
 }
 
@@ -78,17 +102,18 @@ MIN_DAYS_BETWEEN_CYCLE_EVENTS = 30
 CYCLE_LOOKBACK_DAYS = 180
 
 
-def _parse_nasdaq_number(
+def _parse_number(
     value: Any,
 ) -> float:
     """
-    Konvertera Nasdaq-värden som t.ex.
+    Konvertera ett numeriskt värde till float.
 
-        '2,345.67'
-        '2 345,67'
-        '2345.67'
+    Hanterar exempelvis:
 
-    till float.
+        1234.56
+        1,234.56
+        1 234,56
+        1234,56
     """
 
     if value is None:
@@ -132,9 +157,63 @@ def _parse_nasdaq_number(
         return math.nan
 
 
+def _json_value(
+    value: Any,
+) -> Any:
+    """
+    Gör ett värde säkert för JSON.
+    """
+
+    if value is None:
+        return None
+
+    if isinstance(
+        value,
+        (
+            np.integer,
+            np.int64,
+            np.int32,
+        ),
+    ):
+        return int(value)
+
+    if isinstance(
+        value,
+        (
+            np.floating,
+            np.float64,
+            np.float32,
+        ),
+    ):
+        value = float(value)
+
+        if not np.isfinite(value):
+            return None
+
+        return value
+
+    if isinstance(
+        value,
+        (
+            pd.Timestamp,
+            np.datetime64,
+        ),
+    ):
+        return pd.Timestamp(
+            value
+        ).strftime(
+            "%Y-%m-%d"
+        )
+
+    if pd.isna(value):
+        return None
+
+    return value
+
+
 def load_features() -> pd.DataFrame:
     """
-    Läs befintliga features.
+    Läs befintliga Blankdiss-features.
     """
 
     if not FEATURES_PATH.exists():
@@ -187,7 +266,9 @@ def load_features() -> pd.DataFrame:
     )
 
     for horizon in RETURN_HORIZONS:
-        column = f"forward_return_{horizon}d"
+        column = (
+            f"forward_return_{horizon}d"
+        )
 
         if column in frame.columns:
             frame[column] = pd.to_numeric(
@@ -205,28 +286,271 @@ def load_features() -> pd.DataFrame:
     return frame
 
 
+def _parse_nasdaq_history(
+    text: str,
+) -> pd.DataFrame:
+    """
+    Tolka CSV-svaret från Nasdaqs GIW
+    history-tjänst.
+
+    GIW-dokumentationen anger CSV som ett
+    stödd format. Formatet kan innehålla
+    varierande rubriker/metadata, därför
+    försöker vi först hitta den rad som
+    representerar kolumnnamnen.
+    """
+
+    if not text.strip():
+        raise RuntimeError(
+            "Nasdaq returnerade ett tomt svar."
+        )
+
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    if not lines:
+        raise RuntimeError(
+            "Nasdaq returnerade inga rader."
+        )
+
+    print(
+        "Nasdaq CSV-rader: "
+        f"{len(lines):,}"
+    )
+
+    preview = "\n".join(
+        lines[:10]
+    )
+
+    print(
+        "Nasdaq CSV början:\n"
+        f"{preview}"
+    )
+
+    # Försök läsa hela svaret med pandas.
+    candidates = []
+
+    for separator in (
+        ",",
+        ";",
+        "|",
+        "\t",
+    ):
+        try:
+            parsed = pd.read_csv(
+                pd.io.common.StringIO(
+                    text
+                ),
+                sep=separator,
+                engine="python",
+            )
+
+        except Exception:
+            continue
+
+        if parsed.empty:
+            continue
+
+        candidates.append(
+            parsed
+        )
+
+    if not candidates:
+        raise RuntimeError(
+            "Kunde inte tolka Nasdaq-svaret "
+            "som CSV."
+        )
+
+    # Hitta kandidaten som innehåller
+    # datum + indexvärde.
+    best: pd.DataFrame | None = None
+
+    for candidate in candidates:
+        normalized_columns = [
+            str(column)
+            .strip()
+            .lower()
+            for column in candidate.columns
+        ]
+
+        has_date = any(
+            (
+                "date" in column
+                or "trade" in column
+            )
+            for column in normalized_columns
+        )
+
+        has_value = any(
+            (
+                "value" in column
+                or "index" in column
+                or "close" in column
+            )
+            for column in normalized_columns
+        )
+
+        if has_date and has_value:
+            best = candidate
+            break
+
+    if best is None:
+        raise RuntimeError(
+            "Nasdaq CSV kunde läsas men "
+            "innehåller inte förväntade "
+            "datum-/indexkolumner.\n"
+            f"Kolumner: "
+            f"{list(candidates[0].columns)}"
+        )
+
+    frame = best.copy()
+
+    column_map = {}
+
+    for column in frame.columns:
+        normalized = (
+            str(column)
+            .strip()
+            .lower()
+        )
+
+        if (
+            "trade date" in normalized
+            or normalized == "date"
+            or normalized.endswith(
+                "date"
+            )
+        ):
+            column_map[column] = (
+                "market_date"
+            )
+
+        elif (
+            "index value" in normalized
+            or normalized == "value"
+        ):
+            column_map[column] = (
+                "market_close"
+            )
+
+        elif (
+            normalized == "close"
+            or normalized.endswith(
+                "close"
+            )
+        ):
+            column_map[column] = (
+                "market_close"
+            )
+
+    frame = frame.rename(
+        columns=column_map
+    )
+
+    if (
+        "market_date"
+        not in frame.columns
+    ):
+        raise RuntimeError(
+            "Nasdaq-svaret saknar "
+            "datumkolumn."
+        )
+
+    if (
+        "market_close"
+        not in frame.columns
+    ):
+        raise RuntimeError(
+            "Nasdaq-svaret saknar "
+            "indexvärde."
+        )
+
+    frame["market_date"] = pd.to_datetime(
+        frame["market_date"],
+        errors="coerce",
+    )
+
+    frame["market_close"] = (
+        frame["market_close"]
+        .map(_parse_number)
+    )
+
+    frame = frame[
+        [
+            "market_date",
+            "market_close",
+        ]
+    ].copy()
+
+    frame = frame.dropna(
+        subset=[
+            "market_date",
+            "market_close",
+        ]
+    )
+
+    frame = frame[
+        np.isfinite(
+            frame["market_close"]
+        )
+    ]
+
+    frame = frame[
+        frame["market_close"] > 0
+    ]
+
+    frame = (
+        frame
+        .drop_duplicates(
+            subset=[
+                "market_date",
+            ]
+        )
+        .sort_values(
+            "market_date"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+    if frame.empty:
+        raise RuntimeError(
+            "Nasdaq-svaret innehåller "
+            "inga giltiga OMXSPI-observationer."
+        )
+
+    return frame
+
+
 def download_market_data(
     start_date: pd.Timestamp,
     end_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """
-    Download daily OMXSPI history directly from Nasdaq.
+    Hämta OMXSPI från Nasdaqs GIW
+    Index Level History Service.
 
-    The requested period is based on the actual stock price
-    history available in Blankdiss.
+    Nasdaq dokumenterar tjänsten som:
 
-    Nasdaq does not need future dates. In particular, the
-    todate parameter must not be placed in the future.
+        reports2/history.ashx
 
-    We therefore:
-      - add a small buffer before the first required date
-      - cap the end date at today's date
-      - keep enough historical observations for the
-        60-trading-day forward calculation where data exists
+    med parametrarna:
 
-    If Nasdaq returns an unexpected JSON structure, the
-    response metadata and a short response preview are printed
-    to make the failure diagnosable.
+        IndexSymbol
+        StartDate
+        EndDate
+        Type
+        FileType
+
+    Vi använder:
+
+        IndexSymbol=OMXSPI
+        Type=CSV
+        FileType=EOD
     """
 
     today = pd.Timestamp.now().normalize()
@@ -252,7 +576,7 @@ def download_market_data(
 
     print(
         "Laddar marknadsdata: "
-        "Nasdaq/OMXSPI"
+        "Nasdaq GIW/OMXSPI"
     )
 
     print(
@@ -261,10 +585,11 @@ def download_market_data(
     )
 
     params = {
-        "assetclass": "index",
-        "fromdate": start_text,
-        "todate": end_text,
-        "limit": 5000,
+        "IndexSymbol": MARKET_SYMBOL,
+        "StartDate": start_text,
+        "EndDate": end_text,
+        "Type": "CSV",
+        "FileType": "EOD",
     }
 
     response = None
@@ -278,7 +603,7 @@ def download_market_data(
             )
 
             response = requests.get(
-                NASDAQ_HISTORICAL_URL,
+                NASDAQ_HISTORY_URL,
                 params=params,
                 headers=NASDAQ_HEADERS,
                 timeout=30,
@@ -320,200 +645,71 @@ def download_market_data(
             "3 försök."
         ) from last_error
 
-    try:
-        payload = response.json()
-
-    except ValueError as error:
-        preview = response.text[:1000]
-
-        raise RuntimeError(
-            "Nasdaq returnerade ett svar som "
-            "inte kunde tolkas som JSON.\n"
-            "Svar:\n"
-            f"{preview}"
-        ) from error
-
-    if not isinstance(payload, dict):
-        raise RuntimeError(
-            "Nasdaq returnerade ett JSON-svar "
-            "som inte är ett objekt.\n"
-            f"Svarstyp: {type(payload).__name__}\n"
-            f"Svar: {str(payload)[:1000]}"
+    content_type = (
+        response.headers
+        .get(
+            "Content-Type",
+            "",
         )
-
-    data = payload.get("data")
-
-    if not isinstance(data, dict):
-        print(
-            "Nasdaq-svaret har oväntad struktur."
-        )
-
-        print(
-            "JSON-nycklar: "
-            f"{list(payload.keys())}"
-        )
-
-        payload_preview = json.dumps(
-            payload,
-            ensure_ascii=False,
-            default=str,
-        )[:2000]
-
-        print(
-            "Nasdaq-svar, början:\n"
-            f"{payload_preview}"
-        )
-
-        raise RuntimeError(
-            "Nasdaq-svaret saknar 'data'. "
-            "Se diagnostiken ovan."
-        )
-
-    trades_table = data.get(
-        "tradesTable"
+        .lower()
     )
 
-    if not isinstance(
-        trades_table,
-        dict,
+    if (
+        "json" in content_type
+        and response.text.strip()
     ):
-        print(
-            "Nasdaq 'data' har oväntad "
-            "struktur."
-        )
+        try:
+            payload = response.json()
 
-        print(
-            "data-nycklar: "
-            f"{list(data.keys())}"
-        )
+        except ValueError:
+            payload = None
 
-        raise RuntimeError(
-            "Nasdaq-svaret saknar "
-            "'data.tradesTable'. "
-            "Se diagnostiken ovan."
-        )
-
-    rows = trades_table.get(
-        "rows"
-    )
-
-    if not isinstance(rows, list):
-        print(
-            "Nasdaq 'tradesTable' har "
-            "oväntad struktur."
-        )
-
-        print(
-            "tradesTable-nycklar: "
-            f"{list(trades_table.keys())}"
-        )
-
-        raise RuntimeError(
-            "Nasdaq-svaret saknar "
-            "'data.tradesTable.rows'. "
-            "Se diagnostiken ovan."
-        )
-
-    total_records = data.get(
-        "totalRecords"
-    )
-
-    print(
-        "Nasdaq returnerade "
-        f"{len(rows):,} rader"
-        + (
-            f" av {total_records:,}"
-            if isinstance(
-                total_records,
-                int,
-            )
-            else ""
-        )
-    )
-
-    market_rows: list[
-        dict[str, Any]
-    ] = []
-
-    for row in rows:
-        if not isinstance(
-            row,
+        if isinstance(
+            payload,
             dict,
         ):
-            continue
-
-        raw_date = row.get(
-            "date"
-        )
-
-        raw_close = row.get(
-            "close"
-        )
-
-        if raw_date is None:
-            continue
-
-        if raw_close is None:
-            continue
-
-        try:
-            market_date = pd.to_datetime(
-                str(raw_date),
-                format="%m/%d/%Y",
-                errors="coerce",
+            print(
+                "Nasdaq returnerade JSON "
+                "i stället för CSV."
             )
 
-            market_close = (
-                _parse_nasdaq_number(
-                    raw_close
+            print(
+                "JSON-nycklar: "
+                f"{list(payload.keys())}"
+            )
+
+            status = payload.get(
+                "status"
+            )
+
+            if status is not None:
+                print(
+                    "Nasdaq status:\n"
+                    f"{json.dumps("
+                    "status, "
+                    "ensure_ascii=False, "
+                    "default=str"
+                    ")}"
                 )
+
+            message = payload.get(
+                "message"
             )
 
-        except (
-            TypeError,
-            ValueError,
-        ):
-            continue
+            if message:
+                print(
+                    "Nasdaq message: "
+                    f"{message}"
+                )
 
-        if pd.isna(market_date):
-            continue
+            raise RuntimeError(
+                "Nasdaq GIW returnerade "
+                "JSON i stället för "
+                "historiska indexdata."
+            )
 
-        if not np.isfinite(
-            market_close
-        ):
-            continue
-
-        if market_close <= 0:
-            continue
-
-        market_rows.append(
-            {
-                "market_date": market_date,
-                "market_close": market_close,
-            }
-        )
-
-    market = pd.DataFrame(
-        market_rows
-    )
-
-    if market.empty:
-        raise RuntimeError(
-            "Nasdaq/OMXSPI innehåller inga "
-            "giltiga observationer."
-        )
-
-    market = (
-        market
-        .drop_duplicates(
-            subset=[
-                "market_date",
-            ]
-        )
-        .sort_values(
-            "market_date"
-        )
-        .reset_index(drop=True)
+    market = _parse_nasdaq_history(
+        response.text
     )
 
     market = market[
@@ -525,16 +721,15 @@ def download_market_data(
             market["market_date"]
             <= requested_end
         )
-    ].reset_index(drop=True)
+    ].reset_index(
+        drop=True
+    )
 
     if market.empty:
         raise RuntimeError(
             "Nasdaq/OMXSPI innehåller inga "
             "observationer inom det begärda "
-            "intervallet. "
-            f"Begärt intervall: "
-            f"{requested_start.date()} -> "
-            f"{requested_end.date()}"
+            "intervallet."
         )
 
     print(
@@ -552,18 +747,239 @@ def download_market_data(
     return market
 
 
+def load_raw_market_data() -> pd.DataFrame:
+    """
+    Läs redan sparad OMXSPI-historik.
+    """
+
+    if not MARKET_RAW_PATH.exists():
+        return pd.DataFrame(
+            columns=[
+                "market_date",
+                "market_close",
+            ]
+        )
+
+    rows = []
+
+    with MARKET_RAW_PATH.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
+        for line in handle:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                record = json.loads(
+                    line
+                )
+
+            except json.JSONDecodeError:
+                continue
+
+            rows.append(
+                record
+            )
+
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "market_date",
+                "market_close",
+            ]
+        )
+
+    frame = pd.DataFrame(
+        rows
+    )
+
+    if (
+        "market_date"
+        not in frame.columns
+        or
+        "market_close"
+        not in frame.columns
+    ):
+        return pd.DataFrame(
+            columns=[
+                "market_date",
+                "market_close",
+            ]
+        )
+
+    frame["market_date"] = pd.to_datetime(
+        frame["market_date"],
+        errors="coerce",
+    )
+
+    frame["market_close"] = pd.to_numeric(
+        frame["market_close"],
+        errors="coerce",
+    )
+
+    frame = frame.dropna(
+        subset=[
+            "market_date",
+            "market_close",
+        ]
+    )
+
+    return (
+        frame
+        .drop_duplicates(
+            subset=[
+                "market_date",
+            ]
+        )
+        .sort_values(
+            "market_date"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+
+def merge_and_persist_market_data(
+    existing: pd.DataFrame,
+    downloaded: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Slå ihop lokal och ny marknadsdata.
+
+    Den lokala filen blir därmed den
+    långsiktiga historiska OMXSPI-serien.
+    """
+
+    combined = pd.concat(
+        [
+            existing,
+            downloaded,
+        ],
+        ignore_index=True,
+    )
+
+    if combined.empty:
+        raise RuntimeError(
+            "Ingen marknadsdata att spara."
+        )
+
+    combined["market_date"] = pd.to_datetime(
+        combined["market_date"],
+        errors="coerce",
+    )
+
+    combined["market_close"] = pd.to_numeric(
+        combined["market_close"],
+        errors="coerce",
+    )
+
+    combined = combined.dropna(
+        subset=[
+            "market_date",
+            "market_close",
+        ]
+    )
+
+    combined = combined[
+        np.isfinite(
+            combined["market_close"]
+        )
+    ]
+
+    combined = combined[
+        combined["market_close"] > 0
+    ]
+
+    combined = (
+        combined
+        .drop_duplicates(
+            subset=[
+                "market_date",
+            ],
+            keep="last",
+        )
+        .sort_values(
+            "market_date"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+    MARKET_RAW_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    with MARKET_RAW_PATH.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        for record in combined.to_dict(
+            orient="records"
+        ):
+            cleaned = {
+                key: _json_value(value)
+                for key, value in record.items()
+            }
+
+            handle.write(
+                json.dumps(
+                    cleaned,
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+    print(
+        "Sparad OMXSPI-historik: "
+        f"{MARKET_RAW_PATH}"
+    )
+
+    print(
+        "Totalt OMXSPI-rader: "
+        f"{len(combined):,}"
+    )
+
+    return combined
+
+
 def add_market_forward_returns(
     market: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Beräkna framtida OMXSPI-avkastning per handelsdag.
+    Beräkna framtida OMXSPI-avkastning
+    per handelsdag.
     """
 
     result = market.copy()
 
+    result = (
+        result
+        .sort_values(
+            "market_date"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+    prices = (
+        result["market_close"]
+        .to_numpy(
+            dtype=float
+        )
+    )
+
     for horizon in RETURN_HORIZONS:
         target_index = (
-            np.arange(len(result))
+            np.arange(
+                len(result)
+            )
             + horizon
         )
 
@@ -580,10 +996,10 @@ def add_market_forward_returns(
 
         if valid.any():
             values[valid] = (
-                result["market_close"]
-                .to_numpy()[target_index[valid]]
-                / result["market_close"]
-                .to_numpy()[valid]
+                prices[
+                    target_index[valid]
+                ]
+                / prices[valid]
                 - 1.0
             )
 
@@ -599,11 +1015,22 @@ def align_market_returns(
     market: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Matcha varje aktierad mot första OMXSPI-handelsdagen
-    på eller efter aktiens price_date.
+    Matcha varje aktierad mot första
+    OMXSPI-handelsdagen på eller efter
+    aktiens price_date.
     """
 
     frame = features.copy()
+
+    market = (
+        market
+        .sort_values(
+            "market_date"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
 
     market_dates = (
         market["market_date"]
@@ -630,8 +1057,8 @@ def align_market_returns(
                 )
                 continue
 
-            target_date = (
-                pd.Timestamp(price_date)
+            target_date = pd.Timestamp(
+                price_date
             )
 
             index = np.searchsorted(
@@ -675,7 +1102,7 @@ def build_market_adjusted_returns(
     Skapa abnormal return:
 
         aktiens framtida avkastning
-        minus
+        -
         OMXSPI:s framtida avkastning.
     """
 
@@ -725,12 +1152,17 @@ def detect_local_extrema(
     dates: pd.Series,
 ) -> list[dict[str, Any]]:
     """
-    Identifiera lokala toppar och dalar i short interest.
+    Identifiera lokala toppar och dalar
+    i short interest.
 
     Ett event måste:
-      - ha minst 0.25 procentenheters prominence
-      - ligga minst 30 dagar från föregående event
-      - ha en lokal referensnivå inom 180 dagar
+
+      - ha minst 0.25 procentenheters
+        prominence
+      - ligga minst 30 dagar från
+        föregående event
+      - ha en lokal referensnivå inom
+        180 dagar
     """
 
     values = pd.to_numeric(
@@ -755,7 +1187,9 @@ def detect_local_extrema(
     ):
         current = values[index]
 
-        if not np.isfinite(current):
+        if not np.isfinite(
+            current
+        ):
             continue
 
         previous = values[
@@ -792,7 +1226,9 @@ def detect_local_extrema(
             date_values[index]
         )
 
-        if pd.isna(current_date):
+        if pd.isna(
+            current_date
+        ):
             continue
 
         lookback_start = (
@@ -923,14 +1359,18 @@ def detect_short_cycles(
         dict[str, Any]
     ] = []
 
-    grouped = features.sort_values(
-        [
+    grouped = (
+        features
+        .sort_values(
+            [
+                "security_key",
+                "snapshot_date",
+            ]
+        )
+        .groupby(
             "security_key",
-            "snapshot_date",
-        ]
-    ).groupby(
-        "security_key",
-        sort=False,
+            sort=False,
+        )
     )
 
     for security_key, group in grouped:
@@ -998,84 +1438,38 @@ def detect_short_cycles(
     )
 
     if not cycles.empty:
-        cycles = cycles.sort_values(
-            [
-                "security_key",
-                "snapshot_date",
-            ]
-        ).reset_index(
-            drop=True
+        cycles = (
+            cycles
+            .sort_values(
+                [
+                    "security_key",
+                    "snapshot_date",
+                ]
+            )
+            .reset_index(
+                drop=True
+            )
         )
 
     if not summary.empty:
-        summary = summary.sort_values(
-            [
-                "cycle_events",
-                "security_key",
-            ],
-            ascending=[
-                False,
-                True,
-            ],
-        ).reset_index(
-            drop=True
+        summary = (
+            summary
+            .sort_values(
+                [
+                    "cycle_events",
+                    "security_key",
+                ],
+                ascending=[
+                    False,
+                    True,
+                ],
+            )
+            .reset_index(
+                drop=True
+            )
         )
 
     return cycles, summary
-
-
-def _json_value(
-    value: Any,
-) -> Any:
-    """
-    Gör värden säkra för JSON.
-    """
-
-    if value is None:
-        return None
-
-    if isinstance(
-        value,
-        (
-            np.integer,
-            np.int64,
-            np.int32,
-        ),
-    ):
-        return int(value)
-
-    if isinstance(
-        value,
-        (
-            np.floating,
-            np.float64,
-            np.float32,
-        ),
-    ):
-        value = float(value)
-
-        if not np.isfinite(value):
-            return None
-
-        return value
-
-    if isinstance(
-        value,
-        (
-            pd.Timestamp,
-            np.datetime64,
-        ),
-    ):
-        return pd.Timestamp(
-            value
-        ).strftime(
-            "%Y-%m-%d"
-        )
-
-    if pd.isna(value):
-        return None
-
-    return value
 
 
 def write_jsonl(
@@ -1099,9 +1493,7 @@ def write_jsonl(
             orient="records"
         ):
             cleaned = {
-                key: _json_value(
-                    value
-                )
+                key: _json_value(value)
                 for key, value in record.items()
             }
 
@@ -1208,9 +1600,32 @@ def main() -> None:
     market_start = price_dates.min()
     market_end = price_dates.max()
 
-    market = download_market_data(
+    existing_market = (
+        load_raw_market_data()
+    )
+
+    if existing_market.empty:
+        print(
+            "Ingen lokal OMXSPI-historik "
+            "finns ännu."
+        )
+
+    else:
+        print(
+            "Lokal OMXSPI-historik: "
+            f"{existing_market['market_date'].min().date()}"
+            " -> "
+            f"{existing_market['market_date'].max().date()}"
+        )
+
+    downloaded_market = download_market_data(
         market_start,
         market_end,
+    )
+
+    market = merge_and_persist_market_data(
+        existing_market,
+        downloaded_market,
     )
 
     market = add_market_forward_returns(
@@ -1282,6 +1697,10 @@ def main() -> None:
 
     print(
         "Output:"
+    )
+
+    print(
+        f"  {MARKET_RAW_PATH}"
     )
 
     print(
