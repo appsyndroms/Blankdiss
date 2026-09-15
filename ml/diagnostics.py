@@ -1,4 +1,4 @@
-"""Diagnostik av Blankdiss ML-signal."""
+"""Diagnostik av Blankdiss ML-signaler."""
 
 from __future__ import annotations
 
@@ -7,32 +7,35 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (
-    accuracy_score,
-    roc_auc_score,
-)
+from sklearn.metrics import accuracy_score, roc_auc_score
 
 from ml.config import (
     ML_OUTPUT_DIR,
+    PRICE_FEATURE_COLUMNS,
     RANDOM_STATE,
     TARGETS,
     WALK_FORWARD_WINDOWS,
 )
-from ml.dataset import (
-    load_features,
-    prepare_ml_data,
-)
+from ml.dataset import load_features, prepare_ml_data
 from ml.models import build_models
 
 
-OUTPUT_PATH = (
-    ML_OUTPUT_DIR
-    / "diagnostics.json"
-)
+OUTPUT_PATH = ML_OUTPUT_DIR / "diagnostics.json"
 
 DIAGNOSTIC_TARGETS = (
     "up_5pct_5d",
     "down_5pct_5d",
+)
+
+DIAGNOSTIC_FEATURE_SETS = (
+    (
+        "fi_plus_price_volatility_20d",
+        {"price_volatility_20d"},
+    ),
+    (
+        "fi_plus_all_price",
+        set(PRICE_FEATURE_COLUMNS),
+    ),
 )
 
 TOP_FRACTIONS = (
@@ -64,22 +67,13 @@ def window_masks(
     data: pd.DataFrame,
     window,
 ) -> dict[str, pd.Series]:
-    train_end = pd.Timestamp(
-        window.train_end
-    )
-
-    validation_end = pd.Timestamp(
-        window.validation_end
-    )
-
-    test_end = pd.Timestamp(
-        window.test_end
-    )
+    train_end = pd.Timestamp(window.train_end)
+    validation_end = pd.Timestamp(window.validation_end)
+    test_end = pd.Timestamp(window.test_end)
 
     return {
         "train": (
-            data["snapshot_date"]
-            <= train_end
+            data["snapshot_date"] <= train_end
         ),
         "validation": (
             (data["snapshot_date"] > train_end)
@@ -89,10 +83,7 @@ def window_masks(
             )
         ),
         "test": (
-            (
-                data["snapshot_date"]
-                > validation_end
-            )
+            (data["snapshot_date"] > validation_end)
             & (
                 data["snapshot_date"]
                 <= test_end
@@ -105,10 +96,7 @@ def feature_importance(
     model,
     feature_columns: list[str],
 ) -> list[dict[str, Any]]:
-    if hasattr(
-        model,
-        "named_steps",
-    ):
+    if hasattr(model, "named_steps"):
         estimator = model.named_steps.get(
             "model",
             model,
@@ -146,81 +134,6 @@ def feature_importance(
     return rows
 
 
-def yearly_evaluation(
-    model,
-    data: pd.DataFrame,
-    y: pd.Series,
-    feature_columns: list[str],
-    start_year: int,
-    end_year: int,
-) -> list[dict[str, Any]]:
-    rows = []
-
-    for year in range(
-        start_year,
-        end_year + 1,
-    ):
-        mask = (
-            data["snapshot_date"]
-            .dt.year
-            == year
-        )
-
-        if not mask.any():
-            continue
-
-        subset = data.loc[mask]
-
-        y_year = y.loc[mask]
-
-        probabilities = (
-            model.predict_proba(
-                subset[
-                    feature_columns
-                ]
-            )[:, 1]
-        )
-
-        predictions = (
-            probabilities >= 0.5
-        ).astype(int)
-
-        returns = pd.to_numeric(
-            subset["target_return"],
-            errors="coerce",
-        )
-
-        rows.append(
-            {
-                "year": year,
-                "rows": int(
-                    len(subset)
-                ),
-                "positive_rate": float(
-                    y_year.mean()
-                ),
-                "roc_auc": safe_auc(
-                    y_year,
-                    probabilities,
-                ),
-                "accuracy": float(
-                    accuracy_score(
-                        y_year,
-                        predictions,
-                    )
-                ),
-                "mean_return": float(
-                    returns.mean()
-                ),
-                "median_return": float(
-                    returns.median()
-                ),
-            }
-        )
-
-    return rows
-
-
 def prediction_buckets(
     model,
     data: pd.DataFrame,
@@ -228,9 +141,7 @@ def prediction_buckets(
     feature_columns: list[str],
     mask: pd.Series,
 ) -> dict[str, Any]:
-    subset = data.loc[
-        mask
-    ].copy()
+    subset = data.loc[mask].copy()
 
     if subset.empty:
         return {
@@ -241,15 +152,12 @@ def prediction_buckets(
         }
 
     subset["target"] = (
-        y.loc[mask]
-        .to_numpy()
+        y.loc[mask].to_numpy()
     )
 
     subset["probability"] = (
         model.predict_proba(
-            subset[
-                feature_columns
-            ]
+            subset[feature_columns]
         )[:, 1]
     )
 
@@ -278,8 +186,7 @@ def prediction_buckets(
             1,
             int(
                 np.ceil(
-                    len(subset)
-                    * fraction
+                    len(subset) * fraction
                 )
             ),
         )
@@ -324,9 +231,7 @@ def prediction_buckets(
                     else None
                 ),
                 "mean_return": mean_return,
-                "median_return": (
-                    median_return
-                ),
+                "median_return": median_return,
                 "baseline_mean_return": (
                     baseline_mean_return
                 ),
@@ -355,6 +260,77 @@ def prediction_buckets(
     }
 
 
+def yearly_evaluation(
+    model,
+    data: pd.DataFrame,
+    y: pd.Series,
+    feature_columns: list[str],
+    start_year: int,
+    end_year: int,
+) -> list[dict[str, Any]]:
+    rows = []
+
+    for year in range(
+        start_year,
+        end_year + 1,
+    ):
+        mask = (
+            data["snapshot_date"]
+            .dt.year
+            == year
+        )
+
+        if not mask.any():
+            continue
+
+        subset = data.loc[mask]
+
+        y_year = y.loc[mask]
+
+        probabilities = (
+            model.predict_proba(
+                subset[feature_columns]
+            )[:, 1]
+        )
+
+        predictions = (
+            probabilities >= 0.5
+        ).astype(int)
+
+        returns = pd.to_numeric(
+            subset["target_return"],
+            errors="coerce",
+        )
+
+        rows.append(
+            {
+                "year": year,
+                "rows": int(len(subset)),
+                "positive_rate": float(
+                    y_year.mean()
+                ),
+                "roc_auc": safe_auc(
+                    y_year,
+                    probabilities,
+                ),
+                "accuracy": float(
+                    accuracy_score(
+                        y_year,
+                        predictions,
+                    )
+                ),
+                "mean_return": float(
+                    returns.mean()
+                ),
+                "median_return": float(
+                    returns.median()
+                ),
+            }
+        )
+
+    return rows
+
+
 def company_diagnostics(
     model,
     data: pd.DataFrame,
@@ -362,20 +338,15 @@ def company_diagnostics(
     feature_columns: list[str],
     mask: pd.Series,
 ) -> dict[str, Any]:
-    subset = data.loc[
-        mask
-    ].copy()
+    subset = data.loc[mask].copy()
 
     subset["target"] = (
-        y.loc[mask]
-        .to_numpy()
+        y.loc[mask].to_numpy()
     )
 
     subset["probability"] = (
         model.predict_proba(
-            subset[
-                feature_columns
-            ]
+            subset[feature_columns]
         )[:, 1]
     )
 
@@ -388,9 +359,7 @@ def company_diagnostics(
         "security_key",
         sort=False,
     ):
-        group_y = group[
-            "target"
-        ]
+        group_y = group["target"]
 
         returns = pd.to_numeric(
             group["target_return"],
@@ -400,25 +369,19 @@ def company_diagnostics(
         records.append(
             {
                 "security_key": security_key,
-                "rows": int(
-                    len(group)
-                ),
+                "rows": int(len(group)),
                 "positive_rate": float(
                     group_y.mean()
                 ),
                 "roc_auc": safe_auc(
                     group_y,
-                    group[
-                        "probability"
-                    ].to_numpy(),
+                    group["probability"].to_numpy(),
                 ),
                 "accuracy": float(
                     accuracy_score(
                         group_y,
                         (
-                            group[
-                                "probability"
-                            ]
+                            group["probability"]
                             >= 0.5
                         ).astype(int),
                     )
@@ -430,9 +393,7 @@ def company_diagnostics(
                     returns.median()
                 ),
                 "mean_probability": float(
-                    group[
-                        "probability"
-                    ].mean()
+                    group["probability"].mean()
                 ),
             }
         )
@@ -454,27 +415,17 @@ def company_diagnostics(
     ]
 
     return {
-        "companies": int(
-            len(records)
-        ),
+        "companies": int(len(records)),
         "companies_with_auc": int(
             len(auc_rows)
         ),
         "median_company_auc": (
-            float(
-                np.median(
-                    auc_values
-                )
-            )
+            float(np.median(auc_values))
             if auc_values
             else None
         ),
         "mean_company_auc": (
-            float(
-                np.mean(
-                    auc_values
-                )
-            )
+            float(np.mean(auc_values))
             if auc_values
             else None
         ),
@@ -559,8 +510,8 @@ def run_window(
 
     if not candidates:
         raise RuntimeError(
-            "Ingen modell kunde "
-            "tränas för diagnostiken."
+            "Ingen modell kunde tränas "
+            "för diagnostiken."
         )
 
     (
@@ -587,11 +538,14 @@ def run_window(
         errors="coerce",
     )
 
-    test_start_year = int(
-        pd.Timestamp(
-            window.validation_end
-        ).year
-    ) + 1
+    test_start_year = (
+        int(
+            pd.Timestamp(
+                window.validation_end
+            ).year
+        )
+        + 1
+    )
 
     test_end_year = int(
         pd.Timestamp(
@@ -694,52 +648,122 @@ def run_window(
     }
 
 
-def run_target(
+def prepare_diagnostic_data(
     features: pd.DataFrame,
     target_name: str,
-) -> dict[str, Any]:
+    selected_price_features: set[str],
+) -> tuple[
+    pd.DataFrame,
+    pd.Series,
+    list[str],
+]:
     target = next(
         target
         for target in TARGETS
-        if target.name
-        == target_name
+        if target.name == target_name
     )
 
     (
-        data,
+        fi_data,
         y,
-        feature_columns,
+        fi_feature_columns,
     ) = prepare_ml_data(
         features,
         target,
         include_price_features=False,
     )
 
+    (
+        price_data,
+        price_y,
+        all_feature_columns,
+    ) = prepare_ml_data(
+        features,
+        target,
+        include_price_features=True,
+    )
+
+    if not y.equals(price_y):
+        raise RuntimeError(
+            "FI-only och FI+pris gav olika "
+            "target-rader i diagnostiken."
+        )
+
+    missing_price_features = (
+        selected_price_features
+        - set(all_feature_columns)
+    )
+
+    if missing_price_features:
+        raise RuntimeError(
+            "Saknar diagnostik-features: "
+            + ", ".join(
+                sorted(missing_price_features)
+            )
+        )
+
+    feature_columns = (
+        fi_feature_columns
+        + sorted(selected_price_features)
+    )
+
+    missing_columns = [
+        column
+        for column in feature_columns
+        if column not in price_data.columns
+    ]
+
+    if missing_columns:
+        raise RuntimeError(
+            "Saknar kolumner i diagnostikdata: "
+            + ", ".join(missing_columns)
+        )
+
+    data = price_data[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+        ]
+        + feature_columns
+    ].copy()
+
+    return (
+        data,
+        y,
+        feature_columns,
+    )
+
+
+def run_target_feature_set(
+    features: pd.DataFrame,
+    target_name: str,
+    feature_set_name: str,
+    selected_price_features: set[str],
+) -> dict[str, Any]:
+    (
+        data,
+        y,
+        feature_columns,
+    ) = prepare_diagnostic_data(
+        features,
+        target_name,
+        selected_price_features,
+    )
+
     return {
         "target": target_name,
-        "return_column": (
-            target.return_column
-        ),
-        "target_threshold": (
-            target.threshold
-        ),
-        "feature_set": "fi_only",
+        "feature_set": feature_set_name,
         "feature_count": len(
             feature_columns
         ),
-        "feature_columns": (
-            feature_columns
-        ),
+        "feature_columns": feature_columns,
         "dataset_summary": {
-            "rows": int(
-                len(data)
-            ),
+            "rows": int(len(data)),
             "features": len(
                 feature_columns
             ),
-            "positive": int(
-                y.sum()
-            ),
+            "positive": int(y.sum()),
             "negative": int(
                 len(y) - y.sum()
             ),
@@ -747,14 +771,16 @@ def run_target(
                 y.mean()
             ),
             "date_start": (
-                data[
-                    "snapshot_date"
-                ].min().date().isoformat()
+                data["snapshot_date"]
+                .min()
+                .date()
+                .isoformat()
             ),
             "date_end": (
-                data[
-                    "snapshot_date"
-                ].max().date().isoformat()
+                data["snapshot_date"]
+                .max()
+                .date()
+                .isoformat()
             ),
         },
         "windows": [
@@ -773,25 +799,44 @@ def run_target(
 def main() -> None:
     features = load_features()
 
+    results = []
+
+    for (
+        feature_set_name,
+        selected_price_features,
+    ) in DIAGNOSTIC_FEATURE_SETS:
+        for target_name in DIAGNOSTIC_TARGETS:
+            print(
+                "Kör diagnostik: "
+                f"{feature_set_name} / "
+                f"{target_name}"
+            )
+
+            results.append(
+                run_target_feature_set(
+                    features,
+                    target_name,
+                    feature_set_name,
+                    selected_price_features,
+                )
+            )
+
     diagnostics = {
         "experiment": (
-            "prediction_edge_analysis"
+            "price_signal_diagnostics"
         ),
-        "feature_set": "fi_only",
+        "feature_sets": [
+            name
+            for name, _
+            in DIAGNOSTIC_FEATURE_SETS
+        ],
         "targets": list(
             DIAGNOSTIC_TARGETS
         ),
         "top_fractions": list(
             TOP_FRACTIONS
         ),
-        "results": [
-            run_target(
-                features,
-                target_name,
-            )
-            for target_name
-            in DIAGNOSTIC_TARGETS
-        ],
+        "results": results,
     }
 
     ML_OUTPUT_DIR.mkdir(
