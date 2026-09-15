@@ -1,5 +1,5 @@
 {
-  "feature_rows": 119560,
+  "feature_rows": 118460,
   "columns": [
     "snapshot_date",
     "issuer",
@@ -58,9 +58,9 @@
   "price_file_path": "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2026-03-19_latest.jsonl",
   "stats": {
     "fi_rows": 202240,
-    "matched_rows": 119560,
-    "unmatched_rows": 82680,
-    "matched_by_isin": 119560,
+    "matched_rows": 118460,
+    "unmatched_rows": 83780,
+    "matched_by_isin": 118460,
     "matched_by_issuer": 0
   }
 }
