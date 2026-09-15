@@ -27,7 +27,7 @@ from analysis.feature_incremental import (
 )
 from analysis.feature_prices import (
     attach_prices,
-    find_price_file,
+    find_price_files,
     load_prices,
 )
 from analysis.feature_returns import (
@@ -62,7 +62,7 @@ def write_features(
 def write_metadata(
     stats: dict[str, Any],
     frame: pd.DataFrame,
-    price_file: Path,
+    price_files: list[Path],
 ) -> None:
     metadata = {
         "feature_rows": int(
@@ -71,10 +71,17 @@ def write_metadata(
         "columns": list(
             frame.columns
         ),
-        "price_file": price_file.name,
-        "price_file_path": str(
-            price_file
+        "price_files": [
+            path.name
+            for path in price_files
+        ],
+        "price_file_count": int(
+            len(price_files)
         ),
+        "price_file_paths": [
+            str(path)
+            for path in price_files
+        ],
         "stats": stats,
     }
 
@@ -136,9 +143,11 @@ def build_incremental(
     )
 
     if new_fi.empty:
-        features = refresh_incomplete_returns(
-            existing,
-            prices,
+        features = (
+            refresh_incomplete_returns(
+                existing,
+                prices,
+            )
         )
 
         stats = {
@@ -172,14 +181,18 @@ def build_incremental(
         work
     )
 
-    new_features, stats = attach_prices(
-        work,
-        prices,
+    new_features, stats = (
+        attach_prices(
+            work,
+            prices,
+        )
     )
 
-    new_features = add_forward_returns(
-        new_features,
-        prices,
+    new_features = (
+        add_forward_returns(
+            new_features,
+            prices,
+        )
     )
 
     new_keys = set(
@@ -192,14 +205,18 @@ def build_incremental(
         new_features.loc[
             feature_key(
                 new_features
-            ).isin(new_keys)
+            ).isin(
+                new_keys
+            )
         ]
         .copy()
     )
 
-    existing = refresh_incomplete_returns(
-        existing,
-        prices,
+    existing = (
+        refresh_incomplete_returns(
+            existing,
+            prices,
+        )
     )
 
     features = merge_features(
@@ -207,7 +224,9 @@ def build_incremental(
         new_features,
     )
 
-    stats["new_fi_rows"] = int(
+    stats[
+        "new_fi_rows"
+    ] = int(
         len(new_fi)
     )
 
@@ -230,12 +249,17 @@ def main() -> None:
         f"{len(fi):,} FI-observationer"
     )
 
-    price_file = find_price_file(
+    price_files = find_price_files(
         PRICE_DIR
     )
 
+    print(
+        "Featurejobb: "
+        f"{len(price_files)} prisfiler hittades."
+    )
+
     prices = load_prices(
-        price_file
+        price_files
     )
 
     print(
@@ -247,15 +271,19 @@ def main() -> None:
     )
 
     if existing.empty:
-        features, stats = build_full_history(
-            fi,
-            prices,
+        features, stats = (
+            build_full_history(
+                fi,
+                prices,
+            )
         )
     else:
-        features, stats = build_incremental(
-            fi,
-            prices,
-            existing,
+        features, stats = (
+            build_incremental(
+                fi,
+                prices,
+                existing,
+            )
         )
 
     features = (
@@ -278,7 +306,7 @@ def main() -> None:
     write_metadata(
         stats,
         features,
-        price_file,
+        price_files,
     )
 
     print(
