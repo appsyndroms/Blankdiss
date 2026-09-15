@@ -142,13 +142,11 @@ jobs:
 
       - name: Print ML diagnostics summary
         run: |
-          python - <<'PY'
+          python -c '
           import json
           from pathlib import Path
 
-          path = Path(
-              "data/processed/ml/diagnostics.json"
-          )
+          path = Path("data/processed/ml/diagnostics.json")
 
           data = json.loads(
               path.read_text(
@@ -162,65 +160,94 @@ jobs:
           print("================================")
 
           print(
-              f"Target: {data['target']}"
+              f"Target: {data.get(\"target\", \"unknown\")}"
           )
 
           print(
-              f"Feature set: {data['feature_set']}"
+              f"Feature set: {data.get(\"feature_set\", \"unknown\")}"
           )
 
           print(
-              f"Rows: {data['dataset_rows']}"
+              f"Features: {data.get(\"feature_count\", len(data.get(\"feature_columns\", [])))}"
           )
 
           print()
 
-          for window in data["windows"]:
+          for window in data.get("windows", []):
+              window_info = window.get(
+                  "window",
+                  {}
+              )
+
+              companies = window.get(
+                  "company_diagnostics",
+                  {}
+              )
+
               print(
                   "Window: "
-                  f"{window['window']['train_end']} -> "
-                  f"{window['window']['validation_end']} -> "
-                  f"{window['window']['test_end']}"
+                  f"{window_info.get(\"train_end\", \"?\")} -> "
+                  f"{window_info.get(\"validation_end\", \"?\")} -> "
+                  f"{window_info.get(\"test_end\", \"?\")}"
               )
 
               print(
                   "Selected model: "
-                  f"{window['selected_model']}"
+                  f"{window.get(\"selected_model\", \"?\")}"
+              )
+
+              print(
+                  "Validation AUC: "
+                  f"{window.get(\"validation_roc_auc\", \"?\")}"
               )
 
               print(
                   "Test AUC: "
-                  f"{window['test']['roc_auc']}"
+                  f"{window.get(\"test_roc_auc\", \"?\")}"
+              )
+
+              print(
+                  "Test rows: "
+                  f"{window.get(\"test_rows\", \"?\")}"
               )
 
               print(
                   "Company median AUC: "
-                  f"{window['companies']['median_auc']}"
+                  f"{companies.get(\"median_company_auc\", \"?\")}"
               )
 
               print(
                   "Company mean AUC: "
-                  f"{window['companies']['mean_auc']}"
+                  f"{companies.get(\"mean_company_auc\", \"?\")}"
               )
 
-              print(
-                  "Top features:"
-              )
+              print("Top features:")
 
-              for feature in window[
-                  "feature_importance"
-              ][:10]:
+              for feature in window.get(
+                  "feature_importance",
+                  []
+              )[:10]:
+                  importance = feature.get(
+                      "importance"
+                  )
+
+                  if importance is None:
+                      importance = feature.get(
+                          "importance_mean"
+                      )
+
                   print(
                       "  "
-                      f"{feature['feature']}: "
-                      f"{feature['importance_mean']:.6f}"
+                      f"{feature.get(\"feature\", \"?\")}: "
+                      f"{importance if importance is not None else \"?\"}"
                   )
 
               print()
+          '
 
       - name: Print latest ML result
         run: |
-          python - <<'PY'
+          python -c '
           import json
           from pathlib import Path
 
@@ -241,7 +268,7 @@ jobs:
                   indent=2,
               )
           )
-          PY
+          '
 
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
