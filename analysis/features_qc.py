@@ -32,13 +32,14 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 
-FEATURES_PATH = (
+FEATURES_DIR = (
     ROOT
     / "data"
     / "processed"
     / "analysis"
-    / "features.jsonl"
 )
+
+FEATURES_GLOB = "features_*.jsonl"
 
 QC_PATH = (
     ROOT
@@ -73,7 +74,7 @@ FORWARD_WINDOWS = (
 def load_jsonl(
     path: Path,
 ) -> pd.DataFrame:
-    """Läser JSONL."""
+    """Läser en JSONL-fil."""
 
     if not path.exists():
         raise FileNotFoundError(
@@ -91,6 +92,63 @@ def load_jsonl(
         )
 
     return frame
+
+
+def load_feature_chunks() -> pd.DataFrame:
+    """
+    Läser hela feature-datasetet från alla chunks.
+
+    Datasetet består av:
+        features_0001.jsonl
+        features_0002.jsonl
+        ...
+
+    Alla chunks slås ihop till ett DataFrame för QC.
+    """
+
+    paths = sorted(
+        FEATURES_DIR.glob(
+            FEATURES_GLOB
+        )
+    )
+
+    if not paths:
+        raise FileNotFoundError(
+            "Saknar feature-chunks i "
+            f"{FEATURES_DIR}: "
+            f"{FEATURES_GLOB}"
+        )
+
+    frames: list[pd.DataFrame] = []
+
+    for path in paths:
+        print(
+            f"  Läser {path.name}"
+        )
+
+        frame = load_jsonl(
+            path
+        )
+
+        frames.append(
+            frame
+        )
+
+    features = pd.concat(
+        frames,
+        ignore_index=True,
+    )
+
+    if features.empty:
+        raise ValueError(
+            "Feature-datasetet är tomt."
+        )
+
+    print(
+        f"  Läste {len(paths)} feature-chunks."
+    )
+
+    return features
 
 
 def load_mapping() -> dict[str, dict[str, Any]]:
@@ -1315,8 +1373,8 @@ def check_threshold_logic(
     }
 
 
-def load_latest_price_file() -> Path:
-    """Hittar senaste prisfil."""
+def load_price_files() -> list[Path]:
+    """Hittar alla lokala prisfiler."""
 
     files = sorted(
         PRICE_DIR.glob(
@@ -1330,35 +1388,52 @@ def load_latest_price_file() -> Path:
             f"{PRICE_DIR}"
         )
 
-    return files[-1]
+    return files
 
 
 def load_prices(
-    path: Path,
+    paths: list[Path],
 ) -> pd.DataFrame:
-    """Läser prisdata för oberoende QC."""
+    """Läser all prisdata för oberoende QC."""
 
-    prices = load_jsonl(
-        path
-    )
+    frames: list[pd.DataFrame] = []
 
-    required = {
-        "date",
-        "yahoo_symbol",
-        "close",
-    }
-
-    missing = required.difference(
-        prices.columns
-    )
-
-    if missing:
-        raise ValueError(
-            "Prisfil saknar kolumner: "
-            + ", ".join(
-                sorted(missing)
-            )
+    for path in paths:
+        print(
+            f"  Läser prisfil {path.name}"
         )
+
+        prices = load_jsonl(
+            path
+        )
+
+        required = {
+            "date",
+            "yahoo_symbol",
+            "close",
+        }
+
+        missing = required.difference(
+            prices.columns
+        )
+
+        if missing:
+            raise ValueError(
+                f"Prisfil {path} saknar "
+                "kolumner: "
+                + ", ".join(
+                    sorted(missing)
+                )
+            )
+
+        frames.append(
+            prices
+        )
+
+    prices = pd.concat(
+        frames,
+        ignore_index=True,
+    )
 
     prices["date"] = pd.to_datetime(
         prices["date"],
@@ -1387,12 +1462,34 @@ def load_prices(
         & prices["close"].notna()
     ].copy()
 
+    # Om samma symbol + datum finns i mer än en
+    # prisfil ska samma observation inte räknas flera gånger.
+    prices = (
+        prices
+        .sort_values(
+            [
+                "yahoo_symbol",
+                "date",
+            ],
+            kind="mergesort",
+        )
+        .drop_duplicates(
+            subset=[
+                "yahoo_symbol",
+                "date",
+            ],
+            keep="last",
+        )
+    )
+
     return prices.sort_values(
         [
             "yahoo_symbol",
             "date",
         ],
         kind="mergesort",
+    ).reset_index(
+        drop=True
     )
 
 
@@ -1422,16 +1519,21 @@ def main() -> None:
         "Feature-QC: startar."
     )
 
-    print(
-        f"Features: {FEATURES_PATH}"
-    )
-
-    features = load_jsonl(
-        FEATURES_PATH
+    feature_paths = sorted(
+        FEATURES_DIR.glob(
+            FEATURES_GLOB
+        )
     )
 
     print(
-        f"Feature-rader: {len(features)}"
+        f"Feature-chunks: "
+        f"{len(feature_paths)}"
+    )
+
+    features = load_feature_chunks()
+
+    print(
+        f"Feature-rader: {len(features):,}"
     )
 
     column_check = (
@@ -1480,12 +1582,10 @@ def main() -> None:
 
     mapping = load_mapping()
 
-    price_file = (
-        load_latest_price_file()
-    )
+    price_files = load_price_files()
 
     prices = load_prices(
-        price_file
+        price_files
     )
 
     checks: dict[
@@ -1593,16 +1693,22 @@ def main() -> None:
             "Blankdiss FI + price features"
         ),
         "status": status,
-        "features_file": str(
-            FEATURES_PATH.relative_to(
-                ROOT
+        "feature_files": [
+            str(
+                path.relative_to(
+                    ROOT
+                )
             )
-        ),
-        "price_file": str(
-            price_file.relative_to(
-                ROOT
+            for path in feature_paths
+        ],
+        "price_files": [
+            str(
+                path.relative_to(
+                    ROOT
+                )
             )
-        ),
+            for path in price_files
+        ],
         "rows": int(
             len(features)
         ),
