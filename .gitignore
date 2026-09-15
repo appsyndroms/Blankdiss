@@ -14,7 +14,7 @@ pages/
 
 # Large generated FI datasets
 data/raw/fi/aggregate/historical/*.jsonl
-data/raw/fi/positions/historical/*.jsonl
+data/raw/positions/historical/*.jsonl
 data/processed/fi/aggregate/*.jsonl
 
 # Large generated analysis datasets
