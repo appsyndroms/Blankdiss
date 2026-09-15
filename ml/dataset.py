@@ -9,6 +9,8 @@ import pandas as pd
 from ml.config import (
     FEATURES_PATH,
     FEATURE_EXCLUDE_COLUMNS,
+    FI_ONLY_EXCLUDE_COLUMNS,
+    PRICE_FEATURE_COLUMNS,
     TargetConfig,
 )
 
@@ -84,11 +86,17 @@ def build_target(
 
 def get_feature_columns(
     frame: pd.DataFrame,
+    include_price_features: bool,
 ) -> list[str]:
+    if include_price_features:
+        excluded = FEATURE_EXCLUDE_COLUMNS
+    else:
+        excluded = FI_ONLY_EXCLUDE_COLUMNS
+
     columns: list[str] = []
 
     for column in frame.columns:
-        if column in FEATURE_EXCLUDE_COLUMNS:
+        if column in excluded:
             continue
 
         if column.startswith(
@@ -119,6 +127,7 @@ def get_feature_columns(
 def prepare_ml_data(
     frame: pd.DataFrame,
     target: TargetConfig,
+    include_price_features: bool,
 ) -> tuple[
     pd.DataFrame,
     pd.Series,
@@ -130,7 +139,8 @@ def prepare_ml_data(
     )
 
     feature_columns = get_feature_columns(
-        frame
+        frame,
+        include_price_features,
     )
 
     data = frame[
@@ -176,7 +186,9 @@ def prepare_ml_data(
     )
 
     data = data.drop(
-        columns=[target.return_column]
+        columns=[
+            target.return_column
+        ]
     )
 
     return (
