@@ -361,13 +361,18 @@ def main() -> None:
             f"{len(future_rows)} rader."
         )
 
-    if market["market_date"].min() > MARKET_START_DATE:
+    # 2022-01-01 var en lördag och 2022-01-02 en söndag.
+    # Vi kräver därför bara att historiken börjar under januari 2022.
+    first_market_date = market["market_date"].min()
+
+    if (
+        first_market_date.year != 2022
+        or first_market_date.month != 1
+    ):
         raise RuntimeError(
-            "OMXSPI-historiken börjar för sent. "
-            f"Förväntade data från "
-            f"{MARKET_START_DATE:%Y-%m-%d}, "
-            f"men första observation är "
-            f"{market['market_date'].min():%Y-%m-%d}."
+            "OMXSPI-historiken börjar oväntat sent. "
+            f"Första observation är "
+            f"{first_market_date:%Y-%m-%d}."
         )
 
     print()
