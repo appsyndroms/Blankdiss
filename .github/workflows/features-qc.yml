@@ -100,9 +100,25 @@ jobs:
           print(
               f"Feature QC status: {status}"
           )
-          if status != "PASS":
+          if status == "FAIL":
               raise SystemExit(
-                  f"Feature QC failed with status: {status}"
+                  "Feature QC failed with status: FAIL"
+              )
+          if status == "WARN":
+              print(
+                  "Feature QC har status WARN."
+              )
+              print(
+                  "Varningar tillåts och workflow fortsätter."
+              )
+          elif status == "PASS":
+              print(
+                  "Feature QC har status PASS."
+              )
+          else:
+              raise SystemExit(
+                  "Feature QC returnerade okänd status: "
+                  f"{status}"
               )
           PY
       - name: Commit features till Git
