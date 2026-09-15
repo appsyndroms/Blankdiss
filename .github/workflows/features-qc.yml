@@ -3,6 +3,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: features-qc-main
+  cancel-in-progress: false
 jobs:
   features-qc:
     runs-on: ubuntu-latest
@@ -36,23 +39,38 @@ jobs:
           python -m analysis.build_features
       - name: Kontrollera feature-data
         run: |
-          test -f data/processed/analysis/features.jsonl
           test -f data/processed/analysis/features_metadata.json
+          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
           echo "Feature-dataset skapad."
           echo
-          echo "Feature-data:"
-          ls -lh data/processed/analysis/features.jsonl
+          echo "Feature-filer:"
+          ls -lh data/processed/analysis/features_*.jsonl
           ls -lh data/processed/analysis/features_metadata.json
       - name: Kontrollera feature-storlek
         run: |
-          SIZE_BYTES="$(stat -c%s data/processed/analysis/features.jsonl)"
-          SIZE_MB="$((SIZE_BYTES / 1024 / 1024))"
-          echo "features.jsonl: ${SIZE_MB} MB"
-          if [ "$SIZE_BYTES" -ge 104857600 ]; then
-            echo "features.jsonl är >= 100 MB."
-            echo "Datasetet kan inte lagras som vanlig Git-fil."
-            exit 1
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          paths = sorted(
+              Path("data/processed/analysis").glob(
+                  "features_*.jsonl"
+              )
+          )
+          if not paths:
+              raise SystemExit(
+                  "Inga feature-chunks hittades."
+              )
+          limit = 20 * 1024 * 1024
+          for path in paths:
+              size = path.stat().st_size
+              mb = size / 1024 / 1024
+              print(
+                  f"{path.name}: {mb:.2f} MB"
+              )
+              if size > limit:
+                  raise SystemExit(
+                      f"{path.name} är större än 20 MB."
+                  )
+          PY
       - name: Kör Feature QC
         run: |
           python -m analysis.features_qc
@@ -70,10 +88,18 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          path = Path("data/processed/analysis/features_qc.json")
-          data = json.loads(path.read_text(encoding="utf-8"))
+          path = Path(
+              "data/processed/analysis/features_qc.json"
+          )
+          data = json.loads(
+              path.read_text(
+                  encoding="utf-8"
+              )
+          )
           status = data.get("status")
-          print(f"Feature QC status: {status}")
+          print(
+              f"Feature QC status: {status}"
+          )
           if status != "PASS":
               raise SystemExit(
                   f"Feature QC failed with status: {status}"
@@ -84,7 +110,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            data/processed/analysis/features.jsonl \
+            data/processed/analysis/features_*.jsonl \
             data/processed/analysis/features_metadata.json \
             data/processed/analysis/features_qc.json
           if git diff --cached --quiet; then
@@ -99,7 +125,7 @@ jobs:
         with:
           name: features-and-qc
           path: |
-            data/processed/analysis/features.jsonl
+            data/processed/analysis/features_*.jsonl
             data/processed/analysis/features_metadata.json
             data/processed/analysis/features_qc.json
           if-no-files-found: error
