@@ -19,7 +19,7 @@ from analysis.feature_utils import (
 def find_price_file(
     price_dir: Path,
 ) -> Path:
-    files = sorted(
+    files = list(
         price_dir.glob(
             "prices_*.jsonl"
         )
@@ -31,7 +31,21 @@ def find_price_file(
             f"hittades i {price_dir}"
         )
 
-    return files[-1]
+    def start_date(path: Path) -> str:
+        parts = path.stem.split("_")
+
+        if len(parts) < 2:
+            return "9999-12-31"
+
+        return parts[1]
+
+    return min(
+        files,
+        key=lambda path: (
+            start_date(path),
+            path.name,
+        ),
+    )
 
 
 def load_prices(
