@@ -1,4 +1,4 @@
-"""Bygger en analysklar FI + pris-dataset för Blankdiss."""
+"""Bygger och uppdaterar analysklar FI + pris-data inkrementellt."""
 from __future__ import annotations
 
 import json
@@ -358,22 +358,23 @@ def add_fi_features(
         ]
     )
 
-    valid_relative = (
-        frame["previous_short_interest_pct"]
-        >= 0.5
-    )
+    previous = frame[
+        "previous_short_interest_pct"
+    ]
 
     frame["short_interest_relative_change"] = (
         np.where(
-            valid_relative,
+            previous >= 0.5,
             frame["short_interest_delta_pp"]
-            / frame["previous_short_interest_pct"],
+            / previous,
             np.nan,
         )
     )
 
     frame["short_interest_acceleration_pp"] = (
-        grouped["short_interest_delta_pp"].diff()
+        grouped[
+            "short_interest_delta_pp"
+        ].diff()
     )
 
     for threshold in (
@@ -382,28 +383,24 @@ def add_fi_features(
         3.0,
         5.0,
     ):
-        current = (
-            frame["short_interest_pct"]
-            >= threshold
-        )
-
-        previous = frame[
-            "previous_short_interest_pct"
-        ]
-
-        threshold_label = (
+        label = (
             f"{threshold:.1f}".replace(
                 ".",
                 "_",
             )
         )
 
+        current = (
+            frame["short_interest_pct"]
+            >= threshold
+        )
+
         frame[
-            f"above_{threshold_label}pct"
+            f"above_{label}pct"
         ] = current
 
         frame[
-            f"entered_above_{threshold_label}pct"
+            f"entered_above_{label}pct"
         ] = (
             previous.notna()
             & (previous < threshold)
@@ -411,7 +408,7 @@ def add_fi_features(
         )
 
         frame[
-            f"exited_below_{threshold_label}pct"
+            f"exited_below_{label}pct"
         ] = (
             previous.notna()
             & (previous >= threshold)
@@ -445,17 +442,23 @@ def build_price_lookup(
 def attach_prices(
     fi: pd.DataFrame,
     prices: pd.DataFrame,
-) -> tuple[pd.DataFrame, dict[str, int]]:
+) -> tuple[
+    pd.DataFrame,
+    dict[str, int],
+]:
     lookup = build_price_lookup(
         prices
     )
 
     rows: list[dict[str, Any]] = []
 
-    matched = 0
-    unmatched = 0
-    matched_by_isin = 0
-    matched_by_issuer = 0
+    stats = {
+        "fi_rows": int(len(fi)),
+        "matched_rows": 0,
+        "unmatched_rows": 0,
+        "matched_by_isin": 0,
+        "matched_by_issuer": 0,
+    }
 
     for row in fi.itertuples(
         index=False
@@ -470,10 +473,11 @@ def attach_prices(
             series is not None
             and not series.empty
         ):
-            if normalize_text(row.isin):
-                mapping_source = "isin"
-            else:
-                mapping_source = "issuer"
+            mapping_source = (
+                "isin"
+                if normalize_text(row.isin)
+                else "issuer"
+            )
 
         if (
             series is None
@@ -494,10 +498,12 @@ def attach_prices(
             series is None
             or series.empty
         ):
-            unmatched += 1
+            stats["unmatched_rows"] += 1
             continue
 
-        dates = series["date"].to_numpy(
+        dates = series[
+            "date"
+        ].to_numpy(
             dtype="datetime64[ns]"
         )
 
@@ -515,15 +521,15 @@ def attach_prices(
         )
 
         if entry_idx >= len(series):
-            unmatched += 1
+            stats["unmatched_rows"] += 1
             continue
 
-        matched += 1
+        stats["matched_rows"] += 1
 
         if mapping_source == "isin":
-            matched_by_isin += 1
-        elif mapping_source == "issuer":
-            matched_by_issuer += 1
+            stats["matched_by_isin"] += 1
+        else:
+            stats["matched_by_issuer"] += 1
 
         entry = series.iloc[
             entry_idx
@@ -535,7 +541,9 @@ def attach_prices(
 
         result = row._asdict()
 
-        result["price_date"] = entry["date"]
+        result["price_date"] = (
+            entry["date"]
+        )
 
         result["close"] = entry_price
 
@@ -564,18 +572,17 @@ def attach_prices(
             )
 
             if target_idx < len(series):
-                target = series.iloc[
-                    target_idx
-                ]
-
                 result[
                     f"forward_return_{horizon}d"
                 ] = (
-                    float(target["close"])
+                    float(
+                        series.iloc[
+                            target_idx
+                        ]["close"]
+                    )
                     / entry_price
                     - 1.0
                 )
-
             else:
                 result[
                     f"forward_return_{horizon}d"
@@ -587,13 +594,7 @@ def attach_prices(
 
     return (
         pd.DataFrame(rows),
-        {
-            "fi_rows": int(len(fi)),
-            "matched_rows": matched,
-            "unmatched_rows": unmatched,
-            "matched_by_isin": matched_by_isin,
-            "matched_by_issuer": matched_by_issuer,
-        },
+        stats,
     )
 
 
@@ -602,34 +603,132 @@ def clean_for_json(
 ) -> pd.DataFrame:
     frame = frame.copy()
 
-    date_columns = {
+    for column in {
         "snapshot_date",
         "previous_snapshot_date",
         "price_date",
-    }
-
-    for column in date_columns:
-        if column not in frame.columns:
-            continue
-
-        frame[column] = (
-            pd.to_datetime(
-                frame[column],
-                errors="coerce",
+    }:
+        if column in frame.columns:
+            frame[column] = (
+                pd.to_datetime(
+                    frame[column],
+                    errors="coerce",
+                )
+                .dt.strftime(
+                    "%Y-%m-%d"
+                )
             )
-            .dt.strftime(
-                "%Y-%m-%d"
-            )
-        )
 
     frame = frame.astype(object)
 
-    frame = frame.where(
+    return frame.where(
         pd.notna(frame),
         None,
     )
 
+
+def load_existing() -> pd.DataFrame:
+    if not OUTPUT_PATH.exists():
+        return pd.DataFrame()
+
+    frame = pd.read_json(
+        OUTPUT_PATH,
+        lines=True,
+    )
+
+    if frame.empty:
+        return frame
+
+    for column in (
+        "snapshot_date",
+        "previous_snapshot_date",
+        "price_date",
+    ):
+        if column in frame.columns:
+            frame[column] = pd.to_datetime(
+                frame[column],
+                errors="coerce",
+            )
+
     return frame
+
+
+def feature_key(
+    frame: pd.DataFrame,
+) -> pd.Series:
+    return (
+        frame["security_key"].astype(str)
+        + "|"
+        + frame["snapshot_date"].dt.strftime(
+            "%Y-%m-%d"
+        )
+    )
+
+
+def refresh_incomplete_returns(
+    existing: pd.DataFrame,
+    prices: pd.DataFrame,
+) -> pd.DataFrame:
+    if existing.empty:
+        return existing
+
+    return_columns = [
+        f"forward_return_{h}d"
+        for h in RETURN_HORIZONS
+    ]
+
+    incomplete = existing[
+        return_columns
+    ].isna().any(axis=1)
+
+    if not incomplete.any():
+        return existing
+
+    subset = existing.loc[
+        incomplete
+    ].copy()
+
+    refreshed, _ = attach_prices(
+        subset,
+        prices,
+    )
+
+    if refreshed.empty:
+        return existing
+
+    refreshed = refreshed.set_index(
+        [
+            "security_key",
+            "snapshot_date",
+        ]
+    )
+
+    current = existing.set_index(
+        [
+            "security_key",
+            "snapshot_date",
+        ]
+    )
+
+    update_columns = [
+        "price_date",
+        "close",
+        "close_on_signal_date",
+        "days_from_fi_to_price",
+        "price_match_available",
+        "yahoo_symbol",
+        "price_mapping_source",
+        *return_columns,
+    ]
+
+    for column in update_columns:
+        if column in refreshed.columns:
+            current.loc[
+                refreshed.index,
+                column,
+            ] = refreshed[column]
+
+    return current.reset_index()
 
 
 def validate_output_columns(
@@ -710,21 +809,23 @@ def write_jsonl(
 
 def main() -> None:
     print(
-        "Featurejobb: startar."
+        "Featurejobb: startar inkrementellt."
     )
 
     fi = load_fi()
-
-    print(
-        "Featurejobb: "
-        f"{len(fi):,} "
-        "FI-observationer lästa."
-    )
 
     price_file = find_price_file()
 
     prices = load_prices(
         price_file
+    )
+
+    existing = load_existing()
+
+    print(
+        "Featurejobb: "
+        f"{len(fi):,} "
+        "FI-observationer lästa."
     )
 
     print(
@@ -738,14 +839,135 @@ def main() -> None:
         f"{price_file.name}"
     )
 
-    fi = add_fi_features(
-        fi
-    )
+    if existing.empty:
+        print(
+            "Featurejobb: ingen befintlig "
+            "feature-fil -> bygger "
+            "initial historik."
+        )
 
-    result, stats = attach_prices(
-        fi,
-        prices,
-    )
+        result, stats = attach_prices(
+            add_fi_features(fi),
+            prices,
+        )
+
+    else:
+        existing_keys = set(
+            feature_key(existing)
+        )
+
+        candidates = fi.loc[
+            ~feature_key(fi).isin(
+                existing_keys
+            )
+        ].copy()
+
+        print(
+            "Featurejobb: "
+            f"{len(existing):,} "
+            "befintliga feature-rader."
+        )
+
+        print(
+            "Featurejobb: "
+            f"{len(candidates):,} "
+            "nya FI-observationer."
+        )
+
+        if candidates.empty:
+            result = (
+                refresh_incomplete_returns(
+                    existing,
+                    prices,
+                )
+            )
+
+            stats = {
+                "matched_rows": 0,
+                "unmatched_rows": 0,
+                "matched_by_isin": 0,
+                "matched_by_issuer": 0,
+            }
+
+        else:
+            context_keys = (
+                candidates[
+                    "security_key"
+                ].unique()
+            )
+
+            context = (
+                fi.loc[
+                    fi["security_key"].isin(
+                        context_keys
+                    )
+                ]
+                .sort_values(
+                    [
+                        "security_key",
+                        "snapshot_date",
+                    ]
+                )
+                .groupby(
+                    "security_key",
+                    sort=False,
+                )
+                .tail(1)
+            )
+
+            context = context.loc[
+                ~feature_key(
+                    context
+                ).isin(
+                    set(
+                        feature_key(
+                            candidates
+                        )
+                    )
+                )
+            ]
+
+            combined = pd.concat(
+                [
+                    context,
+                    candidates,
+                ],
+                ignore_index=True,
+            )
+
+            built = add_fi_features(
+                combined
+            )
+
+            candidate_keys = set(
+                feature_key(candidates)
+            )
+
+            built = built.loc[
+                feature_key(
+                    built
+                ).isin(candidate_keys)
+            ].copy()
+
+            new_rows, stats = attach_prices(
+                built,
+                prices,
+            )
+
+            result = pd.concat(
+                [
+                    existing,
+                    new_rows,
+                ],
+                ignore_index=True,
+            )
+
+            result = (
+                refresh_incomplete_returns(
+                    result,
+                    prices,
+                )
+            )
 
     if result.empty:
         raise RuntimeError(
@@ -757,12 +979,30 @@ def main() -> None:
         result
     )
 
-    result = clean_for_json(
+    result = (
+        result
+        .sort_values(
+            [
+                "security_key",
+                "snapshot_date",
+            ],
+            kind="mergesort",
+        )
+        .drop_duplicates(
+            [
+                "security_key",
+                "snapshot_date",
+            ],
+            keep="last",
+        )
+    )
+
+    json_result = clean_for_json(
         result
     )
 
     write_jsonl(
-        result
+        json_result
     )
 
     metadata = {
@@ -778,21 +1018,26 @@ def main() -> None:
                 )
             ),
         },
+        "build_mode": "incremental",
         "fi_rows": len(fi),
         "price_rows": len(prices),
         "feature_rows": len(result),
-        "matched_fi_rows": stats[
-            "matched_rows"
-        ],
-        "unmatched_fi_rows": stats[
-            "unmatched_rows"
-        ],
-        "matched_by_isin": stats[
-            "matched_by_isin"
-        ],
-        "matched_by_issuer": stats[
-            "matched_by_issuer"
-        ],
+        "matched_fi_rows": stats.get(
+            "matched_rows",
+            0,
+        ),
+        "unmatched_fi_rows": stats.get(
+            "unmatched_rows",
+            0,
+        ),
+        "matched_by_isin": stats.get(
+            "matched_by_isin",
+            0,
+        ),
+        "matched_by_issuer": stats.get(
+            "matched_by_issuer",
+            0,
+        ),
         "security_keys_fi": int(
             fi["security_key"].nunique()
         ),
@@ -838,24 +1083,12 @@ def main() -> None:
 
     print(
         "Featurejobb: "
-        f"{stats['matched_rows']:,} "
-        "matchade, "
-        f"{stats['unmatched_rows']:,} "
-        "omatchade."
-    )
-
-    print(
-        "Featurejobb: "
-        f"{stats['matched_by_isin']:,} "
-        "matchade via ISIN, "
-        f"{stats['matched_by_issuer']:,} "
-        "via issuer."
-    )
-
-    print(
-        "Featurejobb: "
         f"{len(result):,} rader "
         f"-> {OUTPUT_PATH}"
+    )
+
+    print(
+        "Featurejobb: färdig."
     )
 
 
