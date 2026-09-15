@@ -1,4 +1,5 @@
 """Diagnostik av Blankdiss ML-signal."""
+
 from __future__ import annotations
 
 import json
@@ -29,16 +30,24 @@ OUTPUT_PATH = (
     / "diagnostics.json"
 )
 
-TARGET_NAME = "positive_5d"
+DIAGNOSTIC_TARGETS = (
+    "up_5pct_5d",
+    "down_5pct_5d",
+)
+
+TOP_FRACTIONS = (
+    0.01,
+    0.05,
+    0.10,
+    0.20,
+)
 
 
 def safe_auc(
     y_true: pd.Series,
     probabilities: np.ndarray,
 ) -> float | None:
-    values = np.asarray(
-        y_true
-    )
+    values = np.asarray(y_true)
 
     if len(np.unique(values)) < 2:
         return None
@@ -121,9 +130,7 @@ def feature_importance(
     rows = [
         {
             "feature": feature,
-            "importance": float(
-                value
-            ),
+            "importance": float(value),
         }
         for feature, value in zip(
             feature_columns,
@@ -162,13 +169,9 @@ def yearly_evaluation(
         if not mask.any():
             continue
 
-        subset = data.loc[
-            mask
-        ]
+        subset = data.loc[mask]
 
-        y_year = y.loc[
-            mask
-        ]
+        y_year = y.loc[mask]
 
         probabilities = (
             model.predict_proba(
@@ -216,6 +219,140 @@ def yearly_evaluation(
         )
 
     return rows
+
+
+def prediction_buckets(
+    model,
+    data: pd.DataFrame,
+    y: pd.Series,
+    feature_columns: list[str],
+    mask: pd.Series,
+) -> dict[str, Any]:
+    subset = data.loc[
+        mask
+    ].copy()
+
+    if subset.empty:
+        return {
+            "rows": 0,
+            "baseline_event_rate": None,
+            "baseline_mean_return": None,
+            "buckets": [],
+        }
+
+    subset["target"] = (
+        y.loc[mask]
+        .to_numpy()
+    )
+
+    subset["probability"] = (
+        model.predict_proba(
+            subset[
+                feature_columns
+            ]
+        )[:, 1]
+    )
+
+    subset["target_return"] = pd.to_numeric(
+        subset["target_return"],
+        errors="coerce",
+    )
+
+    subset = subset.sort_values(
+        "probability",
+        ascending=False,
+    ).reset_index(drop=True)
+
+    baseline_event_rate = float(
+        subset["target"].mean()
+    )
+
+    baseline_mean_return = float(
+        subset["target_return"].mean()
+    )
+
+    buckets = []
+
+    for fraction in TOP_FRACTIONS:
+        rows = max(
+            1,
+            int(
+                np.ceil(
+                    len(subset)
+                    * fraction
+                )
+            ),
+        )
+
+        top = subset.iloc[:rows]
+
+        event_rate = float(
+            top["target"].mean()
+        )
+
+        mean_return = float(
+            top["target_return"].mean()
+        )
+
+        median_return = float(
+            top["target_return"].median()
+        )
+
+        mean_probability = float(
+            top["probability"].mean()
+        )
+
+        buckets.append(
+            {
+                "top_fraction": fraction,
+                "rows": int(rows),
+                "mean_probability": (
+                    mean_probability
+                ),
+                "event_rate": event_rate,
+                "baseline_event_rate": (
+                    baseline_event_rate
+                ),
+                "event_rate_lift": (
+                    event_rate
+                    - baseline_event_rate
+                ),
+                "event_rate_lift_ratio": (
+                    event_rate
+                    / baseline_event_rate
+                    if baseline_event_rate > 0
+                    else None
+                ),
+                "mean_return": mean_return,
+                "median_return": (
+                    median_return
+                ),
+                "baseline_mean_return": (
+                    baseline_mean_return
+                ),
+                "mean_return_lift": (
+                    mean_return
+                    - baseline_mean_return
+                ),
+                "min_probability": float(
+                    top["probability"].min()
+                ),
+                "max_probability": float(
+                    top["probability"].max()
+                ),
+            }
+        )
+
+    return {
+        "rows": int(len(subset)),
+        "baseline_event_rate": (
+            baseline_event_rate
+        ),
+        "baseline_mean_return": (
+            baseline_mean_return
+        ),
+        "buckets": buckets,
+    }
 
 
 def company_diagnostics(
@@ -341,9 +478,7 @@ def company_diagnostics(
             if auc_values
             else None
         ),
-        "top_by_rows": records[
-            :25
-        ],
+        "top_by_rows": records[:25],
     }
 
 
@@ -452,6 +587,46 @@ def run_window(
         errors="coerce",
     )
 
+    test_start_year = int(
+        pd.Timestamp(
+            window.validation_end
+        ).year
+    ) + 1
+
+    test_end_year = int(
+        pd.Timestamp(
+            window.test_end
+        ).year
+    )
+
+    yearly = {}
+
+    for year in range(
+        test_start_year,
+        test_end_year + 1,
+    ):
+        year_mask = (
+            masks["test"]
+            & (
+                data["snapshot_date"]
+                .dt.year
+                == year
+            )
+        )
+
+        if not year_mask.any():
+            continue
+
+        yearly[str(year)] = (
+            prediction_buckets(
+                selected_model,
+                data,
+                y,
+                feature_columns,
+                year_mask,
+            )
+        )
+
     return {
         "window": {
             "train_end": (
@@ -464,9 +639,7 @@ def run_window(
                 window.test_end
             ),
         },
-        "selected_model": (
-            selected_name
-        ),
+        "selected_model": selected_name,
         "validation_roc_auc": float(
             validation_score
         ),
@@ -504,21 +677,11 @@ def run_window(
                 data,
                 y,
                 feature_columns,
-                (
-                    int(
-                        pd.Timestamp(
-                            window.train_end
-                        ).year
-                    )
-                    + 1
-                ),
-                int(
-                    pd.Timestamp(
-                        window.test_end
-                    ).year
-                ),
+                test_start_year,
+                test_end_year,
             )
         ),
+        "prediction_buckets": yearly,
         "company_diagnostics": (
             company_diagnostics(
                 selected_model,
@@ -531,14 +694,15 @@ def run_window(
     }
 
 
-def main() -> None:
-    features = load_features()
-
+def run_target(
+    features: pd.DataFrame,
+    target_name: str,
+) -> dict[str, Any]:
     target = next(
         target
         for target in TARGETS
         if target.name
-        == TARGET_NAME
+        == target_name
     )
 
     (
@@ -551,8 +715,14 @@ def main() -> None:
         include_price_features=False,
     )
 
-    diagnostics = {
-        "target": TARGET_NAME,
+    return {
+        "target": target_name,
+        "return_column": (
+            target.return_column
+        ),
+        "target_threshold": (
+            target.threshold
+        ),
         "feature_set": "fi_only",
         "feature_count": len(
             feature_columns
@@ -560,6 +730,33 @@ def main() -> None:
         "feature_columns": (
             feature_columns
         ),
+        "dataset_summary": {
+            "rows": int(
+                len(data)
+            ),
+            "features": len(
+                feature_columns
+            ),
+            "positive": int(
+                y.sum()
+            ),
+            "negative": int(
+                len(y) - y.sum()
+            ),
+            "positive_rate": float(
+                y.mean()
+            ),
+            "date_start": (
+                data[
+                    "snapshot_date"
+                ].min().date().isoformat()
+            ),
+            "date_end": (
+                data[
+                    "snapshot_date"
+                ].max().date().isoformat()
+            ),
+        },
         "windows": [
             run_window(
                 data,
@@ -569,6 +766,31 @@ def main() -> None:
             )
             for window
             in WALK_FORWARD_WINDOWS
+        ],
+    }
+
+
+def main() -> None:
+    features = load_features()
+
+    diagnostics = {
+        "experiment": (
+            "prediction_edge_analysis"
+        ),
+        "feature_set": "fi_only",
+        "targets": list(
+            DIAGNOSTIC_TARGETS
+        ),
+        "top_fractions": list(
+            TOP_FRACTIONS
+        ),
+        "results": [
+            run_target(
+                features,
+                target_name,
+            )
+            for target_name
+            in DIAGNOSTIC_TARGETS
         ],
     }
 
