@@ -1,4 +1,5 @@
 name: Blankdiss Signal Backtest
+
 on:
   workflow_dispatch:
   workflow_run:
@@ -6,37 +7,53 @@ on:
       - "Blankdiss ML Training"
     types:
       - completed
+
 permissions:
   contents: read
   actions: read
+
 jobs:
   signal-backtest:
     name: Kör signal backtest
     runs-on: ubuntu-latest
+
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main'
       )
+
     steps:
+      # ---------------------------------------------------------
+      # Checkout
+      # ---------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
+
+      # ---------------------------------------------------------
+      # Python
+      # ---------------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      # ---------------------------------------------------------
+      # Dependencies
+      # ---------------------------------------------------------
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       # ---------------------------------------------------------
       # Features
       #
       # Signal backtest behöver features.jsonl.
       #
-      # ML Training publicerar inte features-artifacten vidare,
-      # så vi hämtar den senaste lyckade Features QC-körningen.
+      # För workflow_run hämtar vi den senaste lyckade
+      # Features QC-körningen.
       # ---------------------------------------------------------
       - name: Download latest successful Features QC
         env:
@@ -44,6 +61,7 @@ jobs:
         run: |
           rm -rf data/processed/analysis
           mkdir -p data/processed/analysis
+
           RUN_ID="$(
             gh run list \
               --repo "${{ github.repository }}" \
@@ -53,15 +71,19 @@ jobs:
               --json databaseId \
               --jq '.[0].databaseId'
           )"
+
           if [ -z "$RUN_ID" ]; then
             echo "Ingen lyckad Features QC-körning hittades."
             exit 1
           fi
+
           echo "Hämtar Features QC run: $RUN_ID"
+
           gh run download "$RUN_ID" \
             --repo "${{ github.repository }}" \
             --name features-and-qc \
             --dir data/processed/analysis
+
       # ---------------------------------------------------------
       # Verify features
       # ---------------------------------------------------------
@@ -69,10 +91,12 @@ jobs:
         run: |
           test -f data/processed/analysis/features.jsonl
           test -f data/processed/analysis/features_metadata.json
+
           echo "Feature-dataset finns."
           echo
           echo "Feature-filer:"
           ls -lh data/processed/analysis/
+
       # ---------------------------------------------------------
       # Verify signal backtest package
       # ---------------------------------------------------------
@@ -84,134 +108,181 @@ jobs:
           test -f analysis/signal_backtest/metrics.py
           test -f analysis/signal_backtest/reporting.py
           test -f analysis/signal_backtest/runner.py
+
           echo "Signal backtest-paket finns."
+
       # ---------------------------------------------------------
       # Run
       # ---------------------------------------------------------
       - name: Run signal backtest
         run: |
           python -m analysis.signal_backtest
+
       # ---------------------------------------------------------
       # Verify result
       # ---------------------------------------------------------
       - name: Verify signal backtest result
         run: |
           test -f data/processed/ml/signal_backtest.json
+
           echo "Signal backtest klart."
           echo
           echo "Resultat:"
           ls -lh data/processed/ml/signal_backtest.json
+
       # ---------------------------------------------------------
       # Print summary
+      #
+      # Använder python -c i stället för heredoc.
+      # Det eliminerar warningen:
+      #
+      #   warning: here-document ... wanted `PY`
+      #
+      # och läser rätt nivå i signal_backtest.json.
       # ---------------------------------------------------------
       - name: Print signal backtest summary
+        env:
+          RESULT_PATH: data/processed/ml/signal_backtest.json
         run: |
-          python - <<'PY'
+          python -c '
           import json
+          import os
           from pathlib import Path
-          path = Path(
-              "data/processed/ml/signal_backtest.json"
-          )
-          data = json.loads(
-              path.read_text(
-                  encoding="utf-8"
-              )
-          )
+
+          path = Path(os.environ["RESULT_PATH"])
+          data = json.loads(path.read_text(encoding="utf-8"))
+
           print()
           print("================================")
           print("BLANKDISS SIGNAL BACKTEST")
           print("================================")
+
+          feature_sets = data.get("feature_sets", [])
+          targets = data.get("targets", [])
+
           print(
-              f"Feature sets: "
-              f"{', '.join(data.get('feature_sets', []))}"
+              f"Feature sets: {", ".join(feature_sets)}"
           )
           print(
-              f"Targets: "
-              f"{', '.join(data.get('targets', []))}"
+              f"Targets: {", ".join(targets)}"
           )
           print()
-          for result in data.get(
-              "results",
-              [],
-          ):
+
+          for result in data.get("results", []):
               print("--------------------------------")
+
               print(
                   f"Feature set: "
-                  f"{result.get('feature_set', '?')}"
+                  f"{result.get("feature_set", "?")}"
               )
+
               print(
                   f"Target: "
-                  f"{result.get('target', '?')}"
+                  f"{result.get("target", "?")}"
               )
+
               print(
                   f"Features: "
-                  f"{result.get('feature_count', '?')}"
+                  f"{result.get("feature_count", "?")}"
               )
-              for window in result.get(
-                  "windows",
-                  [],
-              ):
-                  window_info = window.get(
-                      "window",
-                      {},
+
+              for window in result.get("windows", []):
+                  window_info = window.get("window", {})
+
+                  train_end = window_info.get(
+                      "train_end",
+                      "?"
                   )
+
+                  validation_end = window_info.get(
+                      "validation_end",
+                      "?"
+                  )
+
+                  test_end = window_info.get(
+                      "test_end",
+                      "?"
+                  )
+
                   print()
+
                   print(
                       "Window: "
-                      f"{window_info.get('train_end', '?')} "
-                      "-> "
-                      f"{window_info.get('validation_end', '?')} "
-                      "-> "
-                      f"{window_info.get('test_end', '?')}"
+                      f"{train_end} -> "
+                      f"{validation_end} -> "
+                      f"{test_end}"
                   )
+
                   print(
                       "Selected model: "
-                      f"{window.get('selected_model', '?')}"
+                      f"{window.get("selected_model", "?")}"
                   )
+
                   print(
                       "Validation AUC: "
-                      f"{window.get('validation_roc_auc', '?')}"
+                      f"{window.get("validation_roc_auc", "?")}"
                   )
+
                   print(
                       "Test AUC: "
-                      f"{window.get('test_roc_auc', '?')}"
+                      f"{window.get("test_roc_auc", "?")}"
                   )
+
                   print(
                       "Test rows: "
-                      f"{window.get('test_rows', '?')}"
+                      f"{window.get("test_rows", "?")}"
                   )
+
                   prediction_buckets = window.get(
                       "prediction_buckets",
-                      {},
+                      {}
                   )
+
                   for year, bucket_data in prediction_buckets.items():
                       print()
                       print(
                           f"  {year}:"
                       )
-                      for bucket in bucket_data.get(
+
+                      buckets = bucket_data.get(
                           "buckets",
-                          [],
-                      ):
+                          []
+                      )
+
+                      for bucket in buckets:
                           fraction = (
                               bucket.get(
                                   "top_fraction",
-                                  0,
-                              )
-                              * 100
+                                  0
+                              ) * 100
                           )
+
+                          event_rate = bucket.get(
+                              "event_rate"
+                          )
+
+                          lift = bucket.get(
+                              "event_rate_lift_ratio"
+                          )
+
+                          mean_return = bucket.get(
+                              "mean_return"
+                          )
+
+                          median_return = bucket.get(
+                              "median_return"
+                          )
+
                           print(
                               f"    Top {fraction:g}%: "
-                              f"event_rate="
-                              f"{bucket.get('event_rate')}, "
-                              f"lift="
-                              f"{bucket.get('event_rate_lift_ratio')}, "
-                              f"mean_return="
-                              f"{bucket.get('mean_return')}, "
-                              f"median_return="
-                              f"{bucket.get('median_return')}"
+                              f"event_rate={event_rate}, "
+                              f"lift={lift}x, "
+                              f"mean_return={mean_return}, "
+                              f"median_return={median_return}"
                           )
+
                   print()
+
       # ---------------------------------------------------------
       # Upload result
       # ---------------------------------------------------------
