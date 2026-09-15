@@ -20,40 +20,26 @@ jobs:
         github.event.workflow_run.head_branch == 'main'
       )
     steps:
-      # ---------------------------------------------------------
-      # Checkout
-      # ---------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
-      # ---------------------------------------------------------
-      # Python
-      # ---------------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # ---------------------------------------------------------
-      # Dependencies
-      # ---------------------------------------------------------
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      # ---------------------------------------------------------
-      # Features
-      # ---------------------------------------------------------
       - name: Verify feature dataset
         run: |
-          test -f data/processed/analysis/features.jsonl
           test -f data/processed/analysis/features_metadata.json
+          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
           echo "Feature-dataset finns."
           echo
           echo "Feature-filer:"
-          ls -lh data/processed/analysis/features.jsonl
-          ls -lh data/processed/analysis/features_metadata.json
-      # ---------------------------------------------------------
-      # Verify signal backtest package
-      # ---------------------------------------------------------
+          ls -lh data/processed/analysis/features_*.jsonl
+          echo
+          cat data/processed/analysis/features_metadata.json
       - name: Verify signal backtest package
         run: |
           test -f analysis/signal_backtest/__init__.py
@@ -63,15 +49,9 @@ jobs:
           test -f analysis/signal_backtest/reporting.py
           test -f analysis/signal_backtest/runner.py
           echo "Signal backtest-paket finns."
-      # ---------------------------------------------------------
-      # Run signal backtest
-      # ---------------------------------------------------------
       - name: Run signal backtest
         run: |
           python -m analysis.signal_backtest
-      # ---------------------------------------------------------
-      # Verify result
-      # ---------------------------------------------------------
       - name: Verify signal backtest result
         run: |
           test -f data/processed/ml/signal_backtest.json
@@ -81,9 +61,6 @@ jobs:
           echo "================================"
           echo "Resultat:"
           ls -lh data/processed/ml/signal_backtest.json
-      # ---------------------------------------------------------
-      # Upload result
-      # ---------------------------------------------------------
       - name: Upload signal backtest artifact
         uses: actions/upload-artifact@v4
         with:
