@@ -330,7 +330,6 @@ def _parse_nasdaq_history(
         f"{preview}"
     )
 
-    # Försök läsa hela svaret med pandas.
     candidates = []
 
     for separator in (
@@ -364,8 +363,6 @@ def _parse_nasdaq_history(
             "som CSV."
         )
 
-    # Hitta kandidaten som innehåller
-    # datum + indexvärde.
     best: pd.DataFrame | None = None
 
     for candidate in candidates:
@@ -683,13 +680,15 @@ def download_market_data(
             )
 
             if status is not None:
+                status_preview = json.dumps(
+                    status,
+                    ensure_ascii=False,
+                    default=str,
+                )
+
                 print(
                     "Nasdaq status:\n"
-                    f"{json.dumps("
-                    "status, "
-                    "ensure_ascii=False, "
-                    "default=str"
-                    ")}"
+                    f"{status_preview}"
                 )
 
             message = payload.get(
