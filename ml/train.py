@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ml.config import (
     LATEST_RESULT_PATH,
@@ -21,6 +21,18 @@ from ml.dataset import (
 
 from ml.walk_forward import (
     train_window,
+)
+
+
+FEATURE_SETS = (
+    (
+        "fi_only",
+        False,
+    ),
+    (
+        "fi_plus_price",
+        True,
+    ),
 )
 
 
@@ -71,74 +83,98 @@ def main() -> None:
 
     all_results = []
 
-    for target in TARGETS:
+    for feature_set_name, include_price_features in FEATURE_SETS:
         print(
-            "Target: "
-            f"{target.name}"
+            "\n"
+            "================================"
         )
-
-        (
-            data,
-            y,
-            feature_columns,
-        ) = prepare_ml_data(
-            features,
-            target,
-        )
-
-        summary = dataset_summary(
-            data,
-            y,
-            feature_columns,
-        )
-
         print(
-            "Dataset: "
-            f"{summary['rows']:,} rader, "
-            f"{summary['features']} features, "
-            f"positiv rate "
-            f"{summary['positive_rate']:.3f}"
+            "Feature set: "
+            f"{feature_set_name}"
+        )
+        print(
+            "================================"
         )
 
-        for window in WALK_FORWARD_WINDOWS:
+        for target in TARGETS:
             print(
-                "Window: "
-                f"{window.train_end} -> "
-                f"{window.validation_end} -> "
-                f"{window.test_end}"
+                "Target: "
+                f"{target.name}"
             )
 
-            results = train_window(
+            (
                 data,
                 y,
                 feature_columns,
-                window,
+            ) = prepare_ml_data(
+                features,
+                target,
+                include_price_features,
             )
 
-            for result in results:
-                record = {
-                    "target": target.name,
-                    "return_column": (
-                        target.return_column
-                    ),
-                    "dataset_summary": summary,
-                    **result,
-                }
+            summary = dataset_summary(
+                data,
+                y,
+                feature_columns,
+            )
 
-                all_results.append(
-                    record
-                )
+            print(
+                "Dataset: "
+                f"{summary['rows']:,} rader, "
+                f"{summary['features']} features, "
+                f"positiv rate "
+                f"{summary['positive_rate']:.3f}"
+            )
 
+            for window in WALK_FORWARD_WINDOWS:
                 print(
-                    "  "
-                    f"{result['model']}: "
-                    f"validation AUC="
-                    f"{result['validation_roc_auc']:.4f}, "
-                    f"test AUC="
-                    f"{result['test']['roc_auc']:.4f}"
+                    "Window: "
+                    f"{window.train_end} -> "
+                    f"{window.validation_end} -> "
+                    f"{window.test_end}"
                 )
 
-    run_id = datetime.utcnow().strftime(
+                results = train_window(
+                    data,
+                    y,
+                    feature_columns,
+                    window,
+                )
+
+                for result in results:
+                    record = {
+                        "feature_set": (
+                            feature_set_name
+                        ),
+                        "target": target.name,
+                        "return_column": (
+                            target.return_column
+                        ),
+                        "target_threshold": (
+                            target.threshold
+                        ),
+                        "dataset_summary": summary,
+                        **result,
+                    }
+
+                    all_results.append(
+                        record
+                    )
+
+                    print(
+                        "  "
+                        f"{result['model']}: "
+                        f"validation AUC="
+                        f"{result['validation_roc_auc']:.4f}, "
+                        f"test AUC="
+                        f"{result['test']['roc_auc']:.4f}"
+                    )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    run_id = now.strftime(
         "%Y%m%dT%H%M%SZ"
     )
 
@@ -150,9 +186,7 @@ def main() -> None:
     run_document = {
         "run_id": run_id,
         "created_at": (
-            datetime.utcnow()
-            .isoformat()
-            + "Z"
+            now.isoformat()
         ),
         "results": all_results,
     }
