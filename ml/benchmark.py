@@ -1,4 +1,4 @@
-"""Benchmark av individuella Blankdiss ML-modeller."""
+"""Benchmark av Random Forest med olika CPU-parallellism."""
 
 from __future__ import annotations
 
@@ -20,8 +20,14 @@ BENCHMARK_TARGETS = {
     "down_5pct_5d",
 }
 
+BENCHMARK_N_JOBS = (
+    1,
+    2,
+    4,
+    -1,
+)
+
 # Bara första walk-forward-fönstret.
-# Vi vill isolera modellernas fit-tid, inte köra hela pipelinen.
 BENCHMARK_WINDOW = WALK_FORWARD_WINDOWS[0]
 
 
@@ -29,7 +35,7 @@ def main() -> None:
     total_start = perf_counter()
 
     print("================================")
-    print("Blankdiss ML model benchmark")
+    print("Blankdiss Random Forest benchmark")
     print("================================")
 
     print()
@@ -134,11 +140,6 @@ def main() -> None:
             f"Features: {len(target_feature_columns)}"
         )
 
-        models = build_models(
-            RANDOM_STATE,
-            task=target.task,
-        )
-
         print()
         print(
             f"Window: "
@@ -147,9 +148,26 @@ def main() -> None:
             f"{BENCHMARK_WINDOW.test_end}"
         )
 
-        for name, model in models.items():
+        print()
+        print("Random Forest CPU scaling")
+        print("=========================")
+
+        for n_jobs in BENCHMARK_N_JOBS:
+            models = build_models(
+                RANDOM_STATE,
+                task=target.task,
+            )
+
+            model = models["random_forest"]
+
+            model.set_params(
+                model__n_jobs=n_jobs,
+            )
+
             print()
-            print(f"Model: {name}")
+            print(
+                f"n_jobs={n_jobs}"
+            )
 
             start = perf_counter()
 
@@ -158,25 +176,25 @@ def main() -> None:
                 y_train,
             )
 
-            fit_seconds = perf_counter() - start
+            fit_seconds = (
+                perf_counter()
+                - start
+            )
 
             print(
-                f"  fit: {fit_seconds:.3f}s"
+                f"  fit: "
+                f"{fit_seconds:.3f}s"
             )
 
             start = perf_counter()
 
-            if target.task == "classification":
-                predictions = model.predict_proba(
-                    validation
-                )[:, 1]
-            else:
-                predictions = model.predict(
-                    validation
-                )
+            predictions = model.predict_proba(
+                validation
+            )[:, 1]
 
             prediction_seconds = (
-                perf_counter() - start
+                perf_counter()
+                - start
             )
 
             print(
@@ -189,7 +207,10 @@ def main() -> None:
                 f"{fit_seconds + prediction_seconds:.3f}s"
             )
 
-    total_seconds = perf_counter() - total_start
+    total_seconds = (
+        perf_counter()
+        - total_start
+    )
 
     print()
     print("================================")
