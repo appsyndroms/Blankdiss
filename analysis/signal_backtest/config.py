@@ -31,3 +31,16 @@ BACKTEST_TARGETS = (
     "up_5pct_5d",
     "down_5pct_5d",
 )
+
+
+# Ekonomiskt backtest
+# Samma urvalsnivåer som det befintliga signal-backtestet.
+ECONOMIC_BACKTEST_FRACTIONS = TOP_FRACTIONS
+
+# 5 handelsdagars target: ny portfölj var femte observationsdag
+# för att undvika överlappande 5-dagarsperioder i första versionen.
+ECONOMIC_REBALANCE_DAYS = 5
+
+# Antagen transaktionskostnad per rebalance, i basispunkter.
+# Detta är en explicit modellparameter och inte en observerad kostnad.
+TRANSACTION_COST_BPS = 10.0
