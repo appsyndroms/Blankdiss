@@ -1,6 +1,6 @@
 {
-  "run_id": "20260916T181641Z",
-  "created_at": "2026-09-16T18:16:41.217469+00:00",
+  "run_id": "20260916T195437Z",
+  "created_at": "2026-09-16T19:54:37.133167+00:00",
   "experiment": "price_feature_ablation",
   "feature_sets": [
     "fi_only",
@@ -19,6 +19,17 @@
   "parallel_experiments": 4,
   "parallel_windows": 1,
   "feature_set_cache": true,
+  "performance": {
+    "split_seconds": 1.297039151000547,
+    "fit_seconds": 2708.0791309040005,
+    "validation_prediction_seconds": 89.34594690800003,
+    "oos_prediction_seconds": 76.95327067300059,
+    "evaluation_seconds": 13.85377754600023,
+    "oos_row_build_seconds": 139.2473896470005,
+    "total_window_seconds": 3029.6489210780005,
+    "windows": 80,
+    "average_window_seconds": 37.870611513475005
+  },
   "results": [
     {
       "feature_set": "fi_only",
@@ -172,7 +183,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:50.277446Z"
+      "created_at": "2026-09-16T19:40:36.620135Z"
     },
     {
       "feature_set": "fi_only",
@@ -326,7 +337,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:50.459712Z"
+      "created_at": "2026-09-16T19:40:36.805514Z"
     },
     {
       "feature_set": "fi_only",
@@ -480,7 +491,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:50.537816Z"
+      "created_at": "2026-09-16T19:40:36.882931Z"
     },
     {
       "feature_set": "fi_only",
@@ -634,7 +645,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:03:16.572140Z"
+      "created_at": "2026-09-16T19:41:03.354214Z"
     },
     {
       "feature_set": "fi_only",
@@ -788,7 +799,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:03:16.949453Z"
+      "created_at": "2026-09-16T19:41:03.730769Z"
     },
     {
       "feature_set": "fi_only",
@@ -942,7 +953,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:03:17.013371Z"
+      "created_at": "2026-09-16T19:41:03.794723Z"
     },
     {
       "feature_set": "fi_only",
@@ -1096,7 +1107,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:54.492708Z"
+      "created_at": "2026-09-16T19:40:40.857084Z"
     },
     {
       "feature_set": "fi_only",
@@ -1250,7 +1261,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:56.609484Z"
+      "created_at": "2026-09-16T19:40:42.521410Z"
     },
     {
       "feature_set": "fi_only",
@@ -1404,7 +1415,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:56.684358Z"
+      "created_at": "2026-09-16T19:40:43.173326Z"
     },
     {
       "feature_set": "fi_only",
@@ -1558,7 +1569,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:03:24.698431Z"
+      "created_at": "2026-09-16T19:41:11.260017Z"
     },
     {
       "feature_set": "fi_only",
@@ -1712,7 +1723,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:03:25.062107Z"
+      "created_at": "2026-09-16T19:41:11.830177Z"
     },
     {
       "feature_set": "fi_only",
@@ -1866,7 +1877,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:03:25.418718Z"
+      "created_at": "2026-09-16T19:41:12.194002Z"
     },
     {
       "feature_set": "fi_only",
@@ -2020,7 +2031,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:54.102810Z"
+      "created_at": "2026-09-16T19:40:40.696370Z"
     },
     {
       "feature_set": "fi_only",
@@ -2174,7 +2185,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:54.597728Z"
+      "created_at": "2026-09-16T19:40:41.200797Z"
     },
     {
       "feature_set": "fi_only",
@@ -2328,7 +2339,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:54.667852Z"
+      "created_at": "2026-09-16T19:40:41.271677Z"
     },
     {
       "feature_set": "fi_only",
@@ -2482,7 +2493,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:03:22.631718Z"
+      "created_at": "2026-09-16T19:41:09.833955Z"
     },
     {
       "feature_set": "fi_only",
@@ -2636,7 +2647,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:03:22.915484Z"
+      "created_at": "2026-09-16T19:41:10.104209Z"
     },
     {
       "feature_set": "fi_only",
@@ -2790,7 +2801,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:03:22.971856Z"
+      "created_at": "2026-09-16T19:41:10.159009Z"
     },
     {
       "feature_set": "fi_only",
@@ -2944,7 +2955,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:55.618211Z"
+      "created_at": "2026-09-16T19:40:41.040626Z"
     },
     {
       "feature_set": "fi_only",
@@ -3098,7 +3109,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:58.860375Z"
+      "created_at": "2026-09-16T19:40:44.693529Z"
     },
     {
       "feature_set": "fi_only",
@@ -3252,7 +3263,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:02:59.071571Z"
+      "created_at": "2026-09-16T19:40:45.246732Z"
     },
     {
       "feature_set": "fi_only",
@@ -3406,7 +3417,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:03:20.033008Z"
+      "created_at": "2026-09-16T19:41:06.883247Z"
     },
     {
       "feature_set": "fi_only",
@@ -3560,7 +3571,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:03:20.223219Z"
+      "created_at": "2026-09-16T19:41:07.078190Z"
     },
     {
       "feature_set": "fi_only",
@@ -3714,7 +3725,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:03:20.306864Z"
+      "created_at": "2026-09-16T19:41:07.149769Z"
     },
     {
       "feature_set": "fi_only",
@@ -3868,7 +3879,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:35.242226Z"
+      "created_at": "2026-09-16T19:41:22.441107Z"
     },
     {
       "feature_set": "fi_only",
@@ -4022,7 +4033,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:35.713786Z"
+      "created_at": "2026-09-16T19:41:22.922347Z"
     },
     {
       "feature_set": "fi_only",
@@ -4176,7 +4187,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:35.786731Z"
+      "created_at": "2026-09-16T19:41:23.029600Z"
     },
     {
       "feature_set": "fi_only",
@@ -4330,7 +4341,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:04:02.748550Z"
+      "created_at": "2026-09-16T19:41:50.117023Z"
     },
     {
       "feature_set": "fi_only",
@@ -4484,7 +4495,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:04:03.125286Z"
+      "created_at": "2026-09-16T19:41:50.491666Z"
     },
     {
       "feature_set": "fi_only",
@@ -4638,7 +4649,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:04:03.184646Z"
+      "created_at": "2026-09-16T19:41:50.550593Z"
     },
     {
       "feature_set": "fi_only",
@@ -4792,7 +4803,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:38.796226Z"
+      "created_at": "2026-09-16T19:41:26.117844Z"
     },
     {
       "feature_set": "fi_only",
@@ -4946,7 +4957,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:39.288791Z"
+      "created_at": "2026-09-16T19:41:26.614748Z"
     },
     {
       "feature_set": "fi_only",
@@ -5100,7 +5111,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:39.363640Z"
+      "created_at": "2026-09-16T19:41:26.688153Z"
     },
     {
       "feature_set": "fi_only",
@@ -5254,7 +5265,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:04:06.270574Z"
+      "created_at": "2026-09-16T19:41:53.976959Z"
     },
     {
       "feature_set": "fi_only",
@@ -5408,7 +5419,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:04:06.568584Z"
+      "created_at": "2026-09-16T19:41:54.272742Z"
     },
     {
       "feature_set": "fi_only",
@@ -5562,7 +5573,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:04:06.615755Z"
+      "created_at": "2026-09-16T19:41:54.322114Z"
     },
     {
       "feature_set": "fi_only",
@@ -5716,7 +5727,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:42.029461Z"
+      "created_at": "2026-09-16T19:41:29.398990Z"
     },
     {
       "feature_set": "fi_only",
@@ -5870,7 +5881,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:42.616038Z"
+      "created_at": "2026-09-16T19:41:29.971866Z"
     },
     {
       "feature_set": "fi_only",
@@ -6024,7 +6035,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:42.699779Z"
+      "created_at": "2026-09-16T19:41:30.058887Z"
     },
     {
       "feature_set": "fi_only",
@@ -6178,7 +6189,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:08.486652Z"
+      "created_at": "2026-09-16T19:41:56.217857Z"
     },
     {
       "feature_set": "fi_only",
@@ -6332,7 +6343,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:08.877865Z"
+      "created_at": "2026-09-16T19:41:56.604044Z"
     },
     {
       "feature_set": "fi_only",
@@ -6486,7 +6497,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:08.949791Z"
+      "created_at": "2026-09-16T19:41:56.675937Z"
     },
     {
       "feature_set": "fi_only",
@@ -6640,7 +6651,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:46.172149Z"
+      "created_at": "2026-09-16T19:41:33.207944Z"
     },
     {
       "feature_set": "fi_only",
@@ -6794,7 +6805,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:46.628625Z"
+      "created_at": "2026-09-16T19:41:33.660639Z"
     },
     {
       "feature_set": "fi_only",
@@ -6948,7 +6959,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:03:46.706597Z"
+      "created_at": "2026-09-16T19:41:33.737935Z"
     },
     {
       "feature_set": "fi_only",
@@ -7102,7 +7113,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:13.310208Z"
+      "created_at": "2026-09-16T19:42:00.921749Z"
     },
     {
       "feature_set": "fi_only",
@@ -7256,7 +7267,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:13.696890Z"
+      "created_at": "2026-09-16T19:42:01.312343Z"
     },
     {
       "feature_set": "fi_only",
@@ -7410,7 +7421,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:13.766287Z"
+      "created_at": "2026-09-16T19:42:01.386881Z"
     },
     {
       "feature_set": "fi_only",
@@ -7564,7 +7575,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:21.009098Z"
+      "created_at": "2026-09-16T19:42:08.775056Z"
     },
     {
       "feature_set": "fi_only",
@@ -7718,7 +7729,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:21.396522Z"
+      "created_at": "2026-09-16T19:42:09.176149Z"
     },
     {
       "feature_set": "fi_only",
@@ -7872,7 +7883,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:21.468874Z"
+      "created_at": "2026-09-16T19:42:09.255755Z"
     },
     {
       "feature_set": "fi_only",
@@ -8026,7 +8037,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:48.907951Z"
+      "created_at": "2026-09-16T19:42:36.916959Z"
     },
     {
       "feature_set": "fi_only",
@@ -8180,7 +8191,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:49.284593Z"
+      "created_at": "2026-09-16T19:42:37.290833Z"
     },
     {
       "feature_set": "fi_only",
@@ -8334,7 +8345,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:49.353429Z"
+      "created_at": "2026-09-16T19:42:37.360281Z"
     },
     {
       "feature_set": "fi_only",
@@ -8488,7 +8499,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:25.245037Z"
+      "created_at": "2026-09-16T19:42:13.340572Z"
     },
     {
       "feature_set": "fi_only",
@@ -8642,7 +8653,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:25.610486Z"
+      "created_at": "2026-09-16T19:42:13.727740Z"
     },
     {
       "feature_set": "fi_only",
@@ -8796,7 +8807,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:25.702731Z"
+      "created_at": "2026-09-16T19:42:13.804529Z"
     },
     {
       "feature_set": "fi_only",
@@ -8950,7 +8961,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:53.334612Z"
+      "created_at": "2026-09-16T19:42:41.290438Z"
     },
     {
       "feature_set": "fi_only",
@@ -9104,7 +9115,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:53.750973Z"
+      "created_at": "2026-09-16T19:42:41.701553Z"
     },
     {
       "feature_set": "fi_only",
@@ -9258,7 +9269,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:04:53.819248Z"
+      "created_at": "2026-09-16T19:42:41.763047Z"
     },
     {
       "feature_set": "fi_only",
@@ -9412,7 +9423,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:28.688702Z"
+      "created_at": "2026-09-16T19:42:16.799754Z"
     },
     {
       "feature_set": "fi_only",
@@ -9566,7 +9577,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:29.152432Z"
+      "created_at": "2026-09-16T19:42:17.262839Z"
     },
     {
       "feature_set": "fi_only",
@@ -9720,7 +9731,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:29.227533Z"
+      "created_at": "2026-09-16T19:42:17.351946Z"
     },
     {
       "feature_set": "fi_only",
@@ -9874,7 +9885,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:04:53.586830Z"
+      "created_at": "2026-09-16T19:42:43.614181Z"
     },
     {
       "feature_set": "fi_only",
@@ -10028,7 +10039,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:04:55.408086Z"
+      "created_at": "2026-09-16T19:42:44.019644Z"
     },
     {
       "feature_set": "fi_only",
@@ -10182,7 +10193,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:04:55.935479Z"
+      "created_at": "2026-09-16T19:42:44.371105Z"
     },
     {
       "feature_set": "fi_only",
@@ -10336,7 +10347,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:33.948782Z"
+      "created_at": "2026-09-16T19:42:21.936664Z"
     },
     {
       "feature_set": "fi_only",
@@ -10490,7 +10501,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:34.408351Z"
+      "created_at": "2026-09-16T19:42:22.402950Z"
     },
     {
       "feature_set": "fi_only",
@@ -10644,7 +10655,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:04:34.492435Z"
+      "created_at": "2026-09-16T19:42:22.483253Z"
     },
     {
       "feature_set": "fi_only",
@@ -10798,7 +10809,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:05:00.363569Z"
+      "created_at": "2026-09-16T19:42:48.679573Z"
     },
     {
       "feature_set": "fi_only",
@@ -10952,7 +10963,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:05:00.633200Z"
+      "created_at": "2026-09-16T19:42:48.953526Z"
     },
     {
       "feature_set": "fi_only",
@@ -11106,7 +11117,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:05:00.684565Z"
+      "created_at": "2026-09-16T19:42:49.005644Z"
     },
     {
       "feature_set": "fi_only",
@@ -11184,7 +11195,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:22.219904Z"
+      "created_at": "2026-09-16T19:43:10.650587Z"
     },
     {
       "feature_set": "fi_only",
@@ -11262,7 +11273,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:22.259938Z"
+      "created_at": "2026-09-16T19:43:10.684294Z"
     },
     {
       "feature_set": "fi_only",
@@ -11340,7 +11351,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:22.683278Z"
+      "created_at": "2026-09-16T19:43:11.118558Z"
     },
     {
       "feature_set": "fi_only",
@@ -11418,7 +11429,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:15.028035Z"
+      "created_at": "2026-09-16T19:44:04.304675Z"
     },
     {
       "feature_set": "fi_only",
@@ -11496,7 +11507,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:15.055759Z"
+      "created_at": "2026-09-16T19:44:04.331923Z"
     },
     {
       "feature_set": "fi_only",
@@ -11574,7 +11585,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:15.902528Z"
+      "created_at": "2026-09-16T19:44:04.711932Z"
     },
     {
       "feature_set": "fi_only",
@@ -11652,7 +11663,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:29.719904Z"
+      "created_at": "2026-09-16T19:43:18.108644Z"
     },
     {
       "feature_set": "fi_only",
@@ -11730,7 +11741,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:29.797656Z"
+      "created_at": "2026-09-16T19:43:18.231608Z"
     },
     {
       "feature_set": "fi_only",
@@ -11808,7 +11819,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:32.276247Z"
+      "created_at": "2026-09-16T19:43:18.643371Z"
     },
     {
       "feature_set": "fi_only",
@@ -11886,7 +11897,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:29.363625Z"
+      "created_at": "2026-09-16T19:44:16.986054Z"
     },
     {
       "feature_set": "fi_only",
@@ -11964,7 +11975,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:29.417625Z"
+      "created_at": "2026-09-16T19:44:17.043622Z"
     },
     {
       "feature_set": "fi_only",
@@ -12042,7 +12053,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:29.784758Z"
+      "created_at": "2026-09-16T19:44:17.407811Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12202,7 +12213,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:22.360073Z"
+      "created_at": "2026-09-16T19:43:13.365570Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12362,7 +12373,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:24.456783Z"
+      "created_at": "2026-09-16T19:43:13.927759Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12522,7 +12533,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:24.603700Z"
+      "created_at": "2026-09-16T19:43:14.027917Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12682,7 +12693,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:08.501874Z"
+      "created_at": "2026-09-16T19:43:58.548035Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12842,7 +12853,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:08.567807Z"
+      "created_at": "2026-09-16T19:43:58.619358Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13002,7 +13013,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:08.936508Z"
+      "created_at": "2026-09-16T19:43:58.996350Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13162,7 +13173,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:29.362562Z"
+      "created_at": "2026-09-16T19:43:20.519399Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13322,7 +13333,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:29.864123Z"
+      "created_at": "2026-09-16T19:43:21.576139Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13482,7 +13493,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:05:29.945097Z"
+      "created_at": "2026-09-16T19:43:21.723359Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13642,7 +13653,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:14.829264Z"
+      "created_at": "2026-09-16T19:44:06.236778Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13802,7 +13813,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:15.352378Z"
+      "created_at": "2026-09-16T19:44:07.058469Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13962,7 +13973,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:06:15.420832Z"
+      "created_at": "2026-09-16T19:44:07.128563Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14122,7 +14133,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:38.433597Z"
+      "created_at": "2026-09-16T19:44:28.592042Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14282,7 +14293,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:38.899130Z"
+      "created_at": "2026-09-16T19:44:29.097051Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14442,7 +14453,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:38.980691Z"
+      "created_at": "2026-09-16T19:44:29.184548Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14602,7 +14613,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:23.774135Z"
+      "created_at": "2026-09-16T19:45:14.380357Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14762,7 +14773,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:23.851578Z"
+      "created_at": "2026-09-16T19:45:14.449824Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14922,7 +14933,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:24.215846Z"
+      "created_at": "2026-09-16T19:45:14.823437Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15082,7 +15093,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:45.810208Z"
+      "created_at": "2026-09-16T19:44:35.120163Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15242,7 +15253,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:46.281657Z"
+      "created_at": "2026-09-16T19:44:35.614476Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15402,7 +15413,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:46.363372Z"
+      "created_at": "2026-09-16T19:44:35.718755Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15562,7 +15573,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:32.489423Z"
+      "created_at": "2026-09-16T19:45:21.690271Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15722,7 +15733,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:33.009734Z"
+      "created_at": "2026-09-16T19:45:22.220401Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15882,7 +15893,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:33.080684Z"
+      "created_at": "2026-09-16T19:45:22.300120Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16042,7 +16053,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:45.911653Z"
+      "created_at": "2026-09-16T19:44:38.013919Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16202,7 +16213,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:46.990146Z"
+      "created_at": "2026-09-16T19:44:38.743392Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16362,7 +16373,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:48.072986Z"
+      "created_at": "2026-09-16T19:44:38.837739Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16522,7 +16533,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:32.616741Z"
+      "created_at": "2026-09-16T19:45:24.769880Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16682,7 +16693,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:32.689594Z"
+      "created_at": "2026-09-16T19:45:24.876172Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16842,7 +16853,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:33.134440Z"
+      "created_at": "2026-09-16T19:45:25.252941Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17002,7 +17013,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:59.493486Z"
+      "created_at": "2026-09-16T19:44:47.779464Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17162,7 +17173,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:06:59.921316Z"
+      "created_at": "2026-09-16T19:44:48.204546Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17322,7 +17333,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:07:00.006481Z"
+      "created_at": "2026-09-16T19:44:48.286493Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17482,7 +17493,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:43.834111Z"
+      "created_at": "2026-09-16T19:45:32.837255Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17642,7 +17653,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:44.310401Z"
+      "created_at": "2026-09-16T19:45:33.322391Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17802,7 +17813,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:07:44.384975Z"
+      "created_at": "2026-09-16T19:45:33.397299Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -17962,7 +17973,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:07:54.131716Z"
+      "created_at": "2026-09-16T19:45:44.523719Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18122,7 +18133,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:07:54.581806Z"
+      "created_at": "2026-09-16T19:45:44.961144Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18282,7 +18293,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:07:54.674798Z"
+      "created_at": "2026-09-16T19:45:45.051185Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18442,7 +18453,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:38.423474Z"
+      "created_at": "2026-09-16T19:46:30.357013Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18602,7 +18613,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:38.502224Z"
+      "created_at": "2026-09-16T19:46:30.516505Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18762,7 +18773,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:38.862936Z"
+      "created_at": "2026-09-16T19:46:30.969292Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18922,7 +18933,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:03.124737Z"
+      "created_at": "2026-09-16T19:45:52.187701Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19082,7 +19093,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:03.573038Z"
+      "created_at": "2026-09-16T19:45:52.634948Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19242,7 +19253,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:03.648990Z"
+      "created_at": "2026-09-16T19:45:52.716958Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19402,7 +19413,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:48.941371Z"
+      "created_at": "2026-09-16T19:46:38.692115Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19562,7 +19573,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:49.429671Z"
+      "created_at": "2026-09-16T19:46:39.179556Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19722,7 +19733,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:49.505662Z"
+      "created_at": "2026-09-16T19:46:39.259929Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -19882,7 +19893,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:03.516584Z"
+      "created_at": "2026-09-16T19:45:56.558172Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20042,7 +20053,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:05.673311Z"
+      "created_at": "2026-09-16T19:45:57.008165Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20202,7 +20213,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:05.829334Z"
+      "created_at": "2026-09-16T19:45:57.104214Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20362,7 +20373,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:50.814226Z"
+      "created_at": "2026-09-16T19:46:43.556411Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20522,7 +20533,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:51.098557Z"
+      "created_at": "2026-09-16T19:46:43.626433Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20682,7 +20693,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:51.659028Z"
+      "created_at": "2026-09-16T19:46:44.005368Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20842,7 +20853,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:14.165222Z"
+      "created_at": "2026-09-16T19:46:03.965299Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21002,7 +21013,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:14.600967Z"
+      "created_at": "2026-09-16T19:46:04.392076Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21162,7 +21173,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:08:14.687884Z"
+      "created_at": "2026-09-16T19:46:04.484370Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21322,7 +21333,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:59.499960Z"
+      "created_at": "2026-09-16T19:46:49.751390Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21482,7 +21493,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:08:59.984209Z"
+      "created_at": "2026-09-16T19:46:50.232664Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21642,7 +21653,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:09:00.058950Z"
+      "created_at": "2026-09-16T19:46:50.311375Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -21802,7 +21813,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:08.765470Z"
+      "created_at": "2026-09-16T19:47:00.682804Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -21962,7 +21973,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:09.202540Z"
+      "created_at": "2026-09-16T19:47:01.140462Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22122,7 +22133,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:09.290431Z"
+      "created_at": "2026-09-16T19:47:01.225895Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22282,7 +22293,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:09:54.134349Z"
+      "created_at": "2026-09-16T19:47:46.928906Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22442,7 +22453,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:09:54.207234Z"
+      "created_at": "2026-09-16T19:47:47.007377Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22602,7 +22613,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:09:54.568276Z"
+      "created_at": "2026-09-16T19:47:47.367028Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22762,7 +22773,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:18.644650Z"
+      "created_at": "2026-09-16T19:47:08.987728Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22922,7 +22933,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:19.136421Z"
+      "created_at": "2026-09-16T19:47:09.441841Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -23082,7 +23093,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:19.215538Z"
+      "created_at": "2026-09-16T19:47:09.520756Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -23242,7 +23253,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:10:03.968762Z"
+      "created_at": "2026-09-16T19:47:55.692061Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -23402,7 +23413,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:10:04.445419Z"
+      "created_at": "2026-09-16T19:47:56.167739Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -23562,7 +23573,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:10:04.518096Z"
+      "created_at": "2026-09-16T19:47:56.242060Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23722,7 +23733,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:21.308065Z"
+      "created_at": "2026-09-16T19:47:14.174385Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23882,7 +23893,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:21.952785Z"
+      "created_at": "2026-09-16T19:47:14.621129Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24042,7 +24053,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:22.180770Z"
+      "created_at": "2026-09-16T19:47:14.718406Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24202,7 +24213,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:10:07.271375Z"
+      "created_at": "2026-09-16T19:48:00.654101Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24362,7 +24373,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:10:07.735044Z"
+      "created_at": "2026-09-16T19:48:01.127208Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24522,7 +24533,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:10:08.107815Z"
+      "created_at": "2026-09-16T19:48:01.490973Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24682,7 +24693,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:29.721015Z"
+      "created_at": "2026-09-16T19:47:21.110182Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24842,7 +24853,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:30.160405Z"
+      "created_at": "2026-09-16T19:47:21.554717Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25002,7 +25013,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:09:30.249017Z"
+      "created_at": "2026-09-16T19:47:21.647143Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25162,7 +25173,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:10:13.868058Z"
+      "created_at": "2026-09-16T19:48:06.193567Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25322,7 +25333,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:10:14.210594Z"
+      "created_at": "2026-09-16T19:48:06.539085Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25482,7 +25493,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:10:14.643448Z"
+      "created_at": "2026-09-16T19:48:06.967658Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25642,7 +25653,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:21.996318Z"
+      "created_at": "2026-09-16T19:48:15.003276Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25802,7 +25813,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:22.454205Z"
+      "created_at": "2026-09-16T19:48:15.455741Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25962,7 +25973,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:22.546453Z"
+      "created_at": "2026-09-16T19:48:15.547316Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26122,7 +26133,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:11:05.714689Z"
+      "created_at": "2026-09-16T19:48:59.318348Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26282,7 +26293,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:11:06.048228Z"
+      "created_at": "2026-09-16T19:48:59.651384Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26442,7 +26453,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:11:06.102891Z"
+      "created_at": "2026-09-16T19:48:59.709332Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26602,7 +26613,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:33.824861Z"
+      "created_at": "2026-09-16T19:48:25.853747Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26762,7 +26773,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:34.276719Z"
+      "created_at": "2026-09-16T19:48:26.306283Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26922,7 +26933,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:34.356333Z"
+      "created_at": "2026-09-16T19:48:26.385097Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27082,7 +27093,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:11:18.751244Z"
+      "created_at": "2026-09-16T19:49:11.790439Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27242,7 +27253,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:11:18.821279Z"
+      "created_at": "2026-09-16T19:49:11.859613Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27402,7 +27413,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:11:19.193812Z"
+      "created_at": "2026-09-16T19:49:12.263219Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27562,7 +27573,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:38.536130Z"
+      "created_at": "2026-09-16T19:48:32.230800Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27722,7 +27733,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:38.977445Z"
+      "created_at": "2026-09-16T19:48:32.674500Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27882,7 +27893,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:39.061911Z"
+      "created_at": "2026-09-16T19:48:32.764942Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28042,7 +28053,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:11:22.922485Z"
+      "created_at": "2026-09-16T19:49:17.165336Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28202,7 +28213,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:11:23.381157Z"
+      "created_at": "2026-09-16T19:49:17.627483Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28362,7 +28373,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:11:23.721719Z"
+      "created_at": "2026-09-16T19:49:17.971508Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28522,7 +28533,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:44.612586Z"
+      "created_at": "2026-09-16T19:48:37.061826Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28682,7 +28693,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:45.068023Z"
+      "created_at": "2026-09-16T19:48:37.518353Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28842,7 +28853,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:10:45.148277Z"
+      "created_at": "2026-09-16T19:48:37.612571Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29002,7 +29013,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:11:28.520754Z"
+      "created_at": "2026-09-16T19:49:21.607241Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29162,7 +29173,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:11:28.781449Z"
+      "created_at": "2026-09-16T19:49:21.866574Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29322,7 +29333,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:11:29.123002Z"
+      "created_at": "2026-09-16T19:49:22.262599Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29482,7 +29493,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:33.633624Z"
+      "created_at": "2026-09-16T19:49:27.774573Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29642,7 +29653,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:34.075473Z"
+      "created_at": "2026-09-16T19:49:28.220410Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29802,7 +29813,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:34.164918Z"
+      "created_at": "2026-09-16T19:49:28.308108Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29962,7 +29973,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:17.417444Z"
+      "created_at": "2026-09-16T19:50:12.717782Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30122,7 +30133,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:17.905233Z"
+      "created_at": "2026-09-16T19:50:13.198250Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30282,7 +30293,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:18.267635Z"
+      "created_at": "2026-09-16T19:50:13.562109Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30442,7 +30453,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:47.529565Z"
+      "created_at": "2026-09-16T19:49:41.080052Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30602,7 +30613,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:47.966368Z"
+      "created_at": "2026-09-16T19:49:41.618291Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30762,7 +30773,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:48.055309Z"
+      "created_at": "2026-09-16T19:49:41.708668Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30922,7 +30933,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:32.768907Z"
+      "created_at": "2026-09-16T19:50:27.441207Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31082,7 +31093,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:33.249803Z"
+      "created_at": "2026-09-16T19:50:28.022633Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31242,7 +31253,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:33.325150Z"
+      "created_at": "2026-09-16T19:50:28.094231Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31402,7 +31413,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:53.974407Z"
+      "created_at": "2026-09-16T19:49:48.760026Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31562,7 +31573,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:54.428471Z"
+      "created_at": "2026-09-16T19:49:49.213308Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31722,7 +31733,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:54.508400Z"
+      "created_at": "2026-09-16T19:49:49.297159Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31882,7 +31893,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:39.853919Z"
+      "created_at": "2026-09-16T19:50:34.993417Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32042,7 +32053,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:40.348029Z"
+      "created_at": "2026-09-16T19:50:35.553411Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32202,7 +32213,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:40.418769Z"
+      "created_at": "2026-09-16T19:50:35.622011Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32362,7 +32373,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:11:59.869169Z"
+      "created_at": "2026-09-16T19:49:53.638288Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32522,7 +32533,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:12:00.316969Z"
+      "created_at": "2026-09-16T19:49:54.084344Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32682,7 +32693,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:12:00.411594Z"
+      "created_at": "2026-09-16T19:49:54.178829Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32842,7 +32853,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:46.648834Z"
+      "created_at": "2026-09-16T19:50:40.141793Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33002,7 +33013,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:48.287370Z"
+      "created_at": "2026-09-16T19:50:40.547890Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33162,7 +33173,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:12:48.368933Z"
+      "created_at": "2026-09-16T19:50:40.672661Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33322,7 +33333,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:12:45.416926Z"
+      "created_at": "2026-09-16T19:50:42.832483Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33482,7 +33493,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:12:45.897548Z"
+      "created_at": "2026-09-16T19:50:43.273523Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33642,7 +33653,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:12:45.988426Z"
+      "created_at": "2026-09-16T19:50:43.368507Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33802,7 +33813,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:13:28.072347Z"
+      "created_at": "2026-09-16T19:51:24.531970Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33962,7 +33973,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:13:28.408162Z"
+      "created_at": "2026-09-16T19:51:24.866338Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34122,7 +34133,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T18:13:28.846515Z"
+      "created_at": "2026-09-16T19:51:25.306498Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34282,7 +34293,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:13:01.226454Z"
+      "created_at": "2026-09-16T19:50:56.548383Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34442,7 +34453,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:13:01.671701Z"
+      "created_at": "2026-09-16T19:50:56.994346Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34602,7 +34613,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:13:01.762049Z"
+      "created_at": "2026-09-16T19:50:57.085357Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34762,7 +34773,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:13:39.338427Z"
+      "created_at": "2026-09-16T19:51:35.072755Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34922,7 +34933,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:13:39.519388Z"
+      "created_at": "2026-09-16T19:51:35.248997Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35082,7 +35093,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T18:13:39.800631Z"
+      "created_at": "2026-09-16T19:51:35.530964Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35166,7 +35177,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:14:15.559365Z"
+      "created_at": "2026-09-16T19:52:11.133963Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35250,7 +35261,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:14:16.009097Z"
+      "created_at": "2026-09-16T19:52:11.590637Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35334,7 +35345,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:14:16.273320Z"
+      "created_at": "2026-09-16T19:52:11.856463Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35418,7 +35429,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:16:32.702561Z"
+      "created_at": "2026-09-16T19:54:30.444431Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35502,7 +35513,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:16:32.918401Z"
+      "created_at": "2026-09-16T19:54:30.659596Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35586,7 +35597,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:16:33.333928Z"
+      "created_at": "2026-09-16T19:54:31.074742Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35670,7 +35681,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:14:21.961589Z"
+      "created_at": "2026-09-16T19:52:15.572396Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35754,7 +35765,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:14:22.421504Z"
+      "created_at": "2026-09-16T19:52:16.036157Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35838,7 +35849,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T18:14:22.567309Z"
+      "created_at": "2026-09-16T19:52:16.184381Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35922,7 +35933,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:16:39.094278Z"
+      "created_at": "2026-09-16T19:54:35.051446Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -36006,7 +36017,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:16:39.176368Z"
+      "created_at": "2026-09-16T19:54:35.134125Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -36090,7 +36101,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T18:16:39.599458Z"
+      "created_at": "2026-09-16T19:54:35.555168Z"
     }
   ],
   "oos_prediction_rows": 2052182
