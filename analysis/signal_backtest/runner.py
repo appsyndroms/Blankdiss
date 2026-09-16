@@ -22,6 +22,9 @@ from analysis.signal_backtest.config import (
     BACKTEST_TARGETS,
     TOP_FRACTIONS,
 )
+from analysis.signal_backtest.diagnostics import (
+    build_diagnostics,
+)
 from analysis.signal_backtest.economic import (
     run_economic_backtest,
 )
@@ -36,7 +39,9 @@ def split_window(
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
     """Dela data enligt Blankdiss walk-forward-konfiguration."""
     train_end = pd.Timestamp(window.train_end)
-    validation_end = pd.Timestamp(window.validation_end)
+    validation_end = pd.Timestamp(
+        window.validation_end
+    )
     test_end = pd.Timestamp(window.test_end)
 
     train_mask = (
@@ -45,7 +50,10 @@ def split_window(
 
     validation_mask = (
         (data["snapshot_date"] > train_end)
-        & (data["snapshot_date"] <= validation_end)
+        & (
+            data["snapshot_date"]
+            <= validation_end
+        )
     )
 
     test_mask = (
@@ -219,8 +227,13 @@ def select_model_and_predict(
         ],
     ].copy()
 
-    predictions["actual"] = y_test.to_numpy()
-    predictions["probability"] = test_probabilities
+    predictions["actual"] = (
+        y_test.to_numpy()
+    )
+
+    predictions["probability"] = (
+        test_probabilities
+    )
 
     predictions = predictions.sort_values(
         [
@@ -236,16 +249,30 @@ def select_model_and_predict(
 
     return {
         "model": model_name,
-        "validation_auc": float(validation_auc),
-        "test_auc": float(test_auc),
-        "train_rows": int(len(train)),
-        "validation_rows": int(len(validation)),
-        "test_rows": int(len(test)),
-        "feature_count": int(len(available_features)),
+        "validation_auc": float(
+            validation_auc
+        ),
+        "test_auc": float(
+            test_auc
+        ),
+        "train_rows": int(
+            len(train)
+        ),
+        "validation_rows": int(
+            len(validation)
+        ),
+        "test_rows": int(
+            len(test)
+        ),
+        "feature_count": int(
+            len(available_features)
+        ),
         "features": available_features,
         "window": {
             "train_end": window.train_end,
-            "validation_end": window.validation_end,
+            "validation_end": (
+                window.validation_end
+            ),
             "test_end": window.test_end,
         },
         "predictions": predictions,
@@ -259,9 +286,13 @@ def combine_window_predictions(
     frames = []
 
     for result in window_results:
-        predictions = result["predictions"].copy()
+        predictions = result[
+            "predictions"
+        ].copy()
 
-        predictions["model"] = result["model"]
+        predictions["model"] = (
+            result["model"]
+        )
 
         predictions["validation_auc"] = (
             result["validation_auc"]
@@ -293,8 +324,10 @@ def combine_window_predictions(
         ignore_index=True,
     )
 
-    combined["snapshot_date"] = pd.to_datetime(
-        combined["snapshot_date"]
+    combined["snapshot_date"] = (
+        pd.to_datetime(
+            combined["snapshot_date"]
+        )
     )
 
     return combined.sort_values(
@@ -379,6 +412,10 @@ def run_experiment(
         target_name,
     )
 
+    diagnostics = build_diagnostics(
+        predictions,
+    )
+
     return {
         "feature_set": feature_set_name,
         "target": target_name,
@@ -389,17 +426,28 @@ def run_experiment(
             {
                 "window": result["window"],
                 "model": result["model"],
-                "validation_auc": result["validation_auc"],
+                "validation_auc": (
+                    result["validation_auc"]
+                ),
                 "test_auc": result["test_auc"],
-                "feature_count": result["feature_count"],
-                "train_rows": result["train_rows"],
-                "validation_rows": result["validation_rows"],
-                "test_rows": result["test_rows"],
+                "feature_count": (
+                    result["feature_count"]
+                ),
+                "train_rows": (
+                    result["train_rows"]
+                ),
+                "validation_rows": (
+                    result["validation_rows"]
+                ),
+                "test_rows": (
+                    result["test_rows"]
+                ),
             }
             for result in window_results
         ],
         "yearly": yearly,
         "economic": economic,
+        "diagnostics": diagnostics,
     }
 
 
@@ -410,7 +458,10 @@ def run_all(
     """Kör alla definierade signal-backtest."""
     results = []
 
-    for feature_set_name, price_features in feature_sets:
+    for (
+        feature_set_name,
+        price_features,
+    ) in feature_sets:
         for target_name in BACKTEST_TARGETS:
             results.append(
                 run_experiment(
