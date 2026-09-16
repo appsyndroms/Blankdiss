@@ -125,6 +125,60 @@ jobs:
       - name: Analyze
         run: |
           python -m analysis
+      - name: Run ML walk-forward
+        run: |
+          python -u -m ml.train
+          test -f data/processed/ml/latest_run.json
+          test -f data/processed/ml/ml_results.jsonl
+          test -f data/processed/ml/oos_predictions.jsonl
+          echo "ML walk-forward klart."
+          echo
+          echo "ML-resultat:"
+          ls -lh data/processed/ml/
+      - name: Run economic backtest
+        run: |
+          python -u -m analysis.signal_backtest.run
+          test -f data/processed/ml/economic_results.json
+          echo "Ekonomiskt backtest klart."
+          echo
+          echo "Economic results:"
+          ls -lh data/processed/ml/economic_results.json
+      - name: Validate ML pipeline
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          ml_dir = Path("data/processed/ml")
+          latest_path = ml_dir / "latest_run.json"
+          results_path = ml_dir / "economic_results.json"
+          latest = json.loads(
+              latest_path.read_text(encoding="utf-8")
+          )
+          economic = json.loads(
+              results_path.read_text(encoding="utf-8")
+          )
+          if not latest:
+              raise SystemExit(
+                  "latest_run.json är tom."
+              )
+          experiments = economic.get("experiments", [])
+          if not experiments:
+              raise SystemExit(
+                  "economic_results.json innehåller inga experiment."
+              )
+          print("==========================================")
+          print("ML PIPELINE VALIDATION OK")
+          print("==========================================")
+          print(
+              f"Economic experiments: {len(experiments)}"
+          )
+          for experiment in experiments:
+              print(
+                  experiment.get("feature_set"),
+                  experiment.get("target"),
+                  experiment.get("model"),
+              )
+          PY
       - name: Update OMXSPI
         run: |
           python -m analysis.update_market
@@ -138,14 +192,22 @@ jobs:
               Path("data/processed/analysis").glob("features_*.jsonl")
           )
           if not chunks:
-              raise SystemExit("Inga feature-chunks hittades.")
-          target = Path("data/processed/analysis/features.jsonl")
+              raise SystemExit(
+                  "Inga feature-chunks hittades."
+              )
+          target = Path(
+              "data/processed/analysis/features.jsonl"
+          )
           with target.open("wb") as output:
               for chunk in chunks:
-                  print(f"Lägger till {chunk.name} ...")
+                  print(
+                      f"Lägger till {chunk.name} ..."
+                  )
                   with chunk.open("rb") as source:
                       shutil.copyfileobj(source, output)
-          print(f"Legacy featurefil skapad: {target}")
+          print(
+              f"Legacy featurefil skapad: {target}"
+          )
           PY
       - name: Analyze market and short cycles
         run: |
@@ -193,6 +255,11 @@ jobs:
             data/processed/analysis/market_adjusted_returns.jsonl
             data/processed/analysis/short_cycles.jsonl
             data/processed/analysis/short_cycles_summary.json
+            data/processed/ml/ml_results.jsonl
+            data/processed/ml/latest_run.json
+            data/processed/ml/oos_predictions.jsonl
+            data/processed/ml/economic_results.json
+            data/processed/ml/runs/*.json
           retention-days: 14
           if-no-files-found: error
       - name: Configure GitHub Pages
