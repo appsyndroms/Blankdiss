@@ -72,6 +72,17 @@ ABLATION_TARGETS = {
 MAX_PARALLEL_EXPERIMENTS = 4
 
 
+PERFORMANCE_KEYS = (
+    "split_seconds",
+    "fit_seconds",
+    "validation_prediction_seconds",
+    "oos_prediction_seconds",
+    "evaluation_seconds",
+    "oos_row_build_seconds",
+    "total_window_seconds",
+)
+
+
 def append_jsonl(
     path,
     records,
@@ -169,6 +180,51 @@ def prepare_target_data(
     )
 
 
+def _empty_performance():
+    return {
+        key: 0.0
+        for key in PERFORMANCE_KEYS
+    }
+
+
+def _add_performance(
+    total,
+    current,
+):
+    for key in PERFORMANCE_KEYS:
+        total[key] += float(
+            current.get(
+                key,
+                0.0,
+            )
+        )
+
+
+def _finalize_performance(
+    performance,
+    window_count,
+):
+    result = {
+        key: float(
+            performance[key]
+        )
+        for key in PERFORMANCE_KEYS
+    }
+
+    result["windows"] = int(
+        window_count
+    )
+
+    result["average_window_seconds"] = (
+        result["total_window_seconds"]
+        / window_count
+        if window_count
+        else 0.0
+    )
+
+    return result
+
+
 def run_windows(
     data,
     y,
@@ -182,20 +238,39 @@ def run_windows(
     Parallellismen ligger på experimentnivå.
     """
     window_results = []
+    performance = _empty_performance()
 
     for window in WALK_FORWARD_WINDOWS:
+        (
+            results,
+            oos_predictions,
+            timing,
+        ) = train_window(
+            data,
+            y,
+            feature_columns,
+            window,
+            task=task,
+            direction=direction,
+        )
+
         window_results.append(
-            train_window(
-                data,
-                y,
-                feature_columns,
-                window,
-                task=task,
-                direction=direction,
+            (
+                results,
+                oos_predictions,
             )
         )
 
-    return window_results
+        _add_performance(
+            performance,
+            timing,
+        )
+
+    return (
+        window_results,
+        performance,
+        len(WALK_FORWARD_WINDOWS),
+    )
 
 
 def _prepare_experiment(
@@ -221,7 +296,11 @@ def _prepare_experiment(
         task=target.task,
     )
 
-    window_results = run_windows(
+    (
+        window_results,
+        performance,
+        window_count,
+    ) = run_windows(
         data,
         y,
         feature_columns,
@@ -237,6 +316,8 @@ def _prepare_experiment(
         "feature_columns": feature_columns,
         "summary": summary,
         "window_results": window_results,
+        "performance": performance,
+        "window_count": window_count,
     }
 
 
@@ -404,6 +485,76 @@ def run_experiments_parallel(
         ]
 
 
+def print_performance_summary(
+    performance,
+    experiment_count,
+):
+    print()
+    print(
+        "================================"
+    )
+    print(
+        "ML performance"
+    )
+    print(
+        "================================"
+    )
+
+    print(
+        "Experiments: "
+        f"{experiment_count}"
+    )
+
+    print(
+        "Windows: "
+        f"{performance['windows']}"
+    )
+
+    print(
+        "Total window time: "
+        f"{performance['total_window_seconds']:.1f}s"
+    )
+
+    print(
+        "Fit: "
+        f"{performance['fit_seconds']:.1f}s"
+    )
+
+    print(
+        "Validation prediction: "
+        f"{performance['validation_prediction_seconds']:.1f}s"
+    )
+
+    print(
+        "OOS prediction: "
+        f"{performance['oos_prediction_seconds']:.1f}s"
+    )
+
+    print(
+        "Evaluation: "
+        f"{performance['evaluation_seconds']:.1f}s"
+    )
+
+    print(
+        "OOS row build: "
+        f"{performance['oos_row_build_seconds']:.1f}s"
+    )
+
+    print(
+        "Split/data preparation: "
+        f"{performance['split_seconds']:.1f}s"
+    )
+
+    print(
+        "Average window: "
+        f"{performance['average_window_seconds']:.2f}s"
+    )
+
+    print(
+        "================================"
+    )
+
+
 def main() -> None:
     print("Blankdiss ML: startar.")
     print("================================")
@@ -450,6 +601,9 @@ def main() -> None:
     all_results = []
     all_oos_predictions = []
 
+    total_performance = _empty_performance()
+    total_window_count = 0
+
     for experiment in experiment_results:
         feature_set_name = (
             experiment["feature_set_name"]
@@ -460,13 +614,19 @@ def main() -> None:
             experiment["window_results"]
         )
 
-        for window, (
+        _add_performance(
+            total_performance,
+            experiment["performance"],
+        )
+
+        total_window_count += (
+            experiment["window_count"]
+        )
+
+        for (
             results,
             oos_predictions,
-        ) in zip(
-            WALK_FORWARD_WINDOWS,
-            window_results,
-        ):
+        ) in window_results:
             for result in results:
                 record = {
                     "feature_set": (
@@ -514,6 +674,16 @@ def main() -> None:
                     prediction
                 )
 
+    performance = _finalize_performance(
+        total_performance,
+        total_window_count,
+    )
+
+    print_performance_summary(
+        performance,
+        len(experiments),
+    )
+
     now = datetime.now(
         timezone.utc
     )
@@ -545,6 +715,7 @@ def main() -> None:
         ),
         "parallel_windows": 1,
         "feature_set_cache": True,
+        "performance": performance,
         "results": all_results,
         "oos_prediction_rows": (
             len(all_oos_predictions)
