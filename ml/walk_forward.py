@@ -17,6 +17,7 @@ from ml.config import (
 from ml.evaluate import (
     evaluate_predictions,
     return_by_probability_bucket,
+    return_by_top_fraction,
 )
 
 from ml.models import (
@@ -304,6 +305,14 @@ def train_window(
             )
         )
 
+        ranking_results = (
+            return_by_top_fraction(
+                y_test,
+                test_probabilities,
+                returns,
+            )
+        )
+
         results.append(
             {
                 "model": name,
@@ -312,6 +321,7 @@ def train_window(
                 ),
                 "test": metrics,
                 "return_buckets": bucket_results,
+                "ranking_buckets": ranking_results,
                 "features": available_features,
                 "feature_count": int(
                     len(available_features)
