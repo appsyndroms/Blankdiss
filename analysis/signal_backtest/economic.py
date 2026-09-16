@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -147,6 +148,45 @@ def _selected_models(
     )
 
 
+def _window_group_key(
+    window: Any,
+) -> str:
+    """
+    Skapa en hashbar och deterministisk gruppnyckel för ett
+    walk-forward-fönster.
+
+    OOS-prediktionerna innehåller `window` som en dict. Dictar
+    kan inte användas direkt som pandas groupby-nycklar.
+    """
+
+    if isinstance(window, dict):
+        return json.dumps(
+            window,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+
+    return str(window)
+
+
+def _window_output(
+    window_key: str,
+    original_window: Any,
+) -> Any:
+    """
+    Återställ ett serialiserat window till dess ursprungliga
+    struktur när det är möjligt.
+    """
+
+    if isinstance(original_window, dict):
+        return original_window
+
+    try:
+        return json.loads(window_key)
+    except (TypeError, json.JSONDecodeError):
+        return window_key
+
+
 def _model_summary(
     predictions: pd.DataFrame,
 ) -> list[dict[str, Any]]:
@@ -155,6 +195,9 @@ def _model_summary(
 
     Detta är viktigt eftersom olika OOS-fönster kan välja
     olika modeller.
+
+    `window` i OOS-data är ett dict och måste därför först
+    serialiseras till en hashbar gruppnyckel.
     """
 
     if (
@@ -171,14 +214,20 @@ def _model_summary(
     if working.empty:
         return []
 
+    working["_window_group_key"] = (
+        working["window"].map(
+            _window_group_key
+        )
+    )
+
     rows: list[dict[str, Any]] = []
 
     grouped = working.groupby(
-        "window",
+        "_window_group_key",
         sort=True,
     )
 
-    for window, group in grouped:
+    for window_key, group in grouped:
         models = (
             group["model"]
             .astype(str)
@@ -186,10 +235,15 @@ def _model_summary(
             .tolist()
         )
 
+        original_window = group.iloc[0][
+            "window"
+        ]
+
         rows.append(
             {
-                "window": str(
-                    window
+                "window": _window_output(
+                    str(window_key),
+                    original_window,
                 ),
                 "models": models,
                 "rows": int(
