@@ -1,18 +1,13 @@
 """Robusthetstester för Blankdiss ekonomiska backtest."""
 from __future__ import annotations
-
 from typing import Any, Callable
-
 import numpy as np
 import pandas as pd
-
-
 DEFAULT_REMOVAL_FRACTIONS = (
     0.10,
     0.20,
     0.30,
 )
-
 DEFAULT_RANDOM_SEEDS = (
     11,
     22,
@@ -20,8 +15,6 @@ DEFAULT_RANDOM_SEEDS = (
     44,
     55,
 )
-
-
 def build_random_security_sensitivity(
     predictions: pd.DataFrame,
     strategy_builder: Callable[..., dict[str, Any]],
@@ -39,62 +32,47 @@ def build_random_security_sensitivity(
     """
     Testa om strategins ekonomiska resultat överlever
     slumpmässigt borttagande av värdepapper.
-
-    Samma OOS-prediktioner och samma strategi används i alla
-    körningar. Endast universumet av värdepapper förändras.
-
-    Benchmarken hålls konstant till baseline-universumet för
-    att isolera effekten av säkerhetskoncentration.
+    Endast värdepappersuniversumet förändras.
     """
     required = {
         "snapshot_date",
         "security_key",
         "target_return",
-        "probability",
+        "score",
     }
-
     missing = required - set(predictions.columns)
-
     if missing:
         raise ValueError(
             "Random robustness saknar kolumner: "
             + ", ".join(sorted(missing))
         )
-
     if fraction <= 0.0 or fraction > 1.0:
         raise ValueError(
             "fraction måste vara > 0 och <= 1."
         )
-
     if not removal_fractions:
         raise ValueError(
             "removal_fractions får inte vara tom."
         )
-
     if not seeds:
         raise ValueError(
             "seeds får inte vara tom."
         )
-
     clean = predictions.copy()
-
     clean["security_key"] = (
         clean["security_key"]
         .astype(str)
     )
-
     securities = sorted(
         clean["security_key"]
         .unique()
         .tolist()
     )
-
     if len(securities) < 2:
         raise ValueError(
             "Random robustness kräver minst "
             "två värdepapper."
         )
-
     baseline = strategy_builder(
         clean,
         fraction,
@@ -102,33 +80,26 @@ def build_random_security_sensitivity(
         transaction_cost_bps,
         rebalance_days,
     )
-
     baseline_net = float(
         baseline["net_compounded_return"]
     )
-
     baseline_benchmark = float(
         baseline["benchmark_compounded_return"]
     )
-
     baseline_excess = (
         baseline_net
         - baseline_benchmark
     )
-
     baseline_max_drawdown = float(
         baseline["max_drawdown"]
     )
-
     levels: list[dict[str, Any]] = []
-
     for removal_fraction in removal_fractions:
         if not 0.0 < removal_fraction < 1.0:
             raise ValueError(
                 "Varje removal_fraction måste vara "
                 "> 0 och < 1."
             )
-
         removal_count = max(
             1,
             int(
@@ -138,19 +109,13 @@ def build_random_security_sensitivity(
                 )
             ),
         )
-
         removal_count = min(
             removal_count,
             len(securities) - 1,
         )
-
         runs: list[dict[str, Any]] = []
-
         for seed in seeds:
-            rng = np.random.default_rng(
-                seed
-            )
-
+            rng = np.random.default_rng(seed)
             removed = set(
                 rng.choice(
                     securities,
@@ -158,13 +123,10 @@ def build_random_security_sensitivity(
                     replace=False,
                 ).tolist()
             )
-
             filtered = clean.loc[
-                ~clean[
-                    "security_key"
-                ].isin(removed)
+                ~clean["security_key"]
+                .isin(removed)
             ].copy()
-
             result = strategy_builder(
                 filtered,
                 fraction,
@@ -172,22 +134,16 @@ def build_random_security_sensitivity(
                 transaction_cost_bps,
                 rebalance_days,
             )
-
             net_return = float(
-                result[
-                    "net_compounded_return"
-                ]
+                result["net_compounded_return"]
             )
-
             max_drawdown = float(
                 result["max_drawdown"]
             )
-
             excess_return = (
                 net_return
                 - baseline_benchmark
             )
-
             runs.append(
                 {
                     "seed": int(seed),
@@ -212,26 +168,20 @@ def build_random_security_sensitivity(
                         excess_return
                         - baseline_excess
                     ),
-                    "max_drawdown": (
-                        max_drawdown
-                    ),
+                    "max_drawdown": max_drawdown,
                     "delta_max_drawdown": (
                         max_drawdown
                         - baseline_max_drawdown
                     ),
                 }
             )
-
         net_returns = np.asarray(
             [
-                run[
-                    "net_compounded_return"
-                ]
+                run["net_compounded_return"]
                 for run in runs
             ],
             dtype=float,
         )
-
         excess_returns = np.asarray(
             [
                 run[
@@ -241,7 +191,6 @@ def build_random_security_sensitivity(
             ],
             dtype=float,
         )
-
         drawdowns = np.asarray(
             [
                 run["max_drawdown"]
@@ -249,13 +198,9 @@ def build_random_security_sensitivity(
             ],
             dtype=float,
         )
-
         positive_excess_runs = int(
-            np.sum(
-                excess_returns > 0.0
-            )
+            np.sum(excess_returns > 0.0)
         )
-
         levels.append(
             {
                 "removal_fraction": float(
@@ -269,76 +214,41 @@ def build_random_security_sensitivity(
                 ),
                 "runs": runs,
                 "summary": {
-                    "runs": int(
-                        len(runs)
-                    ),
+                    "runs": len(runs),
                     "positive_excess_runs": (
                         positive_excess_runs
                     ),
                     "positive_excess_share": (
-                        float(
-                            positive_excess_runs
-                            / len(runs)
-                        )
+                        positive_excess_runs
+                        / len(runs)
                     ),
-                    "median_net_return": (
-                        float(
-                            np.median(
-                                net_returns
-                            )
-                        )
+                    "median_net_return": float(
+                        np.median(net_returns)
                     ),
-                    "min_net_return": (
-                        float(
-                            np.min(
-                                net_returns
-                            )
-                        )
+                    "min_net_return": float(
+                        np.min(net_returns)
                     ),
-                    "max_net_return": (
-                        float(
-                            np.max(
-                                net_returns
-                            )
-                        )
+                    "max_net_return": float(
+                        np.max(net_returns)
                     ),
-                    "median_excess_return": (
-                        float(
-                            np.median(
-                                excess_returns
-                            )
-                        )
+                    "median_excess_return": float(
+                        np.median(excess_returns)
                     ),
-                    "min_excess_return": (
-                        float(
-                            np.min(
-                                excess_returns
-                            )
-                        )
+                    "min_excess_return": float(
+                        np.min(excess_returns)
                     ),
-                    "max_excess_return": (
-                        float(
-                            np.max(
-                                excess_returns
-                            )
-                        )
+                    "max_excess_return": float(
+                        np.max(excess_returns)
                     ),
-                    "median_max_drawdown": (
-                        float(
-                            np.median(
-                                drawdowns
-                            )
-                        )
+                    "median_max_drawdown": float(
+                        np.median(drawdowns)
                     ),
                 },
             }
         )
-
     return {
         "method": "random_security_removal",
-        "fraction": float(
-            fraction
-        ),
+        "fraction": float(fraction),
         "direction": direction,
         "transaction_cost_bps": float(
             transaction_cost_bps
@@ -358,18 +268,14 @@ def build_random_security_sensitivity(
             len(securities)
         ),
         "baseline": {
-            "net_compounded_return": (
-                baseline_net
-            ),
+            "net_compounded_return": baseline_net,
             "benchmark_compounded_return": (
                 baseline_benchmark
             ),
             "excess_return_vs_benchmark": (
                 baseline_excess
             ),
-            "max_drawdown": (
-                baseline_max_drawdown
-            ),
+            "max_drawdown": baseline_max_drawdown,
         },
         "levels": levels,
     }
