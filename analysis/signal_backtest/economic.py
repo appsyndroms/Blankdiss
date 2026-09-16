@@ -27,6 +27,7 @@ from analysis.signal_backtest.sensitivity import (
     build_rebalance_sensitivity,
 )
 from analysis.signal_backtest.strategy import (
+    StrategyCache,
     build_strategy,
     build_yearly_results,
 )
@@ -109,14 +110,7 @@ def clean_predictions(
 def _target_horizon_days(
     target_name: str,
 ) -> int | None:
-    """
-    Försök härleda target-horisonten från targetnamnet.
-
-    Exempel:
-        down_5pct_5d   -> 5
-        positive_20d   -> 20
-        down_severity_5d -> 5
-    """
+    """Försök härleda target-horisonten från targetnamnet."""
 
     matches = re.findall(
         r"_(\d+)d(?:$|_)",
@@ -151,13 +145,7 @@ def _selected_models(
 def _window_group_key(
     window: Any,
 ) -> str:
-    """
-    Skapa en hashbar och deterministisk gruppnyckel för ett
-    walk-forward-fönster.
-
-    OOS-prediktionerna innehåller `window` som en dict. Dictar
-    kan inte användas direkt som pandas groupby-nycklar.
-    """
+    """Skapa en deterministisk gruppnyckel för ett walk-forward-fönster."""
 
     if isinstance(window, dict):
         return json.dumps(
@@ -173,32 +161,26 @@ def _window_output(
     window_key: str,
     original_window: Any,
 ) -> Any:
-    """
-    Återställ ett serialiserat window till dess ursprungliga
-    struktur när det är möjligt.
-    """
+    """Återställ serialiserat window till ursprunglig struktur."""
 
     if isinstance(original_window, dict):
         return original_window
 
     try:
-        return json.loads(window_key)
-    except (TypeError, json.JSONDecodeError):
+        return json.loads(
+            window_key
+        )
+    except (
+        TypeError,
+        json.JSONDecodeError,
+    ):
         return window_key
 
 
 def _model_summary(
     predictions: pd.DataFrame,
 ) -> list[dict[str, Any]]:
-    """
-    Sammanfatta vald modell per walk-forward-fönster.
-
-    Detta är viktigt eftersom olika OOS-fönster kan välja
-    olika modeller.
-
-    `window` i OOS-data är ett dict och måste därför först
-    serialiseras till en hashbar gruppnyckel.
-    """
+    """Sammanfatta vald modell per walk-forward-fönster."""
 
     if (
         "model" not in predictions.columns
@@ -214,13 +196,15 @@ def _model_summary(
     if working.empty:
         return []
 
-    working["_window_group_key"] = (
-        working["window"].map(
-            _window_group_key
-        )
+    working[
+        "_window_group_key"
+    ] = working["window"].map(
+        _window_group_key
     )
 
-    rows: list[dict[str, Any]] = []
+    rows: list[
+        dict[str, Any]
+    ] = []
 
     grouped = working.groupby(
         "_window_group_key",
@@ -277,6 +261,13 @@ def _run_single_experiment(
 
     primary_transaction_cost_bps = 10.0
 
+    # EN cache för hela experimentet.
+    # Alla strategier som använder samma predictions
+    # återanvänder datumgrupper och ranking.
+    strategy_cache = StrategyCache(
+        clean
+    )
+
     strategies: list[
         dict[str, Any]
     ] = []
@@ -290,6 +281,7 @@ def _run_single_experiment(
             direction,
             primary_transaction_cost_bps,
             ECONOMIC_REBALANCE_DAYS,
+            cache=strategy_cache,
         )
 
         yearly = build_yearly_results(
@@ -306,6 +298,7 @@ def _run_single_experiment(
                 fraction,
                 direction,
                 ECONOMIC_REBALANCE_DAYS,
+                cache=strategy_cache,
             )
         )
 
@@ -315,6 +308,7 @@ def _run_single_experiment(
                 fraction,
                 direction,
                 primary_transaction_cost_bps,
+                cache=strategy_cache,
             )
         )
 
@@ -509,13 +503,7 @@ def run_economic_backtest(
 def run_all_economic_backtests() -> list[
     dict[str, Any]
 ]:
-    """
-    Kör ekonomiskt backtest för alla experiment
-    i den aktuella OOS-prediktionsfilen.
-
-    Walk-forward-modeller får variera mellan
-    OOS-fönster.
-    """
+    """Kör ekonomiskt backtest för alla experiment."""
 
     predictions = (
         load_and_prepare_economic_predictions()
