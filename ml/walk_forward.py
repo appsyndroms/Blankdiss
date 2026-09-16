@@ -295,6 +295,8 @@ def train_window(
         selected_model,
     ) = trained[0]
 
+    # Prediktera vald modell exakt en gång på OOS-testet.
+    # Denna array återanvänds senare när modellresultaten byggs.
     if task == "classification":
         selected_predictions = (
             selected_model.predict_proba(
@@ -320,18 +322,46 @@ def train_window(
         "target_return",
     ]
 
+    # Cache för testprediktioner inom detta window.
+    # Framför allt undviker detta att den valda modellen
+    # körs en andra gång.
+    test_prediction_cache: dict[
+        str,
+        np.ndarray,
+    ] = {
+        selected_name: selected_predictions,
+    }
+
     for (
         validation_score,
         name,
         model,
     ) in trained:
-        if task == "classification":
+        if name in test_prediction_cache:
+            test_predictions = (
+                test_prediction_cache[name]
+            )
+        elif task == "classification":
             test_predictions = (
                 model.predict_proba(
                     test
                 )[:, 1]
             )
 
+            test_prediction_cache[name] = (
+                test_predictions
+            )
+        else:
+            test_predictions = np.asarray(
+                model.predict(test),
+                dtype=float,
+            )
+
+            test_prediction_cache[name] = (
+                test_predictions
+            )
+
+        if task == "classification":
             metrics = evaluate_predictions(
                 y_test,
                 test_predictions,
@@ -355,11 +385,6 @@ def train_window(
             )
 
         else:
-            test_predictions = np.asarray(
-                model.predict(test),
-                dtype=float,
-            )
-
             metrics = evaluate_predictions(
                 y_test,
                 test_predictions,
