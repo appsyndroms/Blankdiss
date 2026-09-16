@@ -1,5 +1,4 @@
 name: Blankdiss ML Training
-
 on:
   workflow_dispatch:
   push:
@@ -9,102 +8,84 @@ on:
       - "data/processed/analysis/features_*.jsonl"
       - "data/processed/analysis/features_metadata.json"
       - "data/processed/analysis/features_qc.json"
-
 permissions:
   contents: read
-
 concurrency:
   group: ml-training-main
   cancel-in-progress: false
-
 jobs:
   train-ml:
     name: Träna Blankdiss ML
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
-
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
-
       - name: Build features
         run: |
           python -m analysis.build_features
-
       - name: Inspect feature dataset
         run: |
-          python -m analysis.inspect_features
-
+          python -m analysis.ci inspect-features
       - name: Verify feature dataset
         run: |
-          python -m analysis.verify_features
-
+          python -m analysis.ci verify-features
       - name: Run Feature QC
         run: |
           python -m analysis.features_qc
-
       - name: Kontrollera Feature QC-status
         run: |
-          python -m analysis.verify_feature_qc
-
+          python -m analysis.ci verify-feature-qc
       - name: Verify ML package
         run: |
-          python -m ml.verify_package
-
+          python -m ml.ci verify-package
       - name: Run ML training
         run: |
           python -m ml.train
-
       - name: Verify ML results
         run: |
-          python -m ml.verify_results
-
+          python -m ml.ci verify-results
       - name: Run ML diagnostics
         run: |
           python -m ml.diagnostics
-
       - name: Verify ML diagnostics
         run: |
-          python -m ml.verify_diagnostics
-
+          python -m ml.ci verify-diagnostics
+      - name: Run ML ablation QC
+        run: |
+          python -m ml.ablation_qc
+      - name: Verify ML ablation QC
+        run: |
+          python -m ml.ci verify-ablation-qc
       - name: Print ML diagnostics summary
         run: |
-          python -m ml.print_diagnostics
-
+          python -m ml.ci print-diagnostics
       - name: Print latest ML result summary
         run: |
-          python -m ml.print_latest_run
-
+          python -m ml.ci print-latest-run
       - name: Verify signal backtest package
         run: |
-          python -m analysis.signal_backtest.verify_package
-
+          python -m analysis.signal_backtest.ci verify-package
       - name: Run signal backtest
         run: |
           python -m analysis.signal_backtest
-
       - name: Verify signal backtest result
         run: |
-          python -m analysis.signal_backtest.verify_result
-
+          python -m analysis.signal_backtest.ci verify-result
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -113,6 +94,7 @@ jobs:
             data/processed/ml/latest_run.json
             data/processed/ml/ml_results.jsonl
             data/processed/ml/diagnostics.json
+            data/processed/ml/ablation_qc.json
             data/processed/ml/signal_backtest.json
             data/processed/ml/runs/*.json
           if-no-files-found: error
