@@ -1,18 +1,17 @@
-"""Benchmark av Random Forest med olika CPU-parallellism."""
+"""Benchmark av Blankdiss ML-pipeline med Random Forest n_jobs=4."""
 
 from __future__ import annotations
 
 from time import perf_counter
 
-import numpy as np
-
-from ml.config import RANDOM_STATE, TARGETS, WALK_FORWARD_WINDOWS
+from ml.config import TARGETS
 from ml.dataset import (
     load_features,
     prepare_feature_set,
     prepare_ml_data_from_feature_set,
 )
 from ml.models import build_models
+from ml.walk_forward import train_window
 
 
 BENCHMARK_TARGETS = {
@@ -20,28 +19,22 @@ BENCHMARK_TARGETS = {
     "down_5pct_5d",
 }
 
-BENCHMARK_N_JOBS = (
-    1,
-    2,
-    4,
-    -1,
-)
-
-# Bara första walk-forward-fönstret.
-BENCHMARK_WINDOW = WALK_FORWARD_WINDOWS[0]
+RF_N_JOBS = 4
 
 
 def main() -> None:
     total_start = perf_counter()
 
     print("================================")
-    print("Blankdiss Random Forest benchmark")
+    print("Blankdiss ML benchmark")
+    print("Random Forest n_jobs=4")
     print("================================")
 
     print()
     print("Laddar features...")
 
     start = perf_counter()
+
     features = load_features()
 
     print(
@@ -72,11 +65,15 @@ def main() -> None:
         if target.name in BENCHMARK_TARGETS
     ]
 
+    total_ml_seconds = 0.0
+
     for target in targets:
         print()
         print("--------------------------------")
         print(f"Target: {target.name}")
         print("--------------------------------")
+
+        start = perf_counter()
 
         data, y, target_feature_columns = (
             prepare_ml_data_from_feature_set(
@@ -86,136 +83,94 @@ def main() -> None:
             )
         )
 
-        train_end = np.datetime64(
-            BENCHMARK_WINDOW.train_end
-        )
-        validation_end = np.datetime64(
-            BENCHMARK_WINDOW.validation_end
-        )
-        test_end = np.datetime64(
-            BENCHMARK_WINDOW.test_end
-        )
-
-        train_mask = (
-            data["snapshot_date"].values
-            <= train_end
-        )
-
-        validation_mask = (
-            (data["snapshot_date"].values > train_end)
-            & (
-                data["snapshot_date"].values
-                <= validation_end
-            )
-        )
-
-        test_mask = (
-            (data["snapshot_date"].values > validation_end)
-            & (
-                data["snapshot_date"].values
-                <= test_end
-            )
-        )
-
-        train = data.loc[
-            train_mask,
-            target_feature_columns,
-        ]
-
-        validation = data.loc[
-            validation_mask,
-            target_feature_columns,
-        ]
-
-        y_train = y.loc[train_mask]
-        y_validation = y.loc[validation_mask]
-
         print(
-            f"Training rows: {len(train):,}"
+            f"Dataset preparation: "
+            f"{perf_counter() - start:.2f}s"
         )
-        print(
-            f"Validation rows: {len(validation):,}"
-        )
-        print(
-            f"Features: {len(target_feature_columns)}"
-        )
+        print(f"Rows: {len(data):,}")
+        print(f"Features: {len(target_feature_columns)}")
 
-        print()
-        print(
-            f"Window: "
-            f"{BENCHMARK_WINDOW.train_end} -> "
-            f"{BENCHMARK_WINDOW.validation_end} -> "
-            f"{BENCHMARK_WINDOW.test_end}"
-        )
+        target_start = perf_counter()
 
-        print()
-        print("Random Forest CPU scaling")
-        print("=========================")
-
-        for n_jobs in BENCHMARK_N_JOBS:
-            models = build_models(
-                RANDOM_STATE,
-                task=target.task,
-            )
-
-            model = models["random_forest"]
-
-            model.set_params(
-                model__n_jobs=n_jobs,
-            )
-
+        for window in __import__(
+            "ml.config",
+            fromlist=["WALK_FORWARD_WINDOWS"],
+        ).WALK_FORWARD_WINDOWS:
             print()
             print(
-                f"n_jobs={n_jobs}"
+                f"Window: "
+                f"{window.train_end} -> "
+                f"{window.validation_end} -> "
+                f"{window.test_end}"
             )
 
             start = perf_counter()
 
-            model.fit(
-                train,
-                y_train,
+            results, oos_predictions, timing = train_window(
+                data=data,
+                y=y,
+                feature_columns=target_feature_columns,
+                target=target,
+                window=window,
+                random_state=42,
             )
 
-            fit_seconds = (
-                perf_counter()
-                - start
+            window_seconds = perf_counter() - start
+
+            print(
+                f"Total window: "
+                f"{window_seconds:.2f}s"
             )
 
+            print(
+                f"  split: "
+                f"{timing['split_seconds']:.2f}s"
+            )
             print(
                 f"  fit: "
-                f"{fit_seconds:.3f}s"
+                f"{timing['fit_seconds']:.2f}s"
             )
-
-            start = perf_counter()
-
-            predictions = model.predict_proba(
-                validation
-            )[:, 1]
-
-            prediction_seconds = (
-                perf_counter()
-                - start
-            )
-
             print(
                 f"  validation prediction: "
-                f"{prediction_seconds:.3f}s"
+                f"{timing['validation_prediction_seconds']:.2f}s"
             )
-
             print(
-                f"  total: "
-                f"{fit_seconds + prediction_seconds:.3f}s"
+                f"  OOS prediction: "
+                f"{timing['oos_prediction_seconds']:.2f}s"
+            )
+            print(
+                f"  evaluation: "
+                f"{timing['evaluation_seconds']:.2f}s"
+            )
+            print(
+                f"  OOS row build: "
+                f"{timing['oos_row_build_seconds']:.2f}s"
+            )
+            print(
+                f"  models: {len(results)}"
+            )
+            print(
+                f"  OOS rows: {len(oos_predictions):,}"
             )
 
-    total_seconds = (
-        perf_counter()
-        - total_start
-    )
+        target_seconds = perf_counter() - target_start
+        total_ml_seconds += target_seconds
+
+        print()
+        print(
+            f"Target total: "
+            f"{target_seconds:.2f}s"
+        )
+
+    total_seconds = perf_counter() - total_start
 
     print()
     print("================================")
     print(
-        f"TOTAL: {total_seconds:.3f}s"
+        f"ML TOTAL: {total_ml_seconds:.2f}s"
+    )
+    print(
+        f"TOTAL: {total_seconds:.2f}s"
     )
     print("================================")
 
