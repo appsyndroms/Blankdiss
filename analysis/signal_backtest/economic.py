@@ -13,9 +13,6 @@ from analysis.signal_backtest.config import (
 )
 
 
-MAX_POSITION_WEIGHT = 0.05
-
-
 def _clean_predictions(
     predictions: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -78,7 +75,7 @@ def _clean_predictions(
 def _portfolio_weights(
     selected: pd.DataFrame,
 ) -> dict[str, float]:
-    """Skapa lika vikter med ett max på 5 % per värdepapper."""
+    """Skapa lika vikter för de valda värdepapperen."""
     if selected.empty:
         return {}
 
@@ -88,71 +85,19 @@ def _portfolio_weights(
         .tolist()
     )
 
-    count = len(securities)
+    weight = 1.0 / len(securities)
 
-    if count * MAX_POSITION_WEIGHT < 1.0:
-        raise ValueError(
-            "För få värdepapper för att bygga en fullt investerad "
-            f"portfölj med maxvikt {MAX_POSITION_WEIGHT:.1%}: {count}."
-        )
-
-    weight = 1.0 / count
-
-    if weight <= MAX_POSITION_WEIGHT:
-        return {
-            security: weight
-            for security in securities
-        }
-
-    weights = {
-        security: MAX_POSITION_WEIGHT
+    return {
+        security: weight
         for security in securities
     }
-
-    remaining = 1.0 - sum(weights.values())
-
-    uncapped = [
-        security
-        for security in securities
-        if weights[security] < MAX_POSITION_WEIGHT
-    ]
-
-    while remaining > 1e-12 and uncapped:
-        add = remaining / len(uncapped)
-        next_uncapped = []
-
-        for security in uncapped:
-            capacity = (
-                MAX_POSITION_WEIGHT
-                - weights[security]
-            )
-
-            increase = min(
-                capacity,
-                add,
-            )
-
-            weights[security] += increase
-            remaining -= increase
-
-            if (
-                weights[security]
-                < MAX_POSITION_WEIGHT - 1e-12
-            ):
-                next_uncapped.append(
-                    security
-                )
-
-        uncapped = next_uncapped
-
-    return weights
 
 
 def _portfolio_return(
     selected: pd.DataFrame,
     direction: str,
 ) -> float:
-    """Beräkna lika/viktad portföljavkastning före kostnader."""
+    """Beräkna lika viktad portföljavkastning före kostnader."""
     if selected.empty:
         raise ValueError(
             "Kan inte beräkna portföljavkastning utan innehav."
@@ -431,9 +376,6 @@ def _build_strategy(
         "transaction_cost_bps": float(
             TRANSACTION_COST_BPS
         ),
-        "max_position_weight": float(
-            MAX_POSITION_WEIGHT
-        ),
         "periods": int(
             len(period_returns)
         ),
@@ -511,8 +453,8 @@ def run_economic_backtest(
     Kör ett OOS-ekonomiskt backtest utan överlappande
     5-dagarsperioder.
 
-    Portföljen är lika viktad inom urvalet, med max 5 %
-    per värdepapper. Transaktionskostnad beräknas på faktisk
+    Portföljen är lika viktad inom urvalet.
+    Transaktionskostnad beräknas på faktisk
     portföljomsättning.
     """
     clean = _clean_predictions(
@@ -552,9 +494,6 @@ def run_economic_backtest(
         "no_overlapping_periods": True,
         "portfolio_weighting": (
             "equal_weighted"
-        ),
-        "max_position_weight": float(
-            MAX_POSITION_WEIGHT
         ),
         "turnover_cost_model": (
             "actual_portfolio_turnover"
