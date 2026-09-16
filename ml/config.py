@@ -72,9 +72,27 @@ TARGETS = (
         direction="above",
     ),
     TargetConfig(
+        name="down_3pct_5d",
+        return_column="forward_return_5d",
+        threshold=-0.03,
+        direction="below",
+    ),
+    TargetConfig(
         name="down_5pct_5d",
         return_column="forward_return_5d",
         threshold=-0.05,
+        direction="below",
+    ),
+    TargetConfig(
+        name="down_7pct_5d",
+        return_column="forward_return_5d",
+        threshold=-0.07,
+        direction="below",
+    ),
+    TargetConfig(
+        name="down_10pct_5d",
+        return_column="forward_return_5d",
+        threshold=-0.10,
         direction="below",
     ),
     TargetConfig(
