@@ -1,91 +1,137 @@
 name: Blankdiss ML Training
+
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "data/processed/analysis/features_*.jsonl"
-      - "data/processed/analysis/features_metadata.json"
-      - "data/processed/analysis/features_qc.json"
+
 permissions:
   contents: read
+
 concurrency:
-  group: ml-training-main
+  group: ml-training-manual
   cancel-in-progress: false
+
 jobs:
   train-ml:
     name: Träna Blankdiss ML
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
+
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
+
       - name: Build features
         run: |
-          python -m analysis.build_features
+          python -u -m analysis.build_features
+
       - name: Inspect feature dataset
         run: |
           python -m analysis.ci inspect-features
+
       - name: Verify feature dataset
         run: |
           python -m analysis.ci verify-features
+
       - name: Run Feature QC
         run: |
-          python -m analysis.features_qc
-      - name: Kontrollera Feature QC-status
+          python -u -m analysis.features_qc
+
+      - name: Verify Feature QC
         run: |
           python -m analysis.ci verify-feature-qc
+
       - name: Verify ML package
         run: |
           python -m ml.ci verify-package
+
       - name: Run ML training
         run: |
-          python -m ml.train
+          python -u -m ml.train
+
       - name: Verify ML results
         run: |
           python -m ml.ci verify-results
+
       - name: Run ML diagnostics
         run: |
           python -m ml.diagnostics
+
       - name: Verify ML diagnostics
         run: |
           python -m ml.ci verify-diagnostics
+
       - name: Run ML ablation QC
         run: |
           python -m ml.ablation_qc
+
       - name: Verify ML ablation QC
         run: |
           python -m ml.ci verify-ablation-qc
-      - name: Print ML diagnostics summary
+
+      - name: Run economic backtest
         run: |
-          python -m ml.ci print-diagnostics
-      - name: Print latest ML result summary
+          python -u -m analysis.signal_backtest.run
+
+      - name: Verify economic backtest
         run: |
-          python -m ml.ci print-latest-run
-      - name: Verify signal backtest package
-        run: |
-          python -m analysis.signal_backtest.ci verify-package
-      - name: Run signal backtest
-        run: |
-          python -m analysis.signal_backtest
-      - name: Verify signal backtest result
-        run: |
-          python -m analysis.signal_backtest.ci verify-result
+          test -f data/processed/ml/economic_results.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "data/processed/ml/economic_results.json"
+          )
+
+          data = json.loads(
+              path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          experiments = data.get(
+              "experiments",
+              []
+          )
+
+          if not experiments:
+              raise SystemExit(
+                  "economic_results.json innehåller inga experiment."
+              )
+
+          print(
+              "Economic experiments:",
+              len(experiments),
+          )
+
+          for experiment in experiments:
+              print(
+                  experiment.get("feature_set"),
+                  experiment.get("target"),
+                  experiment.get("model"),
+                  experiment.get("selected_models"),
+              )
+          PY
+
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -93,8 +139,9 @@ jobs:
           path: |
             data/processed/ml/latest_run.json
             data/processed/ml/ml_results.jsonl
+            data/processed/ml/oos_predictions.jsonl
             data/processed/ml/diagnostics.json
             data/processed/ml/ablation_qc.json
-            data/processed/ml/signal_backtest.json
+            data/processed/ml/economic_results.json
             data/processed/ml/runs/*.json
           if-no-files-found: error
