@@ -13,6 +13,14 @@ from sklearn.metrics import (
 )
 
 
+TOP_FRACTIONS = (
+    0.01,
+    0.05,
+    0.10,
+    0.20,
+)
+
+
 def evaluate_predictions(
     y_true,
     probabilities,
@@ -147,6 +155,169 @@ def return_by_probability_bucket(
                     )
                     if len(selected)
                     else None
+                ),
+            }
+        )
+
+    return results
+
+
+def return_by_top_fraction(
+    y_true,
+    probabilities,
+    returns,
+    fractions=TOP_FRACTIONS,
+) -> list[dict[str, Any]]:
+    """
+    Mäter utfallet i de högst rankade observationerna.
+
+    Rangordningen görs enbart på modellens
+    test-sannolikhet.
+
+    Ingen information från target_return
+    används för urvalet.
+    """
+
+    y_array = np.asarray(
+        y_true,
+        dtype=float,
+    )
+
+    probability_array = np.asarray(
+        probabilities,
+        dtype=float,
+    )
+
+    return_array = np.asarray(
+        returns,
+        dtype=float,
+    )
+
+    valid = (
+        np.isfinite(
+            probability_array
+        )
+        & np.isfinite(
+            return_array
+        )
+        & np.isfinite(
+            y_array
+        )
+    )
+
+    probability_array = (
+        probability_array[valid]
+    )
+
+    return_array = (
+        return_array[valid]
+    )
+
+    y_array = (
+        y_array[valid]
+    )
+
+    rows = len(
+        probability_array
+    )
+
+    if rows == 0:
+        return [
+            {
+                "top_fraction": float(
+                    fraction
+                ),
+                "rows": 0,
+                "event_rate": None,
+                "baseline_event_rate": None,
+                "event_rate_lift_ratio": None,
+                "mean_return": None,
+                "median_return": None,
+                "baseline_mean_return": None,
+            }
+            for fraction in fractions
+        ]
+
+    order = np.argsort(
+        -probability_array,
+        kind="mergesort",
+    )
+
+    baseline_event_rate = float(
+        y_array.mean()
+    )
+
+    baseline_mean_return = float(
+        return_array.mean()
+    )
+
+    results = []
+
+    for fraction in fractions:
+        count = max(
+            1,
+            int(
+                np.ceil(
+                    rows * fraction
+                )
+            ),
+        )
+
+        selected_indices = (
+            order[:count]
+        )
+
+        selected_events = (
+            y_array[
+                selected_indices
+            ]
+        )
+
+        selected_returns = (
+            return_array[
+                selected_indices
+            ]
+        )
+
+        event_rate = float(
+            selected_events.mean()
+        )
+
+        if baseline_event_rate > 0:
+            lift_ratio = float(
+                event_rate
+                / baseline_event_rate
+            )
+        else:
+            lift_ratio = None
+
+        results.append(
+            {
+                "top_fraction": float(
+                    fraction
+                ),
+                "rows": int(
+                    count
+                ),
+                "event_rate": (
+                    event_rate
+                ),
+                "baseline_event_rate": (
+                    baseline_event_rate
+                ),
+                "event_rate_lift_ratio": (
+                    lift_ratio
+                ),
+                "mean_return": float(
+                    selected_returns.mean()
+                ),
+                "median_return": float(
+                    np.median(
+                        selected_returns
+                    )
+                ),
+                "baseline_mean_return": (
+                    baseline_mean_return
                 ),
             }
         )
