@@ -1,0 +1,408 @@
+"""Litet benchmark för Blankdiss ML-pipelinen.
+
+Kör en begränsad del av den riktiga ML-pipelinen för att mäta
+var tiden faktiskt går utan att påverka produktionskörningen.
+
+Benchmark:
+- feature set: fi_only
+- targets: up_5pct_5d, down_5pct_5d
+- windows: alla ordinarie walk-forward-windows
+- modeller: alla modeller som build_models() returnerar
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from time import perf_counter
+
+from ml.config import (
+    RUNS_DIR,
+    TARGETS,
+    WALK_FORWARD_WINDOWS,
+)
+from ml.dataset import (
+    load_features,
+    prepare_feature_set,
+    prepare_ml_data_from_feature_set,
+)
+from ml.walk_forward import train_window
+
+
+FEATURE_SET_NAME = "fi_only"
+
+BENCHMARK_TARGETS = {
+    "up_5pct_5d",
+    "down_5pct_5d",
+}
+
+
+OUTPUT_PATH = (
+    RUNS_DIR
+    / "ml_benchmark_latest.json"
+)
+
+
+def find_targets():
+    targets = []
+
+    for target in TARGETS:
+        if target.name in BENCHMARK_TARGETS:
+            targets.append(target)
+
+    found_names = {
+        target.name
+        for target in targets
+    }
+
+    missing = (
+        BENCHMARK_TARGETS
+        - found_names
+    )
+
+    if missing:
+        raise RuntimeError(
+            "Benchmark targets saknas: "
+            + ", ".join(sorted(missing))
+        )
+
+    return targets
+
+
+def empty_timing():
+    return {
+        "feature_load_seconds": 0.0,
+        "feature_set_seconds": 0.0,
+        "dataset_prepare_seconds": 0.0,
+        "window_total_seconds": 0.0,
+        "window_count": 0,
+    }
+
+
+def benchmark_target(
+    feature_set_data,
+    feature_columns,
+    target,
+):
+    timing = empty_timing()
+
+    prepare_start = perf_counter()
+
+    (
+        data,
+        y,
+        feature_columns,
+    ) = prepare_ml_data_from_feature_set(
+        feature_set_data,
+        feature_columns,
+        target,
+    )
+
+    timing["dataset_prepare_seconds"] = (
+        perf_counter()
+        - prepare_start
+    )
+
+    windows = []
+
+    for window in WALK_FORWARD_WINDOWS:
+        window_start = perf_counter()
+
+        (
+            results,
+            oos_predictions,
+        ) = train_window(
+            data,
+            y,
+            feature_columns,
+            window,
+            task=target.task,
+            direction=target.direction,
+        )
+
+        elapsed = (
+            perf_counter()
+            - window_start
+        )
+
+        timing["window_total_seconds"] += (
+            elapsed
+        )
+
+        timing["window_count"] += 1
+
+        windows.append(
+            {
+                "window": {
+                    "train_end": (
+                        window.train_end
+                    ),
+                    "validation_end": (
+                        window.validation_end
+                    ),
+                    "test_end": (
+                        window.test_end
+                    ),
+                },
+                "seconds": elapsed,
+                "result_rows": len(results),
+                "oos_rows": len(
+                    oos_predictions
+                ),
+                "models": [
+                    {
+                        "model": result[
+                            "model"
+                        ],
+                        "validation_score": (
+                            result[
+                                "validation_score"
+                            ]
+                        ),
+                        "selected_for_oos": (
+                            result[
+                                "selected_for_oos"
+                            ]
+                        ),
+                    }
+                    for result in results
+                ],
+            }
+        )
+
+    return {
+        "target": target.name,
+        "task": target.task,
+        "direction": target.direction,
+        "dataset_rows": int(
+            len(data)
+        ),
+        "feature_count": int(
+            len(feature_columns)
+        ),
+        "timing": timing,
+        "windows": windows,
+    }
+
+
+def print_summary(
+    benchmark,
+    total_seconds,
+):
+    print()
+    print(
+        "================================"
+    )
+    print(
+        "Blankdiss ML benchmark"
+    )
+    print(
+        "================================"
+    )
+
+    print(
+        f"Total: {total_seconds:.2f}s"
+    )
+
+    print(
+        f"Feature load: "
+        f"{benchmark['timing']['feature_load_seconds']:.2f}s"
+    )
+
+    print(
+        f"Feature set: "
+        f"{benchmark['timing']['feature_set_seconds']:.2f}s"
+    )
+
+    print(
+        f"Dataset preparation: "
+        f"{benchmark['timing']['dataset_prepare_seconds']:.2f}s"
+    )
+
+    print(
+        f"Windows: "
+        f"{benchmark['timing']['window_count']}"
+    )
+
+    print(
+        f"Window total: "
+        f"{benchmark['timing']['window_total_seconds']:.2f}s"
+    )
+
+    print()
+
+    for target in benchmark["targets"]:
+        print(
+            f"{target['target']}: "
+            f"{sum("
+            "window['seconds'] "
+            "for window in target['windows']"
+            "):.2f}s"
+        )
+
+        for window in target["windows"]:
+            print(
+                "  "
+                f"{window['window']['train_end']} "
+                "→ "
+                f"{window['window']['test_end']}: "
+                f"{window['seconds']:.2f}s"
+            )
+
+    print(
+        "================================"
+    )
+
+
+def main():
+    total_start = perf_counter()
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    benchmark = {
+        "created_at": now.isoformat(),
+        "feature_set": FEATURE_SET_NAME,
+        "targets": [],
+        "timing": empty_timing(),
+    }
+
+    print(
+        "Blankdiss ML benchmark: startar."
+    )
+
+    print(
+        f"Feature set: {FEATURE_SET_NAME}"
+    )
+
+    print(
+        "Targets: "
+        + ", ".join(
+            sorted(
+                BENCHMARK_TARGETS
+            )
+        )
+    )
+
+    print(
+        f"Windows: "
+        f"{len(WALK_FORWARD_WINDOWS)}"
+    )
+
+    print()
+
+    feature_start = perf_counter()
+
+    features = load_features()
+
+    benchmark["timing"][
+        "feature_load_seconds"
+    ] = (
+        perf_counter()
+        - feature_start
+    )
+
+    print(
+        f"Features loaded: "
+        f"{len(features):,}"
+    )
+
+    feature_set_start = perf_counter()
+
+    (
+        feature_set_data,
+        feature_columns,
+    ) = prepare_feature_set(
+        features,
+        include_price_features=False,
+    )
+
+    benchmark["timing"][
+        "feature_set_seconds"
+    ] = (
+        perf_counter()
+        - feature_set_start
+    )
+
+    print(
+        f"Feature set prepared: "
+        f"{len(feature_set_data):,} rows, "
+        f"{len(feature_columns)} features"
+    )
+
+    targets = find_targets()
+
+    for target in targets:
+        print()
+        print(
+            f"Target: {target.name}"
+        )
+
+        result = benchmark_target(
+            feature_set_data,
+            feature_columns,
+            target,
+        )
+
+        benchmark["targets"].append(
+            result
+        )
+
+        benchmark["timing"][
+            "dataset_prepare_seconds"
+        ] += result["timing"][
+            "dataset_prepare_seconds"
+        ]
+
+        benchmark["timing"][
+            "window_total_seconds"
+        ] += result["timing"][
+            "window_total_seconds"
+        ]
+
+        benchmark["timing"][
+            "window_count"
+        ] += result["timing"][
+            "window_count"
+        ]
+
+    total_seconds = (
+        perf_counter()
+        - total_start
+    )
+
+    benchmark[
+        "total_seconds"
+    ] = total_seconds
+
+    OUTPUT_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    with OUTPUT_PATH.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        json.dump(
+            benchmark,
+            handle,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    print_summary(
+        benchmark,
+        total_seconds,
+    )
+
+    print(
+        f"Benchmark sparat: "
+        f"{OUTPUT_PATH}"
+    )
+
+
+if __name__ == "__main__":
+    main()
