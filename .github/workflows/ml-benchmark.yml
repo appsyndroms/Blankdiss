@@ -17,11 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
 
-from ml.config import (
-    RUNS_DIR,
-    TARGETS,
-    WALK_FORWARD_WINDOWS,
-)
+from ml.config import RUNS_DIR, TARGETS, WALK_FORWARD_WINDOWS
 from ml.dataset import (
     load_features,
     prepare_feature_set,
@@ -37,11 +33,7 @@ BENCHMARK_TARGETS = {
     "down_5pct_5d",
 }
 
-
-OUTPUT_PATH = (
-    RUNS_DIR
-    / "ml_benchmark_latest.json"
-)
+OUTPUT_PATH = RUNS_DIR / "ml_benchmark_latest.json"
 
 
 def find_targets():
@@ -51,15 +43,8 @@ def find_targets():
         if target.name in BENCHMARK_TARGETS:
             targets.append(target)
 
-    found_names = {
-        target.name
-        for target in targets
-    }
-
-    missing = (
-        BENCHMARK_TARGETS
-        - found_names
-    )
+    found_names = {target.name for target in targets}
+    missing = BENCHMARK_TARGETS - found_names
 
     if missing:
         raise RuntimeError(
@@ -100,8 +85,7 @@ def benchmark_target(
     )
 
     timing["dataset_prepare_seconds"] = (
-        perf_counter()
-        - prepare_start
+        perf_counter() - prepare_start
     )
 
     windows = []
@@ -121,50 +105,30 @@ def benchmark_target(
             direction=target.direction,
         )
 
-        elapsed = (
-            perf_counter()
-            - window_start
-        )
+        elapsed = perf_counter() - window_start
 
-        timing["window_total_seconds"] += (
-            elapsed
-        )
-
+        timing["window_total_seconds"] += elapsed
         timing["window_count"] += 1
 
         windows.append(
             {
                 "window": {
-                    "train_end": (
-                        window.train_end
-                    ),
-                    "validation_end": (
-                        window.validation_end
-                    ),
-                    "test_end": (
-                        window.test_end
-                    ),
+                    "train_end": window.train_end,
+                    "validation_end": window.validation_end,
+                    "test_end": window.test_end,
                 },
                 "seconds": elapsed,
                 "result_rows": len(results),
-                "oos_rows": len(
-                    oos_predictions
-                ),
+                "oos_rows": len(oos_predictions),
                 "models": [
                     {
-                        "model": result[
-                            "model"
+                        "model": result["model"],
+                        "validation_score": result[
+                            "validation_score"
                         ],
-                        "validation_score": (
-                            result[
-                                "validation_score"
-                            ]
-                        ),
-                        "selected_for_oos": (
-                            result[
-                                "selected_for_oos"
-                            ]
-                        ),
+                        "selected_for_oos": result[
+                            "selected_for_oos"
+                        ],
                     }
                     for result in results
                 ],
@@ -175,70 +139,57 @@ def benchmark_target(
         "target": target.name,
         "task": target.task,
         "direction": target.direction,
-        "dataset_rows": int(
-            len(data)
-        ),
-        "feature_count": int(
-            len(feature_columns)
-        ),
+        "dataset_rows": int(len(data)),
+        "feature_count": int(len(feature_columns)),
         "timing": timing,
         "windows": windows,
     }
 
 
-def print_summary(
-    benchmark,
-    total_seconds,
-):
+def print_summary(benchmark, total_seconds):
     print()
-    print(
-        "================================"
-    )
-    print(
-        "Blankdiss ML benchmark"
-    )
-    print(
-        "================================"
-    )
+    print("================================")
+    print("Blankdiss ML benchmark")
+    print("================================")
+
+    print(f"Total: {total_seconds:.2f}s")
 
     print(
-        f"Total: {total_seconds:.2f}s"
-    )
-
-    print(
-        f"Feature load: "
+        "Feature load: "
         f"{benchmark['timing']['feature_load_seconds']:.2f}s"
     )
 
     print(
-        f"Feature set: "
+        "Feature set: "
         f"{benchmark['timing']['feature_set_seconds']:.2f}s"
     )
 
     print(
-        f"Dataset preparation: "
+        "Dataset preparation: "
         f"{benchmark['timing']['dataset_prepare_seconds']:.2f}s"
     )
 
     print(
-        f"Windows: "
+        "Windows: "
         f"{benchmark['timing']['window_count']}"
     )
 
     print(
-        f"Window total: "
+        "Window total: "
         f"{benchmark['timing']['window_total_seconds']:.2f}s"
     )
 
     print()
 
     for target in benchmark["targets"]:
+        target_seconds = sum(
+            window["seconds"]
+            for window in target["windows"]
+        )
+
         print(
             f"{target['target']}: "
-            f"{sum("
-            "window['seconds'] "
-            "for window in target['windows']"
-            "):.2f}s"
+            f"{target_seconds:.2f}s"
         )
 
         for window in target["windows"]:
@@ -250,17 +201,13 @@ def print_summary(
                 f"{window['seconds']:.2f}s"
             )
 
-    print(
-        "================================"
-    )
+    print("================================")
 
 
 def main():
     total_start = perf_counter()
 
-    now = datetime.now(
-        timezone.utc
-    )
+    now = datetime.now(timezone.utc)
 
     benchmark = {
         "created_at": now.isoformat(),
@@ -269,44 +216,27 @@ def main():
         "timing": empty_timing(),
     }
 
-    print(
-        "Blankdiss ML benchmark: startar."
-    )
-
-    print(
-        f"Feature set: {FEATURE_SET_NAME}"
-    )
-
+    print("Blankdiss ML benchmark: startar.")
+    print(f"Feature set: {FEATURE_SET_NAME}")
     print(
         "Targets: "
-        + ", ".join(
-            sorted(
-                BENCHMARK_TARGETS
-            )
-        )
+        + ", ".join(sorted(BENCHMARK_TARGETS))
     )
-
     print(
-        f"Windows: "
-        f"{len(WALK_FORWARD_WINDOWS)}"
+        f"Windows: {len(WALK_FORWARD_WINDOWS)}"
     )
-
     print()
 
     feature_start = perf_counter()
 
     features = load_features()
 
-    benchmark["timing"][
-        "feature_load_seconds"
-    ] = (
-        perf_counter()
-        - feature_start
+    benchmark["timing"]["feature_load_seconds"] = (
+        perf_counter() - feature_start
     )
 
     print(
-        f"Features loaded: "
-        f"{len(features):,}"
+        f"Features loaded: {len(features):,}"
     )
 
     feature_set_start = perf_counter()
@@ -319,11 +249,8 @@ def main():
         include_price_features=False,
     )
 
-    benchmark["timing"][
-        "feature_set_seconds"
-    ] = (
-        perf_counter()
-        - feature_set_start
+    benchmark["timing"]["feature_set_seconds"] = (
+        perf_counter() - feature_set_start
     )
 
     print(
@@ -336,9 +263,7 @@ def main():
 
     for target in targets:
         print()
-        print(
-            f"Target: {target.name}"
-        )
+        print(f"Target: {target.name}")
 
         result = benchmark_target(
             feature_set_data,
@@ -346,9 +271,7 @@ def main():
             target,
         )
 
-        benchmark["targets"].append(
-            result
-        )
+        benchmark["targets"].append(result)
 
         benchmark["timing"][
             "dataset_prepare_seconds"
@@ -368,14 +291,9 @@ def main():
             "window_count"
         ]
 
-    total_seconds = (
-        perf_counter()
-        - total_start
-    )
+    total_seconds = perf_counter() - total_start
 
-    benchmark[
-        "total_seconds"
-    ] = total_seconds
+    benchmark["total_seconds"] = total_seconds
 
     OUTPUT_PATH.parent.mkdir(
         parents=True,
@@ -399,8 +317,7 @@ def main():
     )
 
     print(
-        f"Benchmark sparat: "
-        f"{OUTPUT_PATH}"
+        f"Benchmark sparat: {OUTPUT_PATH}"
     )
 
 
