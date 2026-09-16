@@ -17,10 +17,11 @@
   "price_files": [
     "data/raw/prices/prices_2022-01-01_latest.jsonl",
     "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
-    "data/raw/prices/prices_2026-03-19_latest.jsonl"
+    "data/raw/prices/prices_2026-03-19_latest.jsonl",
+    "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
   ],
-  "rows": 119560,
-  "symbols": 213,
+  "rows": 119639,
+  "symbols": 214,
   "fi_period": {
     "start": "2022-05-25",
     "end": "2026-09-11"
@@ -39,26 +40,26 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 119560,
+      "matched_rows": 119639,
       "same_day": 117311,
       "one_day": 1154,
       "two_days": 625,
       "three_days": 340,
       "four_to_five_days": 130,
-      "more_than_five_days": 0,
-      "more_than_ten_days": 0,
-      "max_calendar_days": 5,
+      "more_than_five_days": 79,
+      "more_than_ten_days": 79,
+      "max_calendar_days": 181,
       "median_calendar_days": 0.0
     },
     "first_price_problem": {
       "status": "WARN",
-      "fi_rows_before_first_price": 2,
+      "fi_rows_before_first_price": 81,
       "symbols_without_price_history": 0,
       "rows_without_price_history": 0
     },
     "mapping_integrity": {
       "status": "PASS",
-      "feature_symbols": 213,
+      "feature_symbols": 214,
       "mapping_symbols": 289,
       "unknown_yahoo_symbols": [],
       "rows_with_unknown_symbols": 0
@@ -66,7 +67,7 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 119560
+        "isin": 119639
       },
       "unexpected_sources": []
     },
@@ -91,25 +92,25 @@
       "windows": {
         "forward_return_1d": {
           "non_null": 119560,
-          "null": 0,
+          "null": 79,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 118930,
-          "null": 630,
+          "non_null": 119182,
+          "null": 457,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 116942,
-          "null": 2618,
+          "non_null": 117079,
+          "null": 2560,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 111190,
-          "null": 8370,
+          "non_null": 111462,
+          "null": 8177,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -126,8 +127,8 @@
     },
     "unmatched_rows": {
       "status": "PASS",
-      "total_rows": 119560,
-      "rows_with_price": 119560,
+      "total_rows": 119639,
+      "rows_with_price": 119639,
       "rows_without_price": 0,
       "symbols_without_price": 0
     },

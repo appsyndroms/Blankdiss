@@ -17,6 +17,8 @@
 {"security_key": "ISIN:DK0060952240", "snapshot_date": "2026-06-03", "event_type": "peak", "short_interest_pct": 1.53, "prominence_pct": 0.5}
 {"security_key": "ISIN:DK0060952240", "snapshot_date": "2026-09-08", "event_type": "trough", "short_interest_pct": 0.5, "prominence_pct": 1.03}
 {"security_key": "ISIN:FI4000297767", "snapshot_date": "2023-03-14", "event_type": "trough", "short_interest_pct": 0.5, "prominence_pct": 0.32000000000000006}
+{"security_key": "ISIN:GB00BVMN1558", "snapshot_date": "2026-05-04", "event_type": "peak", "short_interest_pct": 1.21, "prominence_pct": 0.71}
+{"security_key": "ISIN:GB00BVMN1558", "snapshot_date": "2026-06-12", "event_type": "trough", "short_interest_pct": 0.59, "prominence_pct": 0.62}
 {"security_key": "ISIN:SE0000106270", "snapshot_date": "2022-05-27", "event_type": "trough", "short_interest_pct": 1.9300000000000002, "prominence_pct": 0.5}
 {"security_key": "ISIN:SE0000106270", "snapshot_date": "2022-06-30", "event_type": "peak", "short_interest_pct": 2.2800000000000002, "prominence_pct": 0.9400000000000002}
 {"security_key": "ISIN:SE0000106270", "snapshot_date": "2022-08-04", "event_type": "peak", "short_interest_pct": 2.75, "prominence_pct": 1.41}

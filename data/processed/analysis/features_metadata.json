@@ -1,5 +1,5 @@
 {
-  "feature_rows": 119560,
+  "feature_rows": 119639,
   "columns": [
     "snapshot_date",
     "issuer",
@@ -72,19 +72,21 @@
   "price_files": [
     "prices_2022-01-01_latest.jsonl",
     "prices_2022-05-25_2026-09-12.jsonl",
-    "prices_2026-03-19_latest.jsonl"
+    "prices_2026-03-19_latest.jsonl",
+    "prices_2026-09-15_2026-09-15.jsonl"
   ],
-  "price_file_count": 3,
+  "price_file_count": 4,
   "price_file_paths": [
     "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2022-01-01_latest.jsonl",
     "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
-    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2026-03-19_latest.jsonl"
+    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2026-03-19_latest.jsonl",
+    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
   ],
   "stats": {
     "fi_rows": 202240,
-    "matched_rows": 119560,
-    "unmatched_rows": 82680,
-    "matched_by_isin": 119560,
+    "matched_rows": 119639,
+    "unmatched_rows": 82601,
+    "matched_by_isin": 119639,
     "matched_by_issuer": 0,
     "full_rebuild": 1
   }
