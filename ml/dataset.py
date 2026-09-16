@@ -11,6 +11,7 @@ from ml.config import (
     FEATURES_GLOB,
     FEATURE_EXCLUDE_COLUMNS,
     FI_ONLY_EXCLUDE_COLUMNS,
+    PRICE_FEATURE_COLUMNS,
     TargetConfig,
 )
 
@@ -183,42 +184,45 @@ def get_feature_columns(
     return columns
 
 
-def prepare_ml_data(
+def prepare_feature_set(
     frame: pd.DataFrame,
-    target: TargetConfig,
     include_price_features: bool,
 ) -> tuple[
     pd.DataFrame,
-    pd.Series,
     list[str],
 ]:
-    target_values = build_target(
-        frame,
-        target,
-    )
+    """
+    Förbered en feature-set en gång.
 
+    Resultatet kan återanvändas av flera targets. Target-specifika
+    rader filtreras först när prepare_ml_data_from_feature_set()
+    anropas.
+    """
     feature_columns = get_feature_columns(
         frame,
         include_price_features,
     )
 
+    required_columns = [
+        "snapshot_date",
+        "security_key",
+        "forward_return_1d",
+        "forward_return_5d",
+        "forward_return_20d",
+        "forward_return_60d",
+        "min_return_5d",
+        "max_return_5d",
+    ]
+
+    available_required_columns = [
+        column
+        for column in required_columns
+        if column in frame.columns
+    ]
+
     data = frame[
-        [
-            "snapshot_date",
-            "security_key",
-            target.return_column,
-        ]
+        available_required_columns
         + feature_columns
-    ].copy()
-
-    valid_target = target_values.notna()
-
-    data = data.loc[
-        valid_target
-    ].copy()
-
-    target_values = target_values.loc[
-        valid_target
     ].copy()
 
     data = data.replace(
@@ -248,21 +252,66 @@ def prepare_ml_data(
             if column not in all_missing
         ]
 
+        data = data[
+            available_required_columns
+            + feature_columns
+        ].copy()
+
     if not feature_columns:
         raise ValueError(
             "Alla ML-features saknar "
             "observerade värden."
         )
 
-    data = data[
+    return (
+        data,
+        feature_columns,
+    )
+
+
+def prepare_ml_data_from_feature_set(
+    feature_set_data: pd.DataFrame,
+    feature_columns: list[str],
+    target: TargetConfig,
+) -> tuple[
+    pd.DataFrame,
+    pd.Series,
+    list[str],
+]:
+    """
+    Bygg target-specifikt ML-dataset från en redan preparerad
+    feature-set.
+
+    Feature-kolumnerna och grundläggande numerisk QC återanvänds
+    från feature-set-cachen.
+    """
+    target_values = build_target(
+        feature_set_data,
+        target,
+    )
+
+    if target.return_column not in feature_set_data.columns:
+        raise ValueError(
+            "Saknar return-kolumn: "
+            f"{target.return_column}"
+        )
+
+    valid_target = target_values.notna()
+
+    data = feature_set_data.loc[
+        valid_target,
         [
             "snapshot_date",
             "security_key",
         ]
         + feature_columns
         + [
-            target.return_column
-        ]
+            target.return_column,
+        ],
+    ].copy()
+
+    target_values = target_values.loc[
+        valid_target
     ].copy()
 
     data["target_return"] = pd.to_numeric(
@@ -285,6 +334,37 @@ def prepare_ml_data(
         data,
         y,
         feature_columns,
+    )
+
+
+def prepare_ml_data(
+    frame: pd.DataFrame,
+    target: TargetConfig,
+    include_price_features: bool,
+) -> tuple[
+    pd.DataFrame,
+    pd.Series,
+    list[str],
+]:
+    """
+    Bakåtkompatibel wrapper.
+
+    Nya anrop bör använda prepare_feature_set() och
+    prepare_ml_data_from_feature_set() när flera targets delar
+    samma feature-set.
+    """
+    (
+        feature_set_data,
+        feature_columns,
+    ) = prepare_feature_set(
+        frame,
+        include_price_features,
+    )
+
+    return prepare_ml_data_from_feature_set(
+        feature_set_data,
+        feature_columns,
+        target,
     )
 
 
