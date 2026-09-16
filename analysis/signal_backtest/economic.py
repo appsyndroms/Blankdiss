@@ -1,16 +1,16 @@
 """Ekonomiskt backtest av Blankdiss OOS-signaler."""
 from __future__ import annotations
-
 from typing import Any
-
 import pandas as pd
-
 from analysis.signal_backtest.config import (
     ECONOMIC_BACKTEST_FRACTIONS,
     ECONOMIC_MAX_POSITION_WEIGHT,
     ECONOMIC_REBALANCE_DAYS,
     ECONOMIC_REBALANCE_DAYS_SENSITIVITY,
     ECONOMIC_TRANSACTION_COST_BPS,
+)
+from analysis.signal_backtest.ml_adapter import (
+    load_and_prepare_economic_predictions,
 )
 from analysis.signal_backtest.robustness import (
     build_random_security_sensitivity,
@@ -24,62 +24,54 @@ from analysis.signal_backtest.strategy import (
     build_strategy,
     build_yearly_results,
 )
-
-
 def clean_predictions(
     predictions: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Validera och normalisera OOS-prediktioner."""
+    """Validera och normalisera ekonomiska OOS-prediktioner."""
     required = {
         "snapshot_date",
         "security_key",
         "target_return",
-        "probability",
+        "score",
+        "economic_direction",
     }
-
-    missing = required - set(predictions.columns)
-
+    missing = required - set(
+        predictions.columns
+    )
     if missing:
         raise ValueError(
             "Ekonomiskt backtest saknar kolumner: "
             + ", ".join(sorted(missing))
         )
-
     clean = predictions.copy()
-
     clean["snapshot_date"] = pd.to_datetime(
         clean["snapshot_date"],
         errors="coerce",
     )
-
     clean["target_return"] = pd.to_numeric(
         clean["target_return"],
         errors="coerce",
     )
-
-    clean["probability"] = pd.to_numeric(
-        clean["probability"],
+    clean["score"] = pd.to_numeric(
+        clean["score"],
         errors="coerce",
     )
-
     clean = clean.dropna(
         subset=[
             "snapshot_date",
             "security_key",
             "target_return",
-            "probability",
+            "score",
         ]
     )
-
     clean["security_key"] = (
         clean["security_key"]
         .astype(str)
     )
-
     return clean.sort_values(
         [
             "snapshot_date",
-            "probability",
+            "score",
             "security_key",
         ],
         ascending=[
@@ -89,57 +81,27 @@ def clean_predictions(
         ],
         kind="mergesort",
     ).reset_index(drop=True)
-
-
-def run_economic_backtest(
+def _run_single_experiment(
     predictions: pd.DataFrame,
     target_name: str,
+    direction: str,
+    feature_set: str,
+    task: str,
+    model: str | None,
 ) -> dict[str, Any]:
-    """
-    Kör ett OOS-ekonomiskt backtest.
-
-    För short-strategier används -target_return.
-
-    Borrow cost, locate constraints, borrow availability
-    och faktisk short execution modelleras ännu inte.
-
-    Rebalance-sensitiviteten ändrar inte targetens längd.
-    Targeten är fortfarande 5 dagar.
-
-    Koncentrationsanalysen körs på 1 %-urvalet och testar
-    hur känsligt resultatet är för de mest frekvent valda
-    värdepappren.
-
-    Random robustness testar samma 1 %-strategi efter att
-    10 %, 20 % eller 30 % av universums värdepapper slumpmässigt
-    tagits bort.
-    """
+    """Kör hela ekonomiska analysen för ett ML-experiment."""
     clean = clean_predictions(
         predictions
     )
-
     if clean.empty:
         raise ValueError(
             "Ekonomiskt backtest fick "
             "inga giltiga OOS-prediktioner."
         )
-
-    direction = (
-        "short"
-        if target_name.startswith(
-            "down_"
-        )
-        else "long"
-    )
-
-    # 10 bps används som huvudscenario för jämförbarhet
-    # med tidigare körningar.
     primary_transaction_cost_bps = 10.0
-
     strategies: list[
         dict[str, Any]
     ] = []
-
     for fraction in ECONOMIC_BACKTEST_FRACTIONS:
         primary = build_strategy(
             clean,
@@ -148,7 +110,6 @@ def run_economic_backtest(
             primary_transaction_cost_bps,
             ECONOMIC_REBALANCE_DAYS,
         )
-
         yearly = build_yearly_results(
             clean,
             fraction,
@@ -156,7 +117,6 @@ def run_economic_backtest(
             primary_transaction_cost_bps,
             ECONOMIC_REBALANCE_DAYS,
         )
-
         cost_sensitivity = (
             build_cost_sensitivity(
                 clean,
@@ -165,7 +125,6 @@ def run_economic_backtest(
                 ECONOMIC_REBALANCE_DAYS,
             )
         )
-
         rebalance_sensitivity = (
             build_rebalance_sensitivity(
                 clean,
@@ -174,21 +133,16 @@ def run_economic_backtest(
                 primary_transaction_cost_bps,
             )
         )
-
         primary["yearly"] = yearly
-
         primary[
             "transaction_cost_sensitivity"
         ] = cost_sensitivity
-
         primary[
             "rebalance_sensitivity"
         ] = rebalance_sensitivity
-
         strategies.append(
             primary
         )
-
     concentration_sensitivity = (
         build_concentration_sensitivity(
             clean,
@@ -203,7 +157,6 @@ def run_economic_backtest(
             top_n=10,
         )
     )
-
     random_security_sensitivity = (
         build_random_security_sensitivity(
             clean,
@@ -218,12 +171,17 @@ def run_economic_backtest(
             ),
         )
     )
-
     return {
+        "feature_set": feature_set,
         "target": target_name,
+        "task": task,
+        "model": model,
         "direction": direction,
+        "economic_direction": (
+            direction
+        ),
         "selection": (
-            "highest predicted probability"
+            "highest economic score"
         ),
         "no_overlapping_periods": True,
         "portfolio_weighting": (
@@ -253,6 +211,19 @@ def run_economic_backtest(
             in ECONOMIC_REBALANCE_DAYS_SENSITIVITY
         ],
         "target_horizon_days": 5,
+        "oos_rows": int(
+            len(clean)
+        ),
+        "oos_start": str(
+            clean["snapshot_date"]
+            .min()
+            .date()
+        ),
+        "oos_end": str(
+            clean["snapshot_date"]
+            .max()
+            .date()
+        ),
         "strategies": strategies,
         "concentration_sensitivity": (
             concentration_sensitivity
@@ -261,3 +232,123 @@ def run_economic_backtest(
             random_security_sensitivity
         ),
     }
+def run_economic_backtest(
+    predictions: pd.DataFrame,
+    target_name: str,
+    direction: str | None = None,
+    feature_set: str | None = None,
+    task: str | None = None,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """
+    Kör ekonomiskt backtest för ett redan filtrerat experiment.
+    """
+    if predictions.empty:
+        raise ValueError(
+            "Ekonomiskt backtest fick inga prediktioner."
+        )
+    if direction is None:
+        direction = str(
+            predictions.iloc[0][
+                "economic_direction"
+            ]
+        )
+    if feature_set is None:
+        feature_set = str(
+            predictions.iloc[0][
+                "feature_set"
+            ]
+        )
+    if task is None:
+        task = str(
+            predictions.iloc[0][
+                "task"
+            ]
+        )
+    if model is None:
+        models = (
+            predictions["model"]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+        model = (
+            models[0]
+            if len(models) == 1
+            else None
+        )
+    return _run_single_experiment(
+        predictions,
+        target_name,
+        direction,
+        feature_set,
+        task,
+        model,
+    )
+def run_all_economic_backtests() -> list[
+    dict[str, Any]
+]:
+    """
+    Kör ekonomiskt backtest för alla experiment i
+    den aktuella OOS-prediktionsfilen.
+    Endast den modell som faktiskt valdes för OOS
+    används.
+    """
+    predictions = (
+        load_and_prepare_economic_predictions()
+    )
+    if predictions.empty:
+        raise ValueError(
+            "OOS-prediktionerna innehåller inga "
+            "giltiga ekonomiska signaler."
+        )
+    experiment_columns = [
+        "feature_set",
+        "target",
+        "task",
+        "economic_direction",
+    ]
+    results: list[
+        dict[str, Any]
+    ] = []
+    grouped = predictions.groupby(
+        experiment_columns,
+        sort=True,
+    )
+    for (
+        feature_set,
+        target,
+        task,
+        economic_direction,
+    ), group in grouped:
+        selected_models = (
+            group["model"]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+        if len(selected_models) != 1:
+            raise ValueError(
+                "Ett ekonomiskt experiment måste "
+                "ha exakt en vald OOS-modell: "
+                f"{feature_set} / {target}. "
+                f"Modeller: {selected_models}"
+            )
+        result = run_economic_backtest(
+            group.copy(),
+            target_name=str(target),
+            direction=str(
+                economic_direction
+            ),
+            feature_set=str(
+                feature_set
+            ),
+            task=str(task),
+            model=selected_models[0],
+        )
+        results.append(
+            result
+        )
+    return results
