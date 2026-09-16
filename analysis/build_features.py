@@ -546,6 +546,21 @@ def attach_prices(
             entry_price
         )
 
+        # Explicita QC-/legacyfält.
+        # Dessa beskriver samma matchning som
+        # price_date/close men gör datasetet
+        # kompatibelt med features_qc.py.
+        result["close_on_signal_date"] = (
+            entry_price
+        )
+
+        result["days_from_fi_to_price"] = (
+            entry["date"]
+            - row.snapshot_date
+        ).days
+
+        result["price_match_available"] = True
+
         result["yahoo_symbol"] = (
             entry["yahoo_symbol"]
         )
@@ -787,6 +802,9 @@ def validate_feature_dataset(
         "max_return_5d",
         "min_return_5d_date",
         "max_return_5d_date",
+        "close_on_signal_date",
+        "days_from_fi_to_price",
+        "price_match_available",
     }
 
     missing = required.difference(
