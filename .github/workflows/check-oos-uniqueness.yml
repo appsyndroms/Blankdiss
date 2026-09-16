@@ -1,0 +1,172 @@
+name: Check OOS uniqueness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check:
+    name: Kontrollera OOS-dubbletter
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download latest OOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blankdiss-analysis-data-*
+          path: artifacts
+          merge-multiple: true
+          github-token: ${{ github.token }}
+
+      - name: Locate OOS file
+        run: |
+          set -e
+
+          echo "Söker efter oos_predictions.jsonl..."
+
+          find artifacts -name "oos_predictions.jsonl" -type f -print
+
+          OOS_FILE="$(find artifacts -name "oos_predictions.jsonl" -type f -print -quit)"
+
+          if [ -z "$OOS_FILE" ]; then
+            echo "Hittade ingen oos_predictions.jsonl."
+            exit 1
+          fi
+
+          echo "OOS_FILE=$OOS_FILE" >> "$GITHUB_ENV"
+
+          ls -lh "$OOS_FILE"
+
+      - name: Check OOS uniqueness
+        run: |
+          python - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+
+          path = Path("${{ env.OOS_FILE }}")
+
+          total_rows = 0
+          unique_keys = set()
+          counts = defaultdict(int)
+
+          invalid_rows = 0
+
+          with path.open("r", encoding="utf-8") as f:
+              for line_number, line in enumerate(f, start=1):
+                  line = line.strip()
+
+                  if not line:
+                      continue
+
+                  try:
+                      row = json.loads(line)
+                  except json.JSONDecodeError:
+                      invalid_rows += 1
+                      continue
+
+                  total_rows += 1
+
+                  feature_set = row.get("feature_set")
+                  target = row.get("target")
+                  window = row.get("window")
+                  snapshot_date = row.get("snapshot_date")
+                  security_key = row.get("security_key")
+
+                  # window är normalt en dict.
+                  # JSON med sort_keys=True ger en stabil representation.
+                  window_key = json.dumps(
+                      window,
+                      sort_keys=True,
+                      ensure_ascii=False,
+                      separators=(",", ":"),
+                  )
+
+                  key = (
+                      feature_set,
+                      target,
+                      window_key,
+                      snapshot_date,
+                      security_key,
+                  )
+
+                  unique_keys.add(key)
+                  counts[key] += 1
+
+          duplicate_groups = sum(
+              1 for count in counts.values()
+              if count > 1
+          )
+
+          duplicate_rows = sum(
+              count - 1
+              for count in counts.values()
+              if count > 1
+          )
+
+          max_multiplicity = max(
+              counts.values(),
+              default=0,
+          )
+
+          print()
+          print("==========================================")
+          print("OOS UNIQUENESS CHECK")
+          print("==========================================")
+          print(f"OOS rows:          {total_rows:,}")
+          print(f"Unique keys:       {len(unique_keys):,}")
+          print(f"Duplicate rows:    {duplicate_rows:,}")
+          print(f"Duplicate groups:  {duplicate_groups:,}")
+          print(f"Max multiplicity:  {max_multiplicity}")
+          print(f"Invalid JSON rows: {invalid_rows:,}")
+          print("==========================================")
+          print()
+
+          if duplicate_groups:
+              print("Exempel på dubblettgrupper:")
+              print("------------------------------------------")
+
+              shown = 0
+
+              for key, count in counts.items():
+                  if count <= 1:
+                      continue
+
+                  feature_set, target, window_key, date, security = key
+
+                  print(
+                      f"count={count} | "
+                      f"feature_set={feature_set} | "
+                      f"target={target} | "
+                      f"date={date} | "
+                      f"security={security}"
+                  )
+                  print(f"window={window_key}")
+
+                  shown += 1
+
+                  if shown >= 10:
+                      break
+
+              print("------------------------------------------")
+          else:
+              print("Inga exakta dubblettgrupper hittades.")
+
+          if invalid_rows:
+              raise SystemExit(
+                  f"{invalid_rows} rader kunde inte parsas som JSON."
+              )
+          PY
