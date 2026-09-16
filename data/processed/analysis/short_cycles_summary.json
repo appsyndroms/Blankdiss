@@ -5,7 +5,7 @@
   "min_cycle_prominence_pct": 0.25,
   "min_days_between_events": 30,
   "cycle_lookback_days": 180,
-  "companies_with_cycles": 143,
+  "companies_with_cycles": 189,
   "companies": [
     {
       "security_key": "ISIN:SE0009554454",
@@ -13,6 +13,22 @@
       "peaks": 32,
       "troughs": 16,
       "first_event": "2022-05-30",
+      "last_event": "2026-08-04"
+    },
+    {
+      "security_key": "ISIN:SE0018040677",
+      "cycle_events": 46,
+      "peaks": 20,
+      "troughs": 26,
+      "first_event": "2022-06-08",
+      "last_event": "2026-08-13"
+    },
+    {
+      "security_key": "ISIN:SE0016589188",
+      "cycle_events": 45,
+      "peaks": 23,
+      "troughs": 22,
+      "first_event": "2022-06-03",
       "last_event": "2026-08-04"
     },
     {
@@ -32,12 +48,28 @@
       "last_event": "2026-08-24"
     },
     {
+      "security_key": "ISIN:SE0000108227",
+      "cycle_events": 42,
+      "peaks": 26,
+      "troughs": 16,
+      "first_event": "2022-06-01",
+      "last_event": "2026-09-03"
+    },
+    {
       "security_key": "ISIN:SE0000163594",
       "cycle_events": 40,
       "peaks": 14,
       "troughs": 26,
       "first_event": "2022-06-02",
       "last_event": "2026-07-27"
+    },
+    {
+      "security_key": "ISIN:SE0016101844",
+      "cycle_events": 40,
+      "peaks": 21,
+      "troughs": 19,
+      "first_event": "2022-06-02",
+      "last_event": "2026-08-11"
     },
     {
       "security_key": "ISIN:SE0016787071",
@@ -80,6 +112,14 @@
       "last_event": "2026-08-13"
     },
     {
+      "security_key": "ISIN:SE0012454072",
+      "cycle_events": 35,
+      "peaks": 16,
+      "troughs": 19,
+      "first_event": "2022-05-30",
+      "last_event": "2026-06-30"
+    },
+    {
       "security_key": "ISIN:SE0000936478",
       "cycle_events": 33,
       "peaks": 21,
@@ -112,12 +152,28 @@
       "last_event": "2026-07-31"
     },
     {
+      "security_key": "ISIN:SE0015988019",
+      "cycle_events": 29,
+      "peaks": 19,
+      "troughs": 10,
+      "first_event": "2023-01-30",
+      "last_event": "2026-08-06"
+    },
+    {
       "security_key": "ISIN:SE0000379190",
       "cycle_events": 28,
       "peaks": 17,
       "troughs": 11,
       "first_event": "2022-09-30",
       "last_event": "2026-08-19"
+    },
+    {
+      "security_key": "ISIN:SE0016828511",
+      "cycle_events": 27,
+      "peaks": 10,
+      "troughs": 17,
+      "first_event": "2022-07-08",
+      "last_event": "2025-01-02"
     },
     {
       "security_key": "ISIN:SE0007691613",
@@ -152,6 +208,14 @@
       "last_event": "2026-08-26"
     },
     {
+      "security_key": "ISIN:SE0008374250",
+      "cycle_events": 23,
+      "peaks": 15,
+      "troughs": 8,
+      "first_event": "2022-07-18",
+      "last_event": "2025-02-04"
+    },
+    {
       "security_key": "ISIN:SE0009268279",
       "cycle_events": 22,
       "peaks": 15,
@@ -174,6 +238,14 @@
       "troughs": 12,
       "first_event": "2023-01-27",
       "last_event": "2026-08-26"
+    },
+    {
+      "security_key": "ISIN:SE0011166974",
+      "cycle_events": 21,
+      "peaks": 9,
+      "troughs": 12,
+      "first_event": "2022-12-13",
+      "last_event": "2026-05-27"
     },
     {
       "security_key": "ISIN:SE0006422390",
@@ -256,6 +328,14 @@
       "last_event": "2024-11-07"
     },
     {
+      "security_key": "ISIN:SE0023615885",
+      "cycle_events": 18,
+      "peaks": 9,
+      "troughs": 9,
+      "first_event": "2025-01-27",
+      "last_event": "2026-09-01"
+    },
+    {
       "security_key": "ISIN:SE0000667925",
       "cycle_events": 17,
       "peaks": 9,
@@ -288,6 +368,14 @@
       "last_event": "2024-02-23"
     },
     {
+      "security_key": "ISIN:SE0017483506",
+      "cycle_events": 17,
+      "peaks": 16,
+      "troughs": 1,
+      "first_event": "2022-09-16",
+      "last_event": "2026-07-14"
+    },
+    {
       "security_key": "ISIN:SE0005190238",
       "cycle_events": 16,
       "peaks": 7,
@@ -302,6 +390,14 @@
       "troughs": 6,
       "first_event": "2022-12-30",
       "last_event": "2026-04-13"
+    },
+    {
+      "security_key": "ISIN:SE0011090018",
+      "cycle_events": 16,
+      "peaks": 9,
+      "troughs": 7,
+      "first_event": "2022-10-13",
+      "last_event": "2026-08-06"
     },
     {
       "security_key": "ISIN:SE0013647385",
@@ -326,6 +422,14 @@
       "troughs": 11,
       "first_event": "2023-03-10",
       "last_event": "2026-09-01"
+    },
+    {
+      "security_key": "ISIN:SE0021628898",
+      "cycle_events": 16,
+      "peaks": 10,
+      "troughs": 6,
+      "first_event": "2024-04-19",
+      "last_event": "2026-09-03"
     },
     {
       "security_key": "ISIN:SE0000108656",
@@ -360,6 +464,22 @@
       "last_event": "2026-03-30"
     },
     {
+      "security_key": "ISIN:SE0020050417",
+      "cycle_events": 15,
+      "peaks": 9,
+      "troughs": 6,
+      "first_event": "2024-07-19",
+      "last_event": "2026-07-23"
+    },
+    {
+      "security_key": "ISIN:SE0020356970",
+      "cycle_events": 15,
+      "peaks": 11,
+      "troughs": 4,
+      "first_event": "2023-10-16",
+      "last_event": "2026-08-21"
+    },
+    {
       "security_key": "ISIN:SE0000113250",
       "cycle_events": 14,
       "peaks": 9,
@@ -382,6 +502,14 @@
       "troughs": 3,
       "first_event": "2025-05-14",
       "last_event": "2026-08-04"
+    },
+    {
+      "security_key": "ISIN:SE0022060521",
+      "cycle_events": 14,
+      "peaks": 8,
+      "troughs": 6,
+      "first_event": "2024-06-12",
+      "last_event": "2026-08-13"
     },
     {
       "security_key": "ISIN:SE0017615644",
@@ -430,6 +558,14 @@
       "troughs": 3,
       "first_event": "2022-10-05",
       "last_event": "2026-07-24"
+    },
+    {
+      "security_key": "ISIN:SE0000171100",
+      "cycle_events": 10,
+      "peaks": 7,
+      "troughs": 3,
+      "first_event": "2024-10-24",
+      "last_event": "2026-07-13"
     },
     {
       "security_key": "ISIN:SE0000736415",
@@ -488,6 +624,14 @@
       "last_event": "2026-03-05"
     },
     {
+      "security_key": "ISIN:SE0017832488",
+      "cycle_events": 10,
+      "peaks": 5,
+      "troughs": 5,
+      "first_event": "2023-09-05",
+      "last_event": "2026-08-18"
+    },
+    {
       "security_key": "ISIN:SE0000112385",
       "cycle_events": 9,
       "peaks": 6,
@@ -502,6 +646,14 @@
       "troughs": 3,
       "first_event": "2025-05-06",
       "last_event": "2026-08-10"
+    },
+    {
+      "security_key": "ISIN:SE0003366871",
+      "cycle_events": 9,
+      "peaks": 5,
+      "troughs": 4,
+      "first_event": "2022-06-27",
+      "last_event": "2023-10-09"
     },
     {
       "security_key": "ISIN:SE0014428835",
@@ -536,12 +688,28 @@
       "last_event": "2026-06-15"
     },
     {
+      "security_key": "ISIN:SE0014960431",
+      "cycle_events": 8,
+      "peaks": 4,
+      "troughs": 4,
+      "first_event": "2022-12-07",
+      "last_event": "2024-12-11"
+    },
+    {
       "security_key": "ISIN:SE0015949201",
       "cycle_events": 8,
       "peaks": 8,
       "troughs": 0,
       "first_event": "2025-09-29",
       "last_event": "2026-07-03"
+    },
+    {
+      "security_key": "ISIN:SE0017161243",
+      "cycle_events": 8,
+      "peaks": 5,
+      "troughs": 3,
+      "first_event": "2023-10-23",
+      "last_event": "2025-03-10"
     },
     {
       "security_key": "ISIN:SE0006220018",
@@ -560,6 +728,14 @@
       "last_event": "2026-06-25"
     },
     {
+      "security_key": "ISIN:SE0010714287",
+      "cycle_events": 7,
+      "peaks": 6,
+      "troughs": 1,
+      "first_event": "2023-09-22",
+      "last_event": "2026-08-11"
+    },
+    {
       "security_key": "ISIN:SE0011337708",
       "cycle_events": 7,
       "peaks": 4,
@@ -576,6 +752,14 @@
       "last_event": "2026-09-08"
     },
     {
+      "security_key": "ISIN:SE0024173637",
+      "cycle_events": 7,
+      "peaks": 4,
+      "troughs": 3,
+      "first_event": "2025-11-11",
+      "last_event": "2026-09-03"
+    },
+    {
       "security_key": "ISIN:CA46016U1084",
       "cycle_events": 6,
       "peaks": 4,
@@ -590,6 +774,14 @@
       "troughs": 2,
       "first_event": "2022-08-24",
       "last_event": "2024-10-01"
+    },
+    {
+      "security_key": "ISIN:SE0003917798",
+      "cycle_events": 6,
+      "peaks": 3,
+      "troughs": 3,
+      "first_event": "2026-03-25",
+      "last_event": "2026-09-07"
     },
     {
       "security_key": "ISIN:SE0007158829",
@@ -640,6 +832,22 @@
       "last_event": "2026-01-22"
     },
     {
+      "security_key": "ISIN:SE0021921269",
+      "cycle_events": 6,
+      "peaks": 2,
+      "troughs": 4,
+      "first_event": "2024-05-31",
+      "last_event": "2024-11-25"
+    },
+    {
+      "security_key": "ISIN:SE0000171886",
+      "cycle_events": 5,
+      "peaks": 3,
+      "troughs": 2,
+      "first_event": "2026-02-17",
+      "last_event": "2026-08-19"
+    },
+    {
       "security_key": "ISIN:SE0016829709",
       "cycle_events": 5,
       "peaks": 3,
@@ -664,6 +872,22 @@
       "last_event": "2026-07-07"
     },
     {
+      "security_key": "ISIN:SE0000108649",
+      "cycle_events": 4,
+      "peaks": 2,
+      "troughs": 2,
+      "first_event": "2023-12-05",
+      "last_event": "2024-05-27"
+    },
+    {
+      "security_key": "ISIN:SE0000382335",
+      "cycle_events": 4,
+      "peaks": 1,
+      "troughs": 3,
+      "first_event": "2022-06-08",
+      "last_event": "2022-09-27"
+    },
+    {
       "security_key": "ISIN:SE0001664707",
       "cycle_events": 4,
       "peaks": 2,
@@ -686,6 +910,14 @@
       "troughs": 2,
       "first_event": "2026-01-05",
       "last_event": "2026-05-11"
+    },
+    {
+      "security_key": "ISIN:SE0007871645",
+      "cycle_events": 4,
+      "peaks": 2,
+      "troughs": 2,
+      "first_event": "2022-07-05",
+      "last_event": "2023-03-29"
     },
     {
       "security_key": "ISIN:SE0008091581",
@@ -808,6 +1040,14 @@
       "last_event": "2026-06-08"
     },
     {
+      "security_key": "ISIN:SE0007665823",
+      "cycle_events": 3,
+      "peaks": 1,
+      "troughs": 2,
+      "first_event": "2023-04-26",
+      "last_event": "2023-07-21"
+    },
+    {
       "security_key": "ISIN:SE0009697220",
       "cycle_events": 3,
       "peaks": 2,
@@ -824,12 +1064,36 @@
       "last_event": "2026-06-01"
     },
     {
+      "security_key": "ISIN:SE0011844091",
+      "cycle_events": 3,
+      "peaks": 2,
+      "troughs": 1,
+      "first_event": "2023-06-13",
+      "last_event": "2025-01-10"
+    },
+    {
+      "security_key": "ISIN:SE0015812417",
+      "cycle_events": 3,
+      "peaks": 2,
+      "troughs": 1,
+      "first_event": "2024-03-22",
+      "last_event": "2025-01-03"
+    },
+    {
       "security_key": "ISIN:SE0015962485",
       "cycle_events": 3,
       "peaks": 2,
       "troughs": 1,
       "first_event": "2026-02-17",
       "last_event": "2026-04-28"
+    },
+    {
+      "security_key": "ISIN:SE0016075063",
+      "cycle_events": 3,
+      "peaks": 1,
+      "troughs": 2,
+      "first_event": "2025-10-03",
+      "last_event": "2026-03-06"
     },
     {
       "security_key": "ISIN:SE0016609846",
@@ -846,6 +1110,14 @@
       "troughs": 1,
       "first_event": "2026-04-16",
       "last_event": "2026-08-07"
+    },
+    {
+      "security_key": "ISIN:SE0018012494",
+      "cycle_events": 3,
+      "peaks": 3,
+      "troughs": 0,
+      "first_event": "2022-06-30",
+      "last_event": "2026-08-20"
     },
     {
       "security_key": "ISIN:SE0018538068",
@@ -888,12 +1160,28 @@
       "last_event": "2026-06-12"
     },
     {
+      "security_key": "ISIN:SE0000117970",
+      "cycle_events": 2,
+      "peaks": 2,
+      "troughs": 0,
+      "first_event": "2022-10-17",
+      "last_event": "2024-05-06"
+    },
+    {
       "security_key": "ISIN:SE0000412371",
       "cycle_events": 2,
       "peaks": 1,
       "troughs": 1,
       "first_event": "2022-06-13",
       "last_event": "2022-07-21"
+    },
+    {
+      "security_key": "ISIN:SE0001174970",
+      "cycle_events": 2,
+      "peaks": 0,
+      "troughs": 2,
+      "first_event": "2022-05-30",
+      "last_event": "2022-06-29"
     },
     {
       "security_key": "ISIN:SE0002480442",
@@ -926,6 +1214,14 @@
       "troughs": 1,
       "first_event": "2026-01-30",
       "last_event": "2026-03-20"
+    },
+    {
+      "security_key": "ISIN:SE0008374383",
+      "cycle_events": 2,
+      "peaks": 1,
+      "troughs": 1,
+      "first_event": "2022-12-28",
+      "last_event": "2023-08-08"
     },
     {
       "security_key": "ISIN:SE0010573113",
@@ -992,6 +1288,22 @@
       "last_event": "2026-07-14"
     },
     {
+      "security_key": "ISIN:SE0025940513",
+      "cycle_events": 2,
+      "peaks": 0,
+      "troughs": 2,
+      "first_event": "2026-03-06",
+      "last_event": "2026-08-27"
+    },
+    {
+      "security_key": "ISIN:SE0026141665",
+      "cycle_events": 2,
+      "peaks": 1,
+      "troughs": 1,
+      "first_event": "2025-11-20",
+      "last_event": "2026-04-23"
+    },
+    {
       "security_key": "ISIN:FI4000297767",
       "cycle_events": 1,
       "peaks": 0,
@@ -1030,6 +1342,14 @@
       "troughs": 0,
       "first_event": "2026-02-25",
       "last_event": "2026-02-25"
+    },
+    {
+      "security_key": "ISIN:SE0001296542",
+      "cycle_events": 1,
+      "peaks": 1,
+      "troughs": 0,
+      "first_event": "2024-02-19",
+      "last_event": "2024-02-19"
     },
     {
       "security_key": "ISIN:SE0001515552",
@@ -1080,6 +1400,14 @@
       "last_event": "2023-03-15"
     },
     {
+      "security_key": "ISIN:SE0008966295",
+      "cycle_events": 1,
+      "peaks": 1,
+      "troughs": 0,
+      "first_event": "2024-05-24",
+      "last_event": "2024-05-24"
+    },
+    {
       "security_key": "ISIN:SE0010048884",
       "cycle_events": 1,
       "peaks": 1,
@@ -1104,12 +1432,28 @@
       "last_event": "2026-07-28"
     },
     {
+      "security_key": "ISIN:SE0015672282",
+      "cycle_events": 1,
+      "peaks": 0,
+      "troughs": 1,
+      "first_event": "2022-05-30",
+      "last_event": "2022-05-30"
+    },
+    {
       "security_key": "ISIN:SE0015812516",
       "cycle_events": 1,
       "peaks": 1,
       "troughs": 0,
       "first_event": "2023-05-30",
       "last_event": "2023-05-30"
+    },
+    {
+      "security_key": "ISIN:SE0015961909",
+      "cycle_events": 1,
+      "peaks": 1,
+      "troughs": 0,
+      "first_event": "2026-07-17",
+      "last_event": "2026-07-17"
     },
     {
       "security_key": "ISIN:SE0016278154",
@@ -1128,12 +1472,36 @@
       "last_event": "2025-09-05"
     },
     {
+      "security_key": "ISIN:SE0017083983",
+      "cycle_events": 1,
+      "peaks": 1,
+      "troughs": 0,
+      "first_event": "2024-02-12",
+      "last_event": "2024-02-12"
+    },
+    {
+      "security_key": "ISIN:SE0017885379",
+      "cycle_events": 1,
+      "peaks": 1,
+      "troughs": 0,
+      "first_event": "2025-07-22",
+      "last_event": "2025-07-22"
+    },
+    {
       "security_key": "ISIN:SE0018014243",
       "cycle_events": 1,
       "peaks": 1,
       "troughs": 0,
       "first_event": "2025-09-23",
       "last_event": "2025-09-23"
+    },
+    {
+      "security_key": "ISIN:SE0020353928",
+      "cycle_events": 1,
+      "peaks": 1,
+      "troughs": 0,
+      "first_event": "2024-06-07",
+      "last_event": "2024-06-07"
     },
     {
       "security_key": "ISIN:SE0023615638",

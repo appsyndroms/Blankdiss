@@ -1,28 +1,23 @@
 {
+  "dataset": "Blankdiss canonical FI + price feature dataset",
   "source": {
     "fi_file": "data/processed/fi/aggregate/reconstructed.jsonl",
-    "price_file": "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
+    "price_files": [
+      "data/raw/prices/prices_2022-01-01_latest.jsonl",
+      "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
+      "data/raw/prices/prices_2026-03-19_latest.jsonl",
+      "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
+    ]
   },
   "fi_rows": 202240,
-  "price_rows": 289,
-  "feature_rows": 119639,
+  "price_rows": 324306,
+  "feature_rows": 202240,
   "matched_fi_rows": 119639,
   "unmatched_fi_rows": 82601,
+  "matched_by_isin": 119639,
+  "matched_by_issuer": 0,
   "security_keys_fi": 329,
   "security_keys_prices": 289,
-  "return_horizons_trading_days": [
-    1,
-    5,
-    20,
-    60
-  ],
-  "severity_horizon_trading_days": 5,
-  "entry_price_rule": "first available trading-day close on or after FI snapshot date",
-  "forward_return_rule": "close at Nth subsequent trading day divided by entry close minus 1",
-  "min_return_5d_rule": "minimum close-to-entry return across trading days 1 through 5",
-  "max_return_5d_rule": "maximum close-to-entry return across trading days 1 through 5",
-  "identity_rule": "ISIN first; exact normalized issuer fallback only when ISIN is absent",
-  "missing_fi_observation_rule": "not interpreted as zero",
   "feature_columns": [
     "snapshot_date",
     "issuer",
@@ -46,34 +41,171 @@
     "concentration_delta_pp",
     "short_interest_relative_change",
     "short_interest_acceleration_pp",
-    "short_interest_ge_1pp",
-    "entered_ge_1pp",
-    "exited_below_1pp",
-    "short_interest_ge_2pp",
-    "entered_ge_2pp",
-    "exited_below_2pp",
-    "short_interest_ge_3pp",
-    "entered_ge_3pp",
-    "exited_below_3pp",
-    "short_interest_ge_5pp",
-    "entered_ge_5pp",
-    "exited_below_5pp",
+    "above_1_0pct",
+    "entered_above_1_0pct",
+    "exited_below_1_0pct",
+    "above_2_0pct",
+    "entered_above_2_0pct",
+    "exited_below_2_0pct",
+    "above_3_0pct",
+    "entered_above_3_0pct",
+    "exited_below_3_0pct",
+    "above_5_0pct",
+    "entered_above_5_0pct",
+    "exited_below_5_0pct",
     "new_visible_observation",
     "price_date",
     "close",
+    "close_on_signal_date",
+    "days_from_fi_to_price",
+    "price_match_available",
     "yahoo_symbol",
     "price_mapping_source",
+    "price_return_5d",
+    "price_return_20d",
+    "price_return_60d",
+    "price_volatility_20d",
+    "price_distance_from_20d_high",
+    "price_distance_from_60d_high",
+    "min_return_5d",
+    "max_return_5d",
+    "min_return_5d_date",
+    "max_return_5d_date",
     "forward_return_1d",
-    "forward_price_date_1d",
     "forward_return_5d",
-    "forward_price_date_5d",
     "forward_return_20d",
-    "forward_price_date_20d",
-    "forward_return_60d",
-    "forward_price_date_60d",
+    "forward_return_60d"
+  ],
+  "return_horizons_trading_days": [
+    1,
+    5,
+    20,
+    60
+  ],
+  "severity_horizon_trading_days": 5,
+  "severity_window": "trading_days_1_to_5_after_entry",
+  "entry_rule": "first available trading-day close on or after FI snapshot date",
+  "severity_columns": [
     "min_return_5d",
     "max_return_5d",
     "min_return_5d_date",
     "max_return_5d_date"
-  ]
+  ],
+  "price_feature_columns": [
+    "price_return_5d",
+    "price_return_20d",
+    "price_return_60d",
+    "price_volatility_20d",
+    "price_distance_from_20d_high",
+    "price_distance_from_60d_high"
+  ],
+  "chunk_size": 10000,
+  "chunks": [
+    {
+      "path": "data/processed/analysis/features_0001.jsonl",
+      "rows": 10000,
+      "size_bytes": 18719578
+    },
+    {
+      "path": "data/processed/analysis/features_0002.jsonl",
+      "rows": 10000,
+      "size_bytes": 18818805
+    },
+    {
+      "path": "data/processed/analysis/features_0003.jsonl",
+      "rows": 10000,
+      "size_bytes": 19318139
+    },
+    {
+      "path": "data/processed/analysis/features_0004.jsonl",
+      "rows": 10000,
+      "size_bytes": 18552891
+    },
+    {
+      "path": "data/processed/analysis/features_0005.jsonl",
+      "rows": 10000,
+      "size_bytes": 18442202
+    },
+    {
+      "path": "data/processed/analysis/features_0006.jsonl",
+      "rows": 10000,
+      "size_bytes": 18930304
+    },
+    {
+      "path": "data/processed/analysis/features_0007.jsonl",
+      "rows": 10000,
+      "size_bytes": 18429031
+    },
+    {
+      "path": "data/processed/analysis/features_0008.jsonl",
+      "rows": 10000,
+      "size_bytes": 18788092
+    },
+    {
+      "path": "data/processed/analysis/features_0009.jsonl",
+      "rows": 10000,
+      "size_bytes": 18852863
+    },
+    {
+      "path": "data/processed/analysis/features_0010.jsonl",
+      "rows": 10000,
+      "size_bytes": 18392220
+    },
+    {
+      "path": "data/processed/analysis/features_0011.jsonl",
+      "rows": 10000,
+      "size_bytes": 18999223
+    },
+    {
+      "path": "data/processed/analysis/features_0012.jsonl",
+      "rows": 10000,
+      "size_bytes": 19207267
+    },
+    {
+      "path": "data/processed/analysis/features_0013.jsonl",
+      "rows": 10000,
+      "size_bytes": 18328161
+    },
+    {
+      "path": "data/processed/analysis/features_0014.jsonl",
+      "rows": 10000,
+      "size_bytes": 19105469
+    },
+    {
+      "path": "data/processed/analysis/features_0015.jsonl",
+      "rows": 10000,
+      "size_bytes": 19214643
+    },
+    {
+      "path": "data/processed/analysis/features_0016.jsonl",
+      "rows": 10000,
+      "size_bytes": 18039272
+    },
+    {
+      "path": "data/processed/analysis/features_0017.jsonl",
+      "rows": 10000,
+      "size_bytes": 18555454
+    },
+    {
+      "path": "data/processed/analysis/features_0018.jsonl",
+      "rows": 10000,
+      "size_bytes": 19133232
+    },
+    {
+      "path": "data/processed/analysis/features_0019.jsonl",
+      "rows": 10000,
+      "size_bytes": 18625707
+    },
+    {
+      "path": "data/processed/analysis/features_0020.jsonl",
+      "rows": 10000,
+      "size_bytes": 17840815
+    },
+    {
+      "path": "data/processed/analysis/features_0021.jsonl",
+      "rows": 2240,
+      "size_bytes": 4137334
+    }
+  ],
+  "feature_dataset": "fi_price_features.jsonl"
 }

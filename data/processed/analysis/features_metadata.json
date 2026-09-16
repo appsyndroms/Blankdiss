@@ -1,6 +1,24 @@
 {
-  "feature_rows": 119639,
-  "columns": [
+  "dataset": "Blankdiss canonical FI + price feature dataset",
+  "source": {
+    "fi_file": "data/processed/fi/aggregate/reconstructed.jsonl",
+    "price_files": [
+      "data/raw/prices/prices_2022-01-01_latest.jsonl",
+      "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
+      "data/raw/prices/prices_2026-03-19_latest.jsonl",
+      "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
+    ]
+  },
+  "fi_rows": 202240,
+  "price_rows": 324306,
+  "feature_rows": 202240,
+  "matched_fi_rows": 119639,
+  "unmatched_fi_rows": 82601,
+  "matched_by_isin": 119639,
+  "matched_by_issuer": 0,
+  "security_keys_fi": 329,
+  "security_keys_prices": 289,
+  "feature_columns": [
     "snapshot_date",
     "issuer",
     "isin",
@@ -49,45 +67,144 @@
     "price_volatility_20d",
     "price_distance_from_20d_high",
     "price_distance_from_60d_high",
+    "min_return_5d",
+    "max_return_5d",
+    "min_return_5d_date",
+    "max_return_5d_date",
     "forward_return_1d",
     "forward_return_5d",
     "forward_return_20d",
     "forward_return_60d"
   ],
-  "chunk_size_mb": 20,
-  "chunk_count": 11,
+  "return_horizons_trading_days": [
+    1,
+    5,
+    20,
+    60
+  ],
+  "severity_horizon_trading_days": 5,
+  "severity_window": "trading_days_1_to_5_after_entry",
+  "entry_rule": "first available trading-day close on or after FI snapshot date",
+  "severity_columns": [
+    "min_return_5d",
+    "max_return_5d",
+    "min_return_5d_date",
+    "max_return_5d_date"
+  ],
+  "price_feature_columns": [
+    "price_return_5d",
+    "price_return_20d",
+    "price_return_60d",
+    "price_volatility_20d",
+    "price_distance_from_20d_high",
+    "price_distance_from_60d_high"
+  ],
+  "chunk_size": 10000,
   "chunks": [
-    "features_0001.jsonl",
-    "features_0002.jsonl",
-    "features_0003.jsonl",
-    "features_0004.jsonl",
-    "features_0005.jsonl",
-    "features_0006.jsonl",
-    "features_0007.jsonl",
-    "features_0008.jsonl",
-    "features_0009.jsonl",
-    "features_0010.jsonl",
-    "features_0011.jsonl"
-  ],
-  "price_files": [
-    "prices_2022-01-01_latest.jsonl",
-    "prices_2022-05-25_2026-09-12.jsonl",
-    "prices_2026-03-19_latest.jsonl",
-    "prices_2026-09-15_2026-09-15.jsonl"
-  ],
-  "price_file_count": 4,
-  "price_file_paths": [
-    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2022-01-01_latest.jsonl",
-    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
-    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2026-03-19_latest.jsonl",
-    "/home/runner/work/Blankdiss/Blankdiss/data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
-  ],
-  "stats": {
-    "fi_rows": 202240,
-    "matched_rows": 119639,
-    "unmatched_rows": 82601,
-    "matched_by_isin": 119639,
-    "matched_by_issuer": 0,
-    "full_rebuild": 1
-  }
+    {
+      "path": "data/processed/analysis/features_0001.jsonl",
+      "rows": 10000,
+      "size_bytes": 18719578
+    },
+    {
+      "path": "data/processed/analysis/features_0002.jsonl",
+      "rows": 10000,
+      "size_bytes": 18818805
+    },
+    {
+      "path": "data/processed/analysis/features_0003.jsonl",
+      "rows": 10000,
+      "size_bytes": 19318139
+    },
+    {
+      "path": "data/processed/analysis/features_0004.jsonl",
+      "rows": 10000,
+      "size_bytes": 18552891
+    },
+    {
+      "path": "data/processed/analysis/features_0005.jsonl",
+      "rows": 10000,
+      "size_bytes": 18442202
+    },
+    {
+      "path": "data/processed/analysis/features_0006.jsonl",
+      "rows": 10000,
+      "size_bytes": 18930304
+    },
+    {
+      "path": "data/processed/analysis/features_0007.jsonl",
+      "rows": 10000,
+      "size_bytes": 18429031
+    },
+    {
+      "path": "data/processed/analysis/features_0008.jsonl",
+      "rows": 10000,
+      "size_bytes": 18788092
+    },
+    {
+      "path": "data/processed/analysis/features_0009.jsonl",
+      "rows": 10000,
+      "size_bytes": 18852863
+    },
+    {
+      "path": "data/processed/analysis/features_0010.jsonl",
+      "rows": 10000,
+      "size_bytes": 18392220
+    },
+    {
+      "path": "data/processed/analysis/features_0011.jsonl",
+      "rows": 10000,
+      "size_bytes": 18999223
+    },
+    {
+      "path": "data/processed/analysis/features_0012.jsonl",
+      "rows": 10000,
+      "size_bytes": 19207267
+    },
+    {
+      "path": "data/processed/analysis/features_0013.jsonl",
+      "rows": 10000,
+      "size_bytes": 18328161
+    },
+    {
+      "path": "data/processed/analysis/features_0014.jsonl",
+      "rows": 10000,
+      "size_bytes": 19105469
+    },
+    {
+      "path": "data/processed/analysis/features_0015.jsonl",
+      "rows": 10000,
+      "size_bytes": 19214643
+    },
+    {
+      "path": "data/processed/analysis/features_0016.jsonl",
+      "rows": 10000,
+      "size_bytes": 18039272
+    },
+    {
+      "path": "data/processed/analysis/features_0017.jsonl",
+      "rows": 10000,
+      "size_bytes": 18555454
+    },
+    {
+      "path": "data/processed/analysis/features_0018.jsonl",
+      "rows": 10000,
+      "size_bytes": 19133232
+    },
+    {
+      "path": "data/processed/analysis/features_0019.jsonl",
+      "rows": 10000,
+      "size_bytes": 18625707
+    },
+    {
+      "path": "data/processed/analysis/features_0020.jsonl",
+      "rows": 10000,
+      "size_bytes": 17840815
+    },
+    {
+      "path": "data/processed/analysis/features_0021.jsonl",
+      "rows": 2240,
+      "size_bytes": 4137334
+    }
+  ]
 }

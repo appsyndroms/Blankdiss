@@ -1,7 +1,7 @@
 {
   "dataset": "aggregate_short_positions",
   "files": {},
-  "last_checked": "2026-09-16T13:22:45.193798+02:00",
+  "last_checked": "2026-09-16T17:14:24.470857+02:00",
   "snapshots": [
     {
       "fetched_at": "2026-09-14T09:57:27+02:00",
@@ -143,6 +143,15 @@
       "file": "snapshots/fi_aggregate_2026-09-16_13-22-45.jsonl",
       "observations": 340,
       "sha256": "8108f59293b38a63ac357a639d7a4dc94c6ac6a6a954c6ebdc8fc65c50c4c46a",
+      "source_dates": [
+        "2026-09-16"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-16T17:14:24.470857+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-16_17-14-24.jsonl",
+      "observations": 339,
+      "sha256": "0b597ff150b6d654c9e1c378d891ea2367d16476b123efc0191797387a00bbb9",
       "source_dates": [
         "2026-09-16"
       ]

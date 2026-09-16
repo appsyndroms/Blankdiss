@@ -12,7 +12,17 @@
     "data/processed/analysis/features_0008.jsonl",
     "data/processed/analysis/features_0009.jsonl",
     "data/processed/analysis/features_0010.jsonl",
-    "data/processed/analysis/features_0011.jsonl"
+    "data/processed/analysis/features_0011.jsonl",
+    "data/processed/analysis/features_0012.jsonl",
+    "data/processed/analysis/features_0013.jsonl",
+    "data/processed/analysis/features_0014.jsonl",
+    "data/processed/analysis/features_0015.jsonl",
+    "data/processed/analysis/features_0016.jsonl",
+    "data/processed/analysis/features_0017.jsonl",
+    "data/processed/analysis/features_0018.jsonl",
+    "data/processed/analysis/features_0019.jsonl",
+    "data/processed/analysis/features_0020.jsonl",
+    "data/processed/analysis/features_0021.jsonl"
   ],
   "price_files": [
     "data/raw/prices/prices_2022-01-01_latest.jsonl",
@@ -20,7 +30,7 @@
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
   ],
-  "rows": 119639,
+  "rows": 202240,
   "symbols": 214,
   "fi_period": {
     "start": "2022-05-25",
@@ -67,7 +77,8 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 119639
+        "isin": 119639,
+        "unmatched": 82601
       },
       "unexpected_sources": []
     },
@@ -92,25 +103,25 @@
       "windows": {
         "forward_return_1d": {
           "non_null": 119560,
-          "null": 79,
+          "null": 82680,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
           "non_null": 119182,
-          "null": 457,
+          "null": 83058,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
           "non_null": 117079,
-          "null": 2560,
+          "null": 85161,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
           "non_null": 111462,
-          "null": 8177,
+          "null": 90778,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -126,10 +137,10 @@
       "forbidden_future_price_columns": []
     },
     "unmatched_rows": {
-      "status": "PASS",
-      "total_rows": 119639,
+      "status": "WARN",
+      "total_rows": 202240,
       "rows_with_price": 119639,
-      "rows_without_price": 0,
+      "rows_without_price": 82601,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {
