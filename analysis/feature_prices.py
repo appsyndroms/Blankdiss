@@ -45,7 +45,6 @@ def find_price_file(
 
     Nya featurebyggen ska använda find_price_files().
     """
-
     files = find_price_files(
         price_dir
     )
@@ -531,6 +530,15 @@ def attach_prices(
 
         rows.append(
             result
+        )
+
+    # Viktigt: pd.DataFrame([]) saknar alla kolumner.
+    # Om inga prisrader matchar måste vi ändå behålla FI-schemat,
+    # eftersom downstream-koden använder t.ex. security_key.
+    if not rows:
+        return (
+            fi.iloc[0:0].copy(),
+            stats,
         )
 
     return (
