@@ -1,7 +1,10 @@
 """Inkrementell hantering av feature-data."""
 from __future__ import annotations
+
 from pathlib import Path
+
 import pandas as pd
+
 from analysis.feature_config import (
     FEATURE_GLOB,
     OUTPUT_DIR,
@@ -16,70 +19,98 @@ from analysis.feature_returns import (
 from analysis.feature_utils import (
     feature_key,
 )
+
+
+SEVERITY_COLUMNS = (
+    "min_return_5d",
+    "max_return_5d",
+    "min_return_5d_date",
+    "max_return_5d_date",
+)
+
+
 def load_existing(
     path: Path | None = None,
 ) -> pd.DataFrame:
     """
     Läser hela det befintliga feature-datasetet.
+
     Datasetet består av features_*.jsonl.
     Alla chunks läses och sätts ihop till ett DataFrame.
     """
     if path is not None:
-        # Bakåtkompatibilitet om någon gammal caller
-        # fortfarande skickar in en sökväg.
         directory = path.parent
     else:
         directory = OUTPUT_DIR
+
     paths = sorted(
         directory.glob(
             FEATURE_GLOB
         )
     )
+
     if not paths:
         return pd.DataFrame()
+
     frames: list[pd.DataFrame] = []
+
     for feature_path in paths:
         frame = pd.read_json(
             feature_path,
             lines=True,
         )
+
         if not frame.empty:
             frames.append(frame)
+
     if not frames:
         return pd.DataFrame()
+
     frame = pd.concat(
         frames,
         ignore_index=True,
     )
+
     for column in (
         "snapshot_date",
         "previous_snapshot_date",
         "price_date",
+        "min_return_5d_date",
+        "max_return_5d_date",
     ):
         if column in frame.columns:
             frame[column] = pd.to_datetime(
                 frame[column],
                 errors="coerce",
             )
+
     return frame
+
+
 def find_new_fi_rows(
     fi: pd.DataFrame,
     existing: pd.DataFrame,
 ) -> pd.DataFrame:
     if existing.empty:
         return fi.copy()
+
     existing_keys = set(
         feature_key(existing)
     )
+
     fi_keys = feature_key(
         fi
     )
+
     new_mask = ~fi_keys.isin(
         existing_keys
     )
+
     return fi.loc[
         new_mask
     ].copy()
+
+
 def build_context_rows(
     fi: pd.DataFrame,
     new_fi: pd.DataFrame,
@@ -87,27 +118,31 @@ def build_context_rows(
     """
     Hämtar senaste befintliga FI-observation före
     den första nya observationen per bolag.
-    Det är viktigt att context aldrig innehåller
-    den nya observationen själv.
+
+    Context innehåller aldrig den nya observationen själv.
     """
     if new_fi.empty:
         return pd.DataFrame(
             columns=fi.columns
         )
+
     first_new_dates = (
         new_fi.groupby(
             "security_key"
         )["snapshot_date"]
         .min()
     )
+
     candidate_keys = set(
         first_new_dates.index
     )
+
     context_candidates = fi.loc[
         fi["security_key"].isin(
             candidate_keys
         )
     ].copy()
+
     context_candidates = (
         context_candidates.loc[
             context_candidates.apply(
@@ -122,8 +157,10 @@ def build_context_rows(
             )
         ]
     )
+
     if context_candidates.empty:
         return context_candidates
+
     return (
         context_candidates
         .sort_values(
@@ -139,54 +176,83 @@ def build_context_rows(
         )
         .tail(1)
     )
+
+
 def refresh_incomplete_returns(
     existing: pd.DataFrame,
     prices: pd.DataFrame,
 ) -> pd.DataFrame:
     if existing.empty:
         return existing
+
     return_columns = [
         f"forward_return_{h}d"
         for h in RETURN_HORIZONS
     ]
+
     missing_columns = [
         column
         for column in return_columns
         if column not in existing.columns
     ]
-    if missing_columns:
-        for column in missing_columns:
+
+    for column in missing_columns:
+        existing[column] = pd.NA
+
+    for column in SEVERITY_COLUMNS:
+        if column not in existing.columns:
             existing[column] = pd.NA
-    incomplete = existing[
+
+    incomplete_returns = existing[
         return_columns
     ].isna().any(axis=1)
+
+    incomplete_severity = existing[
+        [
+            "min_return_5d",
+            "max_return_5d",
+        ]
+    ].isna().any(axis=1)
+
+    incomplete = (
+        incomplete_returns
+        | incomplete_severity
+    )
+
     if not incomplete.any():
         return existing
+
     subset = existing.loc[
         incomplete
     ].copy()
+
     refreshed, _ = attach_prices(
         subset,
         prices,
     )
+
     if refreshed.empty:
         return existing
+
     refreshed = add_forward_returns(
         refreshed,
         prices,
     )
+
     refreshed = refreshed.set_index(
         [
             "security_key",
             "snapshot_date",
         ]
     )
+
     current = existing.set_index(
         [
             "security_key",
             "snapshot_date",
         ]
     )
+
     update_columns = [
         "price_date",
         "close",
@@ -205,13 +271,20 @@ def refresh_incomplete_returns(
         "forward_return_5d",
         "forward_return_20d",
         "forward_return_60d",
+        "min_return_5d",
+        "max_return_5d",
+        "min_return_5d_date",
+        "max_return_5d_date",
     ]
+
     common_index = current.index.intersection(
         refreshed.index
     )
+
     for column in update_columns:
         if column not in refreshed.columns:
             continue
+
         current.loc[
             common_index,
             column,
@@ -219,15 +292,20 @@ def refresh_incomplete_returns(
             common_index,
             column,
         ]
+
     return current.reset_index()
+
+
 def merge_features(
     existing: pd.DataFrame,
     new_features: pd.DataFrame,
 ) -> pd.DataFrame:
     if existing.empty:
         return new_features.copy()
+
     if new_features.empty:
         return existing.copy()
+
     return pd.concat(
         [
             existing,
