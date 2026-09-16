@@ -55,32 +55,19 @@ jobs:
           echo "FEATURE DATASET"
           echo "================================"
 
-          echo
-          echo "Commit:"
-          git rev-parse HEAD
+          echo "Commit: $(git rev-parse --short HEAD)"
+          echo "Feature-chunks: $(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' | wc -l)"
 
-          echo
-          echo "Feature-filer:"
-          find data/processed/analysis \
-            -maxdepth 1 \
-            -name 'features_*.jsonl' \
-            -printf '%f\n' \
-            | sort
-
-          echo
-          echo "Metadata:"
           if [ -f data/processed/analysis/features_metadata.json ]; then
-            echo "features_metadata.json finns."
+            echo "Metadata: OK"
           else
-            echo "features_metadata.json SAKNAS."
+            echo "Metadata: SAKNAS"
           fi
 
-          echo
-          echo "QC:"
           if [ -f data/processed/analysis/features_qc.json ]; then
-            echo "features_qc.json finns."
+            echo "QC: OK"
           else
-            echo "features_qc.json SAKNAS ännu."
+            echo "QC: SAKNAS ännu"
           fi
 
       - name: Verify feature dataset
@@ -96,14 +83,8 @@ jobs:
           )"
 
           echo "Feature-dataset finns."
-
-          echo
-          echo "Feature-filer:"
-          ls -lh data/processed/analysis/features_*.jsonl
-
-          echo
-          echo "Feature metadata:"
-          cat data/processed/analysis/features_metadata.json
+          echo "Feature-chunks: $(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' | wc -l)"
+          echo "Total storlek: $(du -ch data/processed/analysis/features_*.jsonl | tail -1 | awk '{print $1}')"
 
       - name: Kontrollera feature-storlek
         run: |
@@ -121,14 +102,23 @@ jobs:
 
           for path in paths:
               size = path.stat().st_size
-              mb = size / 1024 / 1024
-
-              print(f"{path.name}: {mb:.2f} MB")
 
               if size > limit:
+                  mb = size / 1024 / 1024
                   raise SystemExit(
-                      f"{path.name} är större än 20 MB."
+                      f"{path.name} är större än 20 MB ({mb:.2f} MB)."
                   )
+
+          max_mb = max(
+              path.stat().st_size
+              for path in paths
+          ) / 1024 / 1024
+
+          print(
+              f"Feature-storlek OK: "
+              f"{len(paths)} filer, "
+              f"max {max_mb:.2f} MB"
+          )
           PY
 
       - name: Run Feature QC
@@ -155,7 +145,7 @@ jobs:
 
           status = data.get("status")
 
-          print(f"Feature QC status: {status}")
+          print(f"Feature QC: {status}")
 
           if status == "FAIL":
               raise SystemExit(
@@ -164,13 +154,12 @@ jobs:
 
           if status == "WARN":
               print(
-                  "Feature QC har status WARN. "
-                  "Varningar tillåts och workflow fortsätter."
+                  "Varningar tillåts — workflow fortsätter."
               )
 
           elif status == "PASS":
               print(
-                  "Feature QC har status PASS."
+                  "Feature QC OK."
               )
 
           else:
@@ -204,14 +193,8 @@ jobs:
           test -d data/processed/ml/runs
 
           echo "ML-resultat skapade."
-
-          echo
-          echo "Resultat:"
-          ls -lh data/processed/ml/
-
-          echo
-          echo "Runs:"
-          ls -lh data/processed/ml/runs/
+          echo "Resultatfiler: $(find data/processed/ml -maxdepth 1 -type f | wc -l)"
+          echo "Runs: $(find data/processed/ml/runs -maxdepth 1 -name '*.json' | wc -l)"
 
       - name: Run ML diagnostics
         run: |
@@ -222,8 +205,7 @@ jobs:
           test -f data/processed/ml/diagnostics.json
 
           echo "ML-diagnostik skapad."
-
-          ls -lh data/processed/ml/diagnostics.json
+          echo "Storlek: $(du -h data/processed/ml/diagnostics.json | cut -f1)"
 
       - name: Print ML diagnostics summary
         run: |
@@ -253,12 +235,12 @@ jobs:
 
           print(
               f"Feature sets: "
-              f"{', '.join(data.get('feature_sets', []))}"
+              f"{len(data.get('feature_sets', []))}"
           )
 
           print(
               f"Targets: "
-              f"{', '.join(data.get('targets', []))}"
+              f"{len(data.get('targets', []))}"
           )
 
           print()
@@ -267,46 +249,26 @@ jobs:
               "results",
               [],
           ):
-              print("--------------------------------")
+              feature_set = result.get(
+                  "feature_set",
+                  "?",
+              )
 
-              print(
-                  f"Feature set: "
-                  f"{result.get('feature_set', '?')}"
+              target = result.get(
+                  "target",
+                  "?",
+              )
+
+              feature_count = result.get(
+                  "feature_count",
+                  "?",
               )
 
               print(
-                  f"Target: "
-                  f"{result.get('target', '?')}"
+                  f"{feature_set} | "
+                  f"{target} | "
+                  f"features={feature_count}"
               )
-
-              print(
-                  f"Features: "
-                  f"{result.get('feature_count', '?')}"
-              )
-
-              summary = result.get(
-                  "dataset_summary",
-                  {},
-              )
-
-              print(
-                  f"Rows: "
-                  f"{summary.get('rows', '?')}"
-              )
-
-              print(
-                  f"Baseline event rate: "
-                  f"{summary.get('positive_rate', '?')}"
-              )
-
-              print(
-                  f"Date range: "
-                  f"{summary.get('date_start', '?')} "
-                  f"-> "
-                  f"{summary.get('date_end', '?')}"
-              )
-
-              print()
 
               for window in result.get(
                   "windows",
@@ -317,105 +279,101 @@ jobs:
                       {},
                   )
 
-                  print(
-                      "Window: "
-                      f"{window_info.get('train_end', '?')} "
-                      "-> "
-                      f"{window_info.get('validation_end', '?')} "
-                      "-> "
-                      f"{window_info.get('test_end', '?')}"
+                  test_end = window_info.get(
+                      "test_end",
+                      "?",
                   )
 
-                  print(
-                      "Selected model: "
-                      f"{window.get('selected_model', '?')}"
+                  model = window.get(
+                      "selected_model",
+                      "?",
                   )
 
-                  print(
-                      "Validation AUC: "
-                      f"{window.get('validation_roc_auc', '?')}"
+                  auc = window.get(
+                      "test_roc_auc"
                   )
 
-                  print(
-                      "Test AUC: "
-                      f"{window.get('test_roc_auc', '?')}"
+                  rows = window.get(
+                      "test_rows",
+                      "?",
                   )
 
-                  print(
-                      "Test rows: "
-                      f"{window.get('test_rows', '?')}"
-                  )
+                  if auc is None:
+                      auc_text = "n/a"
+                  else:
+                      auc_text = f"{auc:.4f}"
 
                   print(
-                      "Test event rate: "
-                      f"{window.get('test_positive_rate', '?')}"
+                      f"  {test_end} | "
+                      f"{model} | "
+                      f"AUC={auc_text} | "
+                      f"rows={rows}"
                   )
 
-                  print()
-
-                  print("Prediction buckets:")
-
-                  prediction_buckets = window.get(
-                      "prediction_buckets",
-                      {},
-                  )
-
-                  for year, bucket_data in prediction_buckets.items():
-                      print(
-                          f"  {year}: "
-                          f"baseline="
-                          f"{bucket_data.get('baseline_event_rate', '?')}"
+                  prediction_buckets = (
+                      window.get(
+                          "prediction_buckets",
+                          {},
                       )
+                  )
 
-                      for bucket in bucket_data.get(
+                  for year, bucket_data in (
+                      prediction_buckets.items()
+                  ):
+                      buckets = bucket_data.get(
                           "buckets",
                           [],
-                      ):
-                          fraction = (
-                              bucket.get(
-                                  "top_fraction",
-                                  0,
-                              )
-                              * 100
-                          )
-
-                          print(
-                              f"    Top {fraction:.0f}%: "
-                              f"event_rate="
-                              f"{bucket.get('event_rate', 0):.4f}, "
-                              f"lift_ratio="
-                              f"{bucket.get('event_rate_lift_ratio')}, "
-                              f"mean_return="
-                              f"{bucket.get('mean_return')}, "
-                              f"median_return="
-                              f"{bucket.get('median_return')}"
-                          )
-
-                  print()
-                  print("Top features:")
-
-                  for feature in window.get(
-                      "feature_importance",
-                      [],
-                  )[:10]:
-                      importance = feature.get(
-                          "importance"
                       )
 
-                      if importance is None:
-                          importance = feature.get(
-                              "importance_mean"
-                          )
+                      if not buckets:
+                          continue
+
+                      top = buckets[-1]
+
+                      event_rate = top.get(
+                          "event_rate"
+                      )
+
+                      lift_ratio = top.get(
+                          "event_rate_lift_ratio"
+                      )
+
+                      mean_return = top.get(
+                          "mean_return"
+                      )
+
+                      event_text = (
+                          "n/a"
+                          if event_rate is None
+                          else f"{event_rate:.3f}"
+                      )
+
+                      lift_text = (
+                          "n/a"
+                          if lift_ratio is None
+                          else f"{lift_ratio:.2f}x"
+                      )
+
+                      return_text = (
+                          "n/a"
+                          if mean_return is None
+                          else f"{mean_return:+.2%}"
+                      )
 
                       print(
-                          "  "
-                          f"{feature.get('feature', '?')}: "
-                          f"{importance if importance is not None else '?'}"
+                          f"    {year} top20% | "
+                          f"event={event_text} | "
+                          f"lift={lift_text} | "
+                          f"return={return_text}"
                       )
 
-                  print()
+          print()
+          print(
+              "Full diagnostics finns i artifact."
+          )
+          PY
 
-      - name: Print latest ML result
+      - name: Print latest ML result summary
         run: |
           python - <<'PY'
           import json
@@ -431,12 +389,35 @@ jobs:
               )
           )
 
-          print(
-              json.dumps(
-                  data,
-                  ensure_ascii=False,
-                  indent=2,
+          print()
+          print("================================")
+          print("LATEST ML RUN")
+          print("================================")
+
+          for key in (
+              "run_id",
+              "created_at",
+              "experiment",
+          ):
+              if key in data:
+                  print(
+                      f"{key}: {data[key]}"
+                  )
+
+          results = data.get(
+              "results"
+          )
+
+          if isinstance(
+              results,
+              list,
+          ):
+              print(
+                  f"results: {len(results)}"
               )
+
+          print(
+              "Full latest_run.json finns i artifact."
           )
           PY
 
@@ -459,13 +440,11 @@ jobs:
         run: |
           test -f data/processed/ml/signal_backtest.json
 
-          echo
           echo "================================"
           echo "SIGNAL BACKTEST KLAR"
           echo "================================"
 
-          echo "Resultat:"
-          ls -lh data/processed/ml/signal_backtest.json
+          echo "Resultat: $(du -h data/processed/ml/signal_backtest.json | cut -f1)"
 
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
