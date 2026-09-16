@@ -1,6 +1,6 @@
 {
-  "run_id": "20260916T153414Z",
-  "created_at": "2026-09-16T15:34:14.987486+00:00",
+  "run_id": "20260916T162940Z",
+  "created_at": "2026-09-16T16:29:40.398933+00:00",
   "experiment": "price_feature_ablation",
   "feature_sets": [
     "fi_only",
@@ -16,6 +16,8 @@
     "down_5pct_5d",
     "up_5pct_5d"
   ],
+  "parallel_experiments": 4,
+  "parallel_windows": 1,
   "results": [
     {
       "feature_set": "fi_only",
@@ -169,7 +171,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:19:39.226904Z"
+      "created_at": "2026-09-16T16:18:49.162192Z"
     },
     {
       "feature_set": "fi_only",
@@ -323,7 +325,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:19:39.319081Z"
+      "created_at": "2026-09-16T16:18:49.319752Z"
     },
     {
       "feature_set": "fi_only",
@@ -354,10 +356,10 @@
         "accuracy": 0.5013478020458944,
         "precision": 0.4899159663865546,
         "recall": 0.1627014581734459,
-        "brier_score": 0.24995289429756348,
+        "brier_score": 0.24995289429756065,
         "roc_auc": 0.5097911682378578,
         "predicted_positive_rate": 0.1645009676527509,
-        "mean_probability": 0.4924453840659077
+        "mean_probability": 0.4924453840659278
       },
       "return_buckets": [
         {
@@ -477,7 +479,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:19:39.384103Z"
+      "created_at": "2026-09-16T16:18:49.378691Z"
     },
     {
       "feature_set": "fi_only",
@@ -631,7 +633,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:19:47.794136Z"
+      "created_at": "2026-09-16T16:19:09.372974Z"
     },
     {
       "feature_set": "fi_only",
@@ -785,7 +787,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:19:47.950434Z"
+      "created_at": "2026-09-16T16:19:09.667823Z"
     },
     {
       "feature_set": "fi_only",
@@ -819,7 +821,7 @@
         "brier_score": 0.24998331922913755,
         "roc_auc": 0.5052737506692679,
         "predicted_positive_rate": 0.1626541397533764,
-        "mean_probability": 0.49490508677358097
+        "mean_probability": 0.4949050867735812
       },
       "return_buckets": [
         {
@@ -939,7 +941,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:19:48.005939Z"
+      "created_at": "2026-09-16T16:19:09.715819Z"
     },
     {
       "feature_set": "fi_only",
@@ -973,7 +975,7 @@
         "brier_score": 0.2559974381063092,
         "roc_auc": 0.4976161780202286,
         "predicted_positive_rate": 0.374827204865911,
-        "mean_probability": 0.4809446394217818
+        "mean_probability": 0.4809446394217819
       },
       "return_buckets": [
         {
@@ -1093,7 +1095,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:19:54.378509Z"
+      "created_at": "2026-09-16T16:18:52.121242Z"
     },
     {
       "feature_set": "fi_only",
@@ -1247,7 +1249,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:19:54.553355Z"
+      "created_at": "2026-09-16T16:18:53.348007Z"
     },
     {
       "feature_set": "fi_only",
@@ -1278,10 +1280,10 @@
         "accuracy": 0.5149986176389273,
         "precision": 0.48872180451127817,
         "recall": 0.09770238350869659,
-        "brier_score": 0.24965923521230546,
+        "brier_score": 0.2496592352121629,
         "roc_auc": 0.5139451576977876,
         "predicted_positive_rate": 0.09652336190212883,
-        "mean_probability": 0.4821499139072803
+        "mean_probability": 0.4821499139090145
       },
       "return_buckets": [
         {
@@ -1401,7 +1403,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:19:54.617953Z"
+      "created_at": "2026-09-16T16:18:53.411221Z"
     },
     {
       "feature_set": "fi_only",
@@ -1432,10 +1434,10 @@
         "accuracy": 0.5143290859745159,
         "precision": 0.5394424673784104,
         "recall": 0.16805247597930525,
-        "brier_score": 0.2500472094533157,
+        "brier_score": 0.2500472094533274,
         "roc_auc": 0.5110314103234732,
         "predicted_positive_rate": 0.15511293067758405,
-        "mean_probability": 0.492995531341268
+        "mean_probability": 0.49299553134159424
       },
       "return_buckets": [
         {
@@ -1555,7 +1557,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:20:03.430698Z"
+      "created_at": "2026-09-16T16:19:12.419296Z"
     },
     {
       "feature_set": "fi_only",
@@ -1709,7 +1711,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:20:03.620614Z"
+      "created_at": "2026-09-16T16:19:13.347696Z"
     },
     {
       "feature_set": "fi_only",
@@ -1863,7 +1865,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:20:03.757218Z"
+      "created_at": "2026-09-16T16:19:13.726761Z"
     },
     {
       "feature_set": "fi_only",
@@ -2017,7 +2019,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:09.680251Z"
+      "created_at": "2026-09-16T16:18:51.986241Z"
     },
     {
       "feature_set": "fi_only",
@@ -2171,7 +2173,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:09.855426Z"
+      "created_at": "2026-09-16T16:18:52.395843Z"
     },
     {
       "feature_set": "fi_only",
@@ -2202,10 +2204,10 @@
         "accuracy": 0.5241222007188278,
         "precision": 0.4801295771388905,
         "recall": 0.6344110677979057,
-        "brier_score": 0.24892728696910774,
-        "roc_auc": 0.5353734606690561,
+        "brier_score": 0.24892728696909713,
+        "roc_auc": 0.5353737017435166,
         "predicted_positive_rate": 0.5974218965993917,
-        "mean_probability": 0.4951930976864652
+        "mean_probability": 0.4951930976864531
       },
       "return_buckets": [
         {
@@ -2325,7 +2327,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:09.919435Z"
+      "created_at": "2026-09-16T16:18:52.455240Z"
     },
     {
       "feature_set": "fi_only",
@@ -2479,7 +2481,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:20:18.693732Z"
+      "created_at": "2026-09-16T16:19:12.456463Z"
     },
     {
       "feature_set": "fi_only",
@@ -2633,7 +2635,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:20:18.803181Z"
+      "created_at": "2026-09-16T16:19:12.673752Z"
     },
     {
       "feature_set": "fi_only",
@@ -2664,10 +2666,10 @@
         "accuracy": 0.5062027043791093,
         "precision": 0.5176969338460021,
         "recall": 0.6311298076923076,
-        "brier_score": 0.2501438595513081,
+        "brier_score": 0.2501438595513245,
         "roc_auc": 0.5126490002563445,
         "predicted_positive_rate": 0.6291403051730554,
-        "mean_probability": 0.5108227067759453
+        "mean_probability": 0.5108227067758841
       },
       "return_buckets": [
         {
@@ -2787,7 +2789,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:20:18.838994Z"
+      "created_at": "2026-09-16T16:19:12.719658Z"
     },
     {
       "feature_set": "fi_only",
@@ -2941,7 +2943,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:24.640852Z"
+      "created_at": "2026-09-16T16:18:56.398458Z"
     },
     {
       "feature_set": "fi_only",
@@ -3095,7 +3097,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:24.811691Z"
+      "created_at": "2026-09-16T16:18:56.738919Z"
     },
     {
       "feature_set": "fi_only",
@@ -3126,10 +3128,10 @@
         "accuracy": 0.8629734586674039,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.1189676511529575,
-        "roc_auc": 0.5081607754528671,
+        "brier_score": 0.11896765115302596,
+        "roc_auc": 0.5081612552023146,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.16316505865539957
+        "mean_probability": 0.16316505865565373
       },
       "return_buckets": [
         {
@@ -3249,7 +3251,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:24.875547Z"
+      "created_at": "2026-09-16T16:18:56.801889Z"
     },
     {
       "feature_set": "fi_only",
@@ -3403,7 +3405,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:20:32.639355Z"
+      "created_at": "2026-09-16T16:19:17.861952Z"
     },
     {
       "feature_set": "fi_only",
@@ -3557,7 +3559,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:20:32.725522Z"
+      "created_at": "2026-09-16T16:19:18.017390Z"
     },
     {
       "feature_set": "fi_only",
@@ -3580,7 +3582,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5180770147343176,
+      "validation_score": 0.5180774237838465,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -3588,10 +3590,10 @@
         "accuracy": 0.8529905209294523,
         "precision": 0.16666666666666666,
         "recall": 0.00028563267637817766,
-        "brier_score": 0.12513444284096367,
+        "brier_score": 0.1251344428409655,
         "roc_auc": 0.5349286102964169,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.15299370347370694
+        "mean_probability": 0.15299370347375052
       },
       "return_buckets": [
         {
@@ -3711,7 +3713,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:20:32.780773Z"
+      "created_at": "2026-09-16T16:19:18.067463Z"
     },
     {
       "feature_set": "fi_only",
@@ -3865,7 +3867,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:39.244835Z"
+      "created_at": "2026-09-16T16:19:23.626411Z"
     },
     {
       "feature_set": "fi_only",
@@ -4019,7 +4021,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:39.417311Z"
+      "created_at": "2026-09-16T16:19:24.002963Z"
     },
     {
       "feature_set": "fi_only",
@@ -4050,10 +4052,10 @@
         "accuracy": 0.7225946917334808,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.20244011422187183,
-        "roc_auc": 0.48504140298215404,
+        "brier_score": 0.20244011422191444,
+        "roc_auc": 0.4850400891030502,
         "predicted_positive_rate": 3.455902681780481e-05,
-        "mean_probability": 0.31176489991088113
+        "mean_probability": 0.3117648999112362
       },
       "return_buckets": [
         {
@@ -4173,7 +4175,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:39.481436Z"
+      "created_at": "2026-09-16T16:19:24.060180Z"
     },
     {
       "feature_set": "fi_only",
@@ -4327,7 +4329,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:20:48.646216Z"
+      "created_at": "2026-09-16T16:19:44.566212Z"
     },
     {
       "feature_set": "fi_only",
@@ -4481,7 +4483,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:20:48.788688Z"
+      "created_at": "2026-09-16T16:19:44.853203Z"
     },
     {
       "feature_set": "fi_only",
@@ -4504,7 +4506,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.49176304461480574,
+      "validation_score": 0.49176319953932596,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -4512,10 +4514,10 @@
         "accuracy": 0.7094622567735407,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.20572874509074698,
-        "roc_auc": 0.54453618056856,
+        "brier_score": 0.20572874508289887,
+        "roc_auc": 0.5445354105682643,
         "predicted_positive_rate": 4.600027600165601e-05,
-        "mean_probability": 0.30594965375585104
+        "mean_probability": 0.3059496537496555
       },
       "return_buckets": [
         {
@@ -4635,7 +4637,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:20:48.841383Z"
+      "created_at": "2026-09-16T16:19:44.905166Z"
     },
     {
       "feature_set": "fi_only",
@@ -4789,7 +4791,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:55.136611Z"
+      "created_at": "2026-09-16T16:19:26.759189Z"
     },
     {
       "feature_set": "fi_only",
@@ -4943,7 +4945,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:55.319827Z"
+      "created_at": "2026-09-16T16:19:27.147250Z"
     },
     {
       "feature_set": "fi_only",
@@ -4974,10 +4976,10 @@
         "accuracy": 0.7608169753939729,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.18645264318297441,
-        "roc_auc": 0.4870901225448766,
+        "brier_score": 0.1864526431830586,
+        "roc_auc": 0.487090578683939,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.29693875717201235
+        "mean_probability": 0.2969387571716033
       },
       "return_buckets": [
         {
@@ -5097,7 +5099,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:20:55.386253Z"
+      "created_at": "2026-09-16T16:19:27.207343Z"
     },
     {
       "feature_set": "fi_only",
@@ -5251,7 +5253,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:21:04.581224Z"
+      "created_at": "2026-09-16T16:19:50.945475Z"
     },
     {
       "feature_set": "fi_only",
@@ -5405,7 +5407,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:21:04.686611Z"
+      "created_at": "2026-09-16T16:19:51.162319Z"
     },
     {
       "feature_set": "fi_only",
@@ -5436,10 +5438,10 @@
         "accuracy": 0.6986105942190796,
         "precision": 0.25,
         "recall": 0.00020588840848260242,
-        "brier_score": 0.20906127920416528,
+        "brier_score": 0.20906127920390127,
         "roc_auc": 0.5816408584221564,
         "predicted_positive_rate": 0.00024810817516437165,
-        "mean_probability": 0.29936838349752654
+        "mean_probability": 0.2993683834966297
       },
       "return_buckets": [
         {
@@ -5559,7 +5561,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:21:04.720731Z"
+      "created_at": "2026-09-16T16:19:51.198547Z"
     },
     {
       "feature_set": "fi_only",
@@ -5713,7 +5715,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:10.617027Z"
+      "created_at": "2026-09-16T16:19:30.304646Z"
     },
     {
       "feature_set": "fi_only",
@@ -5867,7 +5869,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:10.807886Z"
+      "created_at": "2026-09-16T16:19:30.669542Z"
     },
     {
       "feature_set": "fi_only",
@@ -5898,10 +5900,10 @@
         "accuracy": 0.7516588332872546,
         "precision": 0.5,
         "recall": 0.0009741163373225717,
-        "brier_score": 0.18678880319592112,
+        "brier_score": 0.18678880319593275,
         "roc_auc": 0.5278637644717858,
         "predicted_positive_rate": 0.00048382637544926735,
-        "mean_probability": 0.27823012818965676
+        "mean_probability": 0.27823012818966086
       },
       "return_buckets": [
         {
@@ -6021,7 +6023,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:10.874276Z"
+      "created_at": "2026-09-16T16:19:30.724153Z"
     },
     {
       "feature_set": "fi_only",
@@ -6175,7 +6177,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:20.099422Z"
+      "created_at": "2026-09-16T16:19:53.799436Z"
     },
     {
       "feature_set": "fi_only",
@@ -6329,7 +6331,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:20.246295Z"
+      "created_at": "2026-09-16T16:19:54.103775Z"
     },
     {
       "feature_set": "fi_only",
@@ -6352,7 +6354,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5443805803749948,
+      "validation_score": 0.5443805995694053,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -6360,10 +6362,10 @@
         "accuracy": 0.7480077174733664,
         "precision": 0.5,
         "recall": 0.00016644474034620507,
-        "brier_score": 0.18783039222704068,
+        "brier_score": 0.18783039222792774,
         "roc_auc": 0.5301082426526509,
         "predicted_positive_rate": 8.388558006878618e-05,
-        "mean_probability": 0.263013932707565
+        "mean_probability": 0.2630139326978202
       },
       "return_buckets": [
         {
@@ -6483,7 +6485,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:20.302780Z"
+      "created_at": "2026-09-16T16:19:54.156656Z"
     },
     {
       "feature_set": "fi_only",
@@ -6637,7 +6639,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:27.155885Z"
+      "created_at": "2026-09-16T16:19:34.563209Z"
     },
     {
       "feature_set": "fi_only",
@@ -6791,7 +6793,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:27.331490Z"
+      "created_at": "2026-09-16T16:19:34.945327Z"
     },
     {
       "feature_set": "fi_only",
@@ -6822,10 +6824,10 @@
         "accuracy": 0.8575822504838264,
         "precision": 1.0,
         "recall": 0.00024260067928190198,
-        "brier_score": 0.12230246508798741,
-        "roc_auc": 0.5534970720735782,
+        "brier_score": 0.12230246509158332,
+        "roc_auc": 0.5534945594446359,
         "predicted_positive_rate": 3.455902681780481e-05,
-        "mean_probability": 0.1727584087932421
+        "mean_probability": 0.1727584088600666
       },
       "return_buckets": [
         {
@@ -6945,7 +6947,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:27.397980Z"
+      "created_at": "2026-09-16T16:19:35.007678Z"
     },
     {
       "feature_set": "fi_only",
@@ -7099,7 +7101,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:37.067397Z"
+      "created_at": "2026-09-16T16:19:58.428416Z"
     },
     {
       "feature_set": "fi_only",
@@ -7253,7 +7255,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:37.226274Z"
+      "created_at": "2026-09-16T16:19:58.744425Z"
     },
     {
       "feature_set": "fi_only",
@@ -7276,7 +7278,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5596653365962705,
+      "validation_score": 0.5596706795990604,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -7284,10 +7286,10 @@
         "accuracy": 0.8581494841036825,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.12092995537470935,
+        "brier_score": 0.12092995537468876,
         "roc_auc": 0.5512309486361151,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.15861095899380803
+        "mean_probability": 0.15861095899373767
       },
       "return_buckets": [
         {
@@ -7407,7 +7409,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:37.282615Z"
+      "created_at": "2026-09-16T16:19:58.793237Z"
     },
     {
       "feature_set": "fi_only",
@@ -7561,7 +7563,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:43.799532Z"
+      "created_at": "2026-09-16T16:20:00.009098Z"
     },
     {
       "feature_set": "fi_only",
@@ -7715,7 +7717,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:43.959675Z"
+      "created_at": "2026-09-16T16:20:00.394893Z"
     },
     {
       "feature_set": "fi_only",
@@ -7746,10 +7748,10 @@
         "accuracy": 0.9173348078518109,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.07573737395825995,
-        "roc_auc": 0.5655046419767525,
+        "brier_score": 0.07573737395885494,
+        "roc_auc": 0.5655045157389575,
         "predicted_positive_rate": 0.00017279513408902407,
-        "mean_probability": 0.10299374687901612
+        "mean_probability": 0.10299374688189805
       },
       "return_buckets": [
         {
@@ -7869,7 +7871,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:44.025283Z"
+      "created_at": "2026-09-16T16:20:00.455206Z"
     },
     {
       "feature_set": "fi_only",
@@ -8023,7 +8025,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:53.026724Z"
+      "created_at": "2026-09-16T16:20:24.148521Z"
     },
     {
       "feature_set": "fi_only",
@@ -8177,7 +8179,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:53.172568Z"
+      "created_at": "2026-09-16T16:20:24.464874Z"
     },
     {
       "feature_set": "fi_only",
@@ -8200,7 +8202,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5685887259897096,
+      "validation_score": 0.5685882525979777,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -8208,10 +8210,10 @@
         "accuracy": 0.9183793305930711,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.07439335802687015,
+        "brier_score": 0.07439335802680805,
         "roc_auc": 0.5621740095954014,
         "predicted_positive_rate": 0.00012582837010317925,
-        "mean_probability": 0.09330023147817762
+        "mean_probability": 0.09330023147861695
       },
       "return_buckets": [
         {
@@ -8331,7 +8333,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:21:53.228234Z"
+      "created_at": "2026-09-16T16:20:24.578473Z"
     },
     {
       "feature_set": "fi_only",
@@ -8485,7 +8487,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:59.710796Z"
+      "created_at": "2026-09-16T16:20:06.541853Z"
     },
     {
       "feature_set": "fi_only",
@@ -8639,7 +8641,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:59.867906Z"
+      "created_at": "2026-09-16T16:20:06.839372Z"
     },
     {
       "feature_set": "fi_only",
@@ -8670,10 +8672,10 @@
         "accuracy": 0.9599115288913465,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.038381111049270285,
+        "brier_score": 0.03838111104920022,
         "roc_auc": 0.5734346981119676,
         "predicted_positive_rate": 0.00034559026817804813,
-        "mean_probability": 0.04917804663951649
+        "mean_probability": 0.04917804663937083
       },
       "return_buckets": [
         {
@@ -8793,7 +8795,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:21:59.934896Z"
+      "created_at": "2026-09-16T16:20:06.897761Z"
     },
     {
       "feature_set": "fi_only",
@@ -8947,7 +8949,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:22:08.828789Z"
+      "created_at": "2026-09-16T16:20:30.170111Z"
     },
     {
       "feature_set": "fi_only",
@@ -9101,7 +9103,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:22:08.986592Z"
+      "created_at": "2026-09-16T16:20:30.511363Z"
     },
     {
       "feature_set": "fi_only",
@@ -9124,7 +9126,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5807361229771639,
+      "validation_score": 0.5807360916820795,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -9132,10 +9134,10 @@
         "accuracy": 0.9606576629477392,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.0374385770994405,
+        "brier_score": 0.037438577099440075,
         "roc_auc": 0.5645282851871428,
         "predicted_positive_rate": 0.0003774851103095378,
-        "mean_probability": 0.044640168917837085
+        "mean_probability": 0.0446401689178385
       },
       "return_buckets": [
         {
@@ -9255,7 +9257,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:22:09.043733Z"
+      "created_at": "2026-09-16T16:20:30.578018Z"
     },
     {
       "feature_set": "fi_only",
@@ -9409,7 +9411,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:15.520618Z"
+      "created_at": "2026-09-16T16:20:10.651940Z"
     },
     {
       "feature_set": "fi_only",
@@ -9563,7 +9565,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:15.698666Z"
+      "created_at": "2026-09-16T16:20:11.017975Z"
     },
     {
       "feature_set": "fi_only",
@@ -9594,10 +9596,10 @@
         "accuracy": 0.7016173624550732,
         "precision": 0.4878048780487805,
         "recall": 0.0023166917641607786,
-        "brier_score": 0.2095848780599784,
-        "roc_auc": 0.5457005333634223,
+        "brier_score": 0.20958487805915565,
+        "roc_auc": 0.5457006160901883,
         "predicted_positive_rate": 0.0014169200995299972,
-        "mean_probability": 0.3394125280499626
+        "mean_probability": 0.3394125280472337
       },
       "return_buckets": [
         {
@@ -9717,7 +9719,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:15.765919Z"
+      "created_at": "2026-09-16T16:20:11.073027Z"
     },
     {
       "feature_set": "fi_only",
@@ -9740,7 +9742,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5503240353221839,
+      "validation_score": 0.5503239525954179,
       "validation_metric": "roc_auc",
       "selected_for_oos": true,
       "test": {
@@ -9748,10 +9750,10 @@
         "accuracy": 0.7108882653295919,
         "precision": 0.375,
         "recall": 0.0004774789113480821,
-        "brier_score": 0.20540035792089253,
-        "roc_auc": 0.5221810363022372,
+        "brier_score": 0.20540035792477015,
+        "roc_auc": 0.5221808972846971,
         "predicted_positive_rate": 0.0003680022080132481,
-        "mean_probability": 0.30929499598954563
+        "mean_probability": 0.3092949959799362
       },
       "return_buckets": [
         {
@@ -9871,7 +9873,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:22:24.769597Z"
+      "created_at": "2026-09-16T16:20:30.237887Z"
     },
     {
       "feature_set": "fi_only",
@@ -10025,7 +10027,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:22:24.957219Z"
+      "created_at": "2026-09-16T16:20:30.536962Z"
     },
     {
       "feature_set": "fi_only",
@@ -10179,7 +10181,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:22:25.096499Z"
+      "created_at": "2026-09-16T16:20:31.488660Z"
     },
     {
       "feature_set": "fi_only",
@@ -10213,7 +10215,7 @@
         "brier_score": 0.21267552600031056,
         "roc_auc": 0.5623286364947425,
         "predicted_positive_rate": 0.07126071329831352,
-        "mean_probability": 0.30617514316508104
+        "mean_probability": 0.306175143165081
       },
       "return_buckets": [
         {
@@ -10333,7 +10335,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:31.505765Z"
+      "created_at": "2026-09-16T16:20:14.979439Z"
     },
     {
       "feature_set": "fi_only",
@@ -10487,7 +10489,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:31.686394Z"
+      "created_at": "2026-09-16T16:20:15.351135Z"
     },
     {
       "feature_set": "fi_only",
@@ -10518,10 +10520,10 @@
         "accuracy": 0.6996474979264584,
         "precision": 0.3888888888888889,
         "recall": 0.001612345963376713,
-        "brier_score": 0.20784887342679217,
+        "brier_score": 0.20784887342612265,
         "roc_auc": 0.5560069019566312,
         "predicted_positive_rate": 0.0012441249654409731,
-        "mean_probability": 0.3036076774849775
+        "mean_probability": 0.3036076774764296
       },
       "return_buckets": [
         {
@@ -10641,7 +10643,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:31.753139Z"
+      "created_at": "2026-09-16T16:20:15.410350Z"
     },
     {
       "feature_set": "fi_only",
@@ -10795,7 +10797,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:22:40.128293Z"
+      "created_at": "2026-09-16T16:20:35.303941Z"
     },
     {
       "feature_set": "fi_only",
@@ -10949,7 +10951,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:22:40.264244Z"
+      "created_at": "2026-09-16T16:20:35.518696Z"
     },
     {
       "feature_set": "fi_only",
@@ -10972,7 +10974,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5590155914301613,
+      "validation_score": 0.5590155203495999,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -10980,10 +10982,10 @@
         "accuracy": 0.7557375015506761,
         "precision": 0.2,
         "recall": 0.000508646998982706,
-        "brier_score": 0.18654535669152933,
+        "brier_score": 0.18654535669152586,
         "roc_auc": 0.5187510692435889,
         "predicted_positive_rate": 0.0006202704379109291,
-        "mean_probability": 0.2804763843214852
+        "mean_probability": 0.28047638432143907
       },
       "return_buckets": [
         {
@@ -11103,7 +11105,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:22:40.299844Z"
+      "created_at": "2026-09-16T16:20:35.556865Z"
     },
     {
       "feature_set": "fi_only",
@@ -11181,7 +11183,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:50.241496Z"
+      "created_at": "2026-09-16T16:20:53.100429Z"
     },
     {
       "feature_set": "fi_only",
@@ -11205,18 +11207,18 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.030835051943621683,
+      "validation_score": -0.030835051943621676,
       "validation_metric": "negative_mae",
       "selected_for_oos": false,
       "test": {
         "rows": 28936,
-        "mae": 0.030871723759479632,
-        "rmse": 0.047701771085116744,
+        "mae": 0.030871723759479577,
+        "rmse": 0.04770177108511671,
         "mean_actual": -0.024874235727916826,
-        "mean_prediction": -0.028062812908831967,
+        "mean_prediction": -0.02806281290883207,
         "median_actual": -0.016620526325355,
-        "median_prediction": -0.026407094317404733,
-        "spearman": 0.053793389545158235
+        "median_prediction": -0.026407094317404747,
+        "spearman": 0.0537902851405057
       },
       "return_buckets": [],
       "ranking_buckets": [],
@@ -11259,7 +11261,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:50.274636Z"
+      "created_at": "2026-09-16T16:20:53.135165Z"
     },
     {
       "feature_set": "fi_only",
@@ -11283,12 +11285,12 @@
       "experiment": "price_feature_ablation",
       "model": "random_forest_regression",
       "task": "regression",
-      "validation_score": -0.031045952387694597,
+      "validation_score": -0.03104595238769459,
       "validation_metric": "negative_mae",
       "selected_for_oos": false,
       "test": {
         "rows": 28936,
-        "mae": 0.031205369401189613,
+        "mae": 0.03120536940118961,
         "rmse": 0.04803660719880483,
         "mean_actual": -0.024874235727916826,
         "mean_prediction": -0.02914954346199768,
@@ -11337,7 +11339,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:22:50.487407Z"
+      "created_at": "2026-09-16T16:20:53.588385Z"
     },
     {
       "feature_set": "fi_only",
@@ -11415,7 +11417,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:05.245022Z"
+      "created_at": "2026-09-16T16:21:36.369171Z"
     },
     {
       "feature_set": "fi_only",
@@ -11439,18 +11441,18 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.03043953934348281,
+      "validation_score": -0.0304395393434829,
       "validation_metric": "negative_mae",
       "selected_for_oos": false,
       "test": {
         "rows": 23842,
-        "mae": 0.030289424553890613,
-        "rmse": 0.04735969321098955,
+        "mae": 0.03028942455389067,
+        "rmse": 0.047359693210989685,
         "mean_actual": -0.025636849381146735,
-        "mean_prediction": -0.026699317998114078,
+        "mean_prediction": -0.026699317998113967,
         "median_actual": -0.0181817901774895,
-        "median_prediction": -0.025771866561406332,
-        "spearman": 0.04866847282318224
+        "median_prediction": -0.0257718665614061,
+        "spearman": 0.04866949809200731
       },
       "return_buckets": [],
       "ranking_buckets": [],
@@ -11493,7 +11495,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:05.270704Z"
+      "created_at": "2026-09-16T16:21:36.396276Z"
     },
     {
       "feature_set": "fi_only",
@@ -11517,7 +11519,7 @@
       "experiment": "price_feature_ablation",
       "model": "random_forest_regression",
       "task": "regression",
-      "validation_score": -0.03050765060839723,
+      "validation_score": -0.030507650608397226,
       "validation_metric": "negative_mae",
       "selected_for_oos": false,
       "test": {
@@ -11527,7 +11529,7 @@
         "mean_actual": -0.025636849381146735,
         "mean_prediction": -0.027523246906303797,
         "median_actual": -0.0181817901774895,
-        "median_prediction": -0.02373958779375457,
+        "median_prediction": -0.023739587793754572,
         "spearman": 0.08255583721423607
       },
       "return_buckets": [],
@@ -11571,7 +11573,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:05.465450Z"
+      "created_at": "2026-09-16T16:21:37.530396Z"
     },
     {
       "feature_set": "fi_only",
@@ -11595,17 +11597,17 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.03407005779796561,
+      "validation_score": -0.03407005779796558,
       "validation_metric": "negative_mae",
       "selected_for_oos": true,
       "test": {
         "rows": 28936,
-        "mae": 0.034733738660040786,
+        "mae": 0.03473373866004079,
         "rmse": 0.07929865897081922,
         "mean_actual": 0.027401263961937157,
-        "mean_prediction": 0.02995745983609333,
+        "mean_prediction": 0.029957459836093218,
         "median_actual": 0.0162012374467665,
-        "median_prediction": 0.03027848068497992,
+        "median_prediction": 0.03027848068498017,
         "spearman": 0.010583844550652139
       },
       "return_buckets": [],
@@ -11649,7 +11651,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:15.601708Z"
+      "created_at": "2026-09-16T16:20:59.612383Z"
     },
     {
       "feature_set": "fi_only",
@@ -11727,7 +11729,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:15.681563Z"
+      "created_at": "2026-09-16T16:20:59.672658Z"
     },
     {
       "feature_set": "fi_only",
@@ -11805,7 +11807,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:15.844767Z"
+      "created_at": "2026-09-16T16:20:59.999383Z"
     },
     {
       "feature_set": "fi_only",
@@ -11829,18 +11831,18 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.03434173016465212,
+      "validation_score": -0.034341730164652126,
       "validation_metric": "negative_mae",
       "selected_for_oos": true,
       "test": {
         "rows": 23842,
-        "mae": 0.03387397391947338,
-        "rmse": 0.05295711426053459,
+        "mae": 0.033873973919473395,
+        "rmse": 0.0529571142605346,
         "mean_actual": 0.02713014549645959,
-        "mean_prediction": 0.029064450656673395,
+        "mean_prediction": 0.02906445065667341,
         "median_actual": 0.0169765985905745,
-        "median_prediction": 0.028476359504474476,
-        "spearman": 0.023985013162423695
+        "median_prediction": 0.028476359504474143,
+        "spearman": 0.023985010008529564
       },
       "return_buckets": [],
       "ranking_buckets": [],
@@ -11883,7 +11885,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:31.542276Z"
+      "created_at": "2026-09-16T16:21:45.911364Z"
     },
     {
       "feature_set": "fi_only",
@@ -11961,7 +11963,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:31.597602Z"
+      "created_at": "2026-09-16T16:21:45.957137Z"
     },
     {
       "feature_set": "fi_only",
@@ -11995,7 +11997,7 @@
         "mean_actual": 0.02713014549645959,
         "mean_prediction": 0.02952703318247723,
         "median_actual": 0.0169765985905745,
-        "median_prediction": 0.02649892382785004,
+        "median_prediction": 0.026498923827850036,
         "spearman": 0.024357774721042627
       },
       "return_buckets": [],
@@ -12039,7 +12041,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:31.758866Z"
+      "created_at": "2026-09-16T16:21:46.255583Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12194,7 +12196,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:38.967016Z"
+      "created_at": "2026-09-16T16:20:47.755969Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12349,7 +12351,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:39.147397Z"
+      "created_at": "2026-09-16T16:20:48.148421Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12380,10 +12382,10 @@
         "accuracy": 0.8629734586674039,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.11900514550540357,
+        "brier_score": 0.11900514550540345,
         "roc_auc": 0.5051776327879558,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.16315929025369555
+        "mean_probability": 0.1631592902536937
       },
       "return_buckets": [
         {
@@ -12504,7 +12506,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:39.216241Z"
+      "created_at": "2026-09-16T16:20:48.215548Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12659,7 +12661,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:48.080774Z"
+      "created_at": "2026-09-16T16:21:14.011437Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12814,7 +12816,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:48.246976Z"
+      "created_at": "2026-09-16T16:21:14.342218Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -12845,10 +12847,10 @@
         "accuracy": 0.8529905209294523,
         "precision": 0.16666666666666666,
         "recall": 0.00028563267637817766,
-        "brier_score": 0.12513500950344178,
+        "brier_score": 0.12513500950344209,
         "roc_auc": 0.5346571040873922,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.1529979952614982
+        "mean_probability": 0.1529979952615008
       },
       "return_buckets": [
         {
@@ -12969,7 +12971,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:23:48.305319Z"
+      "created_at": "2026-09-16T16:21:14.391794Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13124,7 +13126,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:55.390727Z"
+      "created_at": "2026-09-16T16:20:51.506142Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13279,7 +13281,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:55.579239Z"
+      "created_at": "2026-09-16T16:20:51.907226Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13310,10 +13312,10 @@
         "accuracy": 0.8576168095106442,
         "precision": 1.0,
         "recall": 0.00048520135856380397,
-        "brier_score": 0.12224481216442379,
+        "brier_score": 0.12224481216442577,
         "roc_auc": 0.5565475209307856,
         "predicted_positive_rate": 6.911805363560962e-05,
-        "mean_probability": 0.1727139107421741
+        "mean_probability": 0.1727139107421865
       },
       "return_buckets": [
         {
@@ -13434,7 +13436,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:23:55.648184Z"
+      "created_at": "2026-09-16T16:20:51.973886Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13589,7 +13591,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:05.455248Z"
+      "created_at": "2026-09-16T16:21:18.940979Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13744,7 +13746,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:05.621270Z"
+      "created_at": "2026-09-16T16:21:19.268921Z"
     },
     {
       "feature_set": "fi_plus_price_return_5d",
@@ -13775,10 +13777,10 @@
         "accuracy": 0.858191426893717,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.12084117902151206,
+        "brier_score": 0.12084117902151201,
         "roc_auc": 0.5617694868914482,
         "predicted_positive_rate": 0.00020971395017196543,
-        "mean_probability": 0.15841007104881724
+        "mean_probability": 0.15841007104881594
       },
       "return_buckets": [
         {
@@ -13899,7 +13901,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:05.679513Z"
+      "created_at": "2026-09-16T16:21:19.324671Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14054,7 +14056,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:12.669146Z"
+      "created_at": "2026-09-16T16:21:30.185806Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14209,7 +14211,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:12.844628Z"
+      "created_at": "2026-09-16T16:21:30.558204Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14240,10 +14242,10 @@
         "accuracy": 0.8629734586674039,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.1189804595959958,
-        "roc_auc": 0.5095869392606395,
+        "brier_score": 0.11898045959621581,
+        "roc_auc": 0.5095869493606278,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.16317662907228067
+        "mean_probability": 0.16317662908121205
       },
       "return_buckets": [
         {
@@ -14364,7 +14366,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:12.913759Z"
+      "created_at": "2026-09-16T16:21:30.621538Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14519,7 +14521,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:22.718475Z"
+      "created_at": "2026-09-16T16:21:59.140677Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14674,7 +14676,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:22.857143Z"
+      "created_at": "2026-09-16T16:21:59.429329Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14697,7 +14699,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.5311896225851496,
+      "validation_score": 0.5311896124851613,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -14705,10 +14707,10 @@
         "accuracy": 0.8529905209294523,
         "precision": 0.16666666666666666,
         "recall": 0.00028563267637817766,
-        "brier_score": 0.1251216824913839,
+        "brier_score": 0.12512168249138672,
         "roc_auc": 0.540089060776823,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.15292464626346397
+        "mean_probability": 0.1529246462634747
       },
       "return_buckets": [
         {
@@ -14829,7 +14831,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:22.914611Z"
+      "created_at": "2026-09-16T16:21:59.478906Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -14984,7 +14986,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:29.933285Z"
+      "created_at": "2026-09-16T16:21:36.196236Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15139,7 +15141,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:30.110601Z"
+      "created_at": "2026-09-16T16:21:36.592027Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15170,10 +15172,10 @@
         "accuracy": 0.8575822504838264,
         "precision": 1.0,
         "recall": 0.00024260067928190198,
-        "brier_score": 0.12228151450579665,
+        "brier_score": 0.12228151450592964,
         "roc_auc": 0.5552463702093015,
         "predicted_positive_rate": 3.455902681780481e-05,
-        "mean_probability": 0.1726857851027374
+        "mean_probability": 0.17268578510411545
       },
       "return_buckets": [
         {
@@ -15294,7 +15296,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:30.179792Z"
+      "created_at": "2026-09-16T16:21:36.657913Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15449,7 +15451,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:40.129213Z"
+      "created_at": "2026-09-16T16:22:04.122128Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15604,7 +15606,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:40.296131Z"
+      "created_at": "2026-09-16T16:22:05.306509Z"
     },
     {
       "feature_set": "fi_plus_price_return_20d",
@@ -15635,10 +15637,10 @@
         "accuracy": 0.8581494841036825,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.12090428912006969,
+        "brier_score": 0.12090428912006757,
         "roc_auc": 0.5581893959024863,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.15853870253853572
+        "mean_probability": 0.15853870253847677
       },
       "return_buckets": [
         {
@@ -15759,7 +15761,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:40.354738Z"
+      "created_at": "2026-09-16T16:22:05.360369Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -15914,7 +15916,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:47.685957Z"
+      "created_at": "2026-09-16T16:21:54.096529Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16069,7 +16071,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:47.863961Z"
+      "created_at": "2026-09-16T16:21:54.455036Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16100,10 +16102,10 @@
         "accuracy": 0.8629734586674039,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.11885978678343782,
+        "brier_score": 0.11885978678343986,
         "roc_auc": 0.5341554437700065,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.1619483705035056
+        "mean_probability": 0.16194837050352984
       },
       "return_buckets": [
         {
@@ -16224,7 +16226,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:24:47.932398Z"
+      "created_at": "2026-09-16T16:21:54.518068Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16379,7 +16381,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:57.692425Z"
+      "created_at": "2026-09-16T16:22:24.265812Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16534,7 +16536,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:57.844121Z"
+      "created_at": "2026-09-16T16:22:24.560830Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16565,10 +16567,10 @@
         "accuracy": 0.8529905209294523,
         "precision": 0.16666666666666666,
         "recall": 0.00028563267637817766,
-        "brier_score": 0.12489840170361627,
+        "brier_score": 0.12489840170361986,
         "roc_auc": 0.5586583723239981,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.15303633306831474
+        "mean_probability": 0.15303633306822745
       },
       "return_buckets": [
         {
@@ -16689,7 +16691,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:24:57.901916Z"
+      "created_at": "2026-09-16T16:22:24.610512Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16844,7 +16846,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:05.183746Z"
+      "created_at": "2026-09-16T16:22:03.810336Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -16999,7 +17001,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:05.363329Z"
+      "created_at": "2026-09-16T16:22:04.218130Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17030,10 +17032,10 @@
         "accuracy": 0.8575822504838264,
         "precision": 1.0,
         "recall": 0.00024260067928190198,
-        "brier_score": 0.12246042930466144,
-        "roc_auc": 0.5443546076941508,
+        "brier_score": 0.12246042930526617,
+        "roc_auc": 0.5443545783638519,
         "predicted_positive_rate": 3.455902681780481e-05,
-        "mean_probability": 0.17223846227529657
+        "mean_probability": 0.17223846225881748
       },
       "return_buckets": [
         {
@@ -17154,7 +17156,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:05.432793Z"
+      "created_at": "2026-09-16T16:22:04.278216Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17309,7 +17311,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:15.348933Z"
+      "created_at": "2026-09-16T16:22:31.390369Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17464,7 +17466,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:15.498266Z"
+      "created_at": "2026-09-16T16:22:31.692397Z"
     },
     {
       "feature_set": "fi_plus_price_return_60d",
@@ -17495,10 +17497,10 @@
         "accuracy": 0.8581494841036825,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.12090112784092993,
+        "brier_score": 0.12090112784093268,
         "roc_auc": 0.5533480016330402,
         "predicted_positive_rate": 0.0002516567402063585,
-        "mean_probability": 0.1586846364622591
+        "mean_probability": 0.1586846364622941
       },
       "return_buckets": [
         {
@@ -17619,7 +17621,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:15.556641Z"
+      "created_at": "2026-09-16T16:22:31.743204Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -17774,7 +17776,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:22.388617Z"
+      "created_at": "2026-09-16T16:22:16.386609Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -17929,7 +17931,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:22.565696Z"
+      "created_at": "2026-09-16T16:22:16.825377Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -17960,10 +17962,10 @@
         "accuracy": 0.8621094829969588,
         "precision": 0.24489795918367346,
         "recall": 0.003026481715006305,
-        "brier_score": 0.11790635392634849,
+        "brier_score": 0.11790635392634856,
         "roc_auc": 0.6132697434698904,
         "predicted_positive_rate": 0.0016933923140724358,
-        "mean_probability": 0.16002850699913562
+        "mean_probability": 0.16002850699913695
       },
       "return_buckets": [
         {
@@ -18084,7 +18086,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:22.634855Z"
+      "created_at": "2026-09-16T16:22:16.885876Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18239,7 +18241,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:33.072662Z"
+      "created_at": "2026-09-16T16:22:45.532053Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18273,7 +18275,7 @@
         "brier_score": 0.12374273407839169,
         "roc_auc": 0.604672341715145,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.1512831549339033
+        "mean_probability": 0.15128315493390332
       },
       "return_buckets": [
         {
@@ -18394,7 +18396,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:33.242595Z"
+      "created_at": "2026-09-16T16:22:45.871987Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18425,10 +18427,10 @@
         "accuracy": 0.8527808069792803,
         "precision": 0.30434782608695654,
         "recall": 0.001999428734647244,
-        "brier_score": 0.12471697886841063,
+        "brier_score": 0.12471697886841132,
         "roc_auc": 0.5988724439115705,
         "predicted_positive_rate": 0.000964684170791041,
-        "mean_probability": 0.15134781054793142
+        "mean_probability": 0.15134781054793953
       },
       "return_buckets": [
         {
@@ -18549,7 +18551,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:33.301220Z"
+      "created_at": "2026-09-16T16:22:45.921674Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18704,7 +18706,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:40.428369Z"
+      "created_at": "2026-09-16T16:22:21.174432Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18859,7 +18861,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:40.603199Z"
+      "created_at": "2026-09-16T16:22:21.534465Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -18890,10 +18892,10 @@
         "accuracy": 0.8582043129665469,
         "precision": 0.6557377049180327,
         "recall": 0.009704027171276079,
-        "brier_score": 0.11973312418269505,
+        "brier_score": 0.119733124182722,
         "roc_auc": 0.6381974759752588,
         "predicted_positive_rate": 0.0021081006358860933,
-        "mean_probability": 0.16923621274495967
+        "mean_probability": 0.16923621274494488
       },
       "return_buckets": [
         {
@@ -19014,7 +19016,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:40.672031Z"
+      "created_at": "2026-09-16T16:22:21.594323Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19045,10 +19047,10 @@
         "accuracy": 0.8574783994631323,
         "precision": 0.3225806451612903,
         "recall": 0.005924170616113744,
-        "brier_score": 0.11837540345563026,
+        "brier_score": 0.11837540345563037,
         "roc_auc": 0.6511023527982834,
         "predicted_positive_rate": 0.0026004529821323716,
-        "mean_probability": 0.15670050637710106
+        "mean_probability": 0.15670050637709945
       },
       "return_buckets": [
         {
@@ -19169,7 +19171,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:50.343833Z"
+      "created_at": "2026-09-16T16:22:48.436828Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19324,7 +19326,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:50.524502Z"
+      "created_at": "2026-09-16T16:22:48.753704Z"
     },
     {
       "feature_set": "fi_plus_price_volatility_20d",
@@ -19479,7 +19481,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:25:50.690590Z"
+      "created_at": "2026-09-16T16:22:50.660413Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -19634,7 +19636,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:57.633381Z"
+      "created_at": "2026-09-16T16:22:40.828511Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -19789,7 +19791,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:57.818583Z"
+      "created_at": "2026-09-16T16:22:41.197243Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -19820,10 +19822,10 @@
         "accuracy": 0.8630080176942218,
         "precision": 1.0,
         "recall": 0.00025220680958385876,
-        "brier_score": 0.11792277664153242,
+        "brier_score": 0.11792277664149745,
         "roc_auc": 0.5734242490519772,
         "predicted_positive_rate": 3.455902681780481e-05,
-        "mean_probability": 0.1611897642683482
+        "mean_probability": 0.16118976426806778
       },
       "return_buckets": [
         {
@@ -19944,7 +19946,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:25:57.887271Z"
+      "created_at": "2026-09-16T16:22:41.255641Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20099,7 +20101,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:07.757191Z"
+      "created_at": "2026-09-16T16:23:10.654101Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20254,7 +20256,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:07.912363Z"
+      "created_at": "2026-09-16T16:23:10.953462Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20285,10 +20287,10 @@
         "accuracy": 0.8526130358191427,
         "precision": 0.3142857142857143,
         "recall": 0.003141959440159954,
-        "brier_score": 0.12506052835356374,
+        "brier_score": 0.1250605283535634,
         "roc_auc": 0.559911190578809,
         "predicted_positive_rate": 0.001467997651203758,
-        "mean_probability": 0.15243050083274232
+        "mean_probability": 0.15243050083274706
       },
       "return_buckets": [
         {
@@ -20409,7 +20411,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:07.970993Z"
+      "created_at": "2026-09-16T16:23:11.002920Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20440,7 +20442,7 @@
         "accuracy": 0.8575476914570086,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.12154109137762142,
+        "brier_score": 0.1215410913776214,
         "roc_auc": 0.5864490274405282,
         "predicted_positive_rate": 0.0,
         "mean_probability": 0.1734438838334411
@@ -20564,7 +20566,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:15.103457Z"
+      "created_at": "2026-09-16T16:22:48.503874Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20719,7 +20721,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:15.286452Z"
+      "created_at": "2026-09-16T16:22:48.878811Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20750,10 +20752,10 @@
         "accuracy": 0.8575822504838264,
         "precision": 0.6,
         "recall": 0.000727802037845706,
-        "brier_score": 0.12119896490365593,
+        "brier_score": 0.12119896490365598,
         "roc_auc": 0.585097032645835,
         "predicted_positive_rate": 0.00017279513408902407,
-        "mean_probability": 0.17024762955728368
+        "mean_probability": 0.17024762955765696
       },
       "return_buckets": [
         {
@@ -20874,7 +20876,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:15.355395Z"
+      "created_at": "2026-09-16T16:22:48.942597Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -20908,7 +20910,7 @@
         "brier_score": 0.12033026249080198,
         "roc_auc": 0.5989611338977187,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.16130931335605814
+        "mean_probability": 0.1613093133560581
       },
       "return_buckets": [
         {
@@ -21029,7 +21031,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:25.870578Z"
+      "created_at": "2026-09-16T16:23:15.924979Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21184,7 +21186,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:26.011758Z"
+      "created_at": "2026-09-16T16:23:16.204176Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_20d_high",
@@ -21215,10 +21217,10 @@
         "accuracy": 0.8576461706232699,
         "precision": 0.25,
         "recall": 0.002665876777251185,
-        "brier_score": 0.12016086938496306,
+        "brier_score": 0.12016086938496066,
         "roc_auc": 0.5862713569447976,
         "predicted_positive_rate": 0.0015099404412381512,
-        "mean_probability": 0.15808395907467962
+        "mean_probability": 0.15808395907462688
       },
       "return_buckets": [
         {
@@ -21339,7 +21341,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:26.068872Z"
+      "created_at": "2026-09-16T16:23:16.257262Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -21494,7 +21496,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:32.981884Z"
+      "created_at": "2026-09-16T16:23:03.709116Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -21649,7 +21651,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:33.151087Z"
+      "created_at": "2026-09-16T16:23:04.037304Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -21680,10 +21682,10 @@
         "accuracy": 0.8629734586674039,
         "precision": 0.5,
         "recall": 0.00025220680958385876,
-        "brier_score": 0.11707457332400366,
+        "brier_score": 0.11707457332388127,
         "roc_auc": 0.598148697381775,
         "predicted_positive_rate": 6.911805363560962e-05,
-        "mean_probability": 0.1581902208415986
+        "mean_probability": 0.1581902208400917
       },
       "return_buckets": [
         {
@@ -21804,7 +21806,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:33.219935Z"
+      "created_at": "2026-09-16T16:23:04.095342Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -21835,10 +21837,10 @@
         "accuracy": 0.8527808069792803,
         "precision": 0.15384615384615385,
         "recall": 0.0005712653527563553,
-        "brier_score": 0.12453464520965743,
+        "brier_score": 0.12453464520965146,
         "roc_auc": 0.5867419719714319,
         "predicted_positive_rate": 0.0005452562704471102,
-        "mean_probability": 0.15288491594992085
+        "mean_probability": 0.15288491594991652
       },
       "return_buckets": [
         {
@@ -21959,7 +21961,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:42.855409Z"
+      "created_at": "2026-09-16T16:23:30.123015Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22114,7 +22116,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:43.041839Z"
+      "created_at": "2026-09-16T16:23:30.431845Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22269,7 +22271,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:43.208500Z"
+      "created_at": "2026-09-16T16:23:30.771814Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22424,7 +22426,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:50.092747Z"
+      "created_at": "2026-09-16T16:23:06.660817Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22579,7 +22581,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:50.270870Z"
+      "created_at": "2026-09-16T16:23:07.024929Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22610,10 +22612,10 @@
         "accuracy": 0.8575476914570086,
         "precision": 0.5,
         "recall": 0.0009704027171276079,
-        "brier_score": 0.12101667813066863,
+        "brier_score": 0.12101667813066908,
         "roc_auc": 0.5858838814638259,
         "predicted_positive_rate": 0.0002764722145424385,
-        "mean_probability": 0.16756775475014457
+        "mean_probability": 0.16756775475009675
       },
       "return_buckets": [
         {
@@ -22734,7 +22736,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:26:50.340225Z"
+      "created_at": "2026-09-16T16:23:07.087298Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -22889,7 +22891,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:26:59.982348Z"
+      "created_at": "2026-09-16T16:23:33.635059Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -23044,7 +23046,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:27:00.149370Z"
+      "created_at": "2026-09-16T16:23:34.014297Z"
     },
     {
       "feature_set": "fi_plus_price_distance_from_60d_high",
@@ -23075,10 +23077,10 @@
         "accuracy": 0.8582753124737857,
         "precision": 0.45161290322580644,
         "recall": 0.004146919431279621,
-        "brier_score": 0.11998603751814074,
+        "brier_score": 0.1199860375181404,
         "roc_auc": 0.5823646998860206,
         "predicted_positive_rate": 0.0013002264910661858,
-        "mean_probability": 0.15846399120356527
+        "mean_probability": 0.15846399120356042
       },
       "return_buckets": [
         {
@@ -23199,7 +23201,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:27:00.207669Z"
+      "created_at": "2026-09-16T16:23:34.063824Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23359,7 +23361,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:09.387850Z"
+      "created_at": "2026-09-16T16:23:35.015286Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23519,7 +23521,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:09.575387Z"
+      "created_at": "2026-09-16T16:23:35.478334Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23550,10 +23552,10 @@
         "accuracy": 0.5046309095935858,
         "precision": 0.4999618989560314,
         "recall": 0.45775483150770946,
-        "brier_score": 0.24992112702453756,
+        "brier_score": 0.24992112702451136,
         "roc_auc": 0.5108439725741787,
         "predicted_positive_rate": 0.4535181089300525,
-        "mean_probability": 0.4937234143433975
+        "mean_probability": 0.4937234143435521
       },
       "return_buckets": [
         {
@@ -23679,7 +23681,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:09.652620Z"
+      "created_at": "2026-09-16T16:23:35.552167Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23710,10 +23712,10 @@
         "accuracy": 0.505662276654643,
         "precision": 0.4924990852542993,
         "recall": 0.46325933574255723,
-        "brier_score": 0.24983889295143594,
+        "brier_score": 0.24983889295143513,
         "roc_auc": 0.5134430904647516,
         "predicted_positive_rate": 0.4585185806559852,
-        "mean_probability": 0.4955814001788948
+        "mean_probability": 0.4955814001789299
       },
       "return_buckets": [
         {
@@ -23839,7 +23841,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:27:23.797477Z"
+      "created_at": "2026-09-16T16:24:11.234242Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -23999,7 +24001,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:27:24.018520Z"
+      "created_at": "2026-09-16T16:24:11.639088Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24159,7 +24161,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:27:24.174777Z"
+      "created_at": "2026-09-16T16:24:11.939912Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24319,7 +24321,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:33.408163Z"
+      "created_at": "2026-09-16T16:23:40.005769Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24479,7 +24481,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:33.602431Z"
+      "created_at": "2026-09-16T16:23:40.366956Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24510,10 +24512,10 @@
         "accuracy": 0.5212883605197678,
         "precision": 0.5066354410616706,
         "recall": 0.32517357383150813,
-        "brier_score": 0.24944322787228532,
+        "brier_score": 0.24944322787228973,
         "roc_auc": 0.5265362552466862,
         "predicted_positive_rate": 0.3098907934752557,
-        "mean_probability": 0.482204485567353
+        "mean_probability": 0.48220448556718043
       },
       "return_buckets": [
         {
@@ -24639,7 +24641,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:33.678919Z"
+      "created_at": "2026-09-16T16:23:40.438331Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24670,10 +24672,10 @@
         "accuracy": 0.5152030912185473,
         "precision": 0.5143953934740882,
         "recall": 0.4704360679970436,
-        "brier_score": 0.2494349033496254,
+        "brier_score": 0.24943490334962512,
         "roc_auc": 0.5275234129616105,
         "predicted_positive_rate": 0.45535673214039285,
-        "mean_probability": 0.4936922252445535
+        "mean_probability": 0.4936922252445508
       },
       "return_buckets": [
         {
@@ -24799,7 +24801,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:27:47.447503Z"
+      "created_at": "2026-09-16T16:24:16.360179Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24959,7 +24961,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:27:47.629313Z"
+      "created_at": "2026-09-16T16:24:16.639868Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -24990,7 +24992,7 @@
         "accuracy": 0.5238511431068587,
         "precision": 0.5239882341008216,
         "recall": 0.4772727272727273,
-        "brier_score": 0.25085568843604883,
+        "brier_score": 0.2508556884360488,
         "roc_auc": 0.5330796428357405,
         "predicted_positive_rate": 0.4535167211003266,
         "mean_probability": 0.492166381881021
@@ -25119,7 +25121,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:27:47.811519Z"
+      "created_at": "2026-09-16T16:24:16.984288Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25279,7 +25281,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:56.437813Z"
+      "created_at": "2026-09-16T16:23:53.749629Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25439,7 +25441,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:56.634729Z"
+      "created_at": "2026-09-16T16:23:54.117753Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25470,10 +25472,10 @@
         "accuracy": 0.523016311860658,
         "precision": 0.4780055062710309,
         "recall": 0.5971871894825346,
-        "brier_score": 0.250245061390984,
+        "brier_score": 0.25024506139098396,
         "roc_auc": 0.5348064294307867,
         "predicted_positive_rate": 0.5648672933370197,
-        "mean_probability": 0.49806374542257037
+        "mean_probability": 0.4980637454225701
       },
       "return_buckets": [
         {
@@ -25599,7 +25601,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:27:56.710630Z"
+      "created_at": "2026-09-16T16:23:54.190257Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25759,7 +25761,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:28:09.971816Z"
+      "created_at": "2026-09-16T16:24:29.675521Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25919,7 +25921,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:28:10.119304Z"
+      "created_at": "2026-09-16T16:24:29.968997Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -25950,10 +25952,10 @@
         "accuracy": 0.5065748666418558,
         "precision": 0.5167661920073495,
         "recall": 0.6760817307692307,
-        "brier_score": 0.25259443852622915,
+        "brier_score": 0.2525944385262665,
         "roc_auc": 0.4949382585579635,
         "predicted_positive_rate": 0.6751643716660464,
-        "mean_probability": 0.5121649896619979
+        "mean_probability": 0.5121649896620476
       },
       "return_buckets": [
         {
@@ -26079,7 +26081,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:28:10.167544Z"
+      "created_at": "2026-09-16T16:24:30.010540Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26239,7 +26241,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:28:19.060793Z"
+      "created_at": "2026-09-16T16:23:59.830806Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26399,7 +26401,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:28:19.253989Z"
+      "created_at": "2026-09-16T16:24:00.189236Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26430,10 +26432,10 @@
         "accuracy": 0.8626278683992259,
         "precision": 0.3611111111111111,
         "recall": 0.003278688524590164,
-        "brier_score": 0.11691809490319384,
+        "brier_score": 0.11691809490319387,
         "roc_auc": 0.6278065405807685,
         "predicted_positive_rate": 0.0012441249654409731,
-        "mean_probability": 0.15727416211745057
+        "mean_probability": 0.1572741621174493
       },
       "return_buckets": [
         {
@@ -26559,7 +26561,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:28:19.330905Z"
+      "created_at": "2026-09-16T16:24:00.258814Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26719,7 +26721,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:28:33.317367Z"
+      "created_at": "2026-09-16T16:24:43.026476Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -26750,10 +26752,10 @@
         "accuracy": 0.8520258367586612,
         "precision": 0.11428571428571428,
         "recall": 0.0011425307055127106,
-        "brier_score": 0.12429337144029742,
+        "brier_score": 0.12429337144029898,
         "roc_auc": 0.6121161755619949,
         "predicted_positive_rate": 0.001467997651203758,
-        "mean_probability": 0.1517144806949545
+        "mean_probability": 0.15171448069495475
       },
       "return_buckets": [
         {
@@ -26879,7 +26881,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:28:33.381777Z"
+      "created_at": "2026-09-16T16:24:43.080927Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27039,7 +27041,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:28:33.574279Z"
+      "created_at": "2026-09-16T16:24:43.386228Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27199,7 +27201,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:28:42.999508Z"
+      "created_at": "2026-09-16T16:24:35.269973Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27359,7 +27361,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:28:43.193217Z"
+      "created_at": "2026-09-16T16:24:35.691794Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27382,7 +27384,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.4976419735740193,
+      "validation_score": 0.4976419666073178,
       "validation_metric": "roc_auc",
       "selected_for_oos": false,
       "test": {
@@ -27390,10 +27392,10 @@
         "accuracy": 0.7218343931434891,
         "precision": 0.3424657534246575,
         "recall": 0.0031148766508846248,
-        "brier_score": 0.20136751611106843,
-        "roc_auc": 0.5372705731718639,
+        "brier_score": 0.20136751614214862,
+        "roc_auc": 0.5372705791304992,
         "predicted_positive_rate": 0.002522808957699751,
-        "mean_probability": 0.306843819039234
+        "mean_probability": 0.30684381897611884
       },
       "return_buckets": [
         {
@@ -27519,7 +27521,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:28:43.270041Z"
+      "created_at": "2026-09-16T16:24:35.761248Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27542,7 +27544,7 @@
       "experiment": "price_feature_ablation",
       "model": "logistic_regression",
       "task": "classification",
-      "validation_score": 0.557990393011331,
+      "validation_score": 0.5579904049286019,
       "validation_metric": "roc_auc",
       "selected_for_oos": true,
       "test": {
@@ -27550,10 +27552,10 @@
         "accuracy": 0.7091862551175308,
         "precision": 0.43636363636363634,
         "recall": 0.003800475059382423,
-        "brier_score": 0.20561797124829537,
+        "brier_score": 0.20561797122979647,
         "roc_auc": 0.5530089044887526,
         "predicted_positive_rate": 0.0025300151800910805,
-        "mean_probability": 0.3064821454193149
+        "mean_probability": 0.3064821454300613
       },
       "return_buckets": [
         {
@@ -27679,7 +27681,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:28:57.846803Z"
+      "created_at": "2026-09-16T16:25:12.241349Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27839,7 +27841,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:28:58.060973Z"
+      "created_at": "2026-09-16T16:25:12.611004Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -27999,7 +28001,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:28:58.208919Z"
+      "created_at": "2026-09-16T16:25:12.880386Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28159,7 +28161,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:07.101094Z"
+      "created_at": "2026-09-16T16:24:39.885813Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28319,7 +28321,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:07.293139Z"
+      "created_at": "2026-09-16T16:24:40.251334Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28350,10 +28352,10 @@
         "accuracy": 0.7608169753939729,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.18599261098920739,
+        "brier_score": 0.18599261098693964,
         "roc_auc": 0.5128149447433468,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.29386819634620476
+        "mean_probability": 0.29386819635087125
       },
       "return_buckets": [
         {
@@ -28479,7 +28481,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:07.369179Z"
+      "created_at": "2026-09-16T16:24:40.318278Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28510,10 +28512,10 @@
         "accuracy": 0.6986105942190796,
         "precision": 0.0,
         "recall": 0.0,
-        "brier_score": 0.20869387128363037,
+        "brier_score": 0.20869387128435296,
         "roc_auc": 0.5785904201485157,
         "predicted_positive_rate": 0.00012405408758218582,
-        "mean_probability": 0.30074062539423585
+        "mean_probability": 0.3007406253960667
       },
       "return_buckets": [
         {
@@ -28639,7 +28641,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:29:20.821960Z"
+      "created_at": "2026-09-16T16:25:19.121194Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28799,7 +28801,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:29:20.976897Z"
+      "created_at": "2026-09-16T16:25:19.327854Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -28959,7 +28961,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:29:21.126831Z"
+      "created_at": "2026-09-16T16:25:19.592751Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29119,7 +29121,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:29.912689Z"
+      "created_at": "2026-09-16T16:24:54.454960Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29279,7 +29281,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:30.098604Z"
+      "created_at": "2026-09-16T16:24:54.815253Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29310,10 +29312,10 @@
         "accuracy": 0.7517279513408902,
         "precision": 0.5058823529411764,
         "recall": 0.011967715001391595,
-        "brier_score": 0.18364263991180863,
+        "brier_score": 0.183642639911808,
         "roc_auc": 0.5902714473545303,
         "predicted_positive_rate": 0.005875034559026818,
-        "mean_probability": 0.27203338253431614
+        "mean_probability": 0.27203338253439907
       },
       "return_buckets": [
         {
@@ -29439,7 +29441,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:30.175937Z"
+      "created_at": "2026-09-16T16:24:54.879035Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29470,10 +29472,10 @@
         "accuracy": 0.7478399463132288,
         "precision": 0.4891304347826087,
         "recall": 0.014980026631158456,
-        "brier_score": 0.18502041720559764,
+        "brier_score": 0.18502041720560006,
         "roc_auc": 0.5899117146634288,
         "predicted_positive_rate": 0.007717473366328328,
-        "mean_probability": 0.2609478833551947
+        "mean_probability": 0.2609478833551775
       },
       "return_buckets": [
         {
@@ -29599,7 +29601,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:29:43.587656Z"
+      "created_at": "2026-09-16T16:25:33.794466Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29759,7 +29761,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:29:43.814548Z"
+      "created_at": "2026-09-16T16:25:34.197065Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29919,7 +29921,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:29:43.971541Z"
+      "created_at": "2026-09-16T16:25:34.501755Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -29953,7 +29955,7 @@
         "brier_score": 0.11925153200775897,
         "roc_auc": 0.6290890298542163,
         "predicted_positive_rate": 0.0,
-        "mean_probability": 0.16739035077921477
+        "mean_probability": 0.1673903507792147
       },
       "return_buckets": [
         {
@@ -30079,7 +30081,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:53.597418Z"
+      "created_at": "2026-09-16T16:25:06.889729Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30239,7 +30241,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:53.783673Z"
+      "created_at": "2026-09-16T16:25:07.243739Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30270,10 +30272,10 @@
         "accuracy": 0.8579969588056401,
         "precision": 0.5714285714285714,
         "recall": 0.012615235322658904,
-        "brier_score": 0.11913173077570571,
+        "brier_score": 0.11913173077545819,
         "roc_auc": 0.632357823233484,
         "predicted_positive_rate": 0.0031448714404202376,
-        "mean_probability": 0.16644674105839954
+        "mean_probability": 0.16644674105896248
       },
       "return_buckets": [
         {
@@ -30399,7 +30401,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:29:53.859705Z"
+      "created_at": "2026-09-16T16:25:07.306503Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30559,7 +30561,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:08.076623Z"
+      "created_at": "2026-09-16T16:25:48.482717Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30719,7 +30721,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:08.270536Z"
+      "created_at": "2026-09-16T16:25:48.877009Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -30750,10 +30752,10 @@
         "accuracy": 0.857226742722926,
         "precision": 0.3372093023255814,
         "recall": 0.008590047393364929,
-        "brier_score": 0.11809311659213795,
+        "brier_score": 0.11809311659213248,
         "roc_auc": 0.6401185609886795,
         "predicted_positive_rate": 0.0036070799429578056,
-        "mean_probability": 0.15670413647401132
+        "mean_probability": 0.15670413647402112
       },
       "return_buckets": [
         {
@@ -30879,7 +30881,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:08.336778Z"
+      "created_at": "2026-09-16T16:25:48.940196Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31039,7 +31041,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:30:17.733516Z"
+      "created_at": "2026-09-16T16:25:37.727269Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31199,7 +31201,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:30:17.926811Z"
+      "created_at": "2026-09-16T16:25:38.087550Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31230,10 +31232,10 @@
         "accuracy": 0.9175421620127178,
         "precision": 0.5072463768115942,
         "recall": 0.01466275659824047,
-        "brier_score": 0.07381464516154192,
+        "brier_score": 0.07381464516153527,
         "roc_auc": 0.6554446368922098,
         "predicted_positive_rate": 0.002384572850428532,
-        "mean_probability": 0.0978168840375182
+        "mean_probability": 0.09781688403749966
       },
       "return_buckets": [
         {
@@ -31359,7 +31361,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:30:18.004193Z"
+      "created_at": "2026-09-16T16:25:38.156023Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31519,7 +31521,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:32.805611Z"
+      "created_at": "2026-09-16T16:26:18.130604Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31679,7 +31681,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:32.998916Z"
+      "created_at": "2026-09-16T16:26:18.536834Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31710,10 +31712,10 @@
         "accuracy": 0.9177082459525208,
         "precision": 0.24324324324324326,
         "recall": 0.004632012352032939,
-        "brier_score": 0.07263541798568224,
+        "brier_score": 0.0726354179856871,
         "roc_auc": 0.6737932721918952,
         "predicted_positive_rate": 0.0015518832312725443,
-        "mean_probability": 0.09161746579109899
+        "mean_probability": 0.09161746579110457
       },
       "return_buckets": [
         {
@@ -31839,7 +31841,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:33.063543Z"
+      "created_at": "2026-09-16T16:26:18.599348Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -31999,7 +32001,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:30:42.246010Z"
+      "created_at": "2026-09-16T16:25:44.450025Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32159,7 +32161,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:30:42.435002Z"
+      "created_at": "2026-09-16T16:25:44.828655Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32190,10 +32192,10 @@
         "accuracy": 0.9604644733204313,
         "precision": 0.5833333333333334,
         "recall": 0.018260869565217393,
-        "brier_score": 0.03722018151217331,
+        "brier_score": 0.0372201815121736,
         "roc_auc": 0.6840756527372245,
         "predicted_positive_rate": 0.0012441249654409731,
-        "mean_probability": 0.04577762876778772
+        "mean_probability": 0.04577762876779164
       },
       "return_buckets": [
         {
@@ -32319,7 +32321,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:30:42.511174Z"
+      "created_at": "2026-09-16T16:25:44.897006Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32479,7 +32481,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:56.719920Z"
+      "created_at": "2026-09-16T16:26:25.447538Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32639,7 +32641,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:56.877391Z"
+      "created_at": "2026-09-16T16:26:25.748593Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32670,10 +32672,10 @@
         "accuracy": 0.9608254341078769,
         "precision": 0.2222222222222222,
         "recall": 0.002152852529601722,
-        "brier_score": 0.036645703936176985,
+        "brier_score": 0.03664570393617705,
         "roc_auc": 0.6900377179049109,
         "predicted_positive_rate": 0.0003774851103095378,
-        "mean_probability": 0.04323341654168734
+        "mean_probability": 0.04323341654168634
       },
       "return_buckets": [
         {
@@ -32799,7 +32801,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:30:56.941351Z"
+      "created_at": "2026-09-16T16:26:25.810339Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -32959,7 +32961,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:31:06.113863Z"
+      "created_at": "2026-09-16T16:25:59.097666Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33119,7 +33121,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:31:06.301356Z"
+      "created_at": "2026-09-16T16:25:59.459018Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33150,10 +33152,10 @@
         "accuracy": 0.704140171412773,
         "precision": 0.575,
         "recall": 0.03197034634541874,
-        "brier_score": 0.2067360956866933,
+        "brier_score": 0.206736095686685,
         "roc_auc": 0.5811161357193414,
         "predicted_positive_rate": 0.01658833287254631,
-        "mean_probability": 0.33402037125674966
+        "mean_probability": 0.3340203712565142
       },
       "return_buckets": [
         {
@@ -33279,7 +33281,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:31:06.377637Z"
+      "created_at": "2026-09-16T16:25:59.529358Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33310,10 +33312,10 @@
         "accuracy": 0.7126362758176549,
         "precision": 0.5588235294117647,
         "recall": 0.027216297946840683,
-        "brier_score": 0.20159172494021868,
+        "brier_score": 0.20159172494022426,
         "roc_auc": 0.5738133503960372,
         "predicted_positive_rate": 0.01407608445650674,
-        "mean_probability": 0.308384200331761
+        "mean_probability": 0.30838420033167496
       },
       "return_buckets": [
         {
@@ -33439,7 +33441,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:31:19.821564Z"
+      "created_at": "2026-09-16T16:26:34.540129Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33599,7 +33601,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:31:20.002950Z"
+      "created_at": "2026-09-16T16:26:34.812793Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33630,7 +33632,7 @@
         "accuracy": 0.7061962371774231,
         "precision": 0.42441860465116277,
         "recall": 0.046474614037879995,
-        "brier_score": 0.2029043164329095,
+        "brier_score": 0.20290431643290952,
         "roc_auc": 0.5852513325912474,
         "predicted_positive_rate": 0.03164818988913933,
         "mean_probability": 0.31531493481943956
@@ -33759,7 +33761,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 21739,
-      "created_at": "2026-09-16T15:31:20.183101Z"
+      "created_at": "2026-09-16T16:26:35.172654Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -33919,7 +33921,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:31:29.290558Z"
+      "created_at": "2026-09-16T16:26:11.585900Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34079,7 +34081,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:31:29.491351Z"
+      "created_at": "2026-09-16T16:26:12.027797Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34110,10 +34112,10 @@
         "accuracy": 0.7027578103400608,
         "precision": 0.5438972162740899,
         "recall": 0.05850512495681216,
-        "brier_score": 0.20431831235368716,
+        "brier_score": 0.20431831235366166,
         "roc_auc": 0.6039791501038296,
         "predicted_positive_rate": 0.03227813104782969,
-        "mean_probability": 0.2972553559087693
+        "mean_probability": 0.2972553559088571
       },
       "return_buckets": [
         {
@@ -34239,7 +34241,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:31:29.568210Z"
+      "created_at": "2026-09-16T16:26:12.098896Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34270,10 +34272,10 @@
         "accuracy": 0.7500310135218955,
         "precision": 0.386046511627907,
         "recall": 0.0422177009155646,
-        "brier_score": 0.18429213294480173,
+        "brier_score": 0.18429213294480376,
         "roc_auc": 0.5794394576546158,
         "predicted_positive_rate": 0.026671628830169953,
-        "mean_probability": 0.27913934729419304
+        "mean_probability": 0.2791393472941976
       },
       "return_buckets": [
         {
@@ -34399,7 +34401,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:31:42.764036Z"
+      "created_at": "2026-09-16T16:26:45.041787Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34559,7 +34561,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:31:42.917987Z"
+      "created_at": "2026-09-16T16:26:45.193309Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34593,7 +34595,7 @@
         "brier_score": 0.18988394134379127,
         "roc_auc": 0.5900888108509135,
         "predicted_positive_rate": 0.07133110035975686,
-        "mean_probability": 0.28591664238551895
+        "mean_probability": 0.285916642385519
       },
       "return_buckets": [
         {
@@ -34719,7 +34721,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 16122,
-      "created_at": "2026-09-16T15:31:43.076595Z"
+      "created_at": "2026-09-16T16:26:45.417779Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34743,17 +34745,17 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.029289390016290984,
+      "validation_score": -0.02928939001629098,
       "validation_metric": "negative_mae",
       "selected_for_oos": true,
       "test": {
         "rows": 28936,
-        "mae": 0.029719555203372744,
-        "rmse": 0.0465969991209041,
+        "mae": 0.029719555203372713,
+        "rmse": 0.046596999120904085,
         "mean_actual": -0.024874235727916826,
-        "mean_prediction": -0.026764621687668296,
+        "mean_prediction": -0.026764621687668425,
         "median_actual": -0.016620526325355,
-        "median_prediction": -0.02432022947199166,
+        "median_prediction": -0.024320229471991563,
         "spearman": 0.1484528467531152
       },
       "return_buckets": [],
@@ -34803,7 +34805,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:32:10.369107Z"
+      "created_at": "2026-09-16T16:27:33.205234Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34837,7 +34839,7 @@
         "mean_actual": -0.024874235727916826,
         "mean_prediction": -0.02669057867618668,
         "median_actual": -0.016620526325355,
-        "median_prediction": -0.02384218378459649,
+        "median_prediction": -0.023842183784596495,
         "spearman": 0.12893066770889045
       },
       "return_buckets": [],
@@ -34887,7 +34889,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:32:10.621433Z"
+      "created_at": "2026-09-16T16:27:33.583584Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34971,7 +34973,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:32:10.788821Z"
+      "created_at": "2026-09-16T16:27:33.814877Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -34995,17 +34997,17 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.02942760928491716,
+      "validation_score": -0.029427609284917226,
       "validation_metric": "negative_mae",
       "selected_for_oos": true,
       "test": {
         "rows": 23842,
-        "mae": 0.02956164935668081,
-        "rmse": 0.04657873897247823,
+        "mae": 0.029561649356680878,
+        "rmse": 0.04657873897247833,
         "mean_actual": -0.025636849381146735,
-        "mean_prediction": -0.026258972316543203,
+        "mean_prediction": -0.026258972316543113,
         "median_actual": -0.0181817901774895,
-        "median_prediction": -0.02351401230212246,
+        "median_prediction": -0.023514012302121818,
         "spearman": 0.15995873944584962
       },
       "return_buckets": [],
@@ -35055,7 +35057,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:32:57.860061Z"
+      "created_at": "2026-09-16T16:29:34.050610Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35139,7 +35141,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:32:58.043210Z"
+      "created_at": "2026-09-16T16:29:34.238920Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35169,7 +35171,7 @@
       "test": {
         "rows": 23842,
         "mae": 0.029964076155320096,
-        "rmse": 0.0472590300503292,
+        "rmse": 0.04725903005032921,
         "mean_actual": -0.025636849381146735,
         "mean_prediction": -0.026853362595151954,
         "median_actual": -0.0181817901774895,
@@ -35223,7 +35225,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:32:58.227973Z"
+      "created_at": "2026-09-16T16:29:34.581227Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35247,17 +35249,17 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.03295747643823031,
+      "validation_score": -0.0329574764382303,
       "validation_metric": "negative_mae",
       "selected_for_oos": true,
       "test": {
         "rows": 28936,
-        "mae": 0.03367900711560268,
-        "rmse": 0.0779892857924314,
+        "mae": 0.03367900711560266,
+        "rmse": 0.07798928579243138,
         "mean_actual": 0.027401263961937157,
-        "mean_prediction": 0.028330766398670746,
+        "mean_prediction": 0.028330766398670635,
         "median_actual": 0.0162012374467665,
-        "median_prediction": 0.0250956929900598,
+        "median_prediction": 0.02509569299006017,
         "spearman": 0.1050909268754077
       },
       "return_buckets": [],
@@ -35307,7 +35309,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:33:26.645914Z"
+      "created_at": "2026-09-16T16:27:38.951448Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35341,7 +35343,7 @@
         "mean_actual": 0.027401263961937157,
         "mean_prediction": 0.028010981141212435,
         "median_actual": 0.0162012374467665,
-        "median_prediction": 0.023863235256214085,
+        "median_prediction": 0.02386323525621408,
         "spearman": 0.09388863816866153
       },
       "return_buckets": [],
@@ -35391,7 +35393,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:33:26.894751Z"
+      "created_at": "2026-09-16T16:27:39.334651Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35475,7 +35477,7 @@
       "train_rows": 40196,
       "validation_rows": 26208,
       "test_rows": 28936,
-      "created_at": "2026-09-16T15:33:27.003868Z"
+      "created_at": "2026-09-16T16:27:39.462067Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35499,17 +35501,17 @@
       "experiment": "price_feature_ablation",
       "model": "ridge_regression",
       "task": "regression",
-      "validation_score": -0.03349203490472395,
+      "validation_score": -0.03349203490472398,
       "validation_metric": "negative_mae",
       "selected_for_oos": true,
       "test": {
         "rows": 23842,
-        "mae": 0.0332532990027667,
-        "rmse": 0.05260119777613052,
+        "mae": 0.03325329900276674,
+        "rmse": 0.05260119777613055,
         "mean_actual": 0.02713014549645959,
-        "mean_prediction": 0.028592216356871984,
+        "mean_prediction": 0.028592216356872053,
         "median_actual": 0.0169765985905745,
-        "median_prediction": 0.025460240483961623,
+        "median_prediction": 0.025460240483962178,
         "spearman": 0.12156391555944011
       },
       "return_buckets": [],
@@ -35559,7 +35561,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:34:13.315592Z"
+      "created_at": "2026-09-16T16:29:39.061161Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35643,7 +35645,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:34:13.426083Z"
+      "created_at": "2026-09-16T16:29:39.131821Z"
     },
     {
       "feature_set": "fi_plus_all_price",
@@ -35727,7 +35729,7 @@
       "train_rows": 66404,
       "validation_rows": 28936,
       "test_rows": 23842,
-      "created_at": "2026-09-16T15:34:13.614687Z"
+      "created_at": "2026-09-16T16:29:39.486262Z"
     }
   ],
   "oos_prediction_rows": 2052182
