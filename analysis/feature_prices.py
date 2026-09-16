@@ -16,6 +16,9 @@ from analysis.feature_utils import (
 )
 
 
+SEVERITY_HORIZON = 5
+
+
 def find_price_files(
     price_dir: Path,
 ) -> list[Path]:
@@ -359,6 +362,97 @@ def add_price_history_features(
     )
 
 
+def add_severity_targets(
+    result: dict[str, Any],
+    series: pd.DataFrame,
+    entry_idx: int,
+    entry_price: float,
+) -> None:
+    """
+    Beräknar extrema femdagarsavkastningar efter entry.
+
+    min_return_5d = lägsta avkastningen under
+    handelsdag 1..5 efter entry.
+
+    max_return_5d = högsta avkastningen under
+    handelsdag 1..5 efter entry.
+
+    Dessa kolumner är targets och får därför inte användas
+    som ML-features.
+    """
+
+    severity_end_idx = (
+        entry_idx
+        + SEVERITY_HORIZON
+    )
+
+    if severity_end_idx >= len(series):
+        result["min_return_5d"] = np.nan
+        result["max_return_5d"] = np.nan
+        result["min_return_5d_date"] = pd.NaT
+        result["max_return_5d_date"] = pd.NaT
+        return
+
+    severity_window = series.iloc[
+        entry_idx
+        + 1 : severity_end_idx
+        + 1
+    ]
+
+    severity_returns = (
+        pd.to_numeric(
+            severity_window["close"],
+            errors="coerce",
+        )
+        .to_numpy(dtype=float)
+        / entry_price
+        - 1.0
+    )
+
+    valid = np.isfinite(
+        severity_returns
+    )
+
+    if not valid.all():
+        result["min_return_5d"] = np.nan
+        result["max_return_5d"] = np.nan
+        result["min_return_5d_date"] = pd.NaT
+        result["max_return_5d_date"] = pd.NaT
+        return
+
+    min_idx = int(
+        np.argmin(
+            severity_returns
+        )
+    )
+
+    max_idx = int(
+        np.argmax(
+            severity_returns
+        )
+    )
+
+    result["min_return_5d"] = float(
+        severity_returns[min_idx]
+    )
+
+    result["max_return_5d"] = float(
+        severity_returns[max_idx]
+    )
+
+    result[
+        "min_return_5d_date"
+    ] = severity_window.iloc[
+        min_idx
+    ]["date"]
+
+    result[
+        "max_return_5d_date"
+    ] = severity_window.iloc[
+        max_idx
+    ]["date"]
+
+
 def attach_prices(
     fi: pd.DataFrame,
     prices: pd.DataFrame,
@@ -528,13 +622,17 @@ def attach_prices(
             entry_price,
         )
 
+        add_severity_targets(
+            result,
+            series,
+            entry_idx,
+            entry_price,
+        )
+
         rows.append(
             result
         )
 
-    # Viktigt: pd.DataFrame([]) saknar alla kolumner.
-    # Om inga prisrader matchar måste vi ändå behålla FI-schemat,
-    # eftersom downstream-koden använder t.ex. security_key.
     if not rows:
         return (
             fi.iloc[0:0].copy(),
