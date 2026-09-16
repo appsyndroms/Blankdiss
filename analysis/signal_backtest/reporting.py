@@ -88,8 +88,7 @@ def print_diagnostics(
             f"event_rate="
             f"{month['top_event_rate']:.4f}, "
             f"lift={lift_text}, "
-            f"mean="
-            f"{month['top_mean_return']:.4%}"
+            f"mean={month['top_mean_return']:.4%}"
         )
 
     security = diagnostics[
@@ -153,6 +152,76 @@ def print_diagnostics(
             f"{security_row['mean_probability']:.4f}, "
             f"mean_return="
             f"{security_row['mean_return']:.4%}"
+        )
+
+
+def print_economic(
+    economic: dict[str, Any],
+) -> None:
+    """Skriv ut ekonomiskt backtest."""
+    print()
+    print("Economic backtest:")
+
+    print(
+        "  Direction: "
+        f"{economic['direction']}"
+    )
+
+    print(
+        "  Selection: "
+        f"{economic['selection']}"
+    )
+
+    print(
+        "  Non-overlapping periods: "
+        f"{economic['no_overlapping_periods']}"
+    )
+
+    strategies = economic[
+        "strategies"
+    ]
+
+    if not strategies:
+        print(
+            "  No economic strategies available."
+        )
+        return
+
+    first = strategies[0]
+
+    print(
+        "  Rebalance days: "
+        f"{first['rebalance_days']}"
+    )
+
+    print(
+        "  Transaction cost: "
+        f"{first['transaction_cost_bps']:.1f} bps"
+    )
+
+    print()
+    print("  Strategies:")
+
+    for strategy in strategies:
+        print(
+            f"    Top "
+            f"{strategy['percentage']:g}%: "
+            f"periods={strategy['periods']}, "
+            f"trades={strategy['trades']}, "
+            f"gross="
+            f"{strategy['gross_compounded_return']:.2%}, "
+            f"net="
+            f"{strategy['net_compounded_return']:.2%}, "
+            f"benchmark="
+            f"{strategy['benchmark_compounded_return']:.2%}, "
+            f"excess="
+            f"{strategy['excess_return_vs_benchmark']:.2%}, "
+            f"mean_period="
+            f"{strategy['mean_period_return']:.2%}, "
+            f"median_period="
+            f"{strategy['median_period_return']:.2%}, "
+            f"max_drawdown="
+            f"{strategy['max_drawdown']:.2%}"
         )
 
 
@@ -246,6 +315,10 @@ def print_experiment(
 
     print_diagnostics(
         result["diagnostics"]
+    )
+
+    print_economic(
+        result["economic"]
     )
 
 
