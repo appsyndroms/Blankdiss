@@ -1,4 +1,5 @@
 name: Blankdiss
+
 on:
   workflow_dispatch:
   schedule:
@@ -45,6 +46,10 @@ jobs:
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
+
+      - name: Update OMXSPI
+        run: |
+          python -m analysis.update_market
 
       - name: Build features
         run: |
@@ -224,10 +229,6 @@ jobs:
                   experiment.get("model"),
               )
           PY
-
-      - name: Update OMXSPI
-        run: |
-          python -m analysis.update_market
 
       - name: Prepare legacy feature view for market cycles
         run: |
