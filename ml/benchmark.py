@@ -4,14 +4,19 @@ from __future__ import annotations
 
 from time import perf_counter
 
-from ml.config import TARGETS
+import ml.walk_forward as walk_forward
+
+from ml.config import (
+    RANDOM_STATE,
+    TARGETS,
+    WALK_FORWARD_WINDOWS,
+)
 from ml.dataset import (
     load_features,
     prepare_feature_set,
     prepare_ml_data_from_feature_set,
 )
-from ml.models import build_models
-from ml.walk_forward import train_window
+from ml.models import build_models as original_build_models
 
 
 BENCHMARK_TARGETS = {
@@ -20,6 +25,37 @@ BENCHMARK_TARGETS = {
 }
 
 RF_N_JOBS = 4
+
+
+def build_benchmark_models(
+    random_state: int,
+    task: str = "classification",
+):
+    """
+    Bygger exakt samma modeller som produktionen,
+    men kör Random Forest med n_jobs=4.
+
+    Produktionskoden ändras inte.
+    """
+    models = original_build_models(
+        random_state,
+        task=task,
+    )
+
+    random_forest = models.get("random_forest")
+
+    if random_forest is not None:
+        random_forest.set_params(
+            model__n_jobs=RF_N_JOBS,
+        )
+
+    return models
+
+
+# train_window har redan importerat build_models
+# som en lokal symbol i ml.walk_forward.
+# Vi ersätter endast den symbolen under benchmarkkörningen.
+walk_forward.build_models = build_benchmark_models
 
 
 def main() -> None:
@@ -65,7 +101,7 @@ def main() -> None:
         if target.name in BENCHMARK_TARGETS
     ]
 
-    total_ml_seconds = 0.0
+    total_window_seconds = 0.0
 
     for target in targets:
         print()
@@ -88,14 +124,12 @@ def main() -> None:
             f"{perf_counter() - start:.2f}s"
         )
         print(f"Rows: {len(data):,}")
-        print(f"Features: {len(target_feature_columns)}")
+        print(
+            f"Features: "
+            f"{len(target_feature_columns)}"
+        )
 
-        target_start = perf_counter()
-
-        for window in __import__(
-            "ml.config",
-            fromlist=["WALK_FORWARD_WINDOWS"],
-        ).WALK_FORWARD_WINDOWS:
+        for window in WALK_FORWARD_WINDOWS:
             print()
             print(
                 f"Window: "
@@ -106,20 +140,26 @@ def main() -> None:
 
             start = perf_counter()
 
-            results, oos_predictions, timing = train_window(
-                data=data,
-                y=y,
-                feature_columns=target_feature_columns,
-                target=target,
-                window=window,
-                random_state=42,
+            results, oos_predictions, timing = (
+                walk_forward.train_window(
+                    data=data,
+                    y=y,
+                    feature_columns=target_feature_columns,
+                    window=window,
+                    task=target.task,
+                    direction=target.direction,
+                )
             )
 
-            window_seconds = perf_counter() - start
+            wall_seconds = (
+                perf_counter() - start
+            )
+
+            total_window_seconds += wall_seconds
 
             print(
                 f"Total window: "
-                f"{window_seconds:.2f}s"
+                f"{wall_seconds:.2f}s"
             )
 
             print(
@@ -147,30 +187,27 @@ def main() -> None:
                 f"{timing['oos_row_build_seconds']:.2f}s"
             )
             print(
-                f"  models: {len(results)}"
+                f"  models: "
+                f"{len(results)}"
             )
             print(
-                f"  OOS rows: {len(oos_predictions):,}"
+                f"  OOS rows: "
+                f"{len(oos_predictions):,}"
             )
 
-        target_seconds = perf_counter() - target_start
-        total_ml_seconds += target_seconds
-
-        print()
-        print(
-            f"Target total: "
-            f"{target_seconds:.2f}s"
-        )
-
-    total_seconds = perf_counter() - total_start
+    total_seconds = (
+        perf_counter() - total_start
+    )
 
     print()
     print("================================")
     print(
-        f"ML TOTAL: {total_ml_seconds:.2f}s"
+        f"WINDOW TOTAL: "
+        f"{total_window_seconds:.2f}s"
     )
     print(
-        f"TOTAL: {total_seconds:.2f}s"
+        f"TOTAL: "
+        f"{total_seconds:.2f}s"
     )
     print("================================")
 
