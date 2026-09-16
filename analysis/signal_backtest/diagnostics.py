@@ -12,7 +12,9 @@ def calibration_summary(
     bins: int = 10,
 ) -> dict[str, Any]:
     """Mät hur väl predikterad sannolikhet motsvarar faktisk event-rate."""
-    data = predictions[["probability", "actual"]].copy()
+    data = predictions[
+        ["probability", "actual"]
+    ].copy()
 
     data["probability"] = pd.to_numeric(
         data["probability"],
@@ -22,6 +24,7 @@ def calibration_summary(
         data["actual"],
         errors="coerce",
     )
+
     data = data.dropna()
 
     if data.empty:
@@ -33,12 +36,13 @@ def calibration_summary(
             "bins": [],
         }
 
-    probabilities = data["probability"].to_numpy(
-        dtype=float,
-    )
-    actual = data["actual"].to_numpy(
-        dtype=float,
-    )
+    probabilities = data[
+        "probability"
+    ].to_numpy(dtype=float)
+
+    actual = data[
+        "actual"
+    ].to_numpy(dtype=float)
 
     brier = float(
         np.mean(
@@ -118,7 +122,8 @@ def monthly_summary(
             1,
             int(
                 np.ceil(
-                    len(month) * top_fraction
+                    len(month)
+                    * top_fraction
                 )
             ),
         )
@@ -142,9 +147,14 @@ def monthly_summary(
                     top_fraction
                 ),
                 "top_rows": int(len(top)),
+                "top_events": int(
+                    top["actual"].sum()
+                ),
                 "top_event_rate": event_rate,
                 "top_lift": (
-                    float(event_rate / baseline)
+                    float(
+                        event_rate / baseline
+                    )
                     if baseline > 0
                     else None
                 ),
@@ -162,7 +172,7 @@ def security_summary(
     top_fraction: float = 0.01,
     top_n: int = 20,
 ) -> dict[str, Any]:
-    """Kontrollera om signalen drivs av ett fåtal värdepapper."""
+    """Kontrollera om signalen drivs av få värdepapper."""
     data = predictions.sort_values(
         "probability",
         ascending=False,
@@ -173,7 +183,8 @@ def security_summary(
         1,
         int(
             np.ceil(
-                len(data) * top_fraction
+                len(data)
+                * top_fraction
             )
         ),
     )
@@ -237,7 +248,9 @@ def security_summary(
             )
         ),
         "largest_security_share": (
-            float(concentration.iloc[0])
+            float(
+                concentration.iloc[0]
+            )
             if not concentration.empty
             else None
         ),
