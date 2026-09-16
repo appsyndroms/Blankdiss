@@ -51,75 +51,11 @@ jobs:
 
       - name: Inspect feature dataset
         run: |
-          echo "================================"
-          echo "FEATURE DATASET"
-          echo "================================"
-
-          echo "Commit: $(git rev-parse --short HEAD)"
-          echo "Feature-chunks: $(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' | wc -l)"
-
-          if [ -f data/processed/analysis/features_metadata.json ]; then
-            echo "Metadata: OK"
-          else
-            echo "Metadata: SAKNAS"
-          fi
-
-          if [ -f data/processed/analysis/features_qc.json ]; then
-            echo "QC: OK"
-          else
-            echo "QC: SAKNAS ännu"
-          fi
+          python -m analysis.inspect_features
 
       - name: Verify feature dataset
         run: |
-          test -f data/processed/analysis/features_metadata.json
-
-          test -n "$(
-            find data/processed/analysis \
-              -maxdepth 1 \
-              -name 'features_*.jsonl' \
-              -print \
-              -quit
-          )"
-
-          echo "Feature-dataset finns."
-          echo "Feature-chunks: $(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' | wc -l)"
-          echo "Total storlek: $(du -ch data/processed/analysis/features_*.jsonl | tail -1 | awk '{print $1}')"
-
-      - name: Kontrollera feature-storlek
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          paths = sorted(
-              Path("data/processed/analysis").glob("features_*.jsonl")
-          )
-
-          if not paths:
-              raise SystemExit("Inga feature-chunks hittades.")
-
-          limit = 20 * 1024 * 1024
-
-          for path in paths:
-              size = path.stat().st_size
-
-              if size > limit:
-                  mb = size / 1024 / 1024
-                  raise SystemExit(
-                      f"{path.name} är större än 20 MB ({mb:.2f} MB)."
-                  )
-
-          max_mb = max(
-              path.stat().st_size
-              for path in paths
-          ) / 1024 / 1024
-
-          print(
-              f"Feature-storlek OK: "
-              f"{len(paths)} filer, "
-              f"max {max_mb:.2f} MB"
-          )
-          PY
+          python -m analysis.verify_features
 
       - name: Run Feature QC
         run: |
@@ -127,60 +63,11 @@ jobs:
 
       - name: Kontrollera Feature QC-status
         run: |
-          test -f data/processed/analysis/features_qc.json
-
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path(
-              "data/processed/analysis/features_qc.json"
-          )
-
-          data = json.loads(
-              path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          status = data.get("status")
-
-          print(f"Feature QC: {status}")
-
-          if status == "FAIL":
-              raise SystemExit(
-                  "Feature QC failed with status: FAIL"
-              )
-
-          if status == "WARN":
-              print(
-                  "Varningar tillåts — workflow fortsätter."
-              )
-
-          elif status == "PASS":
-              print(
-                  "Feature QC OK."
-              )
-
-          else:
-              raise SystemExit(
-                  f"Feature QC returnerade okänd status: {status}"
-              )
-          PY
+          python -m analysis.verify_feature_qc
 
       - name: Verify ML package
         run: |
-          test -f __init__.py
-          test -f ml/__init__.py
-          test -f ml/config.py
-          test -f ml/dataset.py
-          test -f ml/models.py
-          test -f ml/evaluate.py
-          test -f ml/walk_forward.py
-          test -f ml/train.py
-          test -f ml/diagnostics.py
-
-          echo "ML-paket finns."
+          python -m ml.verify_package
 
       - name: Run ML training
         run: |
@@ -188,13 +75,7 @@ jobs:
 
       - name: Verify ML results
         run: |
-          test -f data/processed/ml/latest_run.json
-          test -f data/processed/ml/ml_results.jsonl
-          test -d data/processed/ml/runs
-
-          echo "ML-resultat skapade."
-          echo "Resultatfiler: $(find data/processed/ml -maxdepth 1 -type f | wc -l)"
-          echo "Runs: $(find data/processed/ml/runs -maxdepth 1 -name '*.json' | wc -l)"
+          python -m ml.verify_results
 
       - name: Run ML diagnostics
         run: |
@@ -202,235 +83,19 @@ jobs:
 
       - name: Verify ML diagnostics
         run: |
-          test -f data/processed/ml/diagnostics.json
-
-          echo "ML-diagnostik skapad."
-          echo "Storlek: $(du -h data/processed/ml/diagnostics.json | cut -f1)"
+          python -m ml.verify_diagnostics
 
       - name: Print ML diagnostics summary
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path(
-              "data/processed/ml/diagnostics.json"
-          )
-
-          data = json.loads(
-              path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          print()
-          print("================================")
-          print("BLANKDISS PRICE SIGNAL DIAGNOSTICS")
-          print("================================")
-
-          print(
-              f"Experiment: "
-              f"{data.get('experiment', '?')}"
-          )
-
-          print(
-              f"Feature sets: "
-              f"{len(data.get('feature_sets', []))}"
-          )
-
-          print(
-              f"Targets: "
-              f"{len(data.get('targets', []))}"
-          )
-
-          print()
-
-          for result in data.get(
-              "results",
-              [],
-          ):
-              feature_set = result.get(
-                  "feature_set",
-                  "?",
-              )
-
-              target = result.get(
-                  "target",
-                  "?",
-              )
-
-              feature_count = result.get(
-                  "feature_count",
-                  "?",
-              )
-
-              print(
-                  f"{feature_set} | "
-                  f"{target} | "
-                  f"features={feature_count}"
-              )
-
-              for window in result.get(
-                  "windows",
-                  [],
-              ):
-                  window_info = window.get(
-                      "window",
-                      {},
-                  )
-
-                  test_end = window_info.get(
-                      "test_end",
-                      "?",
-                  )
-
-                  model = window.get(
-                      "selected_model",
-                      "?",
-                  )
-
-                  auc = window.get(
-                      "test_roc_auc"
-                  )
-
-                  rows = window.get(
-                      "test_rows",
-                      "?",
-                  )
-
-                  if auc is None:
-                      auc_text = "n/a"
-                  else:
-                      auc_text = f"{auc:.4f}"
-
-                  print(
-                      f"  {test_end} | "
-                      f"{model} | "
-                      f"AUC={auc_text} | "
-                      f"rows={rows}"
-                  )
-
-                  prediction_buckets = (
-                      window.get(
-                          "prediction_buckets",
-                          {},
-                      )
-                  )
-
-                  for year, bucket_data in (
-                      prediction_buckets.items()
-                  ):
-                      buckets = bucket_data.get(
-                          "buckets",
-                          [],
-                      )
-
-                      if not buckets:
-                          continue
-
-                      top = buckets[-1]
-
-                      event_rate = top.get(
-                          "event_rate"
-                      )
-
-                      lift_ratio = top.get(
-                          "event_rate_lift_ratio"
-                      )
-
-                      mean_return = top.get(
-                          "mean_return"
-                      )
-
-                      event_text = (
-                          "n/a"
-                          if event_rate is None
-                          else f"{event_rate:.3f}"
-                      )
-
-                      lift_text = (
-                          "n/a"
-                          if lift_ratio is None
-                          else f"{lift_ratio:.2f}x"
-                      )
-
-                      return_text = (
-                          "n/a"
-                          if mean_return is None
-                          else f"{mean_return:+.2%}"
-                      )
-
-                      print(
-                          f"    {year} top20% | "
-                          f"event={event_text} | "
-                          f"lift={lift_text} | "
-                          f"return={return_text}"
-                      )
-
-          print()
-          print(
-              "Full diagnostics finns i artifact."
-          )
-          PY
+          python -m ml.print_diagnostics
 
       - name: Print latest ML result summary
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path(
-              "data/processed/ml/latest_run.json"
-          )
-
-          data = json.loads(
-              path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          print()
-          print("================================")
-          print("LATEST ML RUN")
-          print("================================")
-
-          for key in (
-              "run_id",
-              "created_at",
-              "experiment",
-          ):
-              if key in data:
-                  print(
-                      f"{key}: {data[key]}"
-                  )
-
-          results = data.get(
-              "results"
-          )
-
-          if isinstance(
-              results,
-              list,
-          ):
-              print(
-                  f"results: {len(results)}"
-              )
-
-          print(
-              "Full latest_run.json finns i artifact."
-          )
-          PY
+          python -m ml.print_latest_run
 
       - name: Verify signal backtest package
         run: |
-          test -f analysis/signal_backtest/__init__.py
-          test -f analysis/signal_backtest/__main__.py
-          test -f analysis/signal_backtest/config.py
-          test -f analysis/signal_backtest/metrics.py
-          test -f analysis/signal_backtest/reporting.py
-          test -f analysis/signal_backtest/runner.py
-
-          echo "Signal backtest-paket finns."
+          python -m analysis.signal_backtest.verify_package
 
       - name: Run signal backtest
         run: |
@@ -438,13 +103,7 @@ jobs:
 
       - name: Verify signal backtest result
         run: |
-          test -f data/processed/ml/signal_backtest.json
-
-          echo "================================"
-          echo "SIGNAL BACKTEST KLAR"
-          echo "================================"
-
-          echo "Resultat: $(du -h data/processed/ml/signal_backtest.json | cut -f1)"
+          python -m analysis.signal_backtest.verify_result
 
       - name: Upload ML artifacts
         uses: actions/upload-artifact@v4
