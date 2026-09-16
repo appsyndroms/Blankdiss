@@ -280,6 +280,81 @@ def print_economic(
                 f"{test['delta_max_drawdown']:.2%}"
             )
 
+    random_sensitivity = economic.get(
+        "random_security_sensitivity"
+    )
+
+    if random_sensitivity:
+        print()
+        print(
+            "  Random security removal "
+            "sensitivity (top 1%):"
+        )
+
+        baseline = random_sensitivity[
+            "baseline"
+        ]
+
+        print(
+            "    Baseline net: "
+            f"{baseline['net_compounded_return']:.2%}"
+        )
+
+        print(
+            "    Baseline benchmark: "
+            f"{baseline['benchmark_compounded_return']:.2%}"
+        )
+
+        print(
+            "    Baseline excess: "
+            f"{baseline['excess_return_vs_benchmark']:.2%}"
+        )
+
+        print(
+            "    Baseline max drawdown: "
+            f"{baseline['max_drawdown']:.2%}"
+        )
+
+        print(
+            "    Universe securities: "
+            f"{random_sensitivity['universe_securities']}"
+        )
+
+        print(
+            "    Removal levels:"
+        )
+
+        for level in random_sensitivity[
+            "levels"
+        ]:
+            summary = level[
+                "summary"
+            ]
+
+            print(
+                f"      Remove "
+                f"{level['removal_percentage']:g}%: "
+                f"runs={summary['runs']}, "
+                f"positive_excess="
+                f"{summary['positive_excess_runs']}/"
+                f"{summary['runs']} "
+                f"({summary['positive_excess_share']:.0%}), "
+                f"median_net="
+                f"{summary['median_net_return']:.2%}, "
+                f"range="
+                f"{summary['min_net_return']:.2%}"
+                " .. "
+                f"{summary['max_net_return']:.2%}, "
+                f"median_excess="
+                f"{summary['median_excess_return']:.2%}, "
+                f"range="
+                f"{summary['min_excess_return']:.2%}"
+                " .. "
+                f"{summary['max_excess_return']:.2%}, "
+                f"median_dd="
+                f"{summary['median_max_drawdown']:.2%}"
+            )
+
 
 def print_experiment(
     result: dict[str, Any],
