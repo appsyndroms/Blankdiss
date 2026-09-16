@@ -18,7 +18,7 @@ from ml.config import (
 from ml.dataset import (
     dataset_summary,
     load_features,
-    prepare_feature_set,
+    prepare_feature_set as build_cached_feature_set,
     prepare_ml_data_from_feature_set,
 )
 from ml.walk_forward import train_window
@@ -126,13 +126,13 @@ def prepare_feature_set_data(
         price_features is not None
     )
 
-    return prepare_feature_set(
+    return build_cached_feature_set(
         features,
         include_price_features,
     )
 
 
-def prepare_feature_set(
+def prepare_target_data(
     frame,
     target,
     price_features,
@@ -144,10 +144,6 @@ def prepare_feature_set(
     Denna funktion används inte av den nya huvudloopen direkt,
     men behåller samma logik som tidigare kod för externa anrop.
     """
-    include_price_features = (
-        price_features is not None
-    )
-
     (
         feature_set_data,
         feature_columns,
@@ -340,7 +336,7 @@ def build_feature_set_cache(
         (
             feature_set_data,
             feature_columns,
-        ) = prepare_feature_set(
+        ) = build_cached_feature_set(
             features,
             price_features is not None,
         )
