@@ -1,8 +1,13 @@
 """Strategikörning för Blankdiss ekonomiska backtest."""
+
 from __future__ import annotations
+
+from dataclasses import dataclass, field
 from typing import Any
+
 import numpy as np
 import pandas as pd
+
 from analysis.signal_backtest.config import (
     ECONOMIC_MAX_POSITION_WEIGHT,
     ECONOMIC_REBALANCE_DAYS,
@@ -15,32 +20,102 @@ from analysis.signal_backtest.portfolio import (
     portfolio_weights,
     turnover,
 )
+
+
+@dataclass
+class StrategyCache:
+    """Förbereder och cache:ar datum/ranking för ett predictions-DataFrame."""
+
+    predictions: pd.DataFrame
+    _days: dict[pd.Timestamp, pd.DataFrame] = field(
+        default_factory=dict
+    )
+    _dates: list[pd.Timestamp] | None = None
+
+    def dates(self) -> list[pd.Timestamp]:
+        """Returnera normaliserade snapshot-datum i stigande ordning."""
+        if self._dates is None:
+            normalized = self.predictions[
+                "snapshot_date"
+            ].dt.normalize()
+
+            self._dates = sorted(
+                pd.Timestamp(value)
+                for value in normalized.drop_duplicates()
+            )
+
+        return self._dates
+
+    def day(self, date: pd.Timestamp) -> pd.DataFrame:
+        """Returnera sorterad data för ett snapshot-datum."""
+        date = pd.Timestamp(date).normalize()
+
+        cached = self._days.get(date)
+        if cached is not None:
+            return cached
+
+        mask = (
+            self.predictions["snapshot_date"]
+            .dt.normalize()
+            == date
+        )
+
+        day = self.predictions.loc[mask].copy()
+
+        if not day.empty:
+            day = day.sort_values(
+                [
+                    "score",
+                    "security_key",
+                ],
+                ascending=[
+                    False,
+                    True,
+                ],
+                kind="mergesort",
+            ).reset_index(drop=True)
+
+        self._days[date] = day
+        return day
+
+
 def build_strategy(
     predictions: pd.DataFrame,
     fraction: float,
     direction: str,
     transaction_cost_bps: float,
     rebalance_days: int | None = None,
+    cache: StrategyCache | None = None,
 ) -> dict[str, Any]:
     """
     Bygg en ekonomisk strategi.
+
     predictions måste innehålla:
         snapshot_date
         security_key
         score
         target_return
+
     score sorteras fallande:
         högre score = mer attraktiv signal.
+
     direction:
         long  -> target_return används direkt
         short -> -target_return används
+
+    cache:
+        Om flera strategier körs på samma predictions kan samma
+        StrategyCache återanvändas. Detta ändrar inte resultatet.
     """
+
     if rebalance_days is None:
         rebalance_days = ECONOMIC_REBALANCE_DAYS
+
     if rebalance_days < 1:
         raise ValueError(
             "rebalance_days måste vara >= 1."
         )
+
     if direction not in {
         "long",
         "short",
@@ -48,63 +123,62 @@ def build_strategy(
         raise ValueError(
             f"Okänd direction: {direction}"
         )
+
     required = {
         "snapshot_date",
         "security_key",
         "score",
         "target_return",
     }
+
     missing = required - set(
         predictions.columns
     )
+
     if missing:
         raise ValueError(
             "Strategin saknar kolumner: "
-            + ", ".join(sorted(missing))
+            + ", ".join(
+                sorted(missing)
+            )
         )
-    dates = sorted(
-        predictions[
-            "snapshot_date"
-        ]
-        .dt.normalize()
-        .unique()
-    )
+
+    if cache is None or cache.predictions is not predictions:
+        cache = StrategyCache(
+            predictions
+        )
+
+    dates = cache.dates()
     rebalance_dates = dates[
         ::rebalance_days
     ]
+
     transaction_cost_rate = (
         transaction_cost_bps
         / 10_000.0
     )
+
     period_returns: list[float] = []
     gross_returns: list[float] = []
     benchmark_returns: list[float] = []
     turnover_values: list[float] = []
     invested_weights: list[float] = []
+
     periods: list[
         dict[str, Any]
     ] = []
-    previous_weights: dict[str, float] = {}
+
+    previous_weights: dict[
+        str,
+        float,
+    ] = {}
+
     for date in rebalance_dates:
-        day = predictions.loc[
-            predictions[
-                "snapshot_date"
-            ].dt.normalize()
-            == date
-        ].copy()
+        day = cache.day(date)
+
         if day.empty:
             continue
-        day = day.sort_values(
-            [
-                "score",
-                "security_key",
-            ],
-            ascending=[
-                False,
-                True,
-            ],
-            kind="mergesort",
-        )
+
         count = max(
             1,
             int(
@@ -114,62 +188,76 @@ def build_strategy(
                 )
             ),
         )
+
         selected = day.iloc[
             :count
         ].copy()
+
         current_weights = portfolio_weights(
             selected,
             ECONOMIC_MAX_POSITION_WEIGHT,
         )
+
         current_turnover = turnover(
             previous_weights,
             current_weights,
         )
+
         gross = portfolio_return(
             selected,
             direction,
             ECONOMIC_MAX_POSITION_WEIGHT,
         )
+
         transaction_cost = (
             current_turnover
             * transaction_cost_rate
         )
+
         net = (
             gross
             - transaction_cost
         )
+
         universe = day[
             "target_return"
         ].to_numpy(
             dtype=float
         )
+
         if direction == "short":
             universe = -universe
+
         benchmark = float(
-            np.mean(
-                universe
-            )
+            np.mean(universe)
         )
+
         current_invested_weight = (
             invested_weight(
                 current_weights
             )
         )
+
         period_returns.append(
             net
         )
+
         gross_returns.append(
             gross
         )
+
         benchmark_returns.append(
             benchmark
         )
+
         turnover_values.append(
             current_turnover
         )
+
         invested_weights.append(
             current_invested_weight
         )
+
         periods.append(
             {
                 "date": str(
@@ -198,18 +286,23 @@ def build_strategy(
                 ),
             }
         )
+
         previous_weights = (
             current_weights
         )
+
     benchmark_compounded = compound(
         benchmark_returns
     )
+
     gross_compounded = compound(
         gross_returns
     )
+
     net_compounded = compound(
         period_returns
     )
+
     return {
         "fraction": float(
             fraction
@@ -310,6 +403,8 @@ def build_strategy(
         ),
         "periods_detail": periods,
     }
+
+
 def build_yearly_results(
     predictions: pd.DataFrame,
     fraction: float,
@@ -318,9 +413,11 @@ def build_yearly_results(
     rebalance_days: int | None = None,
 ) -> list[dict[str, Any]]:
     """Kör samma ekonomiska strategi separat per kalenderår."""
+
     yearly_results: list[
         dict[str, Any]
     ] = []
+
     years = sorted(
         predictions[
             "snapshot_date"
@@ -329,6 +426,7 @@ def build_yearly_results(
         .unique()
         .tolist()
     )
+
     for year in years:
         year_predictions = predictions.loc[
             predictions[
@@ -336,8 +434,10 @@ def build_yearly_results(
             ].dt.year
             == year
         ].copy()
+
         if year_predictions.empty:
             continue
+
         result = build_strategy(
             year_predictions,
             fraction,
@@ -345,10 +445,13 @@ def build_yearly_results(
             transaction_cost_bps,
             rebalance_days,
         )
+
         result["year"] = int(
             year
         )
+
         yearly_results.append(
             result
         )
+
     return yearly_results
