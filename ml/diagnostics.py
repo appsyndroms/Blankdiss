@@ -854,14 +854,6 @@ def main() -> None:
     )
 
     print(
-        json.dumps(
-            diagnostics,
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
-
-    print(
         f"Diagnostik sparad: "
         f"{OUTPUT_PATH}"
     )
