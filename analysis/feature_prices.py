@@ -453,6 +453,86 @@ def add_severity_targets(
     ]["date"]
 
 
+def _add_unmatched_price_fields(
+    result: dict[str, Any],
+) -> None:
+    """
+    Markerar en FI-observation som saknar användbar prismatchning.
+
+    FI-observationen behålls i datasetet. Prisrelaterade features
+    och targets lämnas som NaN/None och kan därför filtreras bort
+    naturligt när ett ML-experiment kräver dessa data.
+    """
+
+    result[
+        "price_date"
+    ] = pd.NaT
+
+    result[
+        "close"
+    ] = np.nan
+
+    result[
+        "close_on_signal_date"
+    ] = np.nan
+
+    result[
+        "days_from_fi_to_price"
+    ] = np.nan
+
+    result[
+        "price_match_available"
+    ] = False
+
+    result[
+        "yahoo_symbol"
+    ] = None
+
+    result[
+        "price_mapping_source"
+    ] = "unmatched"
+
+    result[
+        "price_return_5d"
+    ] = np.nan
+
+    result[
+        "price_return_20d"
+    ] = np.nan
+
+    result[
+        "price_return_60d"
+    ] = np.nan
+
+    result[
+        "price_volatility_20d"
+    ] = np.nan
+
+    result[
+        "price_distance_from_20d_high"
+    ] = np.nan
+
+    result[
+        "price_distance_from_60d_high"
+    ] = np.nan
+
+    result[
+        "min_return_5d"
+    ] = np.nan
+
+    result[
+        "max_return_5d"
+    ] = np.nan
+
+    result[
+        "min_return_5d_date"
+    ] = pd.NaT
+
+    result[
+        "max_return_5d_date"
+    ] = pd.NaT
+
+
 def attach_prices(
     fi: pd.DataFrame,
     prices: pd.DataFrame,
@@ -460,6 +540,29 @@ def attach_prices(
     pd.DataFrame,
     dict[str, int],
 ]:
+    """
+    Matchar FI-observationer mot prisdata.
+
+    Viktig semantik:
+
+    Alla FI-observationer behålls även om prisdata saknas.
+
+    Matchade observationer får:
+        price_match_available = True
+
+    Omatchade observationer får:
+        price_match_available = False
+        price_mapping_source = "unmatched"
+
+    För omatchade observationer är prisfeatures,
+    forward returns och severity-targets NaN.
+
+    Detta gör att:
+    - FI-only ML fortfarande kan använda FI-observationen.
+    - prisbaserade ML-experiment kan filtrera på tillgänglig target.
+    - QC kan se det verkliga antalet omatchade FI-observationer.
+    """
+
     lookup = build_price_lookup(
         prices
     )
@@ -520,6 +623,15 @@ def attach_prices(
                     "issuer"
                 )
 
+        result = row._asdict()
+
+        # -----------------------------------------------------
+        # Ingen prisserie för instrumentet.
+        #
+        # Behåll FI-raden. Prisrelaterade fält markeras som
+        # saknade i stället för att observationen försvinner.
+        # -----------------------------------------------------
+
         if (
             series is None
             or series.empty
@@ -527,6 +639,15 @@ def attach_prices(
             stats[
                 "unmatched_rows"
             ] += 1
+
+            _add_unmatched_price_fields(
+                result
+            )
+
+            rows.append(
+                result
+            )
+
             continue
 
         dates = series[
@@ -548,12 +669,23 @@ def attach_prices(
             )
         )
 
+        # FI-datumet ligger efter sista tillgängliga
+        # prisobservation. Även denna FI-rad behålls.
         if entry_idx >= len(
             series
         ):
             stats[
                 "unmatched_rows"
             ] += 1
+
+            _add_unmatched_price_fields(
+                result
+            )
+
+            rows.append(
+                result
+            )
+
             continue
 
         stats[
@@ -579,8 +711,6 @@ def attach_prices(
         entry_price = float(
             entry["close"]
         )
-
-        result = row._asdict()
 
         result[
             "price_date"
