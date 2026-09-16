@@ -1,7 +1,10 @@
 """Huvudprogram för iterativ Blankdiss ML-träning."""
 from __future__ import annotations
+
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+
 from ml.config import (
     LATEST_RESULT_PATH,
     ML_OUTPUT_DIR,
@@ -18,6 +21,8 @@ from ml.dataset import (
     prepare_ml_data,
 )
 from ml.walk_forward import train_window
+
+
 FEATURE_SETS = (
     (
         "fi_only",
@@ -52,10 +57,17 @@ FEATURE_SETS = (
         set(PRICE_FEATURE_COLUMNS),
     ),
 )
+
+
 ABLATION_TARGETS = {
     "up_5pct_5d",
     "down_5pct_5d",
 }
+
+
+MAX_PARALLEL_WINDOWS = 2
+
+
 def append_jsonl(
     path,
     records,
@@ -64,6 +76,7 @@ def append_jsonl(
         parents=True,
         exist_ok=True,
     )
+
     with path.open(
         "a",
         encoding="utf-8",
@@ -76,6 +89,8 @@ def append_jsonl(
                 )
                 + "\n"
             )
+
+
 def write_jsonl(
     path,
     records,
@@ -84,6 +99,7 @@ def write_jsonl(
         parents=True,
         exist_ok=True,
     )
+
     with path.open(
         "w",
         encoding="utf-8",
@@ -96,6 +112,8 @@ def write_jsonl(
                 )
                 + "\n"
             )
+
+
 def prepare_feature_set(
     frame,
     target,
@@ -104,6 +122,7 @@ def prepare_feature_set(
     include_price_features = (
         price_features is not None
     )
+
     (
         data,
         y,
@@ -113,50 +132,139 @@ def prepare_feature_set(
         target,
         include_price_features,
     )
+
     if price_features is None:
         return (
             data,
             y,
             base_feature_columns,
         )
+
     fi_feature_columns = [
         column
         for column in base_feature_columns
         if column
         not in PRICE_FEATURE_COLUMNS
     ]
+
     selected_price_columns = [
         column
         for column in base_feature_columns
         if column in price_features
     ]
+
     selected_feature_columns = (
         fi_feature_columns
         + selected_price_columns
     )
+
     return (
         data,
         y,
         selected_feature_columns,
     )
+
+
+def _run_window(
+    data,
+    y,
+    feature_columns,
+    window,
+    task,
+    direction,
+):
+    return train_window(
+        data,
+        y,
+        feature_columns,
+        window,
+        task=task,
+        direction=direction,
+    )
+
+
+def run_windows_parallel(
+    data,
+    y,
+    feature_columns,
+    task,
+    direction,
+):
+    """
+    Kör walk-forward-fönstren parallellt.
+
+    Vi använder threads eftersom sklearn-modellerna
+    gör det mesta av det tunga arbetet i native kod.
+    Datasetet kan därmed delas utan multiprocessing-pickling.
+    """
+
+    if len(WALK_FORWARD_WINDOWS) <= 1:
+        return [
+            _run_window(
+                data,
+                y,
+                feature_columns,
+                window,
+                task,
+                direction,
+            )
+            for window in WALK_FORWARD_WINDOWS
+        ]
+
+    worker_count = min(
+        MAX_PARALLEL_WINDOWS,
+        len(WALK_FORWARD_WINDOWS),
+    )
+
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="blankdiss-ml",
+    ) as executor:
+        futures = [
+            executor.submit(
+                _run_window,
+                data,
+                y,
+                feature_columns,
+                window,
+                task,
+                direction,
+            )
+            for window in WALK_FORWARD_WINDOWS
+        ]
+
+        # Hämta i samma ordning som windows,
+        # så resultatfilen förblir deterministisk.
+        return [
+            future.result()
+            for future in futures
+        ]
+
+
 def main() -> None:
     print("Blankdiss ML: startar.")
     print("================================")
+
     ML_OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     RUNS_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     features = load_features()
+
     print(
         "Features: "
         f"{len(features):,}"
     )
+
     all_results = []
     all_oos_predictions = []
+
     for (
         feature_set_name,
         price_features,
@@ -168,23 +276,27 @@ def main() -> None:
             f"{feature_set_name}"
         )
         print("================================")
+
         for target in TARGETS:
             is_single_price_ablation = (
                 price_features is not None
                 and feature_set_name
                 != "fi_plus_all_price"
             )
+
             if (
                 is_single_price_ablation
                 and target.name
                 not in ABLATION_TARGETS
             ):
                 continue
+
             print()
             print(
                 "Target: "
                 f"{target.name}"
             )
+
             (
                 data,
                 y,
@@ -194,12 +306,14 @@ def main() -> None:
                 target,
                 price_features,
             )
+
             summary = dataset_summary(
                 data,
                 y,
                 feature_columns,
                 task=target.task,
             )
+
             if target.task == "classification":
                 summary_text = (
                     f"positiv rate "
@@ -210,30 +324,36 @@ def main() -> None:
                     f"target mean "
                     f"{summary['target_mean']:.4f}"
                 )
+
             print(
                 "Dataset: "
                 f"{summary['rows']:,} rader, "
                 f"{summary['features']} features, "
                 f"{summary_text}"
             )
-            for window in WALK_FORWARD_WINDOWS:
+
+            window_results = run_windows_parallel(
+                data,
+                y,
+                feature_columns,
+                target.task,
+                target.direction,
+            )
+
+            for window, (
+                results,
+                oos_predictions,
+            ) in zip(
+                WALK_FORWARD_WINDOWS,
+                window_results,
+            ):
                 print(
                     "Window: "
                     f"{window.train_end} -> "
                     f"{window.validation_end} -> "
                     f"{window.test_end}"
                 )
-                (
-                    results,
-                    oos_predictions,
-                ) = train_window(
-                    data,
-                    y,
-                    feature_columns,
-                    window,
-                    task=target.task,
-                    direction=target.direction,
-                )
+
                 for result in results:
                     record = {
                         "feature_set": (
@@ -259,9 +379,11 @@ def main() -> None:
                         ),
                         **result,
                     }
+
                     all_results.append(
                         record
                     )
+
                     if result[
                         "selected_for_oos"
                     ]:
@@ -271,29 +393,37 @@ def main() -> None:
                             f"(score="
                             f"{result['validation_score']:.4f})"
                         )
+
                 for prediction in oos_predictions:
                     prediction[
                         "feature_set"
                     ] = feature_set_name
+
                     prediction[
                         "target"
                     ] = target.name
+
                     prediction[
                         "target_column"
                     ] = target.target_column
+
                     all_oos_predictions.append(
                         prediction
                     )
+
     now = datetime.now(
         timezone.utc
     )
+
     run_id = now.strftime(
         "%Y%m%dT%H%M%SZ"
     )
+
     run_path = (
         RUNS_DIR
         / f"run_{run_id}.json"
     )
+
     run_document = {
         "run_id": run_id,
         "created_at": now.isoformat(),
@@ -307,11 +437,15 @@ def main() -> None:
         "ablation_targets": sorted(
             ABLATION_TARGETS
         ),
+        "parallel_windows": (
+            MAX_PARALLEL_WINDOWS
+        ),
         "results": all_results,
         "oos_prediction_rows": (
             len(all_oos_predictions)
         ),
     }
+
     with run_path.open(
         "w",
         encoding="utf-8",
@@ -322,16 +456,17 @@ def main() -> None:
             ensure_ascii=False,
             indent=2,
         )
+
     append_jsonl(
         RESULTS_PATH,
         all_results,
     )
-    # OOS-filen är ett aktuellt dataset,
-    # inte en append-only historik.
+
     write_jsonl(
         OOS_PREDICTIONS_PATH,
         all_oos_predictions,
     )
+
     with LATEST_RESULT_PATH.open(
         "w",
         encoding="utf-8",
@@ -342,6 +477,7 @@ def main() -> None:
             ensure_ascii=False,
             indent=2,
         )
+
     print()
     print("================================")
     print("Blankdiss ML: klart.")
@@ -354,5 +490,7 @@ def main() -> None:
         f"{len(all_oos_predictions):,}"
     )
     print("================================")
+
+
 if __name__ == "__main__":
     main()
