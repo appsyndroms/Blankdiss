@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from time import perf_counter
 from typing import Any
 
 import numpy as np
@@ -174,11 +175,23 @@ def _train_models(
 
     trained = []
 
+    fit_seconds = 0.0
+    validation_prediction_seconds = 0.0
+
     for name, model in models.items():
+        fit_start = perf_counter()
+
         model.fit(
             train,
             y_train,
         )
+
+        fit_seconds += (
+            perf_counter()
+            - fit_start
+        )
+
+        validation_start = perf_counter()
 
         validation_score, _ = _validation_score(
             model,
@@ -186,6 +199,11 @@ def _train_models(
             y_validation,
             task,
             direction,
+        )
+
+        validation_prediction_seconds += (
+            perf_counter()
+            - validation_start
         )
 
         trained.append(
@@ -201,7 +219,17 @@ def _train_models(
         reverse=True,
     )
 
-    return trained
+    timing = {
+        "fit_seconds": fit_seconds,
+        "validation_prediction_seconds": (
+            validation_prediction_seconds
+        ),
+    }
+
+    return (
+        trained,
+        timing,
+    )
 
 
 def train_window(
@@ -214,7 +242,22 @@ def train_window(
 ) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
+    dict[str, float],
 ]:
+    window_start = perf_counter()
+
+    timing = {
+        "split_seconds": 0.0,
+        "fit_seconds": 0.0,
+        "validation_prediction_seconds": 0.0,
+        "oos_prediction_seconds": 0.0,
+        "evaluation_seconds": 0.0,
+        "oos_row_build_seconds": 0.0,
+        "total_window_seconds": 0.0,
+    }
+
+    split_start = perf_counter()
+
     (
         train_mask,
         validation_mask,
@@ -244,24 +287,53 @@ def train_window(
     y_validation = y.loc[validation_mask]
     y_test = y.loc[test_mask]
 
+    timing["split_seconds"] += (
+        perf_counter()
+        - split_start
+    )
+
     if len(train) == 0:
-        return [], []
+        timing["total_window_seconds"] = (
+            perf_counter()
+            - window_start
+        )
+        return [], [], timing
 
     if len(validation) < VALIDATION_MIN_ROWS:
-        return [], []
+        timing["total_window_seconds"] = (
+            perf_counter()
+            - window_start
+        )
+        return [], [], timing
 
     if len(test) < TEST_MIN_ROWS:
-        return [], []
+        timing["total_window_seconds"] = (
+            perf_counter()
+            - window_start
+        )
+        return [], [], timing
 
     if task == "classification":
         if len(np.unique(y_train)) < 2:
-            return [], []
+            timing["total_window_seconds"] = (
+                perf_counter()
+                - window_start
+            )
+            return [], [], timing
 
         if len(np.unique(y_validation)) < 2:
-            return [], []
+            timing["total_window_seconds"] = (
+                perf_counter()
+                - window_start
+            )
+            return [], [], timing
 
         if len(np.unique(y_test)) < 2:
-            return [], []
+            timing["total_window_seconds"] = (
+                perf_counter()
+                - window_start
+            )
+            return [], [], timing
 
     available_features = (
         _features_available_in_training(
@@ -271,13 +343,27 @@ def train_window(
     )
 
     if not available_features:
-        return [], []
+        timing["total_window_seconds"] = (
+            perf_counter()
+            - window_start
+        )
+        return [], [], timing
+
+    split_start = perf_counter()
 
     train = train.loc[:, available_features]
     validation = validation.loc[:, available_features]
     test = test.loc[:, available_features]
 
-    trained = _train_models(
+    timing["split_seconds"] += (
+        perf_counter()
+        - split_start
+    )
+
+    (
+        trained,
+        training_timing,
+    ) = _train_models(
         train,
         validation,
         y_train,
@@ -286,8 +372,22 @@ def train_window(
         direction,
     )
 
+    timing["fit_seconds"] += (
+        training_timing["fit_seconds"]
+    )
+
+    timing["validation_prediction_seconds"] += (
+        training_timing[
+            "validation_prediction_seconds"
+        ]
+    )
+
     if not trained:
-        return [], []
+        timing["total_window_seconds"] = (
+            perf_counter()
+            - window_start
+        )
+        return [], [], timing
 
     (
         selected_validation_score,
@@ -297,6 +397,8 @@ def train_window(
 
     # Prediktera vald modell exakt en gång på OOS-testet.
     # Denna array återanvänds senare när modellresultaten byggs.
+    oos_prediction_start = perf_counter()
+
     if task == "classification":
         selected_predictions = (
             selected_model.predict_proba(
@@ -308,6 +410,11 @@ def train_window(
             selected_model.predict(test),
             dtype=float,
         )
+
+    timing["oos_prediction_seconds"] += (
+        perf_counter()
+        - oos_prediction_start
+    )
 
     selected_scores = _economic_score(
         selected_predictions,
@@ -341,25 +448,31 @@ def train_window(
             test_predictions = (
                 test_prediction_cache[name]
             )
-        elif task == "classification":
-            test_predictions = (
-                model.predict_proba(
-                    test
-                )[:, 1]
-            )
-
-            test_prediction_cache[name] = (
-                test_predictions
-            )
         else:
-            test_predictions = np.asarray(
-                model.predict(test),
-                dtype=float,
+            oos_prediction_start = perf_counter()
+
+            if task == "classification":
+                test_predictions = (
+                    model.predict_proba(
+                        test
+                    )[:, 1]
+                )
+            else:
+                test_predictions = np.asarray(
+                    model.predict(test),
+                    dtype=float,
+                )
+
+            timing["oos_prediction_seconds"] += (
+                perf_counter()
+                - oos_prediction_start
             )
 
             test_prediction_cache[name] = (
                 test_predictions
             )
+
+        evaluation_start = perf_counter()
 
         if task == "classification":
             metrics = evaluate_predictions(
@@ -393,6 +506,11 @@ def train_window(
 
             bucket_results = []
             ranking_results = []
+
+        timing["evaluation_seconds"] += (
+            perf_counter()
+            - evaluation_start
+        )
 
         results.append(
             {
@@ -435,6 +553,8 @@ def train_window(
                 ),
             }
         )
+
+    oos_row_build_start = perf_counter()
 
     test_rows = data.loc[
         test_mask,
@@ -496,7 +616,18 @@ def train_window(
             }
         )
 
+    timing["oos_row_build_seconds"] += (
+        perf_counter()
+        - oos_row_build_start
+    )
+
+    timing["total_window_seconds"] = (
+        perf_counter()
+        - window_start
+    )
+
     return (
         results,
         oos_predictions,
+        timing,
     )
