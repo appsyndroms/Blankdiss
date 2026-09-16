@@ -2,388 +2,298 @@
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
-
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
-
     <title>Blankdiss</title>
-
     <link
         rel="stylesheet"
         href="./style.css?v=2"
     >
 </head>
-
 <body>
-
 <header class="hero">
-
     <div class="container">
-
         <div class="brand">
             📉 BLANKDISS
         </div>
-
         <h1>
             Blankning mot aktieutveckling
         </h1>
-
         <p class="lead">
             En datadriven katalog över förändringar i blankning
             och vad som historiskt hänt med aktien därefter.
         </p>
-
     </div>
-
 </header>
-
-
 <main class="container">
-
-    <!-- ÖVERSIKT -->
-
     <section class="cards">
-
         <div class="card">
-
             <span class="label">
                 Händelser
             </span>
-
             <strong>
                 {{EVENT_COUNT}}
             </strong>
-
         </div>
-
-
         <div class="card">
-
             <span class="label">
                 Analys
             </span>
-
             <strong>
                 Event study
             </strong>
-
         </div>
-
-
         <div class="card">
-
+            <span class="label">
+                ML-experiment
+            </span>
+            <strong>
+                {{ML_EXPERIMENT_COUNT}}
+            </strong>
+        </div>
+        <div class="card">
             <span class="label">
                 Senast uppdaterad
             </span>
-
             <strong class="timestamp">
                 {{GENERATED_AT}}
             </strong>
-
         </div>
-
     </section>
-
-
-    <!-- AKTUELLA FYND -->
-
     <section class="panel">
-
         <div class="section-header">
-
             <div>
-
                 <h2>
                     Aktuella fynd
                 </h2>
-
                 <p>
                     De senaste observerade förändringarna i blankning.
                 </p>
-
             </div>
-
         </div>
-
-
         <div class="table-wrapper">
-
             <table>
-
                 <thead>
-
                     <tr>
-
                         <th>
                             Aktie
                         </th>
-
                         <th>
                             Blankning
                         </th>
-
                         <th>
                             Förändring
                         </th>
-
                         <th>
                             1d
                         </th>
-
                         <th>
                             5d
                         </th>
-
                         <th>
                             20d
                         </th>
-
                         <th>
                             60d
                         </th>
-
                     </tr>
-
                 </thead>
-
-
                 <tbody>
-
                     {{EVENT_ROWS}}
-
                 </tbody>
-
             </table>
-
         </div>
-
     </section>
-
-
-    <!-- HISTORISK ANALYS -->
-
     <section class="panel">
-
         <div class="section-header">
-
             <div>
-
                 <h2>
                     Historiskt mönster
                 </h2>
-
                 <p>
                     Vad har hänt efter liknande förändringar tidigare?
                 </p>
-
             </div>
-
         </div>
-
-
         <div class="table-wrapper">
-
             <table>
-
                 <thead>
-
                     <tr>
-
                         <th>
                             Förändring
                         </th>
-
                         <th>
                             Händelser
                         </th>
-
                         <th>
                             Median 1d
                         </th>
-
                         <th>
                             Median 5d
                         </th>
-
                         <th>
                             Median 20d
                         </th>
-
                         <th>
                             Median 60d
                         </th>
-
                     </tr>
-
                 </thead>
-
-
                 <tbody>
-
                     {{ANALYSIS_ROWS}}
-
                 </tbody>
-
             </table>
-
         </div>
-
     </section>
-
-
-    <!-- FÖRKLARING -->
-
+    <section class="panel">
+        <div class="section-header">
+            <div>
+                <h2>
+                    ML & ekonomiskt OOS-test
+                </h2>
+                <p>
+                    Resultat från modeller som tränats på historiska data
+                    och därefter testats på out-of-sample-perioder.
+                    Top 1 %, 10 bps och fem observationsdagars rebalance
+                    visas som primär strategi.
+                </p>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>
+                            Feature set
+                        </th>
+                        <th>
+                            Target
+                        </th>
+                        <th>
+                            Task
+                        </th>
+                        <th>
+                            Modell
+                        </th>
+                        <th>
+                            Riktning
+                        </th>
+                        <th>
+                            Netto
+                        </th>
+                        <th>
+                            Benchmark
+                        </th>
+                        <th>
+                            Excess
+                        </th>
+                        <th>
+                            Max DD
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ML_ROWS}}
+                </tbody>
+            </table>
+        </div>
+    </section>
     <section class="explanation">
-
         <h2>
             Så läser du Blankdiss
         </h2>
-
-
         <p>
             Blankdiss försöker inte från början säga att en aktie
             ska köpas eller säljas. Först undersöker vi om det finns
             ett återkommande statistiskt samband mellan förändrad
             blankning och efterföljande aktieutveckling.
         </p>
-
-
         <p>
-            Exempelvis kan vi undersöka vad som historiskt har hänt
-            efter att den rapporterade blankningen ökat med
-            0,50–1,00 procentenheter.
+            Event study-delen beskriver historiska samband.
+            ML-delen går ett steg längre genom att träna modeller
+            på historiska observationer och sedan utvärdera dem på
+            data som modellen inte tränat på.
         </p>
-
-
         <p>
-            Medianen visar det typiska utfallet och är mindre
-            känslig för extrema kursrörelser än medelvärdet.
-            Antalet händelser visar hur mycket data resultatet
-            bygger på.
+            Netto anger strategins sammansatta avkastning efter
+            den angivna transaktionskostnaden. Benchmark är
+            motsvarande universums genomsnittliga utveckling.
+            Excess är skillnaden mellan strategin och benchmark.
         </p>
-
-
         <p>
-            Ett historiskt samband är inte automatiskt en prognos.
-            Därför kommer nästa steg vara att kontrollera
-            marknadseffekt, urval, tidsförskjutning och
-            lookahead bias.
+            Ett OOS-resultat är fortfarande inte automatiskt en
+            framtida prognos. Därför ingår robusthet, känslighetsanalys
+            och olika målvariabler i experimenten.
         </p>
-
     </section>
-
-
-    <!-- METOD -->
-
     <section class="method">
-
         <div class="method-item">
-
             <span class="method-number">
                 01
             </span>
-
             <div>
-
                 <h3>
                     Blankning
                 </h3>
-
                 <p>
                     Data från Finansinspektionens
                     blankningsregister.
                 </p>
-
             </div>
-
         </div>
-
-
         <div class="method-item">
-
             <span class="method-number">
                 02
             </span>
-
             <div>
-
                 <h3>
                     Förändring
                 </h3>
-
                 <p>
                     Förändringen mellan två observerade
                     blankningsnivåer beräknas i procentenheter.
                 </p>
-
             </div>
-
         </div>
-
-
         <div class="method-item">
-
             <span class="method-number">
                 03
             </span>
-
             <div>
-
                 <h3>
                     Aktie
                 </h3>
-
                 <p>
                     Efterföljande utveckling mäts över
                     1, 5, 20 och 60 handelsdagar.
                 </p>
-
             </div>
-
         </div>
-
-
         <div class="method-item">
-
             <span class="method-number">
                 04
             </span>
-
             <div>
-
                 <h3>
                     Statistik
                 </h3>
-
                 <p>
                     Händelser grupperas och jämförs för att
                     hitta eventuella återkommande mönster.
                 </p>
-
             </div>
-
         </div>
-
     </section>
-
-
-    <!-- FOOTER -->
-
     <footer>
-
         <span>
             Blankdiss
         </span>
-
         <span>
             Genererad {{GENERATED_AT}}
         </span>
-
     </footer>
-
 </main>
-
 </body>
 </html>
