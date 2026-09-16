@@ -46,6 +46,14 @@ OUTPUT_METADATA_PATH = (
 # Håll varje JSONL-fil tydligt under CI-gränsen på 20 MB.
 CHUNK_SIZE = 10_000
 
+JSON_DATE_COLUMNS = {
+    "snapshot_date",
+    "previous_snapshot_date",
+    "price_date",
+    "min_return_5d_date",
+    "max_return_5d_date",
+}
+
 
 def clean_for_json(
     frame: pd.DataFrame,
@@ -54,16 +62,18 @@ def clean_for_json(
 
     result = frame.copy()
 
-    for column in result.columns:
-        if "date" in column.lower():
-            result[column] = (
-                pd.to_datetime(
-                    result[column],
-                    errors="coerce",
-                ).dt.strftime(
-                    "%Y-%m-%d"
-                )
+    for column in JSON_DATE_COLUMNS:
+        if column not in result.columns:
+            continue
+
+        result[column] = (
+            pd.to_datetime(
+                result[column],
+                errors="coerce",
+            ).dt.strftime(
+                "%Y-%m-%d"
             )
+        )
 
     result = result.replace(
         {
