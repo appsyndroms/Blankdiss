@@ -65,7 +65,10 @@ ABLATION_TARGETS = {
 }
 
 
-MAX_PARALLEL_WINDOWS = 2
+# GitHub-hosted ubuntu-latest har normalt 4 vCPU.
+# Vi använder fyra parallella experiment och begränsar
+# modellernas interna parallellism till en tråd.
+MAX_PARALLEL_EXPERIMENTS = 4
 
 
 def append_jsonl(
@@ -165,25 +168,7 @@ def prepare_feature_set(
     )
 
 
-def _run_window(
-    data,
-    y,
-    feature_columns,
-    window,
-    task,
-    direction,
-):
-    return train_window(
-        data,
-        y,
-        feature_columns,
-        window,
-        task=task,
-        direction=direction,
-    )
-
-
-def run_windows_parallel(
+def run_windows(
     data,
     y,
     feature_columns,
@@ -191,50 +176,190 @@ def run_windows_parallel(
     direction,
 ):
     """
-    Kör walk-forward-fönstren parallellt.
+    Kör walk-forward-fönstren sekventiellt inom ett experiment.
 
-    Vi använder threads eftersom sklearn-modellerna
-    gör det mesta av det tunga arbetet i native kod.
-    Datasetet kan därmed delas utan multiprocessing-pickling.
+    Parallellismen ligger på experimentnivå. Det gör att flera
+    oberoende feature-set/target-kombinationer kan använda CPU:n
+    samtidigt utan att varje modell försöker använda alla kärnor.
     """
+    window_results = []
 
-    if len(WALK_FORWARD_WINDOWS) <= 1:
-        return [
-            _run_window(
+    for window in WALK_FORWARD_WINDOWS:
+        window_results.append(
+            train_window(
                 data,
                 y,
                 feature_columns,
                 window,
-                task,
-                direction,
+                task=task,
+                direction=direction,
             )
-            for window in WALK_FORWARD_WINDOWS
+        )
+
+    return window_results
+
+
+def _prepare_experiment(
+    features,
+    feature_set_name,
+    price_features,
+    target,
+):
+    (
+        data,
+        y,
+        feature_columns,
+    ) = prepare_feature_set(
+        features,
+        target,
+        price_features,
+    )
+
+    summary = dataset_summary(
+        data,
+        y,
+        feature_columns,
+        task=target.task,
+    )
+
+    window_results = run_windows(
+        data,
+        y,
+        feature_columns,
+        target.task,
+        target.direction,
+    )
+
+    return {
+        "feature_set_name": feature_set_name,
+        "target": target,
+        "data": data,
+        "y": y,
+        "feature_columns": feature_columns,
+        "summary": summary,
+        "window_results": window_results,
+    }
+
+
+def _run_experiment(
+    features,
+    feature_set_name,
+    price_features,
+    target,
+):
+    print(
+        f"[START] {feature_set_name} / "
+        f"{target.name}"
+    )
+
+    result = _prepare_experiment(
+        features,
+        feature_set_name,
+        price_features,
+        target,
+    )
+
+    print(
+        f"[DONE]  {feature_set_name} / "
+        f"{target.name}"
+    )
+
+    return result
+
+
+def build_experiment_list():
+    experiments = []
+
+    for (
+        feature_set_name,
+        price_features,
+    ) in FEATURE_SETS:
+        for target in TARGETS:
+            is_single_price_ablation = (
+                price_features is not None
+                and feature_set_name
+                != "fi_plus_all_price"
+            )
+
+            if (
+                is_single_price_ablation
+                and target.name
+                not in ABLATION_TARGETS
+            ):
+                continue
+
+            experiments.append(
+                (
+                    feature_set_name,
+                    price_features,
+                    target,
+                )
+            )
+
+    return experiments
+
+
+def run_experiments_parallel(
+    features,
+    experiments,
+):
+    if len(experiments) <= 1:
+        return [
+            _run_experiment(
+                features,
+                feature_set_name,
+                price_features,
+                target,
+            )
+            for (
+                feature_set_name,
+                price_features,
+                target,
+            ) in experiments
         ]
 
     worker_count = min(
-        MAX_PARALLEL_WINDOWS,
-        len(WALK_FORWARD_WINDOWS),
+        MAX_PARALLEL_EXPERIMENTS,
+        len(experiments),
+    )
+
+    print()
+    print(
+        "================================"
+    )
+    print(
+        "Parallell ML-träning: "
+        f"{worker_count} experiment samtidigt"
+    )
+    print(
+        "Intern modellparallellism: "
+        "1 tråd"
+    )
+    print(
+        "================================"
     )
 
     with ThreadPoolExecutor(
         max_workers=worker_count,
-        thread_name_prefix="blankdiss-ml",
+        thread_name_prefix="blankdiss-experiment",
     ) as executor:
         futures = [
             executor.submit(
-                _run_window,
-                data,
-                y,
-                feature_columns,
-                window,
-                task,
-                direction,
+                _run_experiment,
+                features,
+                feature_set_name,
+                price_features,
+                target,
             )
-            for window in WALK_FORWARD_WINDOWS
+            for (
+                feature_set_name,
+                price_features,
+                target,
+            ) in experiments
         ]
 
-        # Hämta i samma ordning som windows,
-        # så resultatfilen förblir deterministisk.
+        # Samma ordning som experiment-listan.
+        # Resultaten blir därmed deterministiska.
         return [
             future.result()
             for future in futures
@@ -262,154 +387,136 @@ def main() -> None:
         f"{len(features):,}"
     )
 
+    experiments = build_experiment_list()
+
+    print(
+        "Experiment: "
+        f"{len(experiments)}"
+    )
+
+    experiment_results = (
+        run_experiments_parallel(
+            features,
+            experiments,
+        )
+    )
+
     all_results = []
     all_oos_predictions = []
 
-    for (
-        feature_set_name,
-        price_features,
-    ) in FEATURE_SETS:
+    for experiment in experiment_results:
+        feature_set_name = (
+            experiment["feature_set_name"]
+        )
+        target = experiment["target"]
+        summary = experiment["summary"]
+        window_results = (
+            experiment["window_results"]
+        )
+
+        if target.task == "classification":
+            summary_text = (
+                f"positiv rate "
+                f"{summary['positive_rate']:.3f}"
+            )
+        else:
+            summary_text = (
+                f"target mean "
+                f"{summary['target_mean']:.4f}"
+            )
+
         print()
-        print("================================")
+        print(
+            "================================"
+        )
         print(
             "Feature set: "
             f"{feature_set_name}"
         )
-        print("================================")
+        print(
+            "Target: "
+            f"{target.name}"
+        )
+        print(
+            "Dataset: "
+            f"{summary['rows']:,} rader, "
+            f"{summary['features']} features, "
+            f"{summary_text}"
+        )
+        print(
+            "================================"
+        )
 
-        for target in TARGETS:
-            is_single_price_ablation = (
-                price_features is not None
-                and feature_set_name
-                != "fi_plus_all_price"
-            )
-
-            if (
-                is_single_price_ablation
-                and target.name
-                not in ABLATION_TARGETS
-            ):
-                continue
-
-            print()
+        for window, (
+            results,
+            oos_predictions,
+        ) in zip(
+            WALK_FORWARD_WINDOWS,
+            window_results,
+        ):
             print(
-                "Target: "
-                f"{target.name}"
+                "Window: "
+                f"{window.train_end} -> "
+                f"{window.validation_end} -> "
+                f"{window.test_end}"
             )
 
-            (
-                data,
-                y,
-                feature_columns,
-            ) = prepare_feature_set(
-                features,
-                target,
-                price_features,
-            )
+            for result in results:
+                record = {
+                    "feature_set": (
+                        feature_set_name
+                    ),
+                    "target": target.name,
+                    "return_column": (
+                        target.return_column
+                    ),
+                    "target_threshold": (
+                        target.threshold
+                    ),
+                    "target_task": target.task,
+                    "target_column": (
+                        target.target_column
+                    ),
+                    "direction": (
+                        target.direction
+                    ),
+                    "dataset_summary": summary,
+                    "experiment": (
+                        "price_feature_ablation"
+                    ),
+                    **result,
+                }
 
-            summary = dataset_summary(
-                data,
-                y,
-                feature_columns,
-                task=target.task,
-            )
-
-            if target.task == "classification":
-                summary_text = (
-                    f"positiv rate "
-                    f"{summary['positive_rate']:.3f}"
-                )
-            else:
-                summary_text = (
-                    f"target mean "
-                    f"{summary['target_mean']:.4f}"
-                )
-
-            print(
-                "Dataset: "
-                f"{summary['rows']:,} rader, "
-                f"{summary['features']} features, "
-                f"{summary_text}"
-            )
-
-            window_results = run_windows_parallel(
-                data,
-                y,
-                feature_columns,
-                target.task,
-                target.direction,
-            )
-
-            for window, (
-                results,
-                oos_predictions,
-            ) in zip(
-                WALK_FORWARD_WINDOWS,
-                window_results,
-            ):
-                print(
-                    "Window: "
-                    f"{window.train_end} -> "
-                    f"{window.validation_end} -> "
-                    f"{window.test_end}"
+                all_results.append(
+                    record
                 )
 
-                for result in results:
-                    record = {
-                        "feature_set": (
-                            feature_set_name
-                        ),
-                        "target": target.name,
-                        "return_column": (
-                            target.return_column
-                        ),
-                        "target_threshold": (
-                            target.threshold
-                        ),
-                        "target_task": target.task,
-                        "target_column": (
-                            target.target_column
-                        ),
-                        "direction": (
-                            target.direction
-                        ),
-                        "dataset_summary": summary,
-                        "experiment": (
-                            "price_feature_ablation"
-                        ),
-                        **result,
-                    }
-
-                    all_results.append(
-                        record
+                if result[
+                    "selected_for_oos"
+                ]:
+                    print(
+                        "  VALDE MODELL: "
+                        f"{result['model']} "
+                        f"(score="
+                        f"{result['validation_score']:.4f})"
                     )
 
-                    if result[
-                        "selected_for_oos"
-                    ]:
-                        print(
-                            "  VALDE MODELL: "
-                            f"{result['model']} "
-                            f"(score="
-                            f"{result['validation_score']:.4f})"
-                        )
+            for prediction in oos_predictions:
+                prediction[
+                    "feature_set"
+                ] = feature_set_name
 
-                for prediction in oos_predictions:
-                    prediction[
-                        "feature_set"
-                    ] = feature_set_name
+                prediction[
+                    "target"
+                ] = target.name
 
-                    prediction[
-                        "target"
-                    ] = target.name
+                prediction[
+                    "target_column"
+                ] = target.target_column
 
-                    prediction[
-                        "target_column"
-                    ] = target.target_column
-
-                    all_oos_predictions.append(
-                        prediction
-                    )
+                all_oos_predictions.append(
+                    prediction
+                )
 
     now = datetime.now(
         timezone.utc
@@ -437,9 +544,10 @@ def main() -> None:
         "ablation_targets": sorted(
             ABLATION_TARGETS
         ),
-        "parallel_windows": (
-            MAX_PARALLEL_WINDOWS
+        "parallel_experiments": (
+            MAX_PARALLEL_EXPERIMENTS
         ),
+        "parallel_windows": 1,
         "results": all_results,
         "oos_prediction_rows": (
             len(all_oos_predictions)
@@ -479,8 +587,12 @@ def main() -> None:
         )
 
     print()
-    print("================================")
-    print("Blankdiss ML: klart.")
+    print(
+        "================================"
+    )
+    print(
+        "Blankdiss ML: klart."
+    )
     print(
         "Resultat: "
         f"{run_path}"
@@ -489,7 +601,13 @@ def main() -> None:
         "OOS-prediktioner: "
         f"{len(all_oos_predictions):,}"
     )
-    print("================================")
+    print(
+        "Parallella experiment: "
+        f"{MAX_PARALLEL_EXPERIMENTS}"
+    )
+    print(
+        "================================"
+    )
 
 
 if __name__ == "__main__":
