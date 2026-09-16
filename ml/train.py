@@ -18,7 +18,8 @@ from ml.config import (
 from ml.dataset import (
     dataset_summary,
     load_features,
-    prepare_ml_data,
+    prepare_feature_set,
+    prepare_ml_data_from_feature_set,
 )
 from ml.walk_forward import train_window
 
@@ -117,54 +118,58 @@ def write_jsonl(
             )
 
 
-def prepare_feature_set(
-    frame,
-    target,
+def prepare_feature_set_data(
+    features,
     price_features,
 ):
     include_price_features = (
         price_features is not None
     )
 
-    (
-        data,
-        y,
-        base_feature_columns,
-    ) = prepare_ml_data(
-        frame,
-        target,
+    return prepare_feature_set(
+        features,
         include_price_features,
     )
 
-    if price_features is None:
-        return (
-            data,
-            y,
-            base_feature_columns,
-        )
 
-    fi_feature_columns = [
-        column
-        for column in base_feature_columns
-        if column
-        not in PRICE_FEATURE_COLUMNS
-    ]
+def prepare_feature_set(
+    frame,
+    target,
+    price_features,
+):
+    """
+    Bakåtkompatibel target-preparering från en redan cachead
+    feature-set.
 
-    selected_price_columns = [
-        column
-        for column in base_feature_columns
-        if column in price_features
-    ]
+    Denna funktion används inte av den nya huvudloopen direkt,
+    men behåller samma logik som tidigare kod för externa anrop.
+    """
+    include_price_features = (
+        price_features is not None
+    )
 
-    selected_feature_columns = (
-        fi_feature_columns
-        + selected_price_columns
+    (
+        feature_set_data,
+        feature_columns,
+    ) = prepare_feature_set_data(
+        frame,
+        price_features,
+    )
+
+    (
+        data,
+        y,
+        feature_columns,
+    ) = prepare_ml_data_from_feature_set(
+        feature_set_data,
+        feature_columns,
+        target,
     )
 
     return (
         data,
         y,
-        selected_feature_columns,
+        feature_columns,
     )
 
 
@@ -178,9 +183,7 @@ def run_windows(
     """
     Kör walk-forward-fönstren sekventiellt inom ett experiment.
 
-    Parallellismen ligger på experimentnivå. Det gör att flera
-    oberoende feature-set/target-kombinationer kan använda CPU:n
-    samtidigt utan att varje modell försöker använda alla kärnor.
+    Parallellismen ligger på experimentnivå.
     """
     window_results = []
 
@@ -200,19 +203,19 @@ def run_windows(
 
 
 def _prepare_experiment(
-    features,
+    feature_set_data,
+    feature_columns,
     feature_set_name,
-    price_features,
     target,
 ):
     (
         data,
         y,
         feature_columns,
-    ) = prepare_feature_set(
-        features,
+    ) = prepare_ml_data_from_feature_set(
+        feature_set_data,
+        feature_columns,
         target,
-        price_features,
     )
 
     summary = dataset_summary(
@@ -242,9 +245,8 @@ def _prepare_experiment(
 
 
 def _run_experiment(
-    features,
+    feature_set_cache,
     feature_set_name,
-    price_features,
     target,
 ):
     print(
@@ -252,10 +254,17 @@ def _run_experiment(
         f"{target.name}"
     )
 
+    (
+        feature_set_data,
+        feature_columns,
+    ) = feature_set_cache[
+        feature_set_name
+    ]
+
     result = _prepare_experiment(
-        features,
+        feature_set_data,
+        feature_columns,
         feature_set_name,
-        price_features,
         target,
     )
 
@@ -291,7 +300,6 @@ def build_experiment_list():
             experiments.append(
                 (
                     feature_set_name,
-                    price_features,
                     target,
                 )
             )
@@ -299,21 +307,71 @@ def build_experiment_list():
     return experiments
 
 
-def run_experiments_parallel(
+def build_feature_set_cache(
     features,
+):
+    """
+    Preparera varje feature-set exakt en gång.
+
+    Tidigare gjordes motsvarande feature-preparering per
+    feature-set/target-experiment.
+    """
+    cache = {}
+
+    print()
+    print(
+        "================================"
+    )
+    print(
+        "Förbereder feature-set cache"
+    )
+    print(
+        "================================"
+    )
+
+    for (
+        feature_set_name,
+        price_features,
+    ) in FEATURE_SETS:
+        print(
+            f"[CACHE] {feature_set_name}"
+        )
+
+        (
+            feature_set_data,
+            feature_columns,
+        ) = prepare_feature_set(
+            features,
+            price_features is not None,
+        )
+
+        cache[feature_set_name] = (
+            feature_set_data,
+            feature_columns,
+        )
+
+        print(
+            f"[CACHE] {feature_set_name}: "
+            f"{len(feature_set_data):,} rader, "
+            f"{len(feature_columns)} features"
+        )
+
+    return cache
+
+
+def run_experiments_parallel(
+    feature_set_cache,
     experiments,
 ):
     if len(experiments) <= 1:
         return [
             _run_experiment(
-                features,
+                feature_set_cache,
                 feature_set_name,
-                price_features,
                 target,
             )
             for (
                 feature_set_name,
-                price_features,
                 target,
             ) in experiments
         ]
@@ -346,20 +404,16 @@ def run_experiments_parallel(
         futures = [
             executor.submit(
                 _run_experiment,
-                features,
+                feature_set_cache,
                 feature_set_name,
-                price_features,
                 target,
             )
             for (
                 feature_set_name,
-                price_features,
                 target,
             ) in experiments
         ]
 
-        # Samma ordning som experiment-listan.
-        # Resultaten blir därmed deterministiska.
         return [
             future.result()
             for future in futures
@@ -387,6 +441,14 @@ def main() -> None:
         f"{len(features):,}"
     )
 
+    # Preparera varje feature-set en gång.
+    # Experimenten delar sedan dessa read-only DataFrames.
+    feature_set_cache = (
+        build_feature_set_cache(
+            features
+        )
+    )
+
     experiments = build_experiment_list()
 
     print(
@@ -396,7 +458,7 @@ def main() -> None:
 
     experiment_results = (
         run_experiments_parallel(
-            features,
+            feature_set_cache,
             experiments,
         )
     )
@@ -548,6 +610,7 @@ def main() -> None:
             MAX_PARALLEL_EXPERIMENTS
         ),
         "parallel_windows": 1,
+        "feature_set_cache": True,
         "results": all_results,
         "oos_prediction_rows": (
             len(all_oos_predictions)
@@ -604,6 +667,9 @@ def main() -> None:
     print(
         "Parallella experiment: "
         f"{MAX_PARALLEL_EXPERIMENTS}"
+    )
+    print(
+        "Feature-set cache: aktiv"
     )
     print(
         "================================"
