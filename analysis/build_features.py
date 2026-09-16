@@ -190,96 +190,132 @@ def load_fi() -> pd.DataFrame:
     ].copy()
 
 
-def find_price_file() -> Path:
+def find_price_files() -> list[Path]:
     files = sorted(
         PRICE_DIR.glob("prices_*.jsonl")
     )
 
     if not files:
         raise FileNotFoundError(
-            f"Ingen prices_*.jsonl hittades i {PRICE_DIR}"
+            f"Inga prices_*.jsonl hittades i {PRICE_DIR}"
         )
 
-    return files[-1]
+    return files
 
 
 def load_prices(
-    path: Path,
+    paths: list[Path],
 ) -> pd.DataFrame:
-    frame = pd.read_json(
-        path,
-        lines=True,
-    )
+    frames: list[pd.DataFrame] = []
 
-    required = {
-        "date",
-        "isin",
-        "issuer",
-        "yahoo_symbol",
-        "close",
-    }
-
-    missing = required.difference(
-        frame.columns
-    )
-
-    if missing:
-        raise ValueError(
-            "Prisdata saknar kolumner: "
-            + ", ".join(sorted(missing))
+    for path in paths:
+        print(
+            f"Featurejobb: läser prisfil = "
+            f"{path.name}"
         )
 
-    frame["date"] = pd.to_datetime(
-        frame["date"],
-        errors="coerce",
-    )
-
-    frame["close"] = pd.to_numeric(
-        frame["close"],
-        errors="coerce",
-    )
-
-    frame["isin"] = frame["isin"].where(
-        frame["isin"].notna(),
-        None,
-    )
-
-    frame["issuer"] = (
-        frame["issuer"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    frame["yahoo_symbol"] = (
-        frame["yahoo_symbol"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    frame = frame.loc[
-        frame["date"].notna()
-        & frame["close"].notna()
-        & np.isfinite(frame["close"])
-        & (frame["close"] > 0)
-    ].copy()
-
-    frame["security_key"] = [
-        security_key(isin, issuer)
-        for isin, issuer in zip(
-            frame["isin"],
-            frame["issuer"],
+        frame = pd.read_json(
+            path,
+            lines=True,
         )
-    ]
 
-    return frame.sort_values(
+        required = {
+            "date",
+            "isin",
+            "issuer",
+            "yahoo_symbol",
+            "close",
+        }
+
+        missing = required.difference(
+            frame.columns
+        )
+
+        if missing:
+            raise ValueError(
+                f"Prisdata saknar kolumner i "
+                f"{path.name}: "
+                + ", ".join(sorted(missing))
+            )
+
+        frame["date"] = pd.to_datetime(
+            frame["date"],
+            errors="coerce",
+        )
+
+        frame["close"] = pd.to_numeric(
+            frame["close"],
+            errors="coerce",
+        )
+
+        frame["isin"] = frame["isin"].where(
+            frame["isin"].notna(),
+            None,
+        )
+
+        frame["issuer"] = (
+            frame["issuer"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        frame["yahoo_symbol"] = (
+            frame["yahoo_symbol"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        frame = frame.loc[
+            frame["date"].notna()
+            & frame["close"].notna()
+            & np.isfinite(frame["close"])
+            & (frame["close"] > 0)
+        ].copy()
+
+        frame["security_key"] = [
+            security_key(isin, issuer)
+            for isin, issuer in zip(
+                frame["isin"],
+                frame["issuer"],
+            )
+        ]
+
+        frames.append(frame)
+
+    if not frames:
+        raise RuntimeError(
+            "Prisfiler hittades men innehöll "
+            "inga användbara observationer."
+        )
+
+    combined = pd.concat(
+        frames,
+        ignore_index=True,
+    )
+
+    combined = combined.sort_values(
         [
             "security_key",
             "date",
             "yahoo_symbol",
         ],
         kind="mergesort",
+    )
+
+    # Prisfilerna kan överlappa varandra.
+    # Behåll en observation per säkerhet och handelsdag.
+    combined = combined.drop_duplicates(
+        subset=[
+            "security_key",
+            "date",
+        ],
+        keep="last",
+    )
+
+    return combined.reset_index(
+        drop=True
     )
 
 
@@ -801,7 +837,7 @@ def write_metadata(
     prices: pd.DataFrame,
     result: pd.DataFrame,
     stats: dict[str, int],
-    price_file: Path,
+    price_files: list[Path],
     chunks: list[dict[str, Any]],
 ) -> None:
     metadata = {
@@ -809,9 +845,12 @@ def write_metadata(
             "fi_file": str(
                 FI_PATH.relative_to(ROOT)
             ),
-            "price_file": str(
-                price_file.relative_to(ROOT)
-            ),
+            "price_files": [
+                str(
+                    path.relative_to(ROOT)
+                )
+                for path in price_files
+            ],
         },
         "fi_rows": int(len(fi)),
         "price_rows": int(len(prices)),
@@ -901,21 +940,30 @@ def main() -> None:
         "FI-observationer lästa."
     )
 
-    price_file = find_price_file()
+    price_files = find_price_files()
+
+    print(
+        "Featurejobb: hittade "
+        f"{len(price_files)} prisfiler."
+    )
 
     prices = load_prices(
-        price_file
+        price_files
     )
 
     print(
         f"Featurejobb: {len(prices):,} "
-        "prisobservationer lästa."
+        "unika prisobservationer lästa."
     )
 
     print(
-        "Featurejobb: prisfil = "
-        f"{price_file.name}"
+        "Featurejobb: prisfiler:"
     )
+
+    for price_file in price_files:
+        print(
+            f"  - {price_file.name}"
+        )
 
     fi = add_fi_features(
         fi
@@ -957,7 +1005,7 @@ def main() -> None:
         prices=prices,
         result=result,
         stats=stats,
-        price_file=price_file,
+        price_files=price_files,
         chunks=chunks,
     )
 
