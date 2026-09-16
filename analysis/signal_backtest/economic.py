@@ -12,6 +12,9 @@ from analysis.signal_backtest.config import (
     ECONOMIC_REBALANCE_DAYS_SENSITIVITY,
     ECONOMIC_TRANSACTION_COST_BPS,
 )
+from analysis.signal_backtest.robustness import (
+    build_random_security_sensitivity,
+)
 from analysis.signal_backtest.sensitivity import (
     build_concentration_sensitivity,
     build_cost_sensitivity,
@@ -95,36 +98,21 @@ def run_economic_backtest(
     """
     Kör ett OOS-ekonomiskt backtest.
 
-    Portföljen är lika viktad inom urvalet men med ett hårt
-    maxviktstak per värdepapper.
+    För short-strategier används -target_return.
 
-    Kapital som inte kan investeras på grund av taket
-    ligger som cash.
+    Borrow cost, locate constraints, borrow availability
+    och faktisk short execution modelleras ännu inte.
 
-    För varje urvalsnivå produceras:
+    Rebalance-sensitiviteten ändrar inte targetens längd.
+    Targeten är fortfarande 5 dagar.
 
-        - huvudresultat vid 10 bps
-        - separata årsresultat
-        - kostnadskänslighet vid 5/10/20 bps
-        - rebalance-känslighet vid 3/5/10 observationsdagar
+    Koncentrationsanalysen körs på 1 %-urvalet och testar
+    hur känsligt resultatet är för de mest frekvent valda
+    värdepappren.
 
-    Dessutom produceras koncentrationsanalys för top 1 %.
-
-    Viktigt:
-
-        Detta är fortfarande ett syntetiskt ekonomiskt backtest.
-
-        För short-strategier används -target_return.
-
-        Borrow cost, locate constraints, borrow availability
-        och faktisk short execution modelleras ännu inte.
-
-        Rebalance-sensitiviteten ändrar inte targetens längd.
-        Targeten är fortfarande 5 dagar.
-
-        Koncentrationsanalysen körs på 1 %-urvalet och testar
-        hur känsligt resultatet är för de mest frekvent valda
-        värdepappren.
+    Random robustness testar samma 1 %-strategi efter att
+    10 %, 20 % eller 30 % av universums värdepapper slumpmässigt
+    tagits bort.
     """
     clean = clean_predictions(
         predictions
@@ -216,6 +204,21 @@ def run_economic_backtest(
         )
     )
 
+    random_security_sensitivity = (
+        build_random_security_sensitivity(
+            clean,
+            strategy_builder=build_strategy,
+            fraction=0.01,
+            direction=direction,
+            transaction_cost_bps=(
+                primary_transaction_cost_bps
+            ),
+            rebalance_days=(
+                ECONOMIC_REBALANCE_DAYS
+            ),
+        )
+    )
+
     return {
         "target": target_name,
         "direction": direction,
@@ -253,5 +256,8 @@ def run_economic_backtest(
         "strategies": strategies,
         "concentration_sensitivity": (
             concentration_sensitivity
+        ),
+        "random_security_sensitivity": (
+            random_security_sensitivity
         ),
     }
