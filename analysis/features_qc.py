@@ -297,29 +297,31 @@ def check_date_integrity(
         ].isna().sum()
     )
 
-    price_invalid = int(
-        frame[
-            "price_date"
-        ].isna().sum()
-    )
-
-    with_price = frame.loc[
+    matched = frame.loc[
         frame[
             "price_match_available"
         ].fillna(False)
     ].copy()
 
-    wrong_direction = with_price.loc[
-        with_price[
+    # price_date är endast obligatoriskt för matchade rader.
+    # Omatchade FI-rader har avsiktligt price_date = NaT.
+    invalid_matched_price_dates = int(
+        matched[
+            "price_date"
+        ].isna().sum()
+    )
+
+    wrong_direction = matched.loc[
+        matched[
             "price_date"
         ]
-        < with_price[
+        < matched[
             "snapshot_date"
         ]
     ]
 
-    negative_days = with_price.loc[
-        with_price[
+    negative_days = matched.loc[
+        matched[
             "days_from_fi_to_price"
         ] < 0
     ]
@@ -328,7 +330,7 @@ def check_date_integrity(
 
     if (
         snapshot_invalid
-        or price_invalid > 0
+        or invalid_matched_price_dates > 0
         or len(wrong_direction) > 0
         or len(negative_days) > 0
     ):
@@ -337,7 +339,9 @@ def check_date_integrity(
     return {
         "status": status,
         "invalid_snapshot_dates": snapshot_invalid,
-        "invalid_price_dates": price_invalid,
+        "invalid_price_dates": (
+            invalid_matched_price_dates
+        ),
         "price_before_fi": int(
             len(wrong_direction)
         ),
