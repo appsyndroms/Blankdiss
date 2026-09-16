@@ -36,14 +36,13 @@ OUTPUT_DIR = (
     / "analysis"
 )
 
-# Canonical ML feature dataset.
 FEATURE_GLOB = "features_*.jsonl"
+
 FEATURE_METADATA_PATH = (
     OUTPUT_DIR
     / "features_metadata.json"
 )
 
-# Legacy/other consumers may still use this complete dataset.
 OUTPUT_PATH = (
     OUTPUT_DIR
     / "fi_price_features.jsonl"
@@ -63,8 +62,8 @@ RETURN_HORIZONS = (
 
 SEVERITY_HORIZON = 5
 
-# Keep individual JSONL files comfortably below repository/file-size limits.
-CHUNK_SIZE = 12_000
+# Håll varje JSONL-fil tydligt under GitHub/CI-gränsen på 20 MB.
+CHUNK_SIZE = 10_000
 
 
 def normalize_text(value: Any) -> str:
@@ -304,8 +303,6 @@ def load_prices(
         kind="mergesort",
     )
 
-    # Prisfilerna kan överlappa varandra.
-    # Behåll en observation per säkerhet och handelsdag.
     combined = combined.drop_duplicates(
         subset=[
             "security_key",
@@ -984,8 +981,6 @@ def main() -> None:
         result
     )
 
-    # Keep the complete dataset for existing
-    # consumers that still use it directly.
     write_jsonl(
         result,
         OUTPUT_PATH,
