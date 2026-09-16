@@ -1,14 +1,20 @@
 """Ekonomiskt backtest av Blankdiss OOS-signaler."""
 from __future__ import annotations
+
 from typing import Any
+
 import numpy as np
 import pandas as pd
+
 from analysis.signal_backtest.config import (
     ECONOMIC_BACKTEST_FRACTIONS,
     ECONOMIC_MAX_POSITION_WEIGHT,
     ECONOMIC_REBALANCE_DAYS,
+    ECONOMIC_REBALANCE_DAYS_SENSITIVITY,
     ECONOMIC_TRANSACTION_COST_BPS,
 )
+
+
 def _clean_predictions(
     predictions: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -18,25 +24,32 @@ def _clean_predictions(
         "target_return",
         "probability",
     }
+
     missing = required - set(predictions.columns)
+
     if missing:
         raise ValueError(
             "Ekonomiskt backtest saknar kolumner: "
             + ", ".join(sorted(missing))
         )
+
     clean = predictions.copy()
+
     clean["snapshot_date"] = pd.to_datetime(
         clean["snapshot_date"],
         errors="coerce",
     )
+
     clean["target_return"] = pd.to_numeric(
         clean["target_return"],
         errors="coerce",
     )
+
     clean["probability"] = pd.to_numeric(
         clean["probability"],
         errors="coerce",
     )
+
     clean = clean.dropna(
         subset=[
             "snapshot_date",
@@ -45,6 +58,7 @@ def _clean_predictions(
             "probability",
         ]
     )
+
     return clean.sort_values(
         [
             "snapshot_date",
@@ -58,46 +72,57 @@ def _clean_predictions(
         ],
         kind="mergesort",
     ).reset_index(drop=True)
+
+
 def _portfolio_weights(
     selected: pd.DataFrame,
     max_position_weight: float,
 ) -> dict[str, float]:
     """
     Skapa lika vikter med ett hårt maxviktstak.
+
     Kapital som inte kan investeras på grund av maxvikten
     ligger kvar som cash.
+
     Exempel med maxvikt 5 %:
         1 aktie  -> 5 %
         2 aktier -> 10 %
         10 aktier -> 50 %
         20 aktier -> 100 %
+
     Om antalet aktier är större än 20 viktas de lika så
     att hela portföljen används.
     """
     if selected.empty:
         return {}
+
     if not 0.0 < max_position_weight <= 1.0:
         raise ValueError(
             "max_position_weight måste vara > 0 och <= 1."
         )
+
     securities = (
         selected["security_key"]
         .astype(str)
         .tolist()
     )
+
     count = len(securities)
+
     equal_weight = 1.0 / count
+
     if equal_weight <= max_position_weight:
         return {
             security: equal_weight
             for security in securities
         }
-    # För få värdepapper för att kunna investera hela kapitalet
-    # utan att överskrida maxvikten.
+
     return {
         security: max_position_weight
         for security in securities
     }
+
+
 def _portfolio_return(
     selected: pd.DataFrame,
     direction: str,
@@ -105,23 +130,28 @@ def _portfolio_return(
 ) -> float:
     """
     Beräkna portföljens bruttoavkastning.
+
     Ej investerat kapital behandlas som cash med 0 % avkastning.
     """
     if selected.empty:
         raise ValueError(
             "Kan inte beräkna portföljavkastning utan innehav."
         )
+
     returns = selected[
         "target_return"
     ].to_numpy(
         dtype=float
     )
+
     if direction == "short":
         returns = -returns
+
     weights = _portfolio_weights(
         selected,
         max_position_weight,
     )
+
     weight_array = np.asarray(
         [
             weights[str(security)]
@@ -131,12 +161,15 @@ def _portfolio_return(
         ],
         dtype=float,
     )
+
     return float(
         np.sum(
             weight_array
             * returns
         )
     )
+
+
 def _invested_weight(
     weights: dict[str, float],
 ) -> float:
@@ -144,14 +177,18 @@ def _invested_weight(
     return float(
         sum(weights.values())
     )
+
+
 def _turnover(
     previous_weights: dict[str, float],
     current_weights: dict[str, float],
 ) -> float:
     """
     Total portföljomsättning som halv-L1-avstånd.
+
     Cash ingår implicit som resterande vikt. Eftersom cashvikten
     kan förändras måste även den förändringen räknas med.
+
     Exempel:
         tidigare 100 % cash
         nu 5 % aktie + 95 % cash
@@ -161,6 +198,7 @@ def _turnover(
         set(previous_weights)
         | set(current_weights)
     )
+
     security_turnover = sum(
         abs(
             current_weights.get(
@@ -174,16 +212,20 @@ def _turnover(
         )
         for security in securities
     )
+
     previous_cash = 1.0 - _invested_weight(
         previous_weights
     )
+
     current_cash = 1.0 - _invested_weight(
         current_weights
     )
+
     cash_turnover = abs(
         current_cash
         - previous_cash
     )
+
     return float(
         0.5
         * (
@@ -191,19 +233,24 @@ def _turnover(
             + cash_turnover
         )
     )
+
+
 def _compound(
     returns: list[float],
 ) -> float:
     if not returns:
         return 0.0
+
     returns_array = np.asarray(
         returns,
         dtype=float,
     )
+
     if np.any(
         1.0 + returns_array <= 0.0
     ):
         return -1.0
+
     return float(
         np.prod(
             1.0
@@ -211,39 +258,69 @@ def _compound(
         )
         - 1.0
     )
+
+
 def _max_drawdown(
     returns: list[float],
 ) -> float:
     if not returns:
         return 0.0
+
     returns_array = np.asarray(
         returns,
         dtype=float,
     )
+
     if np.any(
         1.0 + returns_array <= 0.0
     ):
         return -1.0
+
     equity = np.cumprod(
         1.0
         + returns_array
     )
+
     peaks = np.maximum.accumulate(
         equity
     )
+
     drawdowns = (
         equity / peaks
         - 1.0
     )
+
     return float(
         drawdowns.min()
     )
+
+
 def _build_strategy(
     predictions: pd.DataFrame,
     fraction: float,
     direction: str,
     transaction_cost_bps: float,
+    rebalance_days: int | None = None,
 ) -> dict[str, Any]:
+    """
+    Bygg en ekonomisk strategi.
+
+    rebalance_days anger hur många observationsdagar som ska
+    hoppas mellan nya portföljurval.
+
+    Targeten är fortfarande den befintliga target_return,
+    normalt en 5-dagars forward return.
+
+    Därför ska rebalance_days inte tolkas som holding period.
+    """
+    if rebalance_days is None:
+        rebalance_days = ECONOMIC_REBALANCE_DAYS
+
+    if rebalance_days < 1:
+        raise ValueError(
+            "rebalance_days måste vara >= 1."
+        )
+
     dates = sorted(
         predictions[
             "snapshot_date"
@@ -251,25 +328,28 @@ def _build_strategy(
         .dt.normalize()
         .unique()
     )
-    # Targeten är fem handelsdagar. Vi startar en ny portfölj
-    # var femte observationsdag så att targetperioderna
-    # inte överlappar.
+
     rebalance_dates = dates[
-        ::ECONOMIC_REBALANCE_DAYS
+        ::rebalance_days
     ]
+
     transaction_cost_rate = (
         transaction_cost_bps
         / 10_000.0
     )
+
     period_returns: list[float] = []
     gross_returns: list[float] = []
     benchmark_returns: list[float] = []
     turnover_values: list[float] = []
     invested_weights: list[float] = []
+
     periods: list[
         dict[str, Any]
     ] = []
+
     previous_weights: dict[str, float] = {}
+
     for date in rebalance_dates:
         day = predictions.loc[
             predictions[
@@ -277,8 +357,10 @@ def _build_strategy(
             ].dt.normalize()
             == date
         ].copy()
+
         if day.empty:
             continue
+
         day = day.sort_values(
             [
                 "probability",
@@ -290,6 +372,7 @@ def _build_strategy(
             ],
             kind="mergesort",
         )
+
         count = max(
             1,
             int(
@@ -299,60 +382,76 @@ def _build_strategy(
                 )
             ),
         )
+
         selected = day.iloc[
             :count
         ].copy()
+
         current_weights = _portfolio_weights(
             selected,
             ECONOMIC_MAX_POSITION_WEIGHT,
         )
+
         turnover = _turnover(
             previous_weights,
             current_weights,
         )
+
         gross = _portfolio_return(
             selected,
             direction,
             ECONOMIC_MAX_POSITION_WEIGHT,
         )
+
         transaction_cost = (
             turnover
             * transaction_cost_rate
         )
+
         net = (
             gross
             - transaction_cost
         )
+
         universe = day[
             "target_return"
         ].to_numpy(
             dtype=float
         )
+
         if direction == "short":
             universe = -universe
+
         benchmark = float(
             np.mean(
                 universe
             )
         )
+
         invested_weight = _invested_weight(
             current_weights
         )
+
         period_returns.append(
             net
         )
+
         gross_returns.append(
             gross
         )
+
         benchmark_returns.append(
             benchmark
         )
+
         turnover_values.append(
             turnover
         )
+
         invested_weights.append(
             invested_weight
         )
+
         periods.append(
             {
                 "date": str(
@@ -381,16 +480,21 @@ def _build_strategy(
                 ),
             }
         )
+
         previous_weights = current_weights
+
     benchmark_compounded = _compound(
         benchmark_returns
     )
+
     gross_compounded = _compound(
         gross_returns
     )
+
     net_compounded = _compound(
         period_returns
     )
+
     return {
         "fraction": float(
             fraction
@@ -400,7 +504,7 @@ def _build_strategy(
         ),
         "direction": direction,
         "rebalance_days": int(
-            ECONOMIC_REBALANCE_DAYS
+            rebalance_days
         ),
         "transaction_cost_bps": float(
             transaction_cost_bps
@@ -491,20 +595,25 @@ def _build_strategy(
         ),
         "periods_detail": periods,
     }
+
+
 def _build_yearly_results(
     predictions: pd.DataFrame,
     fraction: float,
     direction: str,
     transaction_cost_bps: float,
+    rebalance_days: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Kör samma ekonomiska strategi separat per kalenderår.
+
     Detta används diagnostiskt för att skilja 2025 från 2026
     och undvika att ett starkt år döljer ett svagt år.
     """
     yearly_results: list[
         dict[str, Any]
     ] = []
+
     years = sorted(
         predictions[
             "snapshot_date"
@@ -513,6 +622,7 @@ def _build_yearly_results(
         .unique()
         .tolist()
     )
+
     for year in years:
         year_predictions = predictions.loc[
             predictions[
@@ -520,25 +630,34 @@ def _build_yearly_results(
             ].dt.year
             == year
         ].copy()
+
         if year_predictions.empty:
             continue
+
         result = _build_strategy(
             year_predictions,
             fraction,
             direction,
             transaction_cost_bps,
+            rebalance_days,
         )
+
         result["year"] = int(
             year
         )
+
         yearly_results.append(
             result
         )
+
     return yearly_results
+
+
 def _build_cost_sensitivity(
     predictions: pd.DataFrame,
     fraction: float,
     direction: str,
+    rebalance_days: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Kör samma strategi vid flera transaktionskostnader.
@@ -549,38 +668,83 @@ def _build_cost_sensitivity(
             fraction,
             direction,
             transaction_cost_bps,
+            rebalance_days,
         )
         for transaction_cost_bps
         in ECONOMIC_TRANSACTION_COST_BPS
     ]
+
+
+def _build_rebalance_sensitivity(
+    predictions: pd.DataFrame,
+    fraction: float,
+    direction: str,
+    transaction_cost_bps: float,
+) -> list[dict[str, Any]]:
+    """
+    Kör samma strategi vid flera rebalance-intervall.
+
+    OBS:
+        Targeten är fortfarande 5 dagar.
+
+    Detta är därför en känslighetsanalys av hur ofta modellen
+    omsätts, inte ett test av olika holding-period targets.
+    """
+    return [
+        _build_strategy(
+            predictions,
+            fraction,
+            direction,
+            transaction_cost_bps,
+            rebalance_days,
+        )
+        for rebalance_days
+        in ECONOMIC_REBALANCE_DAYS_SENSITIVITY
+    ]
+
+
 def run_economic_backtest(
     predictions: pd.DataFrame,
     target_name: str,
 ) -> dict[str, Any]:
     """
-    Kör ett OOS-ekonomiskt backtest utan överlappande
-    5-dagarsperioder.
+    Kör ett OOS-ekonomiskt backtest.
+
     Portföljen är lika viktad inom urvalet men med ett hårt
-    maxviktstak per värdepapper. Kapital som inte kan investeras
-    på grund av taket ligger som cash.
+    maxviktstak per värdepapper.
+
+    Kapital som inte kan investeras på grund av taket
+    ligger som cash.
+
     För varje urvalsnivå produceras:
+
         - huvudresultat vid 10 bps
         - separata årsresultat
         - kostnadskänslighet vid 5/10/20 bps
+        - rebalance-känslighet vid 3/5/10 observationsdagar
+
     Viktigt:
+
         Detta är fortfarande ett syntetiskt ekonomiskt backtest.
-        För short-strategier används -target_return. Borrow cost,
-        locate constraints, borrow availability och faktisk
-        short execution modelleras ännu inte.
+
+        För short-strategier används -target_return.
+
+        Borrow cost, locate constraints, borrow availability
+        och faktisk short execution modelleras ännu inte.
+
+        Rebalance-sensitiviteten ändrar inte targetens längd.
+        Targeten är fortfarande 5 dagar.
     """
     clean = _clean_predictions(
         predictions
     )
+
     if clean.empty:
         raise ValueError(
             "Ekonomiskt backtest fick "
             "inga giltiga OOS-prediktioner."
         )
+
     direction = (
         "short"
         if target_name.startswith(
@@ -588,39 +752,64 @@ def run_economic_backtest(
         )
         else "long"
     )
+
     # 10 bps används som huvudscenario för jämförbarhet
     # med tidigare körningar.
     primary_transaction_cost_bps = 10.0
+
     strategies: list[
         dict[str, Any]
     ] = []
+
     for fraction in ECONOMIC_BACKTEST_FRACTIONS:
         primary = _build_strategy(
             clean,
             fraction,
             direction,
             primary_transaction_cost_bps,
+            ECONOMIC_REBALANCE_DAYS,
         )
+
         yearly = _build_yearly_results(
             clean,
             fraction,
             direction,
             primary_transaction_cost_bps,
+            ECONOMIC_REBALANCE_DAYS,
         )
+
         cost_sensitivity = (
             _build_cost_sensitivity(
                 clean,
                 fraction,
                 direction,
+                ECONOMIC_REBALANCE_DAYS,
             )
         )
-        primary["yearly"] = yearly
-        primary["transaction_cost_sensitivity"] = (
-            cost_sensitivity
+
+        rebalance_sensitivity = (
+            _build_rebalance_sensitivity(
+                clean,
+                fraction,
+                direction,
+                primary_transaction_cost_bps,
+            )
         )
+
+        primary["yearly"] = yearly
+
+        primary[
+            "transaction_cost_sensitivity"
+        ] = cost_sensitivity
+
+        primary[
+            "rebalance_sensitivity"
+        ] = rebalance_sensitivity
+
         strategies.append(
             primary
         )
+
     return {
         "target": target_name,
         "direction": direction,
@@ -646,5 +835,14 @@ def run_economic_backtest(
             for value
             in ECONOMIC_TRANSACTION_COST_BPS
         ],
+        "primary_rebalance_days": int(
+            ECONOMIC_REBALANCE_DAYS
+        ),
+        "rebalance_scenarios_days": [
+            int(value)
+            for value
+            in ECONOMIC_REBALANCE_DAYS_SENSITIVITY
+        ],
+        "target_horizon_days": 5,
         "strategies": strategies,
     }
