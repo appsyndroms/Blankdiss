@@ -13,6 +13,9 @@ from analysis.signal_backtest.config import (
 )
 
 
+MAX_POSITION_WEIGHT = 0.05
+
+
 def _clean_predictions(
     predictions: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -72,43 +75,146 @@ def _clean_predictions(
     ).reset_index(drop=True)
 
 
-def _period_return(
+def _portfolio_weights(
     selected: pd.DataFrame,
-    direction: str,
-    transaction_cost: float,
-) -> dict[str, Any]:
+) -> dict[str, float]:
+    """Skapa lika vikter med ett max på 5 % per värdepapper."""
     if selected.empty:
+        return {}
+
+    securities = (
+        selected["security_key"]
+        .astype(str)
+        .tolist()
+    )
+
+    count = len(securities)
+
+    if count * MAX_POSITION_WEIGHT < 1.0:
+        raise ValueError(
+            "För få värdepapper för att bygga en fullt investerad "
+            f"portfölj med maxvikt {MAX_POSITION_WEIGHT:.1%}: {count}."
+        )
+
+    weight = 1.0 / count
+
+    if weight <= MAX_POSITION_WEIGHT:
         return {
-            "rows": 0,
-            "gross_return": None,
-            "net_return": None,
+            security: weight
+            for security in securities
         }
 
-    raw = selected[
+    weights = {
+        security: MAX_POSITION_WEIGHT
+        for security in securities
+    }
+
+    remaining = 1.0 - sum(weights.values())
+
+    uncapped = [
+        security
+        for security in securities
+        if weights[security] < MAX_POSITION_WEIGHT
+    ]
+
+    while remaining > 1e-12 and uncapped:
+        add = remaining / len(uncapped)
+        next_uncapped = []
+
+        for security in uncapped:
+            capacity = (
+                MAX_POSITION_WEIGHT
+                - weights[security]
+            )
+
+            increase = min(
+                capacity,
+                add,
+            )
+
+            weights[security] += increase
+            remaining -= increase
+
+            if (
+                weights[security]
+                < MAX_POSITION_WEIGHT - 1e-12
+            ):
+                next_uncapped.append(
+                    security
+                )
+
+        uncapped = next_uncapped
+
+    return weights
+
+
+def _portfolio_return(
+    selected: pd.DataFrame,
+    direction: str,
+) -> float:
+    """Beräkna lika/viktad portföljavkastning före kostnader."""
+    if selected.empty:
+        raise ValueError(
+            "Kan inte beräkna portföljavkastning utan innehav."
+        )
+
+    returns = selected[
         "target_return"
     ].to_numpy(
         dtype=float
     )
 
     if direction == "short":
-        raw = -raw
+        returns = -returns
 
-    gross = float(
-        np.mean(raw)
+    weights = _portfolio_weights(
+        selected
     )
 
-    net = (
-        gross
-        - transaction_cost
+    weight_array = np.asarray(
+        [
+            weights[str(security)]
+            for security in selected[
+                "security_key"
+            ]
+        ],
+        dtype=float,
     )
 
-    return {
-        "rows": int(
-            len(selected)
-        ),
-        "gross_return": gross,
-        "net_return": float(net),
-    }
+    return float(
+        np.sum(
+            weight_array
+            * returns
+        )
+    )
+
+
+def _turnover(
+    previous_weights: dict[str, float],
+    current_weights: dict[str, float],
+) -> float:
+    """Total portföljomsättning som halv-L1-avstånd mellan vikter."""
+    securities = (
+        set(previous_weights)
+        | set(current_weights)
+    )
+
+    return float(
+        0.5
+        * sum(
+            abs(
+                current_weights.get(
+                    security,
+                    0.0,
+                )
+                - previous_weights.get(
+                    security,
+                    0.0,
+                )
+            )
+            for security in securities
+        )
+    )
 
 
 def _compound(
@@ -168,34 +274,28 @@ def _build_strategy(
         .unique()
     )
 
-    # Använd 5-dagars target utan
-    # överlappande positioner:
-    # välj en ny portfölj var femte
-    # observationsdag.
+    # Targeten är fem handelsdagar. Vi startar en ny portfölj
+    # var femte observationsdag så att targetperioderna
+    # inte överlappar.
     rebalance_dates = dates[
         ::ECONOMIC_REBALANCE_DAYS
     ]
 
-    transaction_cost = (
+    transaction_cost_rate = (
         TRANSACTION_COST_BPS
         / 10_000.0
     )
 
-    period_returns: list[
-        float
-    ] = []
-
-    gross_returns: list[
-        float
-    ] = []
-
-    benchmark_returns: list[
-        float
-    ] = []
+    period_returns: list[float] = []
+    gross_returns: list[float] = []
+    benchmark_returns: list[float] = []
+    turnover_values: list[float] = []
 
     periods: list[
         dict[str, Any]
     ] = []
+
+    previous_weights: dict[str, float] = {}
 
     for date in rebalance_dates:
         day = predictions.loc[
@@ -232,18 +332,31 @@ def _build_strategy(
 
         selected = day.iloc[
             :count
-        ]
+        ].copy()
 
-        result = _period_return(
-            selected,
-            direction,
-            transaction_cost,
+        current_weights = _portfolio_weights(
+            selected
         )
 
-        if result[
-            "net_return"
-        ] is None:
-            continue
+        turnover = _turnover(
+            previous_weights,
+            current_weights,
+        )
+
+        gross = _portfolio_return(
+            selected,
+            direction,
+        )
+
+        transaction_cost = (
+            turnover
+            * transaction_cost_rate
+        )
+
+        net = (
+            gross
+            - transaction_cost
+        )
 
         universe = day[
             "target_return"
@@ -261,19 +374,19 @@ def _build_strategy(
         )
 
         period_returns.append(
-            result[
-                "net_return"
-            ]
+            net
         )
 
         gross_returns.append(
-            result[
-                "gross_return"
-            ]
+            gross
         )
 
         benchmark_returns.append(
             benchmark
+        )
+
+        turnover_values.append(
+            turnover
         )
 
         periods.append(
@@ -283,18 +396,18 @@ def _build_strategy(
                         date
                     ).date()
                 ),
-                "rows": result[
-                    "rows"
-                ],
-                "gross_return": result[
-                    "gross_return"
-                ],
-                "net_return": result[
-                    "net_return"
-                ],
+                "rows": int(
+                    len(selected)
+                ),
+                "gross_return": gross,
+                "transaction_cost": transaction_cost,
+                "turnover": turnover,
+                "net_return": net,
                 "benchmark_return": benchmark,
             }
         )
+
+        previous_weights = current_weights
 
     benchmark_compounded = _compound(
         benchmark_returns
@@ -318,6 +431,9 @@ def _build_strategy(
         "transaction_cost_bps": float(
             TRANSACTION_COST_BPS
         ),
+        "max_position_weight": float(
+            MAX_POSITION_WEIGHT
+        ),
         "periods": int(
             len(period_returns)
         ),
@@ -326,6 +442,24 @@ def _build_strategy(
                 period["rows"]
                 for period in periods
             )
+        ),
+        "mean_turnover": (
+            float(
+                np.mean(
+                    turnover_values
+                )
+            )
+            if turnover_values
+            else 0.0
+        ),
+        "median_turnover": (
+            float(
+                np.median(
+                    turnover_values
+                )
+            )
+            if turnover_values
+            else 0.0
         ),
         "gross_compounded_return": (
             _compound(
@@ -374,8 +508,12 @@ def run_economic_backtest(
     target_name: str,
 ) -> dict[str, Any]:
     """
-    Kör ett OOS-ekonomiskt backtest
-    utan överlappande 5-dagarsperioder.
+    Kör ett OOS-ekonomiskt backtest utan överlappande
+    5-dagarsperioder.
+
+    Portföljen är lika viktad inom urvalet, med max 5 %
+    per värdepapper. Transaktionskostnad beräknas på faktisk
+    portföljomsättning.
     """
     clean = _clean_predictions(
         predictions
@@ -412,5 +550,14 @@ def run_economic_backtest(
             "highest predicted probability"
         ),
         "no_overlapping_periods": True,
+        "portfolio_weighting": (
+            "equal_weighted"
+        ),
+        "max_position_weight": float(
+            MAX_POSITION_WEIGHT
+        ),
+        "turnover_cost_model": (
+            "actual_portfolio_turnover"
+        ),
         "strategies": strategies,
     }
