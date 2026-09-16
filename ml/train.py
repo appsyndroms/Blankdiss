@@ -245,11 +245,6 @@ def _run_experiment(
     feature_set_name,
     target,
 ):
-    print(
-        f"[START] {feature_set_name} / "
-        f"{target.name}"
-    )
-
     (
         feature_set_data,
         feature_columns,
@@ -257,19 +252,12 @@ def _run_experiment(
         feature_set_name
     ]
 
-    result = _prepare_experiment(
+    return _prepare_experiment(
         feature_set_data,
         feature_columns,
         feature_set_name,
         target,
     )
-
-    print(
-        f"[DONE]  {feature_set_name} / "
-        f"{target.name}"
-    )
-
-    return result
 
 
 def build_experiment_list():
@@ -472,39 +460,6 @@ def main() -> None:
             experiment["window_results"]
         )
 
-        if target.task == "classification":
-            summary_text = (
-                f"positiv rate "
-                f"{summary['positive_rate']:.3f}"
-            )
-        else:
-            summary_text = (
-                f"target mean "
-                f"{summary['target_mean']:.4f}"
-            )
-
-        print()
-        print(
-            "================================"
-        )
-        print(
-            "Feature set: "
-            f"{feature_set_name}"
-        )
-        print(
-            "Target: "
-            f"{target.name}"
-        )
-        print(
-            "Dataset: "
-            f"{summary['rows']:,} rader, "
-            f"{summary['features']} features, "
-            f"{summary_text}"
-        )
-        print(
-            "================================"
-        )
-
         for window, (
             results,
             oos_predictions,
@@ -512,13 +467,6 @@ def main() -> None:
             WALK_FORWARD_WINDOWS,
             window_results,
         ):
-            print(
-                "Window: "
-                f"{window.train_end} -> "
-                f"{window.validation_end} -> "
-                f"{window.test_end}"
-            )
-
             for result in results:
                 record = {
                     "feature_set": (
@@ -548,16 +496,6 @@ def main() -> None:
                 all_results.append(
                     record
                 )
-
-                if result[
-                    "selected_for_oos"
-                ]:
-                    print(
-                        "  VALDE MODELL: "
-                        f"{result['model']} "
-                        f"(score="
-                        f"{result['validation_score']:.4f})"
-                    )
 
             for prediction in oos_predictions:
                 prediction[
