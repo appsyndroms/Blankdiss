@@ -24,3 +24,6 @@ jobs:
 
       - name: Run volatility diagnostics
         run: python -u -m ml.volatility_diagnostics
+
+      - name: Run volatility interaction screening
+        run: python -u -m ml.volatility_interaction_screening
