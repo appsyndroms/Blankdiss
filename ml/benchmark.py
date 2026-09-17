@@ -1,22 +1,33 @@
 """Snabb feature-screening för Blankdiss ML-pipeline.
+
 Syfte:
-- testa en specifik feature-kombination mot befintliga resultat
+- jämföra de viktigaste feature-kombinationerna
+- testa om resultaten håller över fler walk-forward-fönster
 - mäta faktisk OOS-ekonomi
 - hålla beräkningskostnaden låg
+
 Detta test:
 - Random Forest: 100 träd
 - RF n_jobs=1
-- 1 experiment
 - 1 experiment-worker
-- 2 walk-forward-fönster
+- 4 walk-forward-fönster
 - target: down_5pct_5d
+
+Feature sets:
+- FI-only
+- FI + volatility_20d
 - FI + volatility_20d + distance_from_20d_high
+
 Produktionsfiler ändras inte.
 """
+
 from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
+
 import numpy as np
+
 import ml.walk_forward as walk_forward
 from ml.config import (
     TARGETS,
@@ -28,9 +39,12 @@ from ml.dataset import (
     prepare_ml_data_from_feature_set,
 )
 from ml.models import build_models as original_build_models
+
+
 MAX_PARALLEL_EXPERIMENTS = 1
 BENCHMARK_TREES = 100
 ECONOMIC_TARGET = "down_5pct_5d"
+
 ECONOMIC_TOP_FRACTIONS = (
     0.001,
     0.005,
@@ -38,7 +52,18 @@ ECONOMIC_TOP_FRACTIONS = (
     0.02,
     0.05,
 )
+
 FEATURE_SETS = (
+    (
+        "fi_only",
+        set(),
+    ),
+    (
+        "fi_plus_volatility_20d",
+        {
+            "price_volatility_20d",
+        },
+    ),
     (
         "fi_plus_volatility_20d_distance_20d",
         {
@@ -47,6 +72,13 @@ FEATURE_SETS = (
         },
     ),
 )
+
+# Använd fyra walk-forward-fönster för robusthetskontrollen.
+# Produktionskonfigurationen ändras inte.
+BENCHMARK_WALK_FORWARD_WINDOWS = (
+    WALK_FORWARD_WINDOWS[:4]
+)
+
 PERFORMANCE_KEYS = (
     "fit_seconds",
     "validation_prediction_seconds",
@@ -56,6 +88,8 @@ PERFORMANCE_KEYS = (
     "split_seconds",
     "total_window_seconds",
 )
+
+
 def build_benchmark_models(
     random_state: int,
     task: str = "classification",
@@ -64,30 +98,39 @@ def build_benchmark_models(
         random_state,
         task=task,
     )
+
     random_forest = models.get(
         "random_forest"
     )
+
     if random_forest is not None:
         random_forest.set_params(
             model__n_estimators=BENCHMARK_TREES,
             model__n_jobs=1,
         )
+
     random_forest_regression = models.get(
         "random_forest_regression"
     )
+
     if random_forest_regression is not None:
         random_forest_regression.set_params(
             model__n_estimators=BENCHMARK_TREES,
             model__n_jobs=1,
         )
+
     return models
+
+
 def build_experiment_list():
     experiments = []
+
     target = next(
         target
         for target in TARGETS
         if target.name == ECONOMIC_TARGET
     )
+
     for (
         feature_set_name,
         _price_features,
@@ -98,11 +141,15 @@ def build_experiment_list():
                 target,
             )
         )
+
     return experiments
+
+
 def build_feature_set_cache(
     features,
 ):
     cache = {}
+
     for (
         feature_set_name,
         price_features,
@@ -112,16 +159,20 @@ def build_feature_set_cache(
             feature_columns,
         ) = prepare_feature_set(
             features,
-            include_price_features=(
-                price_features is not None
+            include_price_features=bool(
+                price_features
             ),
             price_features=price_features,
         )
+
         cache[feature_set_name] = (
             feature_set_data,
             feature_columns,
         )
+
     return cache
+
+
 def print_feature_set_qc(
     feature_set_cache,
 ):
@@ -135,6 +186,7 @@ def print_feature_set_qc(
     print(
         "================================"
     )
+
     for (
         feature_set_name,
         _price_features,
@@ -145,34 +197,43 @@ def print_feature_set_qc(
         ) = feature_set_cache[
             feature_set_name
         ]
+
         print(
             f"{feature_set_name}: "
             f"{len(feature_columns)} features"
         )
+
         print(
             "  "
             + ", ".join(
                 feature_columns
             )
         )
+
+
 def empty_performance():
     return {
         key: 0.0
         for key in PERFORMANCE_KEYS
     }
+
+
 def run_one_experiment(
     feature_set_cache,
     feature_set_name,
     target,
 ):
     experiment_start = perf_counter()
+
     (
         feature_set_data,
         feature_columns,
     ) = feature_set_cache[
         feature_set_name
     ]
+
     prepare_start = perf_counter()
+
     (
         data,
         y,
@@ -182,15 +243,18 @@ def run_one_experiment(
         feature_columns,
         target,
     )
+
     prepare_seconds = (
         perf_counter() - prepare_start
     )
+
     performance = empty_performance()
     validation_scores = []
     selected_models = {}
     economic_oos = []
     window_count = 0
-    for window in WALK_FORWARD_WINDOWS:
+
+    for window in BENCHMARK_WALK_FORWARD_WINDOWS:
         (
             results,
             oos_predictions,
@@ -203,6 +267,7 @@ def run_one_experiment(
             task=target.task,
             direction=target.direction,
         )
+
         for key in PERFORMANCE_KEYS:
             performance[key] += float(
                 timing.get(
@@ -210,13 +275,16 @@ def run_one_experiment(
                     0.0,
                 )
             )
+
         for result in results:
             model_name = result.get(
                 "model"
             )
+
             validation_score = result.get(
                 "validation_score"
             )
+
             if (
                 validation_score is not None
                 and model_name is not None
@@ -224,6 +292,7 @@ def run_one_experiment(
                 validation_scores.append(
                     float(validation_score)
                 )
+
                 selected_models[
                     model_name
                 ] = (
@@ -233,13 +302,17 @@ def run_one_experiment(
                     )
                     + 1
                 )
+
         economic_oos.extend(
             oos_predictions
         )
+
         window_count += 1
+
     total_seconds = (
         perf_counter() - experiment_start
     )
+
     return {
         "feature_set": feature_set_name,
         "target": target.name,
@@ -257,6 +330,8 @@ def run_one_experiment(
         "selected_models": selected_models,
         "economic_oos": economic_oos,
     }
+
+
 def run_benchmark(
     feature_set_cache,
     experiments,
@@ -269,10 +344,13 @@ def run_benchmark(
             random_state,
             task=task,
         )
+
     walk_forward.build_models = (
         build_models_for_benchmark
     )
+
     start = perf_counter()
+
     with ThreadPoolExecutor(
         max_workers=MAX_PARALLEL_EXPERIMENTS,
         thread_name_prefix="benchmark-feature",
@@ -289,17 +367,22 @@ def run_benchmark(
                 target,
             ) in experiments
         ]
+
         results = [
             future.result()
             for future in futures
         ]
+
     wall_seconds = (
         perf_counter() - start
     )
+
     return {
         "wall_seconds": wall_seconds,
         "experiment_results": results,
     }
+
+
 def calculate_economic_metrics(
     oos_predictions,
 ):
@@ -310,6 +393,7 @@ def calculate_economic_metrics(
             "baseline_mean_return": None,
             "top_fraction": [],
         }
+
     probabilities = np.asarray(
         [
             row["score"]
@@ -317,6 +401,7 @@ def calculate_economic_metrics(
         ],
         dtype=float,
     )
+
     returns = np.asarray(
         [
             row["target_return"]
@@ -324,6 +409,7 @@ def calculate_economic_metrics(
         ],
         dtype=float,
     )
+
     events = np.asarray(
         [
             1.0
@@ -333,21 +419,27 @@ def calculate_economic_metrics(
         ],
         dtype=float,
     )
+
     valid = (
         np.isfinite(probabilities)
         & np.isfinite(returns)
         & np.isfinite(events)
     )
+
     probabilities = probabilities[
         valid
     ]
+
     returns = returns[
         valid
     ]
+
     events = events[
         valid
     ]
+
     rows = len(probabilities)
+
     if rows == 0:
         return {
             "rows": 0,
@@ -355,17 +447,22 @@ def calculate_economic_metrics(
             "baseline_mean_return": None,
             "top_fraction": [],
         }
+
     order = np.argsort(
         -probabilities,
         kind="mergesort",
     )
+
     baseline_event_rate = float(
         events.mean()
     )
+
     baseline_mean_return = float(
         returns.mean()
     )
+
     top_fraction = []
+
     for fraction in ECONOMIC_TOP_FRACTIONS:
         count = max(
             1,
@@ -375,32 +472,40 @@ def calculate_economic_metrics(
                 )
             ),
         )
+
         selected = order[
             :count
         ]
+
         selected_returns = returns[
             selected
         ]
+
         selected_events = events[
             selected
         ]
+
         event_rate = float(
             selected_events.mean()
         )
+
         mean_return = float(
             selected_returns.mean()
         )
+
         median_return = float(
             np.median(
                 selected_returns
             )
         )
+
         lift = (
             event_rate
             / baseline_event_rate
             if baseline_event_rate > 0
             else None
         )
+
         top_fraction.append(
             {
                 "fraction": fraction,
@@ -411,6 +516,7 @@ def calculate_economic_metrics(
                 "median_return": median_return,
             }
         )
+
     return {
         "rows": rows,
         "baseline_event_rate": (
@@ -421,21 +527,26 @@ def calculate_economic_metrics(
         ),
         "top_fraction": top_fraction,
     }
+
+
 def print_economic_results(
     economic_oos,
 ):
     metrics = calculate_economic_metrics(
         economic_oos
     )
+
     print()
     print(
         f"Ekonomisk OOS: "
         f"{ECONOMIC_TARGET}"
     )
+
     print(
         f"  Rows: "
         f"{metrics['rows']:,}"
     )
+
     if metrics[
         "baseline_event_rate"
     ] is not None:
@@ -443,6 +554,7 @@ def print_economic_results(
             f"  Baseline event rate: "
             f"{metrics['baseline_event_rate']:.4f}"
         )
+
     if metrics[
         "baseline_mean_return"
     ] is not None:
@@ -450,13 +562,16 @@ def print_economic_results(
             f"  Baseline mean return: "
             f"{metrics['baseline_mean_return']:+.4%}"
         )
+
     print()
+
     for result in metrics[
         "top_fraction"
     ]:
         fraction = result[
             "fraction"
         ]
+
         if fraction < 0.01:
             fraction_text = (
                 f"{fraction:.1%}"
@@ -465,14 +580,17 @@ def print_economic_results(
             fraction_text = (
                 f"{fraction:.0%}"
             )
+
         lift = result[
             "event_rate_lift"
         ]
+
         lift_text = (
             f"{lift:.2f}x"
             if lift is not None
             else "n/a"
         )
+
         print(
             f"  Top {fraction_text:>5}: "
             f"n={result['rows']:,} "
@@ -481,7 +599,10 @@ def print_economic_results(
             f"mean={result['mean_return']:+.4%} "
             f"median={result['median_return']:+.4%}"
         )
+
     return metrics
+
+
 def print_feature_set_results(
     experiment_results,
 ):
@@ -495,6 +616,7 @@ def print_feature_set_results(
     print(
         "================================"
     )
+
     for result in sorted(
         experiment_results,
         key=lambda item: item[
@@ -504,62 +626,82 @@ def print_feature_set_results(
         validation_scores = result[
             "validation_scores"
         ]
+
         average_validation_score = (
             sum(validation_scores)
             / len(validation_scores)
             if validation_scores
             else 0.0
         )
+
         performance = result[
             "performance"
         ]
+
         print()
         print(
             result["feature_set"]
         )
+
         print(
             f"  Features: "
             f"{result['feature_count']}"
         )
+
         print(
             f"  Rows: "
             f"{result['row_count']:,}"
         )
+
+        print(
+            f"  Walk-forward windows: "
+            f"{result['window_count']}"
+        )
+
         print(
             f"  Prepare: "
             f"{result['prepare_seconds']:.2f}s"
         )
+
         print(
             f"  Total: "
             f"{result['total_seconds']:.2f}s"
         )
+
         print(
             f"  Fit: "
             f"{performance['fit_seconds']:.2f}s"
         )
+
         print(
             f"  Validation prediction: "
             f"{performance['validation_prediction_seconds']:.2f}s"
         )
+
         print(
             f"  OOS prediction: "
             f"{performance['oos_prediction_seconds']:.2f}s"
         )
+
         print(
             f"  Evaluation: "
             f"{performance['evaluation_seconds']:.2f}s"
         )
+
         print(
             f"  OOS row build: "
             f"{performance['oos_row_build_seconds']:.2f}s"
         )
+
         print(
             f"  Average validation score: "
             f"{average_validation_score:.6f}"
         )
+
         print(
             "  Selected models:"
         )
+
         for (
             model_name,
             count,
@@ -572,9 +714,12 @@ def print_feature_set_results(
                 f"    {model_name}: "
                 f"{count}"
             )
+
         print_economic_results(
             result["economic_oos"]
         )
+
+
 def print_comparison(
     experiment_results,
 ):
@@ -588,30 +733,38 @@ def print_comparison(
     print(
         "================================"
     )
+
     rows = []
+
     for result in experiment_results:
         validation_scores = result[
             "validation_scores"
         ]
+
         average_validation_score = (
             sum(validation_scores)
             / len(validation_scores)
             if validation_scores
             else 0.0
         )
+
         metrics = calculate_economic_metrics(
             result["economic_oos"]
         )
+
         top_1 = None
+
         for item in metrics[
             "top_fraction"
         ]:
             if item["fraction"] == 0.01:
                 top_1 = item
                 break
+
         performance = result[
             "performance"
         ]
+
         rows.append(
             (
                 result["feature_set"],
@@ -635,6 +788,7 @@ def print_comparison(
                 performance["fit_seconds"],
             )
         )
+
     rows.sort(
         key=lambda item: (
             item[2]
@@ -643,7 +797,9 @@ def print_comparison(
         ),
         reverse=True,
     )
+
     print()
+
     print(
         "Feature set"
         " | val"
@@ -653,7 +809,9 @@ def print_comparison(
         " | total"
         " | fit"
     )
+
     print("-" * 100)
+
     for row in rows:
         (
             feature_set,
@@ -664,21 +822,25 @@ def print_comparison(
             total_seconds,
             fit_seconds,
         ) = row
+
         event_text = (
             f"{event_rate:.4f}"
             if event_rate is not None
             else "n/a"
         )
+
         lift_text = (
             f"{lift:.2f}x"
             if lift is not None
             else "n/a"
         )
+
         mean_text = (
             f"{mean_return:+.4%}"
             if mean_return is not None
             else "n/a"
         )
+
         print(
             f"{feature_set:<45} "
             f"{validation_score:.6f} "
@@ -688,8 +850,11 @@ def print_comparison(
             f"{total_seconds:>8.2f}s "
             f"{fit_seconds:>8.2f}s"
         )
+
+
 def main() -> None:
     total_start = perf_counter()
+
     print(
         "================================"
     )
@@ -699,26 +864,33 @@ def main() -> None:
     print(
         "================================"
     )
+
     print()
+
     print(
         f"RF trees: "
         f"{BENCHMARK_TREES}"
     )
+
     print(
         f"Experiment workers: "
         f"{MAX_PARALLEL_EXPERIMENTS}"
     )
+
     print(
         f"Walk-forward windows: "
-        f"{len(WALK_FORWARD_WINDOWS)}"
+        f"{len(BENCHMARK_WALK_FORWARD_WINDOWS)}"
     )
+
     print(
         "RF n_jobs: 1"
     )
+
     print(
         f"Economic target: "
         f"{ECONOMIC_TARGET}"
     )
+
     print(
         "Economic top fractions: "
         + ", ".join(
@@ -729,45 +901,61 @@ def main() -> None:
             )
         )
     )
+
     print()
+
     print(
         "Laddar features..."
     )
+
     start = perf_counter()
+
     features = load_features()
+
     print(
         f"Feature-rader: "
         f"{len(features):,}"
     )
+
     print(
         f"Laddning: "
         f"{perf_counter() - start:.2f}s"
     )
+
     print()
+
     print(
         "Bygger feature-set cache..."
     )
+
     start = perf_counter()
+
     feature_set_cache = (
         build_feature_set_cache(
             features
         )
     )
+
     print(
         f"Feature cache: "
         f"{perf_counter() - start:.2f}s"
     )
+
     print_feature_set_qc(
         feature_set_cache
     )
+
     experiments = (
         build_experiment_list()
     )
+
     print()
+
     print(
         f"Experiments: "
         f"{len(experiments)}"
     )
+
     for (
         feature_set_name,
         target,
@@ -776,7 +964,9 @@ def main() -> None:
             f"  {feature_set_name} "
             f"-> {target.name}"
         )
+
     print()
+
     print(
         "================================"
     )
@@ -786,35 +976,46 @@ def main() -> None:
     print(
         "================================"
     )
+
     benchmark_result = run_benchmark(
         feature_set_cache,
         experiments,
     )
+
     print()
+
     print(
         f"Wall time: "
         f"{benchmark_result['wall_seconds']:.2f}s"
     )
+
     print_feature_set_results(
         benchmark_result[
             "experiment_results"
         ]
     )
+
     print_comparison(
         benchmark_result[
             "experiment_results"
         ]
     )
+
     print()
+
     print(
         "================================"
     )
+
     print(
         f"Benchmark total: "
         f"{perf_counter() - total_start:.2f}s"
     )
+
     print(
         "================================"
     )
+
+
 if __name__ == "__main__":
     main()
