@@ -1,476 +1,612 @@
 """
-Volatility directional/tail diagnostic.
+Volatility directional / tail diagnostic.
 The model is trained only on:
     down_5pct_5d
-The resulting out-of-sample ranking is then evaluated against several
-different future-return outcomes. This separates:
-1. Directional downside signal
-2. General large-move signal
-3. Downside asymmetry
-4. Volatility level vs volatility term structure
-5. Dependence on recent price direction
-6. Stability across calendar years
-7. Concentration of the signal across volatility regimes
-This is intentionally logistic-only so that the diagnostic tests the
-information content of the features rather than model-family selection.
+The resulting OOS ranking is evaluated against several outcomes:
+    down_5pct_5d
+    up_5pct_5d
+    abs_5pct_5d
+    abs_10pct_5d
+The purpose is to determine whether the signal is primarily:
+    1. Directional downside information
+    2. A general large-move / volatility signal
+    3. A downside-asymmetric large-move signal
+The diagnostic also checks:
+    - VOL60 versus VOL20 + VOL60
+    - volatility term structure
+    - volatility ratio
+    - recent price returns
+    - volatility quintiles
+    - score deciles
+    - calendar-year stability
+    - walk-forward-window stability
+    - top-tail return distributions
+The actual walk-forward implementation from ml.walk_forward is used.
+Only the logistic-regression model is allowed during model selection.
+The OOS rows are therefore the real test-period predictions from the
+repository's existing walk-forward machinery.
 """
 from __future__ import annotations
 import time
-from pathlib import Path
+from typing import Any
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from ml.config import TARGETS
-from ml.dataset import load_features
-from ml.prices import find_price_files, load_prices
-from ml.walk_forward import WalkForwardWindow, train_window
-ROOT = Path(__file__).resolve().parents[2]
-FEATURE_DIR = ROOT / "data" / "processed" / "analysis"
-PRICE_DIR = ROOT / "data" / "processed" / "prices"
-WINDOWS = (
-    WalkForwardWindow(
-        train_end="2023-12-31",
-        validation_end="2024-12-31",
-        test_end="2025-12-31",
-    ),
-    WalkForwardWindow(
-        train_end="2024-12-31",
-        validation_end="2025-12-31",
-        test_end="2026-12-31",
-    ),
+import ml.walk_forward as walk_forward
+from analysis.feature_config import PRICE_DIR
+from analysis.feature_prices import (
+    find_price_files,
+    load_prices,
 )
-TOP_FRACTIONS = (0.001, 0.005, 0.01, 0.02, 0.05)
-FI_FEATURES = [
-    "short_interest_pct",
-    "active_holders",
-    "max_individual_position_pct",
-    "max_position_share_pct",
-    "previous_short_interest_pct",
-    "previous_active_holders",
-    "previous_max_individual_position_pct",
-    "previous_max_position_share_pct",
-    "fi_observation_gap_days",
-    "short_interest_delta_pp",
-    "holder_delta",
-    "max_position_delta_pp",
-    "concentration_delta_pp",
-    "short_interest_relative_change",
-    "short_interest_acceleration_pp",
-    "above_1_0pct",
-    "entered_above_1_0pct",
-    "exited_below_1_0pct",
-    "above_2_0pct",
-    "entered_above_2_0pct",
-    "exited_below_2_0pct",
-    "above_3_0pct",
-    "entered_above_3_0pct",
-    "exited_below_3_0pct",
-    "above_5_0pct",
-    "entered_above_5_0pct",
-    "exited_below_5_0pct",
-    "new_visible_observation",
-]
-def find_target_config(name: str):
+from ml.config import (
+    RANDOM_STATE,
+    TARGETS,
+    WALK_FORWARD_WINDOWS,
+)
+from ml.dataset import (
+    build_target,
+    load_features,
+)
+from ml.models import build_models
+from ml.walk_forward import train_window
+TOP_FRACTIONS = (
+    0.001,
+    0.005,
+    0.01,
+    0.02,
+    0.05,
+)
+TRAIN_TARGET = "down_5pct_5d"
+FEATURE_SETS = {
+    "volatility_60d": [
+        "volatility_60d",
+    ],
+    "volatility_20d_plus_60d": [
+        "price_volatility_20d",
+        "volatility_60d",
+    ],
+    "volatility_60d_plus_term_structure": [
+        "volatility_60d",
+        "volatility_20d_minus_60d",
+    ],
+    "volatility_20d_plus_60d_plus_term_structure": [
+        "price_volatility_20d",
+        "volatility_60d",
+        "volatility_20d_minus_60d",
+    ],
+    "volatility_20d_plus_60d_plus_ratio": [
+        "price_volatility_20d",
+        "volatility_60d",
+        "volatility_20d_div_60d",
+    ],
+    "volatility_plus_returns": [
+        "volatility_60d",
+        "price_return_5d",
+        "price_return_20d",
+        "price_return_60d",
+    ],
+    "volatility_20d_plus_60d_plus_returns": [
+        "price_volatility_20d",
+        "volatility_60d",
+        "price_return_5d",
+        "price_return_20d",
+        "price_return_60d",
+    ],
+}
+ANALYSIS_TARGETS = {
+    "down_5pct_5d": "target_down_5pct_5d",
+    "up_5pct_5d": "target_up_5pct_5d",
+    "abs_5pct_5d": "target_abs_5pct_5d",
+    "abs_10pct_5d": "target_abs_10pct_5d",
+}
+def find_target(target_name: str):
     for target in TARGETS:
-        if target.name == name:
+        if target.name == target_name:
             return target
-    raise ValueError(f"Target not found: {name}")
-def load_all_features() -> pd.DataFrame:
-    files = sorted(FEATURE_DIR.glob("features_*.jsonl"))
-    if not files:
-        raise FileNotFoundError(
-            f"No feature files found in {FEATURE_DIR}"
+    available = ", ".join(
+        target.name
+        for target in TARGETS
+    )
+    raise ValueError(
+        f"Unknown target: {target_name}. "
+        f"Available targets: {available}"
+    )
+def load_price_data() -> pd.DataFrame:
+    print(
+        "Loading raw price data for 60d volatility..."
+    )
+    prices = load_prices(
+        find_price_files(
+            PRICE_DIR
         )
-    frames = []
-    for path in files:
-        frame = pd.read_json(path, lines=True)
-        frames.append(frame)
-    data = pd.concat(frames, ignore_index=True)
-    if "date" in data.columns:
-        data["date"] = pd.to_datetime(data["date"])
-    return data
-def normalise_price_data(prices: pd.DataFrame) -> pd.DataFrame:
-    prices = prices.copy()
-    date_candidates = ("date", "Date", "timestamp", "Timestamp")
-    symbol_candidates = (
-        "symbol",
-        "ticker",
-        "instrument",
+    )
+    if prices.empty:
+        raise ValueError(
+            "No raw price data found."
+        )
+    required = {
         "yahoo_symbol",
-    )
-    close_candidates = (
+        "date",
         "close",
-        "Close",
-        "adj_close",
-        "Adj Close",
+    }
+    missing = (
+        required
+        - set(prices.columns)
     )
-    date_col = next(
-        (column for column in date_candidates if column in prices.columns),
-        None,
-    )
-    symbol_col = next(
-        (column for column in symbol_candidates if column in prices.columns),
-        None,
-    )
-    close_col = next(
-        (column for column in close_candidates if column in prices.columns),
-        None,
-    )
-    if date_col is None:
+    if missing:
         raise ValueError(
-            f"Could not identify price date column. "
-            f"Columns: {list(prices.columns)}"
+            "Raw price data is missing "
+            "required columns: "
+            f"{sorted(missing)}"
         )
-    if symbol_col is None:
-        raise ValueError(
-            f"Could not identify price symbol column. "
-            f"Columns: {list(prices.columns)}"
-        )
-    if close_col is None:
-        raise ValueError(
-            f"Could not identify price close column. "
-            f"Columns: {list(prices.columns)}"
-        )
-    prices = prices.rename(
-        columns={
-            date_col: "date",
-            symbol_col: "symbol",
-            close_col: "close",
-        }
+    prices = prices.copy()
+    prices["date"] = pd.to_datetime(
+        prices["date"],
+        errors="coerce",
     )
-    prices["date"] = pd.to_datetime(prices["date"])
     prices["close"] = pd.to_numeric(
         prices["close"],
         errors="coerce",
     )
-    prices = prices.dropna(subset=["date", "symbol", "close"])
-    prices = prices.sort_values(["symbol", "date"])
+    prices = prices.dropna(
+        subset=[
+            "yahoo_symbol",
+            "date",
+            "close",
+        ]
+    )
+    prices = prices.loc[
+        prices["close"] > 0
+    ].copy()
+    prices = prices.sort_values(
+        [
+            "yahoo_symbol",
+            "date",
+        ],
+        kind="mergesort",
+    ).reset_index(
+        drop=True
+    )
+    print(
+        f"Price rows: {len(prices):,}"
+    )
     return prices
 def add_volatility_features(
     features: pd.DataFrame,
     prices: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Add 20d/60d realised volatility and recent-return controls.
-    VOL20:
-        std of the previous 19 daily returns from 20 close observations.
-    VOL60:
-        std of the previous 59 daily returns from 60 close observations.
-    The volatility values are therefore aligned to the feature date and
-    contain no future information.
+    Add 60d realised volatility and derived volatility controls.
+    VOL60 uses exactly the same principle as the existing VOL20 feature:
+        daily pct_change()
+        rolling std over 59 returns
+    The resulting value is aligned to the price observation date and then
+    matched to the already-built feature dataset through:
+        yahoo_symbol + price_date
     """
-    features = features.copy()
-    prices = normalise_price_data(prices)
-    price_features = []
-    for symbol, group in prices.groupby("symbol", sort=False):
-        group = group.sort_values("date").copy()
-        returns = group["close"].pct_change()
-        group["price_return_5d"] = group["close"].pct_change(5)
-        group["price_return_20d"] = group["close"].pct_change(20)
-        group["price_return_60d"] = group["close"].pct_change(60)
-        group["price_volatility_20d"] = returns.rolling(
-            19,
-            min_periods=19,
-        ).std()
-        group["price_volatility_60d"] = returns.rolling(
-            59,
-            min_periods=59,
-        ).std()
-        group["volatility_20d_minus_60d"] = (
-            group["price_volatility_20d"]
-            - group["price_volatility_60d"]
-        )
-        group["volatility_20d_div_60d"] = (
-            group["price_volatility_20d"]
-            / group["price_volatility_60d"].replace(0, np.nan)
-        )
-        keep = group[
-            [
-                "symbol",
-                "date",
-                "price_return_5d",
-                "price_return_20d",
-                "price_return_60d",
-                "price_volatility_20d",
-                "price_volatility_60d",
-                "volatility_20d_minus_60d",
-                "volatility_20d_div_60d",
-            ]
-        ]
-        price_features.append(keep)
-    price_features = pd.concat(
-        price_features,
-        ignore_index=True,
-    )
-    features = features.merge(
-        price_features,
-        on=["symbol", "date"],
-        how="left",
-    )
-    return features
-def get_forward_return(
-    prices: pd.DataFrame,
-    horizon: int = 5,
-) -> pd.DataFrame:
-    """
-    Create the actual forward return for every symbol/date.
-    forward_return_5d is the close-to-close return from the current
-    observation to the close five trading observations later.
-    """
-    prices = normalise_price_data(prices)
-    frames = []
-    for symbol, group in prices.groupby("symbol", sort=False):
-        group = group.sort_values("date").copy()
-        group["forward_return_5d"] = (
-            group["close"].shift(-horizon)
-            / group["close"]
-            - 1.0
-        )
-        frames.append(
-            group[
-                [
-                    "symbol",
-                    "date",
-                    "forward_return_5d",
-                ]
-            ]
-        )
-    return pd.concat(frames, ignore_index=True)
-def add_analysis_targets(
-    features: pd.DataFrame,
-    prices: pd.DataFrame,
-) -> pd.DataFrame:
-    forward = get_forward_return(prices)
-    data = features.merge(
-        forward,
-        on=["symbol", "date"],
-        how="left",
-    )
-    r = data["forward_return_5d"]
-    data["target_down_5pct_5d"] = r <= -0.05
-    data["target_up_5pct_5d"] = r >= 0.05
-    data["target_abs_5pct_5d"] = r.abs() >= 0.05
-    data["target_abs_10pct_5d"] = r.abs() >= 0.10
-    return data
-def make_model() -> Pipeline:
-    return Pipeline(
+    prices = prices[
         [
-            (
-                "scaler",
-                StandardScaler(),
-            ),
-            (
-                "logistic",
-                LogisticRegression(
-                    max_iter=2000,
-                    random_state=42,
-                ),
-            ),
+            "yahoo_symbol",
+            "date",
+            "close",
         ]
+    ].copy()
+    prices = prices.sort_values(
+        [
+            "yahoo_symbol",
+            "date",
+        ],
+        kind="mergesort",
+    ).reset_index(
+        drop=True
     )
-def make_target_series(
-    data: pd.DataFrame,
-    target_name: str,
-) -> pd.Series:
-    target_config = find_target_config(target_name)
-    if target_name == "down_5pct_5d":
-        target = data["target_down_5pct_5d"].astype(int)
-    else:
-        raise ValueError(
-            f"This diagnostic intentionally trains only on "
-            f"{target_name}. Expected down_5pct_5d."
+    prices["daily_return"] = (
+        prices
+        .groupby(
+            "yahoo_symbol",
+            sort=False,
+        )["close"]
+        .pct_change()
+    )
+    prices["volatility_60d"] = (
+        prices
+        .groupby(
+            "yahoo_symbol",
+            sort=False,
+        )["daily_return"]
+        .transform(
+            lambda series: (
+                series
+                .rolling(
+                    window=59,
+                    min_periods=59,
+                )
+                .std()
+            )
         )
-    target = target.where(
-        data[target_config.name].notna()
-        if target_config.name in data.columns
-        else True
     )
-    return target
-def get_forward_target_column(
+    prices = prices.rename(
+        columns={
+            "date": "price_date",
+        }
+    )
+    lookup = prices[
+        [
+            "yahoo_symbol",
+            "price_date",
+            "volatility_60d",
+        ]
+    ]
+    result = features.copy()
+    result["price_date"] = pd.to_datetime(
+        result["price_date"],
+        errors="coerce",
+    )
+    result = result.merge(
+        lookup,
+        on=[
+            "yahoo_symbol",
+            "price_date",
+        ],
+        how="left",
+        validate="many_to_one",
+    )
+    result["volatility_20d_minus_60d"] = (
+        result["price_volatility_20d"]
+        - result["volatility_60d"]
+    )
+    result["volatility_20d_div_60d"] = (
+        result["price_volatility_20d"]
+        / result["volatility_60d"].replace(
+            0,
+            np.nan,
+        )
+    )
+    return result
+def add_analysis_targets(
     data: pd.DataFrame,
-    target_name: str,
-) -> pd.Series:
-    mapping = {
-        "down_5pct_5d": data["target_down_5pct_5d"],
-        "up_5pct_5d": data["target_up_5pct_5d"],
-        "abs_5pct_5d": data["target_abs_5pct_5d"],
-        "abs_10pct_5d": data["target_abs_10pct_5d"],
-    }
-    return mapping[target_name].astype(float)
+) -> pd.DataFrame:
+    """
+    Build diagnostic targets from the existing forward_return_5d.
+    These are evaluation targets only.
+    The model itself is always trained on down_5pct_5d.
+    """
+    data = data.copy()
+    if "forward_return_5d" not in data.columns:
+        raise ValueError(
+            "Feature dataset is missing "
+            "forward_return_5d."
+        )
+    returns = pd.to_numeric(
+        data["forward_return_5d"],
+        errors="coerce",
+    )
+    data["target_down_5pct_5d"] = (
+        returns <= -0.05
+    )
+    data["target_up_5pct_5d"] = (
+        returns >= 0.05
+    )
+    data["target_abs_5pct_5d"] = (
+        returns.abs() >= 0.05
+    )
+    data["target_abs_10pct_5d"] = (
+        returns.abs() >= 0.10
+    )
+    return data
 def get_feature_columns(
     data: pd.DataFrame,
     feature_set: str,
 ) -> list[str]:
-    available = set(data.columns)
-    if feature_set == "volatility_60d":
-        columns = [
-            "price_volatility_60d",
-        ]
-    elif feature_set == "volatility_20d_plus_60d":
-        columns = [
-            "price_volatility_20d",
-            "price_volatility_60d",
-        ]
-    elif feature_set == "volatility_60d_plus_term_structure":
-        columns = [
-            "price_volatility_60d",
-            "volatility_20d_minus_60d",
-        ]
-    elif feature_set == "volatility_20d_plus_60d_plus_term_structure":
-        columns = [
-            "price_volatility_20d",
-            "price_volatility_60d",
-            "volatility_20d_minus_60d",
-        ]
-    elif feature_set == "volatility_20d_plus_60d_plus_ratio":
-        columns = [
-            "price_volatility_20d",
-            "price_volatility_60d",
-            "volatility_20d_div_60d",
-        ]
-    elif feature_set == "volatility_plus_returns":
-        columns = [
-            "price_volatility_60d",
-            "price_return_5d",
-            "price_return_20d",
-            "price_return_60d",
-        ]
-    elif feature_set == "volatility_20d_plus_60d_plus_returns":
-        columns = [
-            "price_volatility_20d",
-            "price_volatility_60d",
-            "price_return_5d",
-            "price_return_20d",
-            "price_return_60d",
-        ]
-    else:
-        raise ValueError(f"Unknown feature set: {feature_set}")
+    if feature_set not in FEATURE_SETS:
+        raise ValueError(
+            f"Unknown feature set: {feature_set}"
+        )
+    columns = FEATURE_SETS[
+        feature_set
+    ]
     missing = [
         column
         for column in columns
-        if column not in available
+        if column not in data.columns
     ]
     if missing:
         raise ValueError(
-            f"Feature set {feature_set} is missing columns: {missing}"
+            f"Feature set {feature_set} "
+            f"is missing columns: {missing}"
         )
-    return columns
-def build_xy(
-    data: pd.DataFrame,
+    return list(columns)
+def build_ml_dataset(
+    features: pd.DataFrame,
     feature_columns: list[str],
-    target_name: str = "down_5pct_5d",
+    target,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    x = data[feature_columns].copy()
-    y = make_target_series(data, target_name)
-    valid = (
-        x.notna().all(axis=1)
-        & y.notna()
-        & data["forward_return_5d"].notna()
+    """
+    Build the dataset expected by ml.walk_forward.train_window.
+    """
+    required_columns = [
+        "snapshot_date",
+        "security_key",
+        "forward_return_5d",
+        *feature_columns,
+    ]
+    missing = [
+        column
+        for column in required_columns
+        if column not in features.columns
+    ]
+    if missing:
+        raise ValueError(
+            "Missing required columns: "
+            f"{missing}"
+        )
+    feature_data = features.dropna(
+        subset=feature_columns
+    ).copy()
+    target_values = build_target(
+        feature_data,
+        target,
     )
-    return (
-        x.loc[valid].copy(),
-        y.loc[valid].copy(),
+    valid = target_values.notna()
+    data = feature_data.loc[
+        valid,
+        required_columns,
+    ].copy()
+    y = target_values.loc[
+        valid
+    ].copy()
+    data["target_return"] = pd.to_numeric(
+        data["forward_return_5d"],
+        errors="coerce",
     )
-def fit_predict_walk_forward(
+    data = data.drop(
+        columns=[
+            "forward_return_5d",
+        ]
+    )
+    valid_returns = data[
+        "target_return"
+    ].notna()
+    data = data.loc[
+        valid_returns
+    ].copy()
+    y = y.loc[
+        data.index
+    ].copy()
+    data = data.reset_index(
+        drop=True
+    )
+    y = y.reset_index(
+        drop=True
+    )
+    return data, y
+def logistic_only_models(
+    random_state: int,
+    task: str = "classification",
+):
+    """
+    Reuse the repository's model construction but expose only logistic
+    regression to train_window.
+    """
+    models = build_models(
+        random_state=random_state,
+        task=task,
+    )
+    if "logistic_regression" not in models:
+        raise ValueError(
+            "logistic_regression not found "
+            "in build_models()."
+        )
+    return {
+        "logistic_regression": models[
+            "logistic_regression"
+        ],
+    }
+def run_walk_forward(
     data: pd.DataFrame,
+    y: pd.Series,
     feature_columns: list[str],
 ) -> pd.DataFrame:
     """
-    Produce genuine OOS predictions using the existing walk-forward
-    windows.
-    Training target is always down_5pct_5d.
+    Run the repository's actual walk-forward implementation.
+    Only logistic regression is exposed to train_window.
+    Important:
+        train_window uses validation for model selection and then produces
+        predictions only for the following test period. Therefore the
+        resulting rows are genuine OOS test predictions.
     """
-    target_name = "down_5pct_5d"
-    target_config = find_target_config(target_name)
-    all_oos = []
-    for window_number, window in enumerate(WINDOWS, start=1):
-        train_mask = data["date"] <= pd.Timestamp(window.train_end)
-        validation_mask = (
-            (data["date"] > pd.Timestamp(window.train_end))
-            & (data["date"] <= pd.Timestamp(window.validation_end))
-        )
-        test_mask = (
-            (data["date"] > pd.Timestamp(window.validation_end))
-            & (data["date"] <= pd.Timestamp(window.test_end))
-        )
-        window_data = data.loc[
-            train_mask | validation_mask | test_mask
-        ].copy()
-        x, y = build_xy(
-            window_data,
-            feature_columns,
-            target_name,
-        )
-        model = make_model()
-        train_indices = x.index.intersection(
-            data.index[train_mask]
-        )
-        validation_indices = x.index.intersection(
-            data.index[validation_mask]
-        )
-        test_indices = x.index.intersection(
-            data.index[test_mask]
-        )
-        if len(train_indices) == 0:
-            continue
-        model.fit(
-            x.loc[train_indices],
-            y.loc[train_indices],
-        )
-        prediction_indices = validation_indices.union(
-            test_indices
-        )
-        if len(prediction_indices) == 0:
-            continue
-        scores = model.predict_proba(
-            x.loc[prediction_indices]
-        )[:, 1]
-        result = data.loc[prediction_indices].copy()
-        result["score"] = scores
-        result["window"] = window_number
-        result["trained_target"] = target_config.name
-        result = result[
-            [
-                "symbol",
-                "date",
-                "score",
-                "forward_return_5d",
-                "target_down_5pct_5d",
-                "target_up_5pct_5d",
-                "target_abs_5pct_5d",
-                "target_abs_10pct_5d",
-                "price_volatility_20d",
-                "price_volatility_60d",
-                "volatility_20d_minus_60d",
-                "volatility_20d_div_60d",
-                "price_return_5d",
-                "price_return_20d",
-                "price_return_60d",
-                "window",
-            ]
-        ]
-        all_oos.append(result)
-    if not all_oos:
-        raise RuntimeError(
-            "No OOS predictions were produced."
-        )
-    return pd.concat(
-        all_oos,
-        ignore_index=True,
+    original_build_models = (
+        walk_forward.build_models
     )
+    def controlled_build_models(
+        random_state: int,
+        task: str = "classification",
+    ):
+        return logistic_only_models(
+            random_state=random_state,
+            task=task,
+        )
+    walk_forward.build_models = (
+        controlled_build_models
+    )
+    try:
+        oos_rows: list[dict[str, Any]] = []
+        for window_number, window in enumerate(
+            WALK_FORWARD_WINDOWS,
+            start=1,
+        ):
+            (
+                model_results,
+                window_oos_rows,
+                timing,
+            ) = train_window(
+                data=data,
+                y=y,
+                feature_columns=feature_columns,
+                window=window,
+                task="classification",
+                direction="below",
+            )
+            if not model_results:
+                raise ValueError(
+                    "No model result for "
+                    f"window {window_number}."
+                )
+            selected = next(
+                (
+                    result
+                    for result in model_results
+                    if result[
+                        "selected_for_oos"
+                    ]
+                ),
+                None,
+            )
+            if selected is None:
+                raise ValueError(
+                    "No selected OOS model for "
+                    f"window {window_number}."
+                )
+            if selected["model"] != (
+                "logistic_regression"
+            ):
+                raise ValueError(
+                    "Unexpected selected model: "
+                    f"{selected['model']}"
+                )
+            print()
+            print(
+                f"Window {window_number}"
+            )
+            print(
+                f"  Train <= {window.train_end}"
+            )
+            print(
+                "  Validation <= "
+                f"{window.validation_end}"
+            )
+            print(
+                f"  Test <= {window.test_end}"
+            )
+            print(
+                "  Model: "
+                f"{selected['model']}"
+            )
+            print(
+                "  Validation AUC: "
+                f"{selected['validation_score']:.6f}"
+            )
+            print(
+                "  Fit: "
+                f"{timing['fit_seconds']:.2f}s"
+            )
+            print(
+                "  OOS rows: "
+                f"{len(window_oos_rows):,}"
+            )
+            oos_rows.extend(
+                window_oos_rows
+            )
+        if not oos_rows:
+            raise ValueError(
+                "No OOS rows available."
+            )
+        return pd.DataFrame(
+            oos_rows
+        )
+    finally:
+        walk_forward.build_models = (
+            original_build_models
+        )
+def attach_analysis_targets_to_oos(
+    oos: pd.DataFrame,
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Match the OOS predictions returned by train_window back to the full
+    feature dataset so the same OOS ranking can be evaluated against all
+    diagnostic outcomes.
+    """
+    required_oos = {
+        "snapshot_date",
+        "security_key",
+        "prediction",
+        "score",
+        "window",
+    }
+    missing_oos = (
+        required_oos
+        - set(oos.columns)
+    )
+    if missing_oos:
+        raise ValueError(
+            "OOS predictions are missing "
+            f"columns: {sorted(missing_oos)}"
+        )
+    diagnostic_columns = [
+        "snapshot_date",
+        "security_key",
+        "forward_return_5d",
+        "target_down_5pct_5d",
+        "target_up_5pct_5d",
+        "target_abs_5pct_5d",
+        "target_abs_10pct_5d",
+        "price_volatility_20d",
+        "volatility_60d",
+        "volatility_20d_minus_60d",
+        "volatility_20d_div_60d",
+        "price_return_5d",
+        "price_return_20d",
+        "price_return_60d",
+    ]
+    missing_data = [
+        column
+        for column in diagnostic_columns
+        if column not in data.columns
+    ]
+    if missing_data:
+        raise ValueError(
+            "Diagnostic data is missing "
+            f"columns: {missing_data}"
+        )
+    lookup = data[
+        diagnostic_columns
+    ].copy()
+    lookup = lookup.drop_duplicates(
+        subset=[
+            "snapshot_date",
+            "security_key",
+        ],
+        keep="last",
+    )
+    result = oos.merge(
+        lookup,
+        on=[
+            "snapshot_date",
+            "security_key",
+        ],
+        how="left",
+        validate="many_to_one",
+        suffixes=(
+            "",
+            "_data",
+        ),
+    )
+    return result
 def safe_auc(
     score: pd.Series,
     target: pd.Series,
 ) -> float:
+    from sklearn.metrics import roc_auc_score
     valid = (
         score.notna()
         & target.notna()
     )
-    score = score.loc[valid]
-    target = target.loc[valid]
+    score = score.loc[
+        valid
+    ]
+    target = target.loc[
+        valid
+    ]
     if target.nunique() < 2:
         return float("nan")
     return float(
@@ -485,7 +621,10 @@ def describe_top_fraction(
     fraction: float,
 ) -> dict[str, float]:
     frame = frame.dropna(
-        subset=["score", "forward_return_5d"]
+        subset=[
+            "score",
+            "forward_return_5d",
+        ]
     )
     if frame.empty:
         return {
@@ -499,66 +638,92 @@ def describe_top_fraction(
         }
     n = max(
         1,
-        int(np.ceil(len(frame) * fraction)),
+        int(
+            np.ceil(
+                len(frame)
+                * fraction
+            )
+        ),
     )
     top = frame.nlargest(
         n,
         "score",
     )
-    baseline_event = frame[target_column].mean()
-    event_rate = top[target_column].mean()
-    if baseline_event > 0:
-        lift = event_rate / baseline_event
-    else:
-        lift = float("nan")
-    returns = top["forward_return_5d"]
+    baseline_event = (
+        frame[target_column]
+        .mean()
+    )
+    event_rate = (
+        top[target_column]
+        .mean()
+    )
+    lift = (
+        event_rate / baseline_event
+        if baseline_event > 0
+        else float("nan")
+    )
+    returns = (
+        top["forward_return_5d"]
+    )
     return {
-        "event_rate": float(event_rate),
-        "lift": float(lift),
-        "mean_return": float(returns.mean()),
-        "median_return": float(returns.median()),
+        "event_rate": float(
+            event_rate
+        ),
+        "lift": float(
+            lift
+        ),
+        "mean_return": float(
+            returns.mean()
+        ),
+        "median_return": float(
+            returns.median()
+        ),
         "positive_return_fraction": float(
             (returns > 0).mean()
         ),
         "negative_return_fraction": float(
             (returns < 0).mean()
         ),
-        "n": int(len(top)),
+        "n": int(
+            len(top)
+        ),
     }
 def print_tail_analysis(
     oos: pd.DataFrame,
     label: str,
-) -> dict[str, float]:
+) -> None:
     print()
     print("=" * 100)
     print(label)
     print("=" * 100)
-    target_columns = {
-        "down_5pct_5d": "target_down_5pct_5d",
-        "up_5pct_5d": "target_up_5pct_5d",
-        "abs_5pct_5d": "target_abs_5pct_5d",
-        "abs_10pct_5d": "target_abs_10pct_5d",
-    }
-    summary = {}
-    for target_name, target_column in target_columns.items():
+    for target_name, target_column in (
+        ANALYSIS_TARGETS.items()
+    ):
         auc = safe_auc(
             oos["score"],
             oos[target_column],
         )
+        baseline = (
+            oos[target_column]
+            .mean()
+        )
         print(
             f"{target_name:20s} "
             f"AUC={auc:.6f} "
-            f"baseline={oos[target_column].mean():.4f}"
+            f"baseline={baseline:.4f}"
         )
-        summary[f"{target_name}_auc"] = auc
     print()
     print(
         "Top-tail analysis "
         "(ranking trained only on down_5pct_5d)"
     )
-    for target_name, target_column in target_columns.items():
+    for target_name, target_column in (
+        ANALYSIS_TARGETS.items()
+    ):
         print()
-        print(f"Target: {target_name}")
+        print(
+            f"Target: {target_name}"
+        )
         for fraction in TOP_FRACTIONS:
             result = describe_top_fraction(
                 oos,
@@ -575,7 +740,6 @@ def print_tail_analysis(
                 f"neg={result['negative_return_fraction']:.4f} "
                 f"n={result['n']}"
             )
-    return summary
 def print_direction_given_move(
     oos: pd.DataFrame,
 ) -> None:
@@ -583,17 +747,29 @@ def print_direction_given_move(
     print("=" * 100)
     print("DIRECTION GIVEN LARGE MOVE")
     print("=" * 100)
-    returns = oos["forward_return_5d"]
-    for threshold in (0.05, 0.10):
-        large = returns.abs() >= threshold
-        if large.sum() == 0:
+    returns = oos[
+        "forward_return_5d"
+    ]
+    for threshold in (
+        0.05,
+        0.10,
+    ):
+        large = (
+            returns.abs()
+            >= threshold
+        )
+        if not large.any():
             continue
-        large_returns = returns.loc[large]
+        large_returns = (
+            returns.loc[large]
+        )
         down_fraction = (
-            large_returns <= -threshold
+            large_returns
+            <= -threshold
         ).mean()
         up_fraction = (
-            large_returns >= threshold
+            large_returns
+            >= threshold
         ).mean()
         print(
             f"|return| >= {threshold:.0%}: "
@@ -603,28 +779,49 @@ def print_direction_given_move(
         )
     print()
     print(
-        "Same calculation restricted to the model's top 1%:"
+        "Same calculation restricted "
+        "to the model's top 1%:"
     )
     top_n = max(
         1,
-        int(np.ceil(len(oos) * 0.01)),
+        int(
+            np.ceil(
+                len(oos)
+                * 0.01
+            )
+        ),
     )
     top = oos.nlargest(
         top_n,
         "score",
     )
-    for threshold in (0.05, 0.10):
+    for threshold in (
+        0.05,
+        0.10,
+    ):
         large_returns = top.loc[
-            top["forward_return_5d"].abs() >= threshold,
+            top[
+                "forward_return_5d"
+            ].abs()
+            >= threshold,
             "forward_return_5d",
         ]
         if large_returns.empty:
             continue
         print(
-            f"top 1%, |return| >= {threshold:.0%}: "
+            f"top 1%, "
+            f"|return| >= {threshold:.0%}: "
             f"n={len(large_returns)} "
-            f"down={(large_returns <= -threshold).mean():.4f} "
-            f"up={(large_returns >= threshold).mean():.4f}"
+            f"down={("
+            f"{}".format(
+                (large_returns <= -threshold).mean()
+            )
+            ):.4f} "
+            f"up={("
+            f"{}".format(
+                (large_returns >= threshold).mean()
+            )
+            ):.4f}"
         )
 def print_return_buckets(
     oos: pd.DataFrame,
@@ -633,18 +830,23 @@ def print_return_buckets(
     print("=" * 100)
     print("ACTUAL 5-DAY RETURN DISTRIBUTION")
     print("=" * 100)
-    buckets = [
+    buckets = (
         ("<= -10%", -np.inf, -0.10),
         ("-10% to -5%", -0.10, -0.05),
         ("-5% to 0%", -0.05, 0.0),
         ("0% to 5%", 0.0, 0.05),
         ("5% to 10%", 0.05, 0.10),
         (">= 10%", 0.10, np.inf),
-    ]
+    )
     for fraction in TOP_FRACTIONS:
         n = max(
             1,
-            int(np.ceil(len(oos) * fraction)),
+            int(
+                np.ceil(
+                    len(oos)
+                    * fraction
+                )
+            ),
         )
         top = oos.nlargest(
             n,
@@ -657,8 +859,18 @@ def print_return_buckets(
         )
         for label, lower, upper in buckets:
             mask = (
-                (top["forward_return_5d"] >= lower)
-                & (top["forward_return_5d"] < upper)
+                (
+                    top[
+                        "forward_return_5d"
+                    ]
+                    >= lower
+                )
+                & (
+                    top[
+                        "forward_return_5d"
+                    ]
+                    < upper
+                )
             )
             print(
                 f"  {label:12s} "
@@ -673,7 +885,7 @@ def print_volatility_quintiles(
     print("=" * 100)
     for column in (
         "price_volatility_20d",
-        "price_volatility_60d",
+        "volatility_60d",
     ):
         frame = oos.dropna(
             subset=[
@@ -692,17 +904,21 @@ def print_volatility_quintiles(
         )
         print()
         print(column)
-        grouped = frame.groupby(
-            "quintile",
-            observed=True,
-        )
-        for quintile, group in grouped:
+        for quintile, group in (
+            frame.groupby(
+                "quintile",
+                observed=True,
+            )
+        ):
             print(
                 f"  Q{int(quintile) + 1}: "
                 f"n={len(group):6d} "
-                f"median_vol={group[column].median():.6f} "
-                f"down={group['target_down_5pct_5d'].mean():.4f} "
-                f"abs5={group['target_abs_5pct_5d'].mean():.4f}"
+                f"median_vol="
+                f"{group[column].median():.6f} "
+                f"down="
+                f"{group['target_down_5pct_5d'].mean():.4f} "
+                f"abs5="
+                f"{group['target_abs_5pct_5d'].mean():.4f}"
             )
 def print_calendar_year_stability(
     oos: pd.DataFrame,
@@ -712,19 +928,29 @@ def print_calendar_year_stability(
     print("CALENDAR-YEAR OOS STABILITY")
     print("=" * 100)
     frame = oos.copy()
-    frame["year"] = frame["date"].dt.year
-    for year, group in frame.groupby("year"):
+    frame["year"] = pd.to_datetime(
+        frame["snapshot_date"]
+    ).dt.year
+    for year, group in (
+        frame.groupby("year")
+    ):
         auc_down = safe_auc(
             group["score"],
-            group["target_down_5pct_5d"],
+            group[
+                "target_down_5pct_5d"
+            ],
         )
         auc_up = safe_auc(
             group["score"],
-            group["target_up_5pct_5d"],
+            group[
+                "target_up_5pct_5d"
+            ],
         )
         auc_abs5 = safe_auc(
             group["score"],
-            group["target_abs_5pct_5d"],
+            group[
+                "target_abs_5pct_5d"
+            ],
         )
         print(
             f"{year}: "
@@ -732,8 +958,10 @@ def print_calendar_year_stability(
             f"down_auc={auc_down:.6f} "
             f"up_auc={auc_up:.6f} "
             f"abs5_auc={auc_abs5:.6f} "
-            f"down_rate={group['target_down_5pct_5d'].mean():.4f} "
-            f"abs5_rate={group['target_abs_5pct_5d'].mean():.4f}"
+            f"down_rate="
+            f"{group['target_down_5pct_5d'].mean():.4f} "
+            f"abs5_rate="
+            f"{group['target_abs_5pct_5d'].mean():.4f}"
         )
 def print_score_deciles(
     oos: pd.DataFrame,
@@ -748,97 +976,38 @@ def print_score_deciles(
             "forward_return_5d",
         ]
     ).copy()
+    if frame.empty:
+        return
     frame["score_decile"] = pd.qcut(
         frame["score"],
         10,
         labels=False,
         duplicates="drop",
     )
-    for decile, group in frame.groupby(
-        "score_decile",
-        observed=True,
+    for decile, group in (
+        frame.groupby(
+            "score_decile",
+            observed=True,
+        )
     ):
         print(
             f"D{int(decile) + 1:02d}: "
             f"n={len(group):6d} "
-            f"score_med={group['score'].median():.5f} "
-            f"down={group['target_down_5pct_5d'].mean():.4f} "
-            f"up={group['target_up_5pct_5d'].mean():.4f} "
-            f"abs5={group['target_abs_5pct_5d'].mean():.4f} "
-            f"abs10={group['target_abs_10pct_5d'].mean():.4f} "
-            f"mean_ret={group['forward_return_5d'].mean():+.4%} "
-            f"median_ret={group['forward_return_5d'].median():+.4%}"
+            f"score_med="
+            f"{group['score'].median():.5f} "
+            f"down="
+            f"{group['target_down_5pct_5d'].mean():.4f} "
+            f"up="
+            f"{group['target_up_5pct_5d'].mean():.4f} "
+            f"abs5="
+            f"{group['target_abs_5pct_5d'].mean():.4f} "
+            f"abs10="
+            f"{group['target_abs_10pct_5d'].mean():.4f} "
+            f"mean_ret="
+            f"{group['forward_return_5d'].mean():+.4%} "
+            f"median_ret="
+            f"{group['forward_return_5d'].median():+.4%}"
         )
-def print_feature_set_comparison(
-    data: pd.DataFrame,
-) -> None:
-    print()
-    print("=" * 100)
-    print("FEATURE-SET COMPARISON")
-    print("=" * 100)
-    feature_sets = (
-        "volatility_60d",
-        "volatility_20d_plus_60d",
-        "volatility_60d_plus_term_structure",
-        "volatility_20d_plus_60d_plus_term_structure",
-        "volatility_20d_plus_60d_plus_ratio",
-        "volatility_plus_returns",
-        "volatility_20d_plus_60d_plus_returns",
-    )
-    results = []
-    for feature_set in feature_sets:
-        started = time.perf_counter()
-        columns = get_feature_columns(
-            data,
-            feature_set,
-        )
-        oos = fit_predict_walk_forward(
-            data,
-            columns,
-        )
-        auc_down = safe_auc(
-            oos["score"],
-            oos["target_down_5pct_5d"],
-        )
-        auc_up = safe_auc(
-            oos["score"],
-            oos["target_up_5pct_5d"],
-        )
-        auc_abs5 = safe_auc(
-            oos["score"],
-            oos["target_abs_5pct_5d"],
-        )
-        auc_abs10 = safe_auc(
-            oos["score"],
-            oos["target_abs_10pct_5d"],
-        )
-        top = describe_top_fraction(
-            oos,
-            "target_down_5pct_5d",
-            0.01,
-        )
-        elapsed = time.perf_counter() - started
-        results.append(
-            {
-                "feature_set": feature_set,
-                "features": len(columns),
-                "down_auc": auc_down,
-                "up_auc": auc_up,
-                "abs5_auc": auc_abs5,
-                "abs10_auc": auc_abs10,
-                "top1_down": top["event_rate"],
-                "top1_lift": top["lift"],
-                "top1_mean_return": top["mean_return"],
-                "seconds": elapsed,
-            }
-        )
-    comparison = pd.DataFrame(results)
-    print(
-        comparison.to_string(
-            index=False,
-            float_format=lambda value: f"{value:.6f}",
-        )
-    )
 def print_top1_by_window(
     oos: pd.DataFrame,
 ) -> None:
@@ -846,7 +1015,9 @@ def print_top1_by_window(
     print("=" * 100)
     print("TOP 1% BY WALK-FORWARD WINDOW")
     print("=" * 100)
-    for window, group in oos.groupby("window"):
+    for window, group in (
+        oos.groupby("window")
+    ):
         top = describe_top_fraction(
             group,
             "target_down_5pct_5d",
@@ -854,15 +1025,21 @@ def print_top1_by_window(
         )
         auc_down = safe_auc(
             group["score"],
-            group["target_down_5pct_5d"],
+            group[
+                "target_down_5pct_5d"
+            ],
         )
         auc_up = safe_auc(
             group["score"],
-            group["target_up_5pct_5d"],
+            group[
+                "target_up_5pct_5d"
+            ],
         )
         auc_abs5 = safe_auc(
             group["score"],
-            group["target_abs_5pct_5d"],
+            group[
+                "target_abs_5pct_5d"
+            ],
         )
         print(
             f"window {window}: "
@@ -870,7 +1047,8 @@ def print_top1_by_window(
             f"down_auc={auc_down:.6f} "
             f"up_auc={auc_up:.6f} "
             f"abs5_auc={auc_abs5:.6f} "
-            f"top1_down={top['event_rate']:.4f} "
+            f"top1_down="
+            f"{top['event_rate']:.4f} "
             f"lift={top['lift']:.2f}x "
             f"mean={top['mean_return']:+.4%} "
             f"median={top['median_return']:+.4%}"
@@ -880,32 +1058,52 @@ def print_top1_volatility_profile(
 ) -> None:
     print()
     print("=" * 100)
-    print("TOP 1% VOLATILITY PROFILE")
+    print("TOP 1% VOLATILITY / RETURN PROFILE")
     print("=" * 100)
     top = oos.nlargest(
-        max(1, int(np.ceil(len(oos) * 0.01))),
+        max(
+            1,
+            int(
+                np.ceil(
+                    len(oos)
+                    * 0.01
+                )
+            ),
+        ),
         "score",
     )
-    all_frame = oos.copy()
     for column in (
         "price_volatility_20d",
-        "price_volatility_60d",
+        "volatility_60d",
         "volatility_20d_minus_60d",
         "volatility_20d_div_60d",
         "price_return_5d",
         "price_return_20d",
         "price_return_60d",
     ):
-        all_values = all_frame[column].dropna()
-        top_values = top[column].dropna()
-        if all_values.empty or top_values.empty:
+        all_values = (
+            oos[column]
+            .dropna()
+        )
+        top_values = (
+            top[column]
+            .dropna()
+        )
+        if (
+            all_values.empty
+            or top_values.empty
+        ):
             continue
         print(
             f"{column:32s} "
-            f"all_median={all_values.median():+.6f} "
-            f"top1_median={top_values.median():+.6f} "
-            f"all_mean={all_values.mean():+.6f} "
-            f"top1_mean={top_values.mean():+.6f}"
+            f"all_median="
+            f"{all_values.median():+.6f} "
+            f"top1_median="
+            f"{top_values.median():+.6f} "
+            f"all_mean="
+            f"{all_values.mean():+.6f} "
+            f"top1_mean="
+            f"{top_values.mean():+.6f}"
         )
 def run_feature_set(
     data: pd.DataFrame,
@@ -921,15 +1119,35 @@ def run_feature_set(
         f"RUNNING FEATURE SET: {feature_set}"
     )
     print(
-        f"Features ({len(columns)}): {columns}"
+        f"Features ({len(columns)}): "
+        f"{columns}"
     )
     print("#" * 100)
-    started = time.perf_counter()
-    oos = fit_predict_walk_forward(
+    target = find_target(
+        TRAIN_TARGET
+    )
+    ml_data, y = build_ml_dataset(
         data,
         columns,
+        target,
     )
-    elapsed = time.perf_counter() - started
+    print(
+        f"ML rows: {len(ml_data):,}"
+    )
+    started = time.perf_counter()
+    oos = run_walk_forward(
+        ml_data,
+        y,
+        columns,
+    )
+    elapsed = (
+        time.perf_counter()
+        - started
+    )
+    oos = attach_analysis_targets_to_oos(
+        oos,
+        data,
+    )
     print(
         f"OOS rows: {len(oos):,}"
     )
@@ -962,53 +1180,126 @@ def run_feature_set(
         oos,
     )
     return oos
-def main() -> None:
+def print_feature_set_comparison(
+    outputs: dict[str, pd.DataFrame],
+) -> None:
+    print()
     print("=" * 100)
-    print("VOLATILITY DIRECTIONAL / TAIL DIAGNOSTIC")
+    print("FEATURE-SET COMPARISON")
     print("=" * 100)
-    started = time.perf_counter()
-    features = load_features(FEATURE_DIR)
-    if not isinstance(features, pd.DataFrame):
-        raise TypeError(
-            "load_features() did not return a DataFrame."
+    rows = []
+    for feature_set, oos in (
+        outputs.items()
+    ):
+        auc_down = safe_auc(
+            oos["score"],
+            oos[
+                "target_down_5pct_5d"
+            ],
         )
+        auc_up = safe_auc(
+            oos["score"],
+            oos[
+                "target_up_5pct_5d"
+            ],
+        )
+        auc_abs5 = safe_auc(
+            oos["score"],
+            oos[
+                "target_abs_5pct_5d"
+            ],
+        )
+        auc_abs10 = safe_auc(
+            oos["score"],
+            oos[
+                "target_abs_10pct_5d"
+            ],
+        )
+        top = describe_top_fraction(
+            oos,
+            "target_down_5pct_5d",
+            0.01,
+        )
+        rows.append(
+            {
+                "feature_set": feature_set,
+                "features": len(
+                    FEATURE_SETS[
+                        feature_set
+                    ]
+                ),
+                "down_auc": auc_down,
+                "up_auc": auc_up,
+                "abs5_auc": auc_abs5,
+                "abs10_auc": auc_abs10,
+                "top1_down": top[
+                    "event_rate"
+                ],
+                "top1_lift": top[
+                    "lift"
+                ],
+                "top1_mean_return": top[
+                    "mean_return"
+                ],
+                "oos_rows": len(oos),
+            }
+        )
+    comparison = pd.DataFrame(
+        rows
+    )
     print(
-        f"Loaded feature rows: {len(features):,}"
+        comparison.to_string(
+            index=False,
+            float_format=lambda value:
+                f"{value:.6f}",
+        )
     )
-    prices = load_prices(
-        find_price_files(PRICE_DIR)
+def print_qc(
+    data: pd.DataFrame,
+    prices: pd.DataFrame,
+) -> None:
+    print()
+    print("=" * 100)
+    print("DIAGNOSTIC QC")
+    print("=" * 100)
+    print(
+        f"Feature rows: {len(data):,}"
     )
     print(
-        f"Loaded price rows: {len(prices):,}"
+        f"Raw price rows: {len(prices):,}"
     )
-    data = add_volatility_features(
-        features,
-        prices,
-    )
-    data = add_analysis_targets(
-        data,
-        prices,
+    valid_20 = data[
+        "price_volatility_20d"
+    ].notna()
+    valid_60 = data[
+        "volatility_60d"
+    ].notna()
+    print(
+        "Rows with 20d volatility: "
+        f"{valid_20.sum():,}"
     )
     print(
-        f"Rows with 60d volatility: "
-        f"{data['price_volatility_60d'].notna().sum():,}"
+        "Rows with 60d volatility: "
+        f"{valid_60.sum():,}"
     )
     print(
-        f"Rows without 60d volatility: "
-        f"{data['price_volatility_60d'].isna().sum():,}"
+        "Rows without 60d volatility: "
+        f"{(~valid_60).sum():,}"
     )
     print(
-        f"Target: down_5pct_5d"
+        f"Target: {TRAIN_TARGET}"
     )
     print()
     print("Volatility statistics:")
     for column in (
         "price_volatility_20d",
-        "price_volatility_60d",
+        "volatility_60d",
         "volatility_20d_minus_60d",
         "volatility_20d_div_60d",
     ):
-        series = data[column].dropna()
+        series = data[
+            column
+        ].dropna()
         if series.empty:
             continue
         print(
@@ -1017,39 +1308,90 @@ def main() -> None:
             f"p20={series.quantile(.20):.6f} "
             f"p80={series.quantile(.80):.6f}"
         )
-    feature_sets = (
+def main() -> None:
+    print("=" * 100)
+    print(
+        "VOLATILITY DIRECTIONAL / TAIL DIAGNOSTIC"
+    )
+    print("=" * 100)
+    started = time.perf_counter()
+    features = load_features()
+    if not isinstance(
+        features,
+        pd.DataFrame,
+    ):
+        raise TypeError(
+            "load_features() did not return "
+            "a DataFrame."
+        )
+    print(
+        f"Loaded feature rows: "
+        f"{len(features):,}"
+    )
+    prices = load_price_data()
+    data = add_volatility_features(
+        features,
+        prices,
+    )
+    data = add_analysis_targets(
+        data
+    )
+    print_qc(
+        data,
+        prices,
+    )
+    outputs: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
+    # The core comparison is deliberately first.
+    # Additional diagnostics use the same OOS methodology.
+    for feature_set in (
         "volatility_60d",
         "volatility_20d_plus_60d",
-    )
-    outputs = {}
-    for feature_set in feature_sets:
+        "volatility_60d_plus_term_structure",
+        "volatility_20d_plus_60d_plus_term_structure",
+        "volatility_20d_plus_60d_plus_ratio",
+        "volatility_plus_returns",
+        "volatility_20d_plus_60d_plus_returns",
+    ):
         outputs[feature_set] = run_feature_set(
             data,
             feature_set,
         )
     print_feature_set_comparison(
-        data,
+        outputs
     )
     print()
     print("=" * 100)
     print("FINAL SUMMARY")
     print("=" * 100)
-    for feature_set, oos in outputs.items():
+    for feature_set, oos in (
+        outputs.items()
+    ):
         down_auc = safe_auc(
             oos["score"],
-            oos["target_down_5pct_5d"],
+            oos[
+                "target_down_5pct_5d"
+            ],
         )
         up_auc = safe_auc(
             oos["score"],
-            oos["target_up_5pct_5d"],
+            oos[
+                "target_up_5pct_5d"
+            ],
         )
         abs5_auc = safe_auc(
             oos["score"],
-            oos["target_abs_5pct_5d"],
+            oos[
+                "target_abs_5pct_5d"
+            ],
         )
         abs10_auc = safe_auc(
             oos["score"],
-            oos["target_abs_10pct_5d"],
+            oos[
+                "target_abs_10pct_5d"
+            ],
         )
         top = describe_top_fraction(
             oos,
@@ -1057,16 +1399,22 @@ def main() -> None:
             0.01,
         )
         print(
-            f"{feature_set:42s} "
+            f"{feature_set:48s} "
             f"down={down_auc:.6f} "
             f"up={up_auc:.6f} "
             f"abs5={abs5_auc:.6f} "
             f"abs10={abs10_auc:.6f} "
-            f"top1_down={top['event_rate']:.4f} "
-            f"lift={top['lift']:.2f}x "
-            f"mean={top['mean_return']:+.4%}"
+            f"top1_down="
+            f"{top['event_rate']:.4f} "
+            f"lift="
+            f"{top['lift']:.2f}x "
+            f"mean="
+            f"{top['mean_return']:+.4%}"
         )
-    elapsed = time.perf_counter() - started
+    elapsed = (
+        time.perf_counter()
+        - started
+    )
     print()
     print(
         f"Total runtime: {elapsed:.2f}s"
