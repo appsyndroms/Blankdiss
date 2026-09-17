@@ -1,1 +1,1 @@
-"""Automatiserad forskningsmotor för Blankdiss."""
+"""Deterministisk research-matris för Blankdiss."""
