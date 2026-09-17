@@ -29,6 +29,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from analysis.feature_config import PRICE_DIR
 from analysis.feature_prices import find_price_files, load_prices
 from ml.config import WALK_FORWARD_WINDOWS
 from ml.dataset import load_features
@@ -134,7 +135,9 @@ def normalize_date_column(
         data[column],
         errors="coerce",
     ).dt.strftime("%Y-%m-%d")
-def deduplicate_columns(data: pd.DataFrame) -> pd.DataFrame:
+def deduplicate_columns(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Keep the first occurrence of duplicate column names.
     Duplicate names are particularly dangerous here because:
@@ -150,7 +153,10 @@ def deduplicate_columns(data: pd.DataFrame) -> pd.DataFrame:
             "keeping first occurrence:"
         )
         print(f"  {duplicate_names}")
-        data = data.loc[:, ~duplicated].copy()
+        data = data.loc[
+            :,
+            ~duplicated,
+        ].copy()
     return data
 def numeric_series(
     data: pd.DataFrame,
@@ -181,10 +187,11 @@ def load_price_data() -> pd.DataFrame:
     The function deliberately keeps price loading isolated so the
     diagnostic can fail clearly if the project price layout changes.
     """
-    price_files = find_price_files()
+    price_files = find_price_files(PRICE_DIR)
     if not price_files:
         raise RuntimeError(
-            "No price files found by analysis.feature_prices.find_price_files()."
+            "No price files found by "
+            "analysis.feature_prices.find_price_files()."
         )
     frames = []
     for path in price_files:
@@ -212,7 +219,8 @@ def load_price_data() -> pd.DataFrame:
         frames.append(prices)
     if not frames:
         raise RuntimeError(
-            "Price files were found, but no usable price data could be loaded."
+            "Price files were found, but no usable price data "
+            "could be loaded."
         )
     prices = pd.concat(
         frames,
@@ -235,7 +243,9 @@ def load_price_data() -> pd.DataFrame:
         ],
     )
     return prices
-def find_close_column(prices: pd.DataFrame) -> str:
+def find_close_column(
+    prices: pd.DataFrame,
+) -> str:
     """Find the project's close-price column."""
     column = first_existing_column(
         prices,
@@ -374,7 +384,9 @@ def prepare_data() -> pd.DataFrame:
     )
     print("Loading prices for volatility_60d...")
     prices = load_price_data()
-    volatility = build_volatility_60d(prices)
+    volatility = build_volatility_60d(
+        prices
+    )
     volatility["price_date"] = normalize_date_column(
         volatility,
         "price_date",
@@ -596,7 +608,11 @@ def build_event_scores(
     Then refit the selected model on train + validation and
     generate OOS event scores for the test period.
     """
-    name, columns, validation_auc = select_event_feature_set(
+    (
+        name,
+        columns,
+        validation_auc,
+    ) = select_event_feature_set(
         train,
         validation,
     )
@@ -1039,11 +1055,12 @@ def run_window(
         print(
             "-" * 80
         )
-        train_direction, threshold = (
-            prepare_direction_training_data(
-                train,
-                fraction,
-            )
+        (
+            train_direction,
+            threshold,
+        ) = prepare_direction_training_data(
+            train,
+            fraction,
         )
         if threshold is None:
             print(
