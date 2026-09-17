@@ -25,24 +25,15 @@ The repository's existing walk-forward implementation is used.
 Only logistic regression is exposed during model selection.
 """
 from __future__ import annotations
+import json
 import time
-from typing import Any
 import numpy as np
 import pandas as pd
 import ml.walk_forward as walk_forward
 from analysis.feature_config import PRICE_DIR
-from analysis.feature_prices import (
-    find_price_files,
-    load_prices,
-)
-from ml.config import (
-    TARGETS,
-    WALK_FORWARD_WINDOWS,
-)
-from ml.dataset import (
-    build_target,
-    load_features,
-)
+from analysis.feature_prices import find_price_files, load_prices
+from ml.config import TARGETS, WALK_FORWARD_WINDOWS
+from ml.dataset import build_target, load_features
 from ml.models import build_models
 from ml.walk_forward import train_window
 TOP_FRACTIONS = (
@@ -204,7 +195,7 @@ def add_volatility_features(
     )
     prices = prices.rename(
         columns={
-            "date": "price_date"
+            "date": "price_date",
         }
     )
     lookup = prices[
@@ -329,7 +320,7 @@ def build_ml_dataset(
     )
     ml_data = ml_data.drop(
         columns=[
-            "forward_return_5d"
+            "forward_return_5d",
         ]
     )
     valid_returns = (
@@ -522,10 +513,6 @@ def attach_analysis_targets_to_oos(
     lookup = data[
         diagnostic_columns
     ].copy()
-    # ml.walk_forward serialiserar
-    # snapshot_date till YYYY-MM-DD i OOS.
-    # Normalisera båda sidor till samma
-    # representation före merge.
     oos["snapshot_date"] = (
         pd.to_datetime(
             oos["snapshot_date"],
@@ -566,9 +553,7 @@ def safe_auc(
     score: pd.Series,
     target: pd.Series,
 ) -> float:
-    from sklearn.metrics import (
-        roc_auc_score
-    )
+    from sklearn.metrics import roc_auc_score
     valid = (
         score.notna()
         & target.notna()
@@ -1047,6 +1032,26 @@ def print_score_deciles(
             f"median_ret="
             f"{group['forward_return_5d'].median():+.4%}"
         )
+def make_hashable_window_label(value) -> str:
+    """
+    Convert the walk-forward window metadata to a stable,
+    human-readable string.
+    train_window() currently returns window metadata as a dict
+    in the OOS rows. Dicts cannot be used directly as pandas
+    groupby keys because they are unhashable.
+    """
+    if isinstance(value, dict):
+        return json.dumps(
+            value,
+            sort_keys=True,
+            default=str,
+        )
+    if isinstance(value, (list, tuple)):
+        return json.dumps(
+            value,
+            default=str,
+        )
+    return str(value)
 def print_top1_by_window(
     oos: pd.DataFrame,
 ):
@@ -1060,11 +1065,26 @@ def print_top1_by_window(
     print(
         "=" * 100
     )
+    frame = oos.copy()
+    if "window" not in frame.columns:
+        raise ValueError(
+            "OOS predictions are missing the "
+            "'window' column."
+        )
+    # The walk-forward implementation stores window metadata
+    # as a dict. pandas cannot group by dicts, so create a
+    # separate hashable representation and leave the original
+    # column untouched.
+    frame["window_label"] = (
+        frame["window"].map(
+            make_hashable_window_label
+        )
+    )
     for (
         window,
         group,
-    ) in oos.groupby(
-        "window",
+    ) in frame.groupby(
+        "window_label",
         dropna=False,
     ):
         top = describe_top_fraction(
