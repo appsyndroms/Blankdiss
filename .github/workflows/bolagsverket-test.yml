@@ -1,62 +1,37 @@
-name: Bolagsverket API Test
+- name: Test Bolagsverket API
+  env:
+    BOLAGSVERKET_CLIENT_ID: ${{ secrets.BOLAGSVERKET_CLIENT_ID_TEST }}
+    BOLAGSVERKET_CLIENT_SECRET: ${{ secrets.BOLAGSVERKET_CLIENT_SECRET_TEST }}
+  run: |
+    python - <<'PY'
+    import os
+    import requests
 
-on:
-  workflow_dispatch:
+    token_url = "https://portal-accept2.api.bolagsverket.se/oauth2/token"
+    api_url = "https://gw-accept2.api.bolagsverket.se/foretagsinformation/v4/organisationer"
 
-permissions:
-  contents: read
+    token_response = requests.post(
+        token_url,
+        data={"grant_type": "client_credentials"},
+        auth=(
+            os.environ["BOLAGSVERKET_CLIENT_ID"],
+            os.environ["BOLAGSVERKET_CLIENT_SECRET"],
+        ),
+        timeout=30,
+    )
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+    token_response.raise_for_status()
+    token = token_response.json()["access_token"]
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    response = requests.get(
+        api_url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        },
+        timeout=30,
+    )
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Test Bolagsverket OAuth
-        env:
-          BOLAGSVERKET_CLIENT_ID: ${{ secrets.BOLAGSVERKET_CLIENT_ID_TEST }}
-          BOLAGSVERKET_CLIENT_SECRET: ${{ secrets.BOLAGSVERKET_CLIENT_SECRET_TEST }}
-        run: |
-          python - <<'PY'
-          import os
-          import requests
-
-          token_url = "https://portal-accept2.api.bolagsverket.se/oauth2/token"
-
-          response = requests.post(
-              token_url,
-              data={"grant_type": "client_credentials"},
-              auth=(
-                  os.environ["BOLAGSVERKET_CLIENT_ID"],
-                  os.environ["BOLAGSVERKET_CLIENT_SECRET"],
-              ),
-              timeout=30,
-          )
-
-          print(f"HTTP status: {response.status_code}")
-
-          response.raise_for_status()
-
-          data = response.json()
-
-          if "access_token" not in data:
-              raise RuntimeError(
-                  f"OAuth response saknar access_token. Fält: {list(data)}"
-              )
-
-          print("OAuth: OK")
-          print(f"Token type: {data.get('token_type')}")
-          print(f"Expires in: {data.get('expires_in')} sekunder")
-          PY
+    print(f"API HTTP status: {response.status_code}")
+    print(response.text[:5000])
+    PY
