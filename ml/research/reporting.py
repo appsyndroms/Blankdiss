@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-
 def write_jsonl(
     path: Path,
     rows: list[dict[str, Any]],
@@ -14,7 +11,6 @@ def write_jsonl(
         parents=True,
         exist_ok=True,
     )
-
     with path.open(
         "w",
         encoding="utf-8",
@@ -28,8 +24,6 @@ def write_jsonl(
                 )
                 + "\n"
             )
-
-
 def write_json(
     path: Path,
     payload: dict[str, Any] | list[Any],
@@ -38,7 +32,6 @@ def write_json(
         parents=True,
         exist_ok=True,
     )
-
     with path.open(
         "w",
         encoding="utf-8",
@@ -50,24 +43,19 @@ def write_json(
             ensure_ascii=False,
             allow_nan=False,
         )
-
-
 def build_summary(
     results: list[dict[str, Any]],
     pooled_results: list[dict[str, Any]],
 ) -> dict[str, Any]:
     statuses: dict[str, int] = {}
-
     for result in pooled_results:
         status = result.get(
             "status",
             "UNKNOWN",
         )
-
         statuses[status] = (
             statuses.get(status, 0) + 1
         )
-
     return {
         "generated_at": datetime.now(
             timezone.utc
@@ -78,8 +66,6 @@ def build_summary(
         ),
         "statuses": statuses,
     }
-
-
 def build_markdown_report(
     summary: dict[str, Any],
     pooled_results: list[dict[str, Any]],
@@ -95,14 +81,12 @@ def build_markdown_report(
         "## Status",
         "",
     ]
-
     for status, count in sorted(
         summary["statuses"].items()
     ):
         lines.append(
             f"- {status}: {count}"
         )
-
     lines.extend(
         [
             "",
@@ -112,7 +96,6 @@ def build_markdown_report(
             "|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|",
         ]
     )
-
     for result in pooled_results:
         lines.append(
             "| "
@@ -130,44 +113,38 @@ def build_markdown_report(
             f"{result.get('n', '')} | "
             f"{result.get('status', '')} |"
         )
-
     return "\n".join(lines) + "\n"
-
-
 def write_markdown_report(
     path: Path,
+    results: list[dict[str, Any]],
     pooled_results: list[dict[str, Any]],
     metadata: dict[str, Any],
 ) -> None:
     summary = build_summary(
-        metadata.get(
-            "results",
-            [],
-        ),
+        results,
         pooled_results,
     )
-
     report = build_markdown_report(
         summary,
         pooled_results,
     )
-
+    report = (
+        report
+        + "\n## Run Metadata\n\n"
+        + f"- Feature rows: {metadata.get('feature_rows', '')}\n"
+        + f"- Experiments: {metadata.get('experiments', '')}\n"
+    )
     path.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
-
     path.write_text(
         report,
         encoding="utf-8",
     )
-
-
 def _fmt(value: Any) -> str:
     if value is None:
         return ""
-
     if isinstance(value, float):
         return f"{value:.4f}"
-
     return str(value)
