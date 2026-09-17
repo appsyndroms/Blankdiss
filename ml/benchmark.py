@@ -1,8 +1,14 @@
-"""Benchmark av hela Blankdiss ML-körningen.
+"""Benchmark av Random Forest-storlek i hela Blankdiss ML-pipelinen.
 
-Jämför produktionslik experimentparallellism med:
-- Random Forest n_jobs=1
-- Random Forest n_jobs=4
+Jämför:
+- Random Forest 100 träd
+- Random Forest 200 träd
+- Random Forest 300 träd
+
+Produktionslik belastning:
+- 40 experiment
+- 4 parallella experiment
+- 2 walk-forward-fönster
 
 Produktionsfiler ändras inte.
 """
@@ -29,9 +35,10 @@ from ml.models import build_models as original_build_models
 
 MAX_PARALLEL_EXPERIMENTS = 4
 
-BENCHMARK_N_JOBS = (
-    1,
-    4,
+BENCHMARK_TREES = (
+    100,
+    200,
+    300,
 )
 
 
@@ -87,7 +94,7 @@ ABLATION_TARGETS = {
 def build_benchmark_models(
     random_state: int,
     task: str = "classification",
-    n_jobs: int = 1,
+    n_estimators: int = 300,
 ):
     models = original_build_models(
         random_state,
@@ -100,7 +107,18 @@ def build_benchmark_models(
 
     if random_forest is not None:
         random_forest.set_params(
-            model__n_jobs=n_jobs,
+            model__n_estimators=n_estimators,
+            model__n_jobs=1,
+        )
+
+    random_forest_regression = models.get(
+        "random_forest_regression"
+    )
+
+    if random_forest_regression is not None:
+        random_forest_regression.set_params(
+            model__n_estimators=n_estimators,
+            model__n_jobs=1,
         )
 
     return models
@@ -196,6 +214,9 @@ def run_one_experiment(
         "total_window_seconds": 0.0,
     }
 
+    validation_scores = []
+    selected_models = {}
+
     window_count = 0
 
     for window in WALK_FORWARD_WINDOWS:
@@ -217,18 +238,47 @@ def run_one_experiment(
                 timing.get(key, 0.0)
             )
 
+        for result in results:
+            model_name = result.get(
+                "model"
+            )
+
+            validation_score = result.get(
+                "validation_score"
+            )
+
+            if (
+                validation_score is not None
+                and model_name is not None
+            ):
+                validation_scores.append(
+                    float(validation_score)
+                )
+
+                selected_models[
+                    model_name
+                ] = (
+                    selected_models.get(
+                        model_name,
+                        0,
+                    )
+                    + 1
+                )
+
         window_count += 1
 
     return (
         performance,
         window_count,
+        validation_scores,
+        selected_models,
     )
 
 
 def run_benchmark(
     feature_set_cache,
     experiments,
-    n_jobs,
+    n_estimators,
 ):
     def build_models_for_benchmark(
         random_state: int,
@@ -237,12 +287,9 @@ def run_benchmark(
         return build_benchmark_models(
             random_state,
             task=task,
-            n_jobs=n_jobs,
+            n_estimators=n_estimators,
         )
 
-    # train_window() använder build_models som
-    # importerats in i ml.walk_forward.
-    # Vi byter bara den symbolen under benchmarken.
     walk_forward.build_models = (
         build_models_for_benchmark
     )
@@ -252,7 +299,7 @@ def run_benchmark(
     with ThreadPoolExecutor(
         max_workers=MAX_PARALLEL_EXPERIMENTS,
         thread_name_prefix=(
-            f"benchmark-rf-{n_jobs}"
+            f"benchmark-rf-{n_estimators}"
         ),
     ) as executor:
         futures = [
@@ -287,15 +334,33 @@ def run_benchmark(
         "total_window_seconds": 0.0,
     }
 
+    validation_scores = []
+    selected_models = {}
+
     window_count = 0
 
     for (
         performance,
         windows,
+        scores,
+        models,
     ) in results:
         for key in aggregate:
             aggregate[key] += (
                 performance[key]
+            )
+
+        validation_scores.extend(
+            scores
+        )
+
+        for model_name, count in models.items():
+            selected_models[model_name] = (
+                selected_models.get(
+                    model_name,
+                    0,
+                )
+                + count
             )
 
         window_count += windows
@@ -304,6 +369,8 @@ def run_benchmark(
         wall_seconds,
         aggregate,
         window_count,
+        validation_scores,
+        selected_models,
     )
 
 
@@ -311,7 +378,7 @@ def main() -> None:
     total_start = perf_counter()
 
     print("================================")
-    print("Blankdiss production ML benchmark")
+    print("Blankdiss Random Forest benchmark")
     print("================================")
     print()
     print(
@@ -321,6 +388,9 @@ def main() -> None:
     print(
         f"Walk-forward windows: "
         f"{len(WALK_FORWARD_WINDOWS)}"
+    )
+    print(
+        "RF n_jobs: 1"
     )
 
     print()
@@ -367,11 +437,12 @@ def main() -> None:
 
     benchmark_results = {}
 
-    for n_jobs in BENCHMARK_N_JOBS:
+    for n_estimators in BENCHMARK_TREES:
         print()
         print("================================")
         print(
-            f"TEST: Random Forest n_jobs={n_jobs}"
+            f"TEST: Random Forest "
+            f"{n_estimators} träd"
         )
         print(
             f"Experiment workers="
@@ -383,16 +454,29 @@ def main() -> None:
             wall_seconds,
             performance,
             window_count,
+            validation_scores,
+            selected_models,
         ) = run_benchmark(
             feature_set_cache,
             experiments,
-            n_jobs,
+            n_estimators,
         )
 
-        benchmark_results[n_jobs] = (
+        benchmark_results[
+            n_estimators
+        ] = (
             wall_seconds,
             performance,
             window_count,
+            validation_scores,
+            selected_models,
+        )
+
+        average_validation_score = (
+            sum(validation_scores)
+            / len(validation_scores)
+            if validation_scores
+            else 0.0
         )
 
         print()
@@ -424,46 +508,89 @@ def main() -> None:
             f"Aggregate OOS row build: "
             f"{performance['oos_row_build_seconds']:.2f}s"
         )
+        print(
+            f"Average validation score: "
+            f"{average_validation_score:.6f}"
+        )
+
+        print(
+            "Selected models:"
+        )
+
+        for (
+            model_name,
+            count,
+        ) in sorted(
+            selected_models.items()
+        ):
+            print(
+                f"  {model_name}: "
+                f"{count}"
+            )
 
     print()
     print("================================")
     print("JÄMFÖRELSE")
     print("================================")
 
-    baseline = benchmark_results[1][0]
+    baseline_wall = benchmark_results[
+        300
+    ][0]
 
-    for n_jobs in BENCHMARK_N_JOBS:
-        wall_seconds = (
-            benchmark_results[n_jobs][0]
+    baseline_score = (
+        sum(
+            benchmark_results[300][3]
+        )
+        / len(
+            benchmark_results[300][3]
+        )
+        if benchmark_results[300][3]
+        else 0.0
+    )
+
+    for n_estimators in BENCHMARK_TREES:
+        (
+            wall_seconds,
+            performance,
+            window_count,
+            validation_scores,
+            selected_models,
+        ) = benchmark_results[
+            n_estimators
+        ]
+
+        average_score = (
+            sum(validation_scores)
+            / len(validation_scores)
+            if validation_scores
+            else 0.0
         )
 
-        if n_jobs == 1:
-            print(
-                f"n_jobs=1: "
-                f"{wall_seconds:.2f}s"
+        time_change = (
+            (
+                wall_seconds
+                / baseline_wall
             )
-            continue
-
-        improvement = (
-            1.0
-            - wall_seconds / baseline
+            - 1.0
         ) * 100.0
 
-        print(
-            f"n_jobs={n_jobs}: "
-            f"{wall_seconds:.2f}s "
-            f"({improvement:+.1f}%)"
+        score_change = (
+            average_score
+            - baseline_score
         )
 
-    total_seconds = (
-        perf_counter() - total_start
-    )
+        print(
+            f"{n_estimators:>3} träd: "
+            f"{wall_seconds:7.2f}s "
+            f"({time_change:+.1f}% tid, "
+            f"{score_change:+.6f} val-score)"
+        )
 
     print()
     print("================================")
     print(
         f"Benchmark total: "
-        f"{total_seconds:.2f}s"
+        f"{perf_counter() - total_start:.2f}s"
     )
     print("================================")
 
