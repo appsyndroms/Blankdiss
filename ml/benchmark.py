@@ -199,6 +199,7 @@ def build_feature_set_cache(
             include_price_features=(
                 price_features is not None
             ),
+            price_features=price_features,
         )
 
         cache[feature_set_name] = (
@@ -207,6 +208,44 @@ def build_feature_set_cache(
         )
 
     return cache
+
+
+def print_feature_set_qc(
+    feature_set_cache,
+):
+    print()
+    print(
+        "================================"
+    )
+    print(
+        "FEATURE SET QC"
+    )
+    print(
+        "================================"
+    )
+
+    for (
+        feature_set_name,
+        _price_features,
+    ) in FEATURE_SETS:
+        (
+            _feature_set_data,
+            feature_columns,
+        ) = feature_set_cache[
+            feature_set_name
+        ]
+
+        print(
+            f"{feature_set_name}: "
+            f"{len(feature_columns)} features"
+        )
+
+        print(
+            "  "
+            + ", ".join(
+                feature_columns
+            )
+        )
 
 
 def empty_performance():
@@ -1050,6 +1089,10 @@ def main() -> None:
     print(
         f"Feature cache: "
         f"{perf_counter() - start:.2f}s"
+    )
+
+    print_feature_set_qc(
+        feature_set_cache
     )
 
     experiments = (
