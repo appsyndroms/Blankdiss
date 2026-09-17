@@ -1,5 +1,5 @@
 """
-Volatility event + FI directional diagnostic.
+Volatility event + FI direction diagnostic.
 Purpose
 -------
 Separate two different questions:
@@ -49,13 +49,7 @@ The diagnostic also reports the realized direction / magnitude
 for 1d, 5d and 20d returns inside the 5d event-risk tail.
 WALK-FORWARD
 ------------
-Uses the project's existing chronological windows:
-    train <= 2023-12-31
-    validation <= 2024-12-31
-    test <= 2025-12-31
-    train <= 2024-12-31
-    validation <= 2025-12-31
-    test <= 2026-12-31
+Uses the project's existing chronological windows.
 No repository files are modified by this diagnostic.
 """
 from __future__ import annotations
@@ -627,106 +621,6 @@ def print_fi_profile(
             f"    {column:<38}"
             f" median={value:.6f}"
         )
-def validate_event_model(
-    validation: pd.DataFrame,
-    feature_columns: list[str],
-) -> tuple[Pipeline, float]:
-    model = fit_event_model(
-        validation["_event_train"],
-        feature_columns,
-    )
-    score = event_scores(
-        model,
-        validation,
-        feature_columns,
-    )
-    auc = safe_auc(
-        validation["target_abs_10pct_5d"],
-        score,
-    )
-    return (
-        model,
-        auc,
-    )
-def select_event_features(
-    train: pd.DataFrame,
-    validation: pd.DataFrame,
-) -> tuple[str, Pipeline, float]:
-    results = []
-    for name, columns in EVENT_FEATURE_SETS.items():
-        missing = [
-            column
-            for column in columns
-            if column not in train.columns
-        ]
-        if missing:
-            continue
-        train_valid = train.dropna(
-            subset=columns
-        ).copy()
-        validation_valid = validation.dropna(
-            subset=columns
-        ).copy()
-        if len(train_valid) < 100:
-            continue
-        model = fit_event_model(
-            train_valid,
-            columns,
-        )
-        score = event_scores(
-            model,
-            validation_valid,
-            columns,
-        )
-        auc = safe_auc(
-            validation_valid[
-                "target_abs_10pct_5d"
-            ],
-            score,
-        )
-        results.append(
-            (
-                name,
-                model,
-                auc,
-                columns,
-            )
-        )
-    if not results:
-        raise ValueError(
-            "Could not fit any event model."
-        )
-    results.sort(
-        key=lambda item: (
-            -item[2]
-            if np.isfinite(item[2])
-            else np.inf
-        )
-    )
-    name, model, auc, _ = results[0]
-    print()
-    print(
-        "  Event model validation:"
-    )
-    for (
-        result_name,
-        _,
-        result_auc,
-        _,
-    ) in results:
-        print(
-            f"    {result_name:<46}"
-            f"AUC={result_auc:.6f}"
-        )
-    return (
-        name,
-        model,
-        auc,
-    )
-def normalize_windows(
-    windows,
-) -> list:
-    return list(windows)
 def fi_columns_from_original(
     original: pd.DataFrame,
 ) -> list[str]:
@@ -824,63 +718,6 @@ def add_direction_target(
         direction_target(result)
     )
     return result
-def evaluate_direction_model(
-    train_events: pd.DataFrame,
-    test_tail: pd.DataFrame,
-    feature_columns: list[str],
-    label: str,
-) -> dict[str, float]:
-    model = fit_direction_model(
-        train_events,
-        feature_columns,
-    )
-    if model is None:
-        return {
-            "label": label,
-            "auc": float("nan"),
-            "accuracy": float("nan"),
-            "n": 0,
-        }
-    score = direction_score(
-        model,
-        test_tail,
-        feature_columns,
-    )
-    valid = (
-        test_tail["direction_target"]
-        .notna()
-        & score.notna()
-    )
-    if valid.sum() == 0:
-        return {
-            "label": label,
-            "auc": float("nan"),
-            "accuracy": float("nan"),
-            "n": 0,
-        }
-    auc = safe_auc(
-        test_tail.loc[
-            valid,
-            "direction_target",
-        ],
-        score.loc[valid],
-    )
-    predictions = (
-        score.loc[valid] >= 0.5
-    ).astype(int)
-    accuracy = accuracy_score(
-        test_tail.loc[
-            valid,
-            "direction_target",
-        ],
-        predictions,
-    )
-    return {
-        "label": label,
-        "auc": float(auc),
-        "accuracy": float(accuracy),
-        "n": int(valid.sum()),
-    }
 def add_event_interactions(
     frame: pd.DataFrame,
     event_score_column: str,
@@ -997,18 +834,45 @@ def print_top_fi_direction(
 ) -> None:
     rows = []
     for column in fi_columns:
-        train_values = pd.to_numeric(
-            train_events[column],
+        raw_values = train_events[column]
+        # A boolean feature cannot be passed directly to
+        # Series.quantile() because NumPy may attempt boolean
+        # subtraction during interpolation.
+        #
+        # For binary/state features we therefore test the
+        # positive state directly instead of inventing a
+        # percentile threshold.
+        numeric_values = pd.to_numeric(
+            raw_values,
             errors="coerce",
         )
-        if train_values.notna().sum() < 100:
+        if numeric_values.notna().sum() < 100:
             continue
-        threshold = train_values.quantile(
-            0.95
+        unique_values = (
+            numeric_values
+            .dropna()
+            .unique()
         )
-        selected_train = train_events.loc[
-            train_values >= threshold
-        ].copy()
+        unique_values = np.sort(
+            unique_values
+        )
+        if len(unique_values) <= 2:
+            if len(unique_values) == 1:
+                positive_value = unique_values[0]
+            else:
+                positive_value = unique_values[-1]
+            selected_train = train_events.loc[
+                numeric_values == positive_value
+            ].copy()
+        else:
+            # Quantile is now calculated on a real numeric
+            # Series, never on bool/object values.
+            threshold = numeric_values.quantile(
+                0.95
+            )
+            selected_train = train_events.loc[
+                numeric_values >= threshold
+            ].copy()
         if len(selected_train) < 50:
             continue
         model = fit_direction_model(
@@ -1040,6 +904,7 @@ def print_top_fi_direction(
             (
                 column,
                 auc,
+                len(selected_train),
             )
         )
     rows.sort(
@@ -1053,10 +918,11 @@ def print_top_fi_direction(
     print(
         "  Individual FI feature direction screen:"
     )
-    for column, auc in rows[:15]:
+    for column, auc, train_count in rows[:15]:
         print(
             f"    {column:<40}"
             f"AUC={auc:.6f}"
+            f" train={train_count:,}"
         )
 def evaluate_window(
     original: pd.DataFrame,
@@ -1143,10 +1009,6 @@ def evaluate_window(
             "Not enough training rows."
         )
         return
-    selected_name = None
-    selected_columns = None
-    selected_model = None
-    selected_auc = float("nan")
     event_results = []
     for name, columns in EVENT_FEATURE_SETS.items():
         if any(
@@ -1607,6 +1469,10 @@ def print_data_summary(
         f"up10 base rate:"
         f" {data['target_up_10pct_5d'].mean():.4f}"
     )
+def normalize_windows(
+    windows,
+) -> list:
+    return list(windows)
 def main() -> None:
     print(
         "=" * 80
