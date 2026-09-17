@@ -1,5 +1,3 @@
-"""Precomputation and caching for Blankdiss research."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,328 +6,250 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 
-from ml.config import TARGETS, WALK_FORWARD_WINDOWS, TargetConfig
-from ml.dataset import build_target
+from ml.config import TARGETS, WALK_FORWARD_WINDOWS
+from ml.dataset import TargetConfig, build_target
+from ml.research.experiments import Experiment
+from ml.research.signals import build_signal, tail_mask
 
-from .experiments import TAIL_FRACTIONS
-from .signals import build_signal
 
-
-@dataclass(frozen=True)
+@dataclass
 class ResearchCache:
     """
-    Immutable-ish cache of all expensive research preprocessing.
+    Precomputed arrays used by the research matrix.
 
-    Expensive work is deliberately done once:
+    The expensive work is done once here:
+      - signal construction
+      - target construction
+      - cross-sectional ranks / tail masks
+      - walk-forward masks
+      - return arrays used for return statistics
 
-    - signal construction
-    - target construction
-    - cross-sectional ranking
-    - tail masks
-    - walk-forward test masks
-
-    Experiment evaluation then operates primarily on NumPy arrays.
+    Individual experiments should therefore mostly consist of NumPy
+    indexing and metric calculations.
     """
 
     signals: Dict[str, np.ndarray]
     targets: Dict[str, np.ndarray]
-    tail_masks: Dict[tuple[str, str, float], np.ndarray]
-    window_masks: Dict[str, np.ndarray]
+    returns: Dict[str, np.ndarray]
+    tail_masks: Dict[str, np.ndarray]
+    window_masks: Dict[str, Dict[str, np.ndarray]]
     target_configs: Dict[str, TargetConfig]
 
-    @classmethod
-    def build(
-        cls,
-        frame: pd.DataFrame,
-        signal_names: list[str],
-        target_names: list[str],
-    ) -> "ResearchCache":
-        """Build all reusable research state once."""
 
-        target_configs = {
-            target.name: target
-            for target in TARGETS
-        }
-
-        signals: Dict[str, np.ndarray] = {}
-        targets: Dict[str, np.ndarray] = {}
-        tail_masks: Dict[
-            tuple[str, str, float],
-            np.ndarray,
-        ] = {}
-
-        # ---------------------------------------------------------
-        # Signals
-        # ---------------------------------------------------------
-
-        for signal_name in signal_names:
-            signal = build_signal(
-                frame,
-                signal_name,
-            )
-
-            signals[signal_name] = (
-                signal.to_numpy(
-                    dtype=np.float64,
-                    copy=False,
-                )
-            )
-
-        # ---------------------------------------------------------
-        # Targets
-        # ---------------------------------------------------------
-
-        for target_name in target_names:
-            target = target_configs.get(
-                target_name
-            )
-
-            if target is None:
-                raise ValueError(
-                    "Unknown target requested by "
-                    f"research matrix: {target_name}"
-                )
-
-            target_series = build_target(
-                frame,
-                target,
-            )
-
-            targets[target_name] = (
-                target_series.to_numpy(
-                    dtype=np.float64,
-                    copy=False,
-                )
-            )
-
-        # ---------------------------------------------------------
-        # Cross-sectional ranks
-        #
-        # One groupby/rank operation per signal.
-        # Previously this could be repeated for every experiment.
-        # ---------------------------------------------------------
-
-        snapshot_dates = frame[
-            "snapshot_date"
-        ]
-
-        for signal_name, signal in signals.items():
-            rank = _cross_sectional_rank(
-                snapshot_dates,
-                signal,
-            )
-
-            directions = _directions_for_signal(
-                signal_name
-            )
-
-            for direction in directions:
-                for fraction in TAIL_FRACTIONS:
-                    tail_masks[
-                        (
-                            signal_name,
-                            direction,
-                            fraction,
-                        )
-                    ] = _tail_from_rank(
-                        rank,
-                        fraction,
-                        direction,
-                    )
-
-        # ---------------------------------------------------------
-        # Walk-forward test masks
-        #
-        # These are independent of the experiment and therefore
-        # should never be recomputed inside the experiment loop.
-        # ---------------------------------------------------------
-
-        window_masks: Dict[
-            str,
-            np.ndarray,
-        ] = {}
-
-        dates = snapshot_dates.to_numpy()
-
-        for window in WALK_FORWARD_WINDOWS:
-            key = _window_key(
-                window["train_end"],
-                window["validation_end"],
-                window["test_end"],
-            )
-
-            mask = (
-                (dates > np.datetime64(
-                    window["validation_end"]
-                ))
-                & (
-                    dates <= np.datetime64(
-                        window["test_end"]
-                    )
-                )
-            )
-
-            window_masks[key] = mask
-
-        return cls(
-            signals=signals,
-            targets=targets,
-            tail_masks=tail_masks,
-            window_masks=window_masks,
-            target_configs=target_configs,
-        )
-
-    def get_signal(
-        self,
-        signal_name: str,
-    ) -> np.ndarray:
-        return self.signals[signal_name]
-
-    def get_target(
-        self,
-        target_name: str,
-    ) -> np.ndarray:
-        return self.targets[target_name]
-
-    def get_tail_mask(
-        self,
-        signal_name: str,
-        direction: str,
-        fraction: float,
-    ) -> np.ndarray:
-        return self.tail_masks[
-            (
-                signal_name,
-                direction,
-                fraction,
-            )
-        ]
-
-    def get_window_mask(
-        self,
-        train_end: str,
-        validation_end: str,
-        test_end: str,
-    ) -> np.ndarray:
-        return self.window_masks[
-            _window_key(
-                train_end,
-                validation_end,
-                test_end,
-            )
-        ]
-
-    def get_target_config(
-        self,
-        target_name: str,
-    ) -> TargetConfig:
-        return self.target_configs[target_name]
+def _window_name(index: int) -> str:
+    return f"window_{index + 1}"
 
 
-def _cross_sectional_rank(
-    dates: pd.Series,
-    signal: np.ndarray,
-) -> np.ndarray:
+def _build_window_masks(
+    frame: pd.DataFrame,
+) -> Dict[str, Dict[str, np.ndarray]]:
     """
-    Calculate percentile rank within each snapshot date.
+    Build boolean masks for each walk-forward window.
 
-    The operation is intentionally performed once per signal.
+    WalkForwardWindow is a dataclass/object, so its fields must be accessed
+    through attributes rather than dictionary indexing.
     """
+    snapshot_dates = frame["snapshot_date"].to_numpy(dtype="datetime64[ns]")
 
-    valid = np.isfinite(signal)
+    result: Dict[str, Dict[str, np.ndarray]] = {}
 
-    if not valid.any():
-        return np.full(
-            len(signal),
-            np.nan,
-            dtype=np.float64,
+    for index, window in enumerate(WALK_FORWARD_WINDOWS):
+        train_end = np.datetime64(window.train_end)
+        validation_end = np.datetime64(window.validation_end)
+        test_end = np.datetime64(window.test_end)
+
+        train_mask = snapshot_dates <= train_end
+
+        validation_mask = (
+            (snapshot_dates > train_end)
+            & (snapshot_dates <= validation_end)
         )
 
-    working = pd.DataFrame(
-        {
-            "snapshot_date": dates.to_numpy(
-                copy=False
-            )[valid],
-            "signal": signal[valid],
+        test_mask = (
+            (snapshot_dates > validation_end)
+            & (snapshot_dates <= test_end)
+        )
+
+        result[_window_name(index)] = {
+            "train": train_mask,
+            "validation": validation_mask,
+            "test": test_mask,
         }
-    )
-
-    ranked = (
-        working
-        .groupby(
-            "snapshot_date",
-            sort=False,
-            observed=True,
-        )["signal"]
-        .rank(
-            pct=True,
-            method="average",
-        )
-        .to_numpy(
-            dtype=np.float64,
-        )
-    )
-
-    result = np.full(
-        len(signal),
-        np.nan,
-        dtype=np.float64,
-    )
-
-    result[valid] = ranked
 
     return result
 
 
-def _tail_from_rank(
-    rank: np.ndarray,
-    fraction: float,
-    direction: str,
-) -> np.ndarray:
-    if direction == "upper":
-        return np.isfinite(rank) & (
-            rank >= 1.0 - fraction
+def _build_tail_masks(
+    frame: pd.DataFrame,
+    experiments: list[Experiment],
+) -> Dict[str, np.ndarray]:
+    """
+    Build every unique signal/tail combination only once.
+    """
+    result: Dict[str, np.ndarray] = {}
+    seen: set[str] = set()
+
+    for experiment in experiments:
+        key = (
+            f"{experiment.signal_name}|"
+            f"{experiment.tail_direction}|"
+            f"{experiment.tail_fraction}"
         )
 
-    if direction == "lower":
-        return np.isfinite(rank) & (
-            rank <= fraction
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        signal = build_signal(frame, experiment.signal_name)
+
+        result[key] = tail_mask(
+            frame,
+            signal,
+            experiment.tail_fraction,
+            experiment.tail_direction,
         )
 
-    raise ValueError(
-        f"Unsupported tail direction: {direction}"
+    return result
+
+
+def _build_signals(
+    frame: pd.DataFrame,
+    experiments: list[Experiment],
+) -> Dict[str, np.ndarray]:
+    """
+    Build each unique signal exactly once.
+    """
+    signal_names = sorted(
+        {experiment.signal_name for experiment in experiments}
+    )
+
+    return {
+        signal_name: build_signal(frame, signal_name)
+        for signal_name in signal_names
+    }
+
+
+def _build_targets(
+    frame: pd.DataFrame,
+    experiments: list[Experiment],
+) -> tuple[Dict[str, np.ndarray], Dict[str, TargetConfig]]:
+    """
+    Build each unique target exactly once.
+    """
+    target_names = sorted(
+        {experiment.target_name for experiment in experiments}
+    )
+
+    target_configs = {
+        target.name: target
+        for target in TARGETS
+        if target.name in target_names
+    }
+
+    missing = sorted(set(target_names) - set(target_configs))
+
+    if missing:
+        raise ValueError(
+            "Unknown research targets: "
+            + ", ".join(missing)
+        )
+
+    targets: Dict[str, np.ndarray] = {}
+
+    for target_name in target_names:
+        target_config = target_configs[target_name]
+
+        target = build_target(
+            frame,
+            target_config,
+        )
+
+        targets[target_name] = pd.to_numeric(
+            target,
+            errors="coerce",
+        ).to_numpy(dtype=float)
+
+    return targets, target_configs
+
+
+def _build_returns(
+    frame: pd.DataFrame,
+    target_configs: Dict[str, TargetConfig],
+) -> Dict[str, np.ndarray]:
+    """
+    Cache return arrays once per return column.
+
+    Some TargetConfig entries, notably regression targets, may not have
+    a return_column. Those targets simply do not receive a return array.
+    """
+    columns = sorted(
+        {
+            target.return_column
+            for target in target_configs.values()
+            if getattr(target, "return_column", None)
+            and target.return_column in frame.columns
+        }
+    )
+
+    return {
+        column: pd.to_numeric(
+            frame[column],
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        for column in columns
+    }
+
+
+def build_research_cache(
+    frame: pd.DataFrame,
+    experiments: list[Experiment],
+) -> ResearchCache:
+    """
+    Build all reusable research data structures.
+
+    This function is deliberately expensive and should only be called once
+    per research run.
+    """
+    signals = _build_signals(
+        frame,
+        experiments,
+    )
+
+    targets, target_configs = _build_targets(
+        frame,
+        experiments,
+    )
+
+    returns = _build_returns(
+        frame,
+        target_configs,
+    )
+
+    tail_masks = _build_tail_masks(
+        frame,
+        experiments,
+    )
+
+    window_masks = _build_window_masks(
+        frame,
+    )
+
+    return ResearchCache(
+        signals=signals,
+        targets=targets,
+        returns=returns,
+        tail_masks=tail_masks,
+        window_masks=window_masks,
+        target_configs=target_configs,
     )
 
 
-def _directions_for_signal(
-    signal_name: str,
-) -> tuple[str, ...]:
-    """
-    Return all directions actually defined by the research matrix.
-
-    Kept here as a small optimization and consistency check rather
-    than deriving directions independently in multiple places.
-    """
-
-    if signal_name in {
-        "price_momentum_5d",
-        "price_momentum_20d",
-        "price_momentum_60d",
-        "distance_from_20d_high",
-        "distance_from_60d_high",
-    }:
-        return ("upper", "lower")
-
-    return ("upper",)
-
-
-def _window_key(
-    train_end: str,
-    validation_end: str,
-    test_end: str,
+def get_tail_mask_key(
+    experiment: Experiment,
 ) -> str:
     return (
-        f"{train_end}|"
-        f"{validation_end}|"
-        f"{test_end}"
+        f"{experiment.signal_name}|"
+        f"{experiment.tail_direction}|"
+        f"{experiment.tail_fraction}"
     )
