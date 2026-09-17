@@ -1,17 +1,15 @@
 """
 Blankdiss volatility regime gate diagnostic.
-Tests whether a volatility-dependent model gate improves the
-economic OOS ranking compared with:
+Tests whether a volatility-dependent model gate improves economic
+OOS ranking compared with:
     1. FI-only everywhere.
     2. FI + volatility everywhere.
-    3. LOW -> FI, MID -> validation-selected, HIGH -> FI+VOL.
-    4. LOW -> FI, MID -> FI+VOL, HIGH -> FI+VOL.
+    3. LOW -> FI, MID -> validation-selected, HIGH -> VOL.
+    4. LOW -> FI, MID -> VOL, HIGH -> VOL.
 IMPORTANT:
-    Regime selection is performed using validation data only.
-    Test/OOS data is never used to decide which model to use.
-The volatility regime boundaries are also learned from the training
-period and then applied unchanged to validation and test data.
-This avoids look-ahead leakage.
+    Regime boundaries are learned from TRAINING data only.
+    Regime model selection is performed on VALIDATION data only.
+    TEST/OOS data is never used to decide the gate.
 No repository files are modified by this script.
 """
 from __future__ import annotations
@@ -63,7 +61,7 @@ def build_benchmark_models(
     task: str = "classification",
 ):
     """
-    Build the normal Blankdiss model set while forcing RF benchmark
+    Build the normal Blankdiss model set while forcing the RF benchmark
     configuration.
     """
     models = original_build_models(
@@ -114,6 +112,15 @@ def safe_auc(
             scores,
         )
     )
+def make_target(
+    target_return: pd.Series,
+):
+    """
+    Economic target matching down_5pct_5d.
+    """
+    return (
+        target_return <= -0.05
+    ).astype(int)
 def calculate_top_metrics(
     frame: pd.DataFrame,
     score_column: str,
@@ -197,94 +204,107 @@ def print_top_metrics(
             f"mean={metrics['mean_return']:.4%} "
             f"median={metrics['median_return']:.4%}"
         )
-def make_target(
-    target_return: pd.Series,
+# ============================================================================
+# Volatility metadata
+# ============================================================================
+def build_volatility_lookup(
+    feature_df: pd.DataFrame,
 ):
     """
-    Economic target matching down_5pct_5d.
+    Build a standalone volatility lookup.
+    Volatility is deliberately kept outside the FI feature matrix.
+    This allows FI-only to remain exactly 28 features while still
+    providing volatility information for regime assignment.
     """
-    return (
-        target_return <= -0.05
-    ).astype(int)
-# ============================================================================
-# Source features
-# ============================================================================
-def attach_source_features(
-    frame: pd.DataFrame,
-    source: pd.DataFrame,
-):
-    """
-    Attach raw volatility and FI source features.
-    The volatility feature is intentionally sourced from the
-    FI+volatility dataframe because FI-only does not contain it.
-    """
-    columns = [
+    required = [
         "snapshot_date",
         "security_key",
-        "price_volatility_20d",
-        "short_interest_pct",
+        VOLATILITY_FEATURE,
     ]
     missing = [
         column
-        for column in columns
-        if column not in source.columns
+        for column in required
+        if column not in feature_df.columns
     ]
     if missing:
         raise KeyError(
-            "Source feature frame is missing columns: "
+            "Feature dataframe is missing volatility columns: "
             f"{missing}"
         )
-    source_frame = source[
-        columns
+    lookup = feature_df[
+        required
     ].copy()
-    source_frame["snapshot_date"] = pd.to_datetime(
-        source_frame["snapshot_date"],
+    lookup["snapshot_date"] = pd.to_datetime(
+        lookup["snapshot_date"],
         errors="coerce",
     )
-    source_frame["security_key"] = (
-        source_frame["security_key"].astype(str)
+    lookup["security_key"] = (
+        lookup["security_key"]
+        .astype(str)
     )
-    source_frame = source_frame.drop_duplicates(
+    lookup[
+        VOLATILITY_FEATURE
+    ] = pd.to_numeric(
+        lookup[
+            VOLATILITY_FEATURE
+        ],
+        errors="coerce",
+    )
+    lookup = lookup.drop_duplicates(
         subset=[
             "snapshot_date",
             "security_key",
         ],
         keep="last",
     )
+    return lookup
+def attach_volatility(
+    frame: pd.DataFrame,
+    volatility_lookup: pd.DataFrame,
+):
+    """
+    Attach volatility metadata to an ML result frame.
+    This is metadata only; it is not used as an input feature here.
+    """
     result = frame.copy()
     result["snapshot_date"] = pd.to_datetime(
         result["snapshot_date"],
         errors="coerce",
     )
     result["security_key"] = (
-        result["security_key"].astype(str)
+        result["security_key"]
+        .astype(str)
     )
     return result.merge(
-        source_frame,
+        volatility_lookup,
         on=[
             "snapshot_date",
             "security_key",
         ],
         how="left",
+        validate="one_to_one",
     )
 # ============================================================================
-# Model training for one feature set
+# Training
 # ============================================================================
 def train_feature_set_window(
     ml_data: pd.DataFrame,
     y: pd.Series,
     feature_columns: list[str],
     window,
+    volatility_lookup: pd.DataFrame,
 ):
     """
-    Train all candidate models for one feature set and one
-    walk-forward window.
+    Train all candidate models for one feature set and one walk-forward
+    window.
+    Volatility is passed separately as metadata and is NOT required to
+    exist in ml_data.
     Returns:
         selected model
         validation predictions
         test predictions
-        validation data
-        test data
+        validation frame
+        test frame
         validation score
         timing
     """
@@ -309,9 +329,15 @@ def train_feature_set_window(
         test_mask,
         feature_columns,
     ]
-    y_train = y.loc[train_mask]
-    y_validation = y.loc[validation_mask]
-    y_test = y.loc[test_mask]
+    y_train = y.loc[
+        train_mask
+    ]
+    y_validation = y.loc[
+        validation_mask
+    ]
+    y_test = y.loc[
+        test_mask
+    ]
     if (
         len(train) == 0
         or len(validation) == 0
@@ -359,7 +385,9 @@ def train_feature_set_window(
             time.perf_counter()
             - fit_start
         )
-        validation_start = time.perf_counter()
+        validation_start = (
+            time.perf_counter()
+        )
         validation_predictions = (
             model.predict_proba(
                 validation
@@ -395,6 +423,10 @@ def train_feature_set_window(
         ),
         reverse=True,
     )
+    if not trained_models:
+        raise RuntimeError(
+            "No trained models."
+        )
     selected = trained_models[0]
     test_predictions = (
         selected["model"].predict_proba(
@@ -421,12 +453,6 @@ def train_feature_set_window(
     ] = selected[
         "validation_predictions"
     ]
-    validation_frame[
-        "price_volatility_20d"
-    ] = ml_data.loc[
-        validation_mask,
-        VOLATILITY_FEATURE,
-    ].to_numpy()
     test_frame = ml_data.loc[
         test_mask,
         [
@@ -445,12 +471,15 @@ def train_feature_set_window(
     test_frame[
         "prediction"
     ] = test_predictions
-    test_frame[
-        "price_volatility_20d"
-    ] = ml_data.loc[
-        test_mask,
-        VOLATILITY_FEATURE,
-    ].to_numpy()
+    # Volatility is joined as metadata only.
+    validation_frame = attach_volatility(
+        validation_frame,
+        volatility_lookup,
+    )
+    test_frame = attach_volatility(
+        test_frame,
+        volatility_lookup,
+    )
     return {
         "selected_model": selected[
             "name"
@@ -474,8 +503,6 @@ def calculate_training_regime_boundaries(
 ):
     """
     Calculate LOW/MID/HIGH boundaries from training data only.
-    This is critical: validation/test data must not influence
-    the regime boundaries.
     """
     values = pd.to_numeric(
         train_volatility,
@@ -521,9 +548,8 @@ def select_regime_gate(
     q2: float,
 ):
     """
-    Select FI or FI+VOL separately for each regime using
-    validation AUC only.
-    The returned gate is then frozen for OOS.
+    Select FI or FI+VOL separately for each regime using validation AUC.
+    The resulting gate is frozen before OOS is evaluated.
     """
     fi = fi_validation[
         [
@@ -531,7 +557,7 @@ def select_regime_gate(
             "security_key",
             "target_return",
             "target",
-            "price_volatility_20d",
+            VOLATILITY_FEATURE,
             "prediction",
         ]
     ].rename(
@@ -545,7 +571,6 @@ def select_regime_gate(
             "security_key",
             "target_return",
             "target",
-            "price_volatility_20d",
             "prediction",
         ]
     ].rename(
@@ -559,13 +584,15 @@ def select_regime_gate(
             "snapshot_date",
             "security_key",
         ],
+        how="inner",
         suffixes=(
             "_fi",
             "_vol",
         ),
+        validate="one_to_one",
     )
     merged["regime"] = merged[
-        "price_volatility_fi"
+        VOLATILITY_FEATURE
     ].apply(
         lambda value: assign_regime(
             value,
@@ -609,6 +636,7 @@ def select_regime_gate(
         gate[regime] = selected
         print(
             f"  {regime}: "
+            f"rows={len(subset):,} "
             f"FI AUC={fi_auc:.6f} | "
             f"FI+VOL AUC={vol_auc:.6f} | "
             f"selected={selected}"
@@ -634,7 +662,7 @@ def apply_strategy(
             "security_key",
             "target_return",
             "target",
-            "price_volatility_20d",
+            VOLATILITY_FEATURE,
             "prediction",
         ]
     ].rename(
@@ -648,7 +676,6 @@ def apply_strategy(
             "security_key",
             "target_return",
             "target",
-            "price_volatility_20d",
             "prediction",
         ]
     ].rename(
@@ -662,10 +689,12 @@ def apply_strategy(
             "snapshot_date",
             "security_key",
         ],
+        how="inner",
         suffixes=(
             "_fi",
             "_vol",
         ),
+        validate="one_to_one",
     )
     target_difference = (
         merged["target_return_fi"]
@@ -686,7 +715,7 @@ def apply_strategy(
         "target_return_fi"
     ]
     merged["regime"] = merged[
-        "price_volatility_fi"
+        VOLATILITY_FEATURE
     ].apply(
         lambda value: assign_regime(
             value,
@@ -707,17 +736,13 @@ def apply_strategy(
             "FI+VOL"
         )
     elif strategy == "gate_validation":
-        def choose_validation(
-            regime
-        ):
-            return gate.get(
-                regime,
-                "fi",
-            )
         selected = merged[
             "regime"
         ].map(
-            choose_validation
+            lambda regime: gate.get(
+                regime,
+                "fi",
+            )
         )
         merged["score"] = np.where(
             selected == "vol",
@@ -756,14 +781,14 @@ def apply_strategy(
             "security_key",
             "target_return",
             "target",
-            "price_volatility_fi",
+            VOLATILITY_FEATURE,
             "regime",
             "score",
             "chosen_model",
         ]
     ].copy()
 # ============================================================================
-# Strategy summary
+# Output
 # ============================================================================
 def print_strategy_metrics(
     frame: pd.DataFrame,
@@ -802,37 +827,28 @@ def print_regime_usage(
     frame: pd.DataFrame,
 ):
     """
-    Show how many OOS rows each gated model handled.
+    Show model usage for gated strategies.
     """
-    counts = (
-        frame[
-            "chosen_model"
-        ]
-        .value_counts()
-    )
     print(
         "  Model usage:"
     )
-    for model_name in [
-        "FI",
-        "FI+VOL",
-    ]:
-        count = int(
-            counts.get(
-                model_name,
-                0,
-            )
+    usage = (
+        frame.groupby(
+            [
+                "regime",
+                "chosen_model",
+            ]
         )
-        fraction = (
-            count / len(frame)
-            if len(frame)
-            else np.nan
+        .size()
+        .reset_index(
+            name="rows"
         )
-        print(
-            f"    {model_name}: "
-            f"{count:,} "
-            f"({fraction:.1%})"
+    )
+    print(
+        usage.to_string(
+            index=False
         )
+    )
 def print_regime_strategy_metrics(
     frame: pd.DataFrame,
 ):
@@ -863,7 +879,9 @@ def print_regime_strategy_metrics(
 # ============================================================================
 def main():
     print("=" * 100)
-    print("BLANKDISS VOLATILITY REGIME GATE DIAGNOSTIC")
+    print(
+        "BLANKDISS VOLATILITY REGIME GATE DIAGNOSTIC"
+    )
     print("=" * 100)
     print(
         f"RF trees: {BENCHMARK_TREES}"
@@ -896,7 +914,7 @@ def main():
         "  4. LOW=FI, MID=VOL, HIGH=VOL"
     )
     # ------------------------------------------------------------------
-    # Load features
+    # Load feature data
     # ------------------------------------------------------------------
     print()
     print(
@@ -906,6 +924,16 @@ def main():
     print(
         f"Feature rows: "
         f"{len(feature_df):,}"
+    )
+    # ------------------------------------------------------------------
+    # Build standalone volatility lookup.
+    #
+    # This is deliberately independent from the FI-only feature matrix.
+    # ------------------------------------------------------------------
+    volatility_lookup = (
+        build_volatility_lookup(
+            feature_df
+        )
     )
     # ------------------------------------------------------------------
     # Build exact feature sets
@@ -929,6 +957,14 @@ def main():
                 VOLATILITY_FEATURE,
             },
         )
+    )
+    print(
+        f"FI-only features: "
+        f"{len(fi_columns)}"
+    )
+    print(
+        f"FI+volatility features: "
+        f"{len(vol_columns)}"
     )
     # ------------------------------------------------------------------
     # Target
@@ -989,24 +1025,56 @@ def main():
         # --------------------------------------------------------------
         # Training volatility boundaries.
         #
-        # Boundaries come from training only.
+        # IMPORTANT:
+        # These boundaries are calculated ONLY from training rows.
         # --------------------------------------------------------------
         (
             train_mask,
-            validation_mask,
-            test_mask,
+            _,
+            _,
         ) = walk_forward._split(
             vol_ml_data,
             vol_y,
             window,
         )
-        train_volatility = vol_ml_data.loc[
+        train_keys = vol_ml_data.loc[
             train_mask,
-            VOLATILITY_FEATURE,
-        ]
+            [
+                "snapshot_date",
+                "security_key",
+            ],
+        ].copy()
+        train_keys[
+            "snapshot_date"
+        ] = pd.to_datetime(
+            train_keys[
+                "snapshot_date"
+            ]
+        )
+        train_keys[
+            "security_key"
+        ] = (
+            train_keys[
+                "security_key"
+            ]
+            .astype(str)
+        )
+        training_volatility = (
+            train_keys.merge(
+                volatility_lookup,
+                on=[
+                    "snapshot_date",
+                    "security_key",
+                ],
+                how="left",
+                validate="one_to_one",
+            )[
+                VOLATILITY_FEATURE
+            ]
+        )
         q1, q2 = (
             calculate_training_regime_boundaries(
-                train_volatility
+                training_volatility
             )
         )
         print()
@@ -1023,7 +1091,7 @@ def main():
             f"  HIGH > {q2:.6f}"
         )
         # --------------------------------------------------------------
-        # FI model
+        # FI-only
         # --------------------------------------------------------------
         fi_start = time.perf_counter()
         fi_result = train_feature_set_window(
@@ -1031,6 +1099,7 @@ def main():
             fi_y,
             fi_feature_columns,
             window,
+            volatility_lookup,
         )
         fi_seconds = (
             time.perf_counter()
@@ -1053,7 +1122,7 @@ def main():
             f"{fi_seconds:.2f}s"
         )
         # --------------------------------------------------------------
-        # FI + volatility model
+        # FI + volatility
         # --------------------------------------------------------------
         vol_start = time.perf_counter()
         vol_result = train_feature_set_window(
@@ -1061,6 +1130,7 @@ def main():
             vol_y,
             vol_feature_columns,
             window,
+            volatility_lookup,
         )
         vol_seconds = (
             time.perf_counter()
@@ -1092,7 +1162,7 @@ def main():
             q2,
         )
         # --------------------------------------------------------------
-        # Apply four strategies to this window's OOS test.
+        # Apply strategies to OOS
         # --------------------------------------------------------------
         for strategy in STRATEGIES:
             result = apply_strategy(
@@ -1125,18 +1195,24 @@ def main():
             "Window strategy results:"
         )
         for strategy in STRATEGIES:
-            result = all_strategy_results[
-                strategy
-            ][-1]
-            print()
+            result = (
+                all_strategy_results[
+                    strategy
+                ][-1]
+            )
+            top1 = calculate_top_metrics(
+                result,
+                "score",
+                0.01,
+            )
             print(
                 f"  {strategy}: "
                 f"AUC="
                 f"{safe_auc(result['target'], result['score']):.6f} "
                 f"top1="
-                f"{calculate_top_metrics(result, 'score', 0.01)['event_rate']:.4f} "
+                f"{top1['event_rate']:.4f} "
                 f"mean="
-                f"{calculate_top_metrics(result, 'score', 0.01)['mean_return']:.4%}"
+                f"{top1['mean_return']:.4%}"
             )
         print()
         print(
@@ -1148,7 +1224,9 @@ def main():
     # ------------------------------------------------------------------
     print()
     print("=" * 100)
-    print("COMBINED OOS RESULTS")
+    print(
+        "COMBINED OOS RESULTS"
+    )
     print("=" * 100)
     combined = {}
     for strategy in STRATEGIES:
@@ -1159,7 +1237,7 @@ def main():
             ignore_index=True,
         )
     # ------------------------------------------------------------------
-    # Overall comparison
+    # Overall strategy metrics
     # ------------------------------------------------------------------
     for strategy in STRATEGIES:
         frame = combined[
@@ -1187,21 +1265,43 @@ def main():
                 frame
             )
     # ------------------------------------------------------------------
-    # Direct comparison table
+    # Direct comparison
     # ------------------------------------------------------------------
     print()
     print("=" * 100)
-    print("STRATEGY COMPARISON")
+    print(
+        "STRATEGY COMPARISON"
+    )
     print("=" * 100)
     rows = []
     for strategy in STRATEGIES:
         frame = combined[
             strategy
         ]
-        top_metrics = calculate_top_metrics(
+        top01 = calculate_top_metrics(
+            frame,
+            "score",
+            0.001,
+        )
+        top05 = calculate_top_metrics(
+            frame,
+            "score",
+            0.005,
+        )
+        top1 = calculate_top_metrics(
             frame,
             "score",
             0.01,
+        )
+        top2 = calculate_top_metrics(
+            frame,
+            "score",
+            0.02,
+        )
+        top5 = calculate_top_metrics(
+            frame,
+            "score",
+            0.05,
         )
         rows.append(
             {
@@ -1212,52 +1312,28 @@ def main():
                     frame["score"],
                 ),
                 "top_0.1_event": (
-                    calculate_top_metrics(
-                        frame,
-                        "score",
-                        0.001,
-                    )["event_rate"]
+                    top01["event_rate"]
                 ),
                 "top_0.5_event": (
-                    calculate_top_metrics(
-                        frame,
-                        "score",
-                        0.005,
-                    )["event_rate"]
+                    top05["event_rate"]
                 ),
                 "top_1_event": (
-                    top_metrics[
-                        "event_rate"
-                    ]
+                    top1["event_rate"]
                 ),
                 "top_1_lift": (
-                    top_metrics[
-                        "lift"
-                    ]
+                    top1["lift"]
                 ),
                 "top_1_mean_return": (
-                    top_metrics[
-                        "mean_return"
-                    ]
+                    top1["mean_return"]
                 ),
                 "top_1_median_return": (
-                    top_metrics[
-                        "median_return"
-                    ]
+                    top1["median_return"]
                 ),
                 "top_2_mean_return": (
-                    calculate_top_metrics(
-                        frame,
-                        "score",
-                        0.02,
-                    )["mean_return"]
+                    top2["mean_return"]
                 ),
                 "top_5_mean_return": (
-                    calculate_top_metrics(
-                        frame,
-                        "score",
-                        0.05,
-                    )["mean_return"]
+                    top5["mean_return"]
                 ),
             }
         )
@@ -1273,11 +1349,13 @@ def main():
         )
     )
     # ------------------------------------------------------------------
-    # Gate selection consistency
+    # Gate usage
     # ------------------------------------------------------------------
     print()
     print("=" * 100)
-    print("REGIME GATE MODEL USAGE")
+    print(
+        "REGIME GATE MODEL USAGE"
+    )
     print("=" * 100)
     for strategy in (
         "gate_validation",
@@ -1308,11 +1386,13 @@ def main():
             )
         )
     # ------------------------------------------------------------------
-    # Per-window strategy comparison
+    # Per-window comparison
     # ------------------------------------------------------------------
     print()
     print("=" * 100)
-    print("PER-WINDOW STRATEGY COMPARISON")
+    print(
+        "PER-WINDOW STRATEGY COMPARISON"
+    )
     print("=" * 100)
     window_rows = []
     for window_index in range(
@@ -1332,6 +1412,11 @@ def main():
                 ]
                 == window_index
             ]
+            top1 = calculate_top_metrics(
+                subset,
+                "score",
+                0.01,
+            )
             row[
                 f"{strategy}_auc"
             ] = safe_auc(
@@ -1340,11 +1425,7 @@ def main():
             )
             row[
                 f"{strategy}_top1_mean"
-            ] = calculate_top_metrics(
-                subset,
-                "score",
-                0.01,
-            )[
+            ] = top1[
                 "mean_return"
             ]
         window_rows.append(
@@ -1366,7 +1447,9 @@ def main():
     # ------------------------------------------------------------------
     print()
     print("=" * 100)
-    print("RUNTIME")
+    print(
+        "RUNTIME"
+    )
     print("=" * 100)
     print(
         f"Total: "
@@ -1374,7 +1457,9 @@ def main():
     )
     print()
     print("=" * 100)
-    print("DIAGNOSTIC COMPLETE")
+    print(
+        "DIAGNOSTIC COMPLETE"
+    )
     print("=" * 100)
 if __name__ == "__main__":
     main()
