@@ -1,5 +1,8 @@
+"""Fast NumPy-based evaluation of Blankdiss research experiments."""
+
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict
 from typing import Any
 
@@ -10,8 +13,8 @@ from sklearn.metrics import roc_auc_score
 from ml.config import RANDOM_STATE, TEST_MIN_ROWS
 
 from .bootstrap import bootstrap_mean_difference
-from .experiments import Experiment
 from .cache import ResearchCache
+from .experiments import Experiment
 
 
 def evaluate_experiment(
@@ -24,17 +27,17 @@ def evaluate_experiment(
     test_end: str,
 ) -> dict[str, Any]:
     """
-    Evaluate one experiment on one walk-forward window.
+    Evaluate one experiment on one OOS test window.
 
-    Only the OOS/test period is evaluated here.
+    Heavy pandas operations have already been performed by the cache.
     """
-
-    target = cache.get_target(
-        experiment.target_name
-    )
 
     signal = cache.get_signal(
         experiment.signal_name
+    )
+
+    target = cache.get_target(
+        experiment.target_name
     )
 
     tail_mask = cache.get_tail_mask(
@@ -43,80 +46,86 @@ def evaluate_experiment(
         experiment.tail_fraction,
     )
 
-    test_period = (
-        (frame["snapshot_date"] > validation_end)
-        & (frame["snapshot_date"] <= test_end)
+    test_mask = cache.get_window_mask(
+        train_end,
+        validation_end,
+        test_end,
     )
+
+    # ------------------------------------------------------------
+    # Valid observations
+    # ------------------------------------------------------------
 
     valid = (
-        test_period
-        & signal.notna()
-        & target.notna()
+        test_mask
+        & np.isfinite(signal)
+        & np.isfinite(target)
     )
 
-    if valid.sum() < TEST_MIN_ROWS:
+    n_total = int(valid.sum())
+
+    base_result = {
+        **asdict(experiment),
+        "train_end": train_end,
+        "validation_end": validation_end,
+        "test_end": test_end,
+    }
+
+    if n_total < TEST_MIN_ROWS:
         return {
-            **asdict(experiment),
-            "train_end": train_end,
-            "validation_end": validation_end,
-            "test_end": test_end,
+            **base_result,
             "status": "INSUFFICIENT_DATA",
-            "n": int(valid.sum()),
+            "n": n_total,
         }
 
-    signal_values = signal.loc[valid]
-    target_values = target.loc[valid]
-    tail_values = tail_mask.loc[valid]
-
-    # ------------------------------------------------------------
-    # Classification metrics
-    # ------------------------------------------------------------
-
-    auc = None
-
-    unique_targets = target_values.nunique()
-
-    if unique_targets >= 2:
-        try:
-            auc = float(
-                roc_auc_score(
-                    target_values.astype(int),
-                    signal_values,
-                )
-            )
-        except ValueError:
-            auc = None
-
-    baseline = float(target_values.mean())
-
-    selected = tail_values.astype(bool)
+    signal_values = signal[valid]
+    target_values = target[valid]
+    selected = tail_mask[valid]
 
     n_tail = int(selected.sum())
-    n_total = int(len(selected))
 
     if n_tail == 0 or n_tail == n_total:
         return {
-            **asdict(experiment),
-            "train_end": train_end,
-            "validation_end": validation_end,
-            "test_end": test_end,
+            **base_result,
             "status": "INSUFFICIENT_TAIL",
             "n": n_total,
             "n_tail": n_tail,
-            "auc": auc,
-            "baseline": baseline,
         }
 
-    tail_target = target_values.loc[selected]
-    rest_target = target_values.loc[~selected]
+    # ------------------------------------------------------------
+    # AUC
+    #
+    # For lower-tail experiments, invert the signal so that
+    # increasing score always means "more of the tested tail".
+    # ------------------------------------------------------------
 
-    hit_rate = float(tail_target.mean())
+    auc = _calculate_auc(
+        signal_values,
+        target_values,
+        experiment.tail_direction,
+    )
+
+    baseline = float(
+        np.mean(target_values)
+    )
+
+    tail_target = target_values[selected]
+
+    hit_rate = float(
+        np.mean(tail_target)
+    )
+
+    lift = (
+        hit_rate / baseline
+        if baseline != 0
+        else None
+    )
 
     # ------------------------------------------------------------
     # Returns
     # ------------------------------------------------------------
 
-    return_column = _return_column_for_target(
+    target_config = cache.get_target_config(
         experiment.target_name
     )
 
@@ -126,36 +135,49 @@ def evaluate_experiment(
     ci_lower = None
     ci_upper = None
 
+    return_column = target_config.return_column
+
     if return_column in frame.columns:
-        returns = frame.loc[
-            valid,
-            return_column,
-        ].astype(float)
+        returns = pd.to_numeric(
+            frame[return_column],
+            errors="coerce",
+        ).to_numpy(
+            dtype=np.float64,
+            copy=False,
+        )
 
-        finite = returns.notna()
+        returns = returns[valid]
 
-        returns = returns.loc[finite]
-        selected_returns = tail_values.loc[
-            returns.index
-        ].astype(bool)
+        return_valid = np.isfinite(
+            returns
+        )
 
-        tail_returns = returns.loc[
-            selected_returns
-        ].to_numpy()
+        returns = returns[return_valid]
+        return_selected = selected[
+            return_valid
+        ]
 
-        rest_returns = returns.loc[
-            ~selected_returns
-        ].to_numpy()
+        tail_returns = returns[
+            return_selected
+        ]
+
+        rest_returns = returns[
+            ~return_selected
+        ]
 
         if len(tail_returns):
             mean_return = float(
                 np.mean(tail_returns)
             )
+
             median_return = float(
                 np.median(tail_returns)
             )
 
-        if len(tail_returns) and len(rest_returns):
+        if (
+            len(tail_returns)
+            and len(rest_returns)
+        ):
             return_difference = float(
                 np.mean(tail_returns)
                 - np.mean(rest_returns)
@@ -172,11 +194,6 @@ def evaluate_experiment(
                 )
             )
 
-    lift = None
-
-    if baseline != 0:
-        lift = hit_rate / baseline
-
     status = classify_result(
         auc=auc,
         baseline=baseline,
@@ -188,10 +205,7 @@ def evaluate_experiment(
     )
 
     return {
-        **asdict(experiment),
-        "train_end": train_end,
-        "validation_end": validation_end,
-        "test_end": test_end,
+        **base_result,
         "status": status,
         "n": n_total,
         "n_tail": n_tail,
@@ -207,6 +221,31 @@ def evaluate_experiment(
     }
 
 
+def _calculate_auc(
+    signal: np.ndarray,
+    target: np.ndarray,
+    direction: str,
+) -> float | None:
+    if np.unique(target).size < 2:
+        return None
+
+    score = (
+        signal
+        if direction == "upper"
+        else -signal
+    )
+
+    try:
+        return float(
+            roc_auc_score(
+                target.astype(np.int8),
+                score,
+            )
+        )
+    except ValueError:
+        return None
+
+
 def classify_result(
     *,
     auc: float | None,
@@ -218,10 +257,9 @@ def classify_result(
     n_tail: int,
 ) -> str:
     """
-    Descriptive classification only.
+    Descriptive research status.
 
-    These labels describe research behavior and are not investment
-    recommendations.
+    These labels are not investment recommendations.
     """
 
     if n_tail < 20:
@@ -254,29 +292,29 @@ def classify_result(
     return "NO_SIGNAL"
 
 
-def _return_column_for_target(
-    target_name: str,
-) -> str:
-    if target_name.endswith("_5d"):
-        return "max_return_5d"
-
-    if target_name.endswith("_20d"):
-        return "max_return_20d"
-
-    if target_name.endswith("_60d"):
-        return "max_return_60d"
-
-    return "max_return_5d"
-
-
 def _experiment_seed(
     experiment_id: str,
     train_end: str,
 ) -> int:
+    """
+    Stable seed across Python processes and CI runs.
+
+    Do not use Python's built-in hash() here because hash randomization
+    can produce different values between processes.
+    """
+
     value = (
         f"{RANDOM_STATE}:"
         f"{experiment_id}:"
         f"{train_end}"
-    )
+    ).encode("utf-8")
 
-    return abs(hash(value)) % (2**32)
+    digest = hashlib.sha256(
+        value
+    ).digest()
+
+    return int.from_bytes(
+        digest[:8],
+        byteorder="little",
+        signed=False,
+    ) % (2**32)
