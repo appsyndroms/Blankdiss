@@ -2,7 +2,7 @@
 Volatility directional / tail diagnostic.
 The model is trained only on:
     down_5pct_5d
-The resulting OOS ranking is evaluated against several outcomes:
+The resulting OOS ranking is evaluated against:
     down_5pct_5d
     up_5pct_5d
     abs_5pct_5d
@@ -21,10 +21,8 @@ The diagnostic also checks:
     - calendar-year stability
     - walk-forward-window stability
     - top-tail return distributions
-The actual walk-forward implementation from ml.walk_forward is used.
-Only the logistic-regression model is allowed during model selection.
-The OOS rows are therefore the real test-period predictions from the
-repository's existing walk-forward machinery.
+The repository's existing walk-forward implementation is used.
+Only logistic regression is exposed during model selection.
 """
 from __future__ import annotations
 import time
@@ -175,13 +173,8 @@ def add_volatility_features(
     prices: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Add 60d realised volatility and derived volatility controls.
-    VOL60 uses exactly the same principle as the existing VOL20 feature:
-        daily pct_change()
-        rolling std over 59 returns
-    The resulting value is aligned to the price observation date and then
-    matched to the already-built feature dataset through:
-        yahoo_symbol + price_date
+    Add 60d realised volatility and derived controls.
+    VOL60 uses 59 daily returns, corresponding to 60 price observations.
     """
     prices = prices[
         [
@@ -266,8 +259,7 @@ def add_analysis_targets(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Build diagnostic targets from the existing forward_return_5d.
-    These are evaluation targets only.
+    Create evaluation-only targets from forward_return_5d.
     The model itself is always trained on down_5pct_5d.
     """
     data = data.copy()
@@ -321,7 +313,7 @@ def build_ml_dataset(
     target,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
-    Build the dataset expected by ml.walk_forward.train_window.
+    Build the dataframe expected by train_window().
     """
     required_columns = [
         "snapshot_date",
@@ -384,8 +376,7 @@ def logistic_only_models(
     task: str = "classification",
 ):
     """
-    Reuse the repository's model construction but expose only logistic
-    regression to train_window.
+    Reuse repository model construction but expose only logistic regression.
     """
     models = build_models(
         random_state=random_state,
@@ -408,11 +399,8 @@ def run_walk_forward(
 ) -> pd.DataFrame:
     """
     Run the repository's actual walk-forward implementation.
-    Only logistic regression is exposed to train_window.
-    Important:
-        train_window uses validation for model selection and then produces
-        predictions only for the following test period. Therefore the
-        resulting rows are genuine OOS test predictions.
+    Validation is used for model selection.
+    Only the subsequent test period becomes OOS output.
     """
     original_build_models = (
         walk_forward.build_models
@@ -466,13 +454,6 @@ def run_walk_forward(
                     "No selected OOS model for "
                     f"window {window_number}."
                 )
-            if selected["model"] != (
-                "logistic_regression"
-            ):
-                raise ValueError(
-                    "Unexpected selected model: "
-                    f"{selected['model']}"
-                )
             print()
             print(
                 f"Window {window_number}"
@@ -522,16 +503,13 @@ def attach_analysis_targets_to_oos(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Match the OOS predictions returned by train_window back to the full
-    feature dataset so the same OOS ranking can be evaluated against all
-    diagnostic outcomes.
+    Match OOS predictions back to the complete diagnostic dataset.
     """
     required_oos = {
         "snapshot_date",
         "security_key",
         "prediction",
         "score",
-        "window",
     }
     missing_oos = (
         required_oos
@@ -578,7 +556,7 @@ def attach_analysis_targets_to_oos(
         ],
         keep="last",
     )
-    result = oos.merge(
+    return oos.merge(
         lookup,
         on=[
             "snapshot_date",
@@ -591,7 +569,6 @@ def attach_analysis_targets_to_oos(
             "_data",
         ),
     )
-    return result
 def safe_auc(
     score: pd.Series,
     target: pd.Series,
@@ -624,6 +601,7 @@ def describe_top_fraction(
         subset=[
             "score",
             "forward_return_5d",
+            target_column,
         ]
     )
     if frame.empty:
@@ -808,20 +786,20 @@ def print_direction_given_move(
         ]
         if large_returns.empty:
             continue
+        down_fraction = (
+            large_returns
+            <= -threshold
+        ).mean()
+        up_fraction = (
+            large_returns
+            >= threshold
+        ).mean()
         print(
             f"top 1%, "
             f"|return| >= {threshold:.0%}: "
             f"n={len(large_returns)} "
-            f"down={("
-            f"{}".format(
-                (large_returns <= -threshold).mean()
-            )
-            ):.4f} "
-            f"up={("
-            f"{}".format(
-                (large_returns >= threshold).mean()
-            )
-            ):.4f}"
+            f"down={down_fraction:.4f} "
+            f"up={up_fraction:.4f}"
         )
 def print_return_buckets(
     oos: pd.DataFrame,
@@ -1016,7 +994,10 @@ def print_top1_by_window(
     print("TOP 1% BY WALK-FORWARD WINDOW")
     print("=" * 100)
     for window, group in (
-        oos.groupby("window")
+        oos.groupby(
+            "window",
+            dropna=False,
+        )
     ):
         top = describe_top_fraction(
             group,
@@ -1344,8 +1325,6 @@ def main() -> None:
         str,
         pd.DataFrame,
     ] = {}
-    # The core comparison is deliberately first.
-    # Additional diagnostics use the same OOS methodology.
     for feature_set in (
         "volatility_60d",
         "volatility_20d_plus_60d",
