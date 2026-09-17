@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   research:
-    name: Run Blankdiss Research Matrix
+    name: Kör Blankdiss Research Matrix
     runs-on: ubuntu-latest
 
     steps:
@@ -36,11 +36,15 @@ jobs:
 
       - name: Fetch prices
         run: |
-          python -u -m prices --start 2022-01-01
+          python -m prices --start 2022-01-01
 
       - name: Build features
         run: |
           python -u -m analysis.build_features
+
+      - name: Inspect feature dataset
+        run: |
+          python -m analysis.ci inspect-features
 
       - name: Verify feature dataset
         run: |
@@ -61,6 +65,7 @@ jobs:
       - name: Verify research results
         run: |
           test -f data/processed/research/latest/experiment_results.jsonl
+          test -f data/processed/research/latest/pooled_results.jsonl
           test -f data/processed/research/latest/research_summary.json
           test -f data/processed/research/latest/research_report.md
 
@@ -76,7 +81,10 @@ jobs:
               path.read_text(encoding="utf-8")
           )
 
-          result_count = data.get("result_count", 0)
+          result_count = data.get(
+              "result_count",
+              0,
+          )
 
           if result_count == 0:
               raise SystemExit(
@@ -90,7 +98,10 @@ jobs:
 
           print(
               "Status counts:",
-              data.get("status_counts", {}),
+              data.get(
+                  "status_counts",
+                  {},
+              ),
           )
           PY
 
@@ -100,9 +111,11 @@ jobs:
           name: blankdiss-research
           path: |
             data/processed/research/latest/experiment_results.jsonl
+            data/processed/research/latest/pooled_results.jsonl
             data/processed/research/latest/research_summary.json
             data/processed/research/latest/research_report.md
             data/processed/research/runs/*/experiment_results.jsonl
+            data/processed/research/runs/*/pooled_results.jsonl
             data/processed/research/runs/*/research_summary.json
             data/processed/research/runs/*/research_report.md
           if-no-files-found: error
