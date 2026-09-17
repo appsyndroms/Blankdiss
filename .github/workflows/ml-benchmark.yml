@@ -14,6 +14,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+      - name: Verify bootstrap diagnostic
+        run: |
+          grep -n "find_price_files" ml/diagnostics/fi_direction_bootstrap_diagnostic.py
+          grep -n "from analysis.feature_config import PRICE_DIR" ml/diagnostics/fi_direction_bootstrap_diagnostic.py
       - name: Run FI direction bootstrap benchmark
         run: |
           python -u -m ml.diagnostics.fi_direction_bootstrap_diagnostic
