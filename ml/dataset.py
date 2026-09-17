@@ -144,10 +144,10 @@ def get_feature_columns(
     Returnerar ML-features.
 
     Om price_features anges inkluderas exakt dessa prisfeatures.
-    Om price_features är None används include_price_features för
-    bakåtkompatibilitet:
-      - True  -> alla price features
-      - False -> inga price features
+
+    Om price_features är None används include_price_features:
+      - True  -> alla prisfeatures
+      - False -> inga prisfeatures
     """
     if price_features is not None:
         unknown_price_features = (
@@ -236,12 +236,8 @@ def prepare_feature_set(
     """
     Förbered en feature-set en gång.
 
-    Resultatet kan återanvändas av flera targets. Target-specifika
-    rader filtreras först när prepare_ml_data_from_feature_set()
-    anropas.
-
     price_features:
-        None -> använd include_price_features för bakåtkompatibilitet.
+        None -> använd include_price_features.
         Set  -> inkludera exakt dessa price features.
     """
     feature_columns = get_feature_columns(
@@ -328,9 +324,6 @@ def prepare_ml_data_from_feature_set(
     """
     Bygg target-specifikt ML-dataset från en redan preparerad
     feature-set.
-
-    Feature-kolumnerna och grundläggande numerisk QC återanvänds
-    från feature-set-cachen.
     """
     target_values = build_target(
         feature_set_data,
@@ -395,10 +388,6 @@ def prepare_ml_data(
 ]:
     """
     Bakåtkompatibel wrapper.
-
-    Nya anrop bör använda prepare_feature_set() och
-    prepare_ml_data_from_feature_set() när flera targets delar
-    samma feature-set.
     """
     (
         feature_set_data,
