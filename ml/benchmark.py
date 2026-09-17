@@ -2,7 +2,7 @@
 
 Syfte:
 - jämföra de viktigaste feature-kombinationerna
-- testa om resultaten håller över fler walk-forward-fönster
+- testa om resultaten håller över walk-forward-fönster
 - mäta faktisk OOS-ekonomi
 - hålla beräkningskostnaden låg
 
@@ -10,7 +10,7 @@ Detta test:
 - Random Forest: 100 träd
 - RF n_jobs=1
 - 1 experiment-worker
-- 4 walk-forward-fönster
+- walk-forward-fönster enligt ml.config
 - target: down_5pct_5d
 
 Feature sets:
@@ -73,10 +73,10 @@ FEATURE_SETS = (
     ),
 )
 
-# Använd fyra walk-forward-fönster för robusthetskontrollen.
-# Produktionskonfigurationen ändras inte.
+# Använd exakt de walk-forward-fönster som finns i
+# produktionskonfigurationen. Vi ändrar inte config.py.
 BENCHMARK_WALK_FORWARD_WINDOWS = (
-    WALK_FORWARD_WINDOWS[:4]
+    WALK_FORWARD_WINDOWS
 )
 
 PERFORMANCE_KEYS = (
@@ -252,9 +252,12 @@ def run_one_experiment(
     validation_scores = []
     selected_models = {}
     economic_oos = []
-    window_count = 0
+    window_results = []
 
-    for window in BENCHMARK_WALK_FORWARD_WINDOWS:
+    for window_index, window in enumerate(
+        BENCHMARK_WALK_FORWARD_WINDOWS,
+        start=1,
+    ):
         (
             results,
             oos_predictions,
@@ -276,6 +279,9 @@ def run_one_experiment(
                 )
             )
 
+        window_validation_scores = []
+        window_selected_models = {}
+
         for result in results:
             model_name = result.get(
                 "model"
@@ -289,8 +295,16 @@ def run_one_experiment(
                 validation_score is not None
                 and model_name is not None
             ):
+                validation_score = float(
+                    validation_score
+                )
+
                 validation_scores.append(
-                    float(validation_score)
+                    validation_score
+                )
+
+                window_validation_scores.append(
+                    validation_score
                 )
 
                 selected_models[
@@ -303,11 +317,40 @@ def run_one_experiment(
                     + 1
                 )
 
+                window_selected_models[
+                    model_name
+                ] = (
+                    window_selected_models.get(
+                        model_name,
+                        0,
+                    )
+                    + 1
+                )
+
         economic_oos.extend(
             oos_predictions
         )
 
-        window_count += 1
+        window_results.append(
+            {
+                "window_index": window_index,
+                "train_end": window.train_end,
+                "validation_end": (
+                    window.validation_end
+                ),
+                "test_end": window.test_end,
+                "validation_scores": (
+                    window_validation_scores
+                ),
+                "selected_models": (
+                    window_selected_models
+                ),
+                "economic_oos": list(
+                    oos_predictions
+                ),
+                "timing": dict(timing),
+            }
+        )
 
     total_seconds = (
         perf_counter() - experiment_start
@@ -325,10 +368,13 @@ def run_one_experiment(
         ),
         "performance": performance,
         "total_seconds": total_seconds,
-        "window_count": window_count,
+        "window_count": len(
+            window_results
+        ),
         "validation_scores": validation_scores,
         "selected_models": selected_models,
         "economic_oos": economic_oos,
+        "window_results": window_results,
     }
 
 
@@ -531,19 +577,14 @@ def calculate_economic_metrics(
 
 def print_economic_results(
     economic_oos,
+    indent="  ",
 ):
     metrics = calculate_economic_metrics(
         economic_oos
     )
 
-    print()
     print(
-        f"Ekonomisk OOS: "
-        f"{ECONOMIC_TARGET}"
-    )
-
-    print(
-        f"  Rows: "
+        f"{indent}Rows: "
         f"{metrics['rows']:,}"
     )
 
@@ -551,7 +592,7 @@ def print_economic_results(
         "baseline_event_rate"
     ] is not None:
         print(
-            f"  Baseline event rate: "
+            f"{indent}Baseline event rate: "
             f"{metrics['baseline_event_rate']:.4f}"
         )
 
@@ -559,11 +600,9 @@ def print_economic_results(
         "baseline_mean_return"
     ] is not None:
         print(
-            f"  Baseline mean return: "
+            f"{indent}Baseline mean return: "
             f"{metrics['baseline_mean_return']:+.4%}"
         )
-
-    print()
 
     for result in metrics[
         "top_fraction"
@@ -592,7 +631,7 @@ def print_economic_results(
         )
 
         print(
-            f"  Top {fraction_text:>5}: "
+            f"{indent}Top {fraction_text:>5}: "
             f"n={result['rows']:,} "
             f"event={result['event_rate']:.4f} "
             f"lift={lift_text:>6} "
@@ -601,6 +640,107 @@ def print_economic_results(
         )
 
     return metrics
+
+
+def print_window_results(
+    experiment_results,
+):
+    print()
+    print(
+        "================================"
+    )
+    print(
+        "RESULTAT PER WALK-FORWARD-FÖNSTER"
+    )
+    print(
+        "================================"
+    )
+
+    for result in sorted(
+        experiment_results,
+        key=lambda item: item[
+            "feature_set"
+        ],
+    ):
+        print()
+        print(
+            result["feature_set"]
+        )
+
+        for window in result[
+            "window_results"
+        ]:
+            validation_scores = window[
+                "validation_scores"
+            ]
+
+            average_validation_score = (
+                sum(validation_scores)
+                / len(validation_scores)
+                if validation_scores
+                else 0.0
+            )
+
+            timing = window[
+                "timing"
+            ]
+
+            print()
+            print(
+                f"  Window "
+                f"{window['window_index']}"
+            )
+
+            print(
+                f"    Train <= "
+                f"{window['train_end']}"
+            )
+
+            print(
+                f"    Validation <= "
+                f"{window['validation_end']}"
+            )
+
+            print(
+                f"    Test <= "
+                f"{window['test_end']}"
+            )
+
+            print(
+                f"    Validation score: "
+                f"{average_validation_score:.6f}"
+            )
+
+            print(
+                f"    Time: "
+                f"{timing.get('total_window_seconds', 0.0):.2f}s"
+            )
+
+            print(
+                "    Selected models:"
+            )
+
+            for (
+                model_name,
+                count,
+            ) in sorted(
+                window[
+                    "selected_models"
+                ].items()
+            ):
+                print(
+                    f"      {model_name}: "
+                    f"{count}"
+                )
+
+            print(
+                "    Economic OOS:"
+            )
+
+            print_economic_results(
+                window["economic_oos"],
+                indent="      ",
+            )
 
 
 def print_feature_set_results(
@@ -715,8 +855,14 @@ def print_feature_set_results(
                 f"{count}"
             )
 
+        print()
+        print(
+            "  Combined economic OOS:"
+        )
+
         print_economic_results(
-            result["economic_oos"]
+            result["economic_oos"],
+            indent="    ",
         )
 
 
@@ -896,8 +1042,7 @@ def main() -> None:
         + ", ".join(
             (
                 f"{fraction:.1%}"
-                for fraction
-                in ECONOMIC_TOP_FRACTIONS
+                for fraction in ECONOMIC_TOP_FRACTIONS
             )
         )
     )
@@ -987,6 +1132,12 @@ def main() -> None:
     print(
         f"Wall time: "
         f"{benchmark_result['wall_seconds']:.2f}s"
+    )
+
+    print_window_results(
+        benchmark_result[
+            "experiment_results"
+        ]
     )
 
     print_feature_set_results(
