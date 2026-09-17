@@ -1,0 +1,1 @@
+"""Automatiserad forskningsmotor för Blankdiss."""
