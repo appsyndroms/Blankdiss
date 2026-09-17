@@ -1,772 +1,928 @@
+"""Kör Blankdiss deterministiska research-matris."""
+
 from __future__ import annotations
 
+import hashlib
 import json
-import math
-from dataclasses import asdict, dataclass
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
-from ml.config import TARGETS, WALK_FORWARD_WINDOWS
-from ml.dataset import build_target, load_features
+from ml.config import (
+    RANDOM_STATE,
+    TARGETS,
+    TEST_MIN_ROWS,
+    WALK_FORWARD_WINDOWS,
+)
+from ml.dataset import (
+    build_target,
+    load_features,
+)
 
-from .experiments import EXPERIMENTS
-from .signals import build_signal
+from .experiments import (
+    Experiment,
+    build_experiment_matrix,
+)
+from .signals import (
+    build_signal,
+    tail_mask,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = ROOT / "data" / "processed" / "research"
 
-RANDOM_STATE = 42
-BOOTSTRAP_ITERATIONS = 2_000
+RESEARCH_DIR = (
+    ROOT
+    / "data"
+    / "processed"
+    / "research"
+)
 
+RUNS_DIR = RESEARCH_DIR / "runs"
+LATEST_DIR = RESEARCH_DIR / "latest"
 
-@dataclass
-class ExperimentResult:
-    experiment_id: str
-    experiment_name: str
-    signal: str
-    target: str
-    window: str
-
-    n: int
-    selected_n: int
-    non_selected_n: int
-
-    baseline_rate: float | None
-    selected_rate: float | None
-    lift: float | None
-
-    selected_mean_return: float | None
-    non_selected_mean_return: float | None
-    return_difference: float | None
-
-    selected_median_return: float | None
-    non_selected_median_return: float | None
-
-    return_ci_low: float | None
-    return_ci_high: float | None
-
-    probability_positive_difference: float | None
-
-    status: str
+BOOTSTRAP_ITERATIONS = 2000
+MIN_BOOTSTRAP_ROWS = 20
 
 
-def utc_run_id() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+TARGET_BY_NAME = {
+    target.name: target
+    for target in TARGETS
+}
 
 
-def safe_float(value: Any) -> float | None:
+def _safe_float(
+    value: object,
+) -> float | None:
     if value is None:
         return None
 
-    try:
-        value = float(value)
-    except (TypeError, ValueError):
+    if pd.isna(value):
         return None
 
-    if not math.isfinite(value):
-        return None
-
-    return value
+    return float(value)
 
 
-def percentile_mask(
-    series: pd.Series,
-    fraction: float,
-) -> pd.Series:
-    """
-    Select the upper percentile tail of a signal.
+def _seed_for(
+    experiment_id: str,
+    window_id: str,
+) -> int:
+    raw = (
+        f"{RANDOM_STATE}:"
+        f"{experiment_id}:"
+        f"{window_id}"
+    )
 
-    Example:
-        fraction=0.01 -> top 1%
-        fraction=0.05 -> top 5%
-    """
-    if series.empty:
-        return pd.Series(False, index=series.index)
+    digest = hashlib.sha256(
+        raw.encode("utf-8")
+    ).hexdigest()
 
-    threshold = series.quantile(1.0 - fraction)
-
-    return series >= threshold
+    return int(
+        digest[:8],
+        16,
+    )
 
 
-def bootstrap_difference(
+def bootstrap_mean_difference(
     selected_returns: np.ndarray,
-    non_selected_returns: np.ndarray,
-    *,
-    iterations: int = BOOTSTRAP_ITERATIONS,
-    random_state: int = RANDOM_STATE,
-) -> tuple[float | None, float | None, float | None]:
+    other_returns: np.ndarray,
+    seed: int,
+) -> dict[str, float | None]:
     """
-    Bootstrap the difference:
+    Bootstrap CI för:
 
-        mean(selected) - mean(non_selected)
-
-    Returns:
-        lower CI,
-        upper CI,
-        P(difference > 0)
+        mean(selected) - mean(other)
     """
-    if len(selected_returns) == 0 or len(non_selected_returns) == 0:
-        return None, None, None
+    selected_returns = np.asarray(
+        selected_returns,
+        dtype=float,
+    )
 
-    rng = np.random.default_rng(random_state)
+    other_returns = np.asarray(
+        other_returns,
+        dtype=float,
+    )
 
-    selected_returns = np.asarray(selected_returns, dtype=float)
-    non_selected_returns = np.asarray(non_selected_returns, dtype=float)
+    selected_returns = (
+        selected_returns[
+            np.isfinite(selected_returns)
+        ]
+    )
 
-    selected_returns = selected_returns[np.isfinite(selected_returns)]
-    non_selected_returns = non_selected_returns[
-        np.isfinite(non_selected_returns)
-    ]
+    other_returns = (
+        other_returns[
+            np.isfinite(other_returns)
+        ]
+    )
 
-    if len(selected_returns) == 0 or len(non_selected_returns) == 0:
-        return None, None, None
+    if (
+        len(selected_returns) < MIN_BOOTSTRAP_ROWS
+        or len(other_returns) < MIN_BOOTSTRAP_ROWS
+    ):
+        return {
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
+            "bootstrap_p_positive": None,
+        }
+
+    rng = np.random.default_rng(seed)
 
     selected_indices = rng.integers(
         0,
         len(selected_returns),
-        size=(iterations, len(selected_returns)),
+        size=(
+            BOOTSTRAP_ITERATIONS,
+            len(selected_returns),
+        ),
     )
 
-    non_selected_indices = rng.integers(
+    other_indices = rng.integers(
         0,
-        len(non_selected_returns),
-        size=(iterations, len(non_selected_returns)),
+        len(other_returns),
+        size=(
+            BOOTSTRAP_ITERATIONS,
+            len(other_returns),
+        ),
     )
 
-    selected_means = selected_returns[selected_indices].mean(axis=1)
-    non_selected_means = non_selected_returns[
-        non_selected_indices
-    ].mean(axis=1)
-
-    differences = selected_means - non_selected_means
-
-    low, high = np.percentile(differences, [2.5, 97.5])
-    probability_positive = float(np.mean(differences > 0))
-
-    return (
-        float(low),
-        float(high),
-        probability_positive,
+    selected_means = (
+        selected_returns[selected_indices]
+        .mean(axis=1)
     )
 
+    other_means = (
+        other_returns[other_indices]
+        .mean(axis=1)
+    )
 
-def classify_status(
-    *,
-    selected_n: int,
-    difference: float | None,
-    ci_low: float | None,
-    ci_high: float | None,
-    probability_positive: float | None,
+    differences = (
+        selected_means
+        - other_means
+    )
+
+    return {
+        "bootstrap_ci_low": float(
+            np.quantile(
+                differences,
+                0.025,
+            )
+        ),
+        "bootstrap_ci_high": float(
+            np.quantile(
+                differences,
+                0.975,
+            )
+        ),
+        "bootstrap_p_positive": float(
+            np.mean(
+                differences > 0
+            )
+        ),
+    }
+
+
+def _status(
+    result: dict,
 ) -> str:
-    """
-    Descriptive research status.
-
-    These labels are deliberately not investment recommendations.
-    """
-    if selected_n < 20:
+    if result["selected_n"] < MIN_BOOTSTRAP_ROWS:
         return "INSUFFICIENT DATA"
 
-    if difference is None:
-        return "NO SIGNAL"
+    ci_low = result.get(
+        "bootstrap_ci_low"
+    )
+    ci_high = result.get(
+        "bootstrap_ci_high"
+    )
 
-    if (
-        ci_low is not None
-        and ci_high is not None
-        and ci_low > 0
-        and probability_positive is not None
-        and probability_positive >= 0.95
-    ):
-        return "STRONG RESEARCH CANDIDATE"
+    if ci_low is None or ci_high is None:
+        return "INSUFFICIENT DATA"
 
-    if (
-        probability_positive is not None
-        and probability_positive >= 0.80
-        and difference > 0
-    ):
+    if ci_low > 0 or ci_high < 0:
         return "INTERESTING"
 
     if (
-        ci_low is not None
-        and ci_high is not None
-        and ci_low <= 0 <= ci_high
+        result["selected_n"] >= 100
+        and result["lift"] is not None
+        and abs(result["lift"]) >= 1.25
     ):
         return "UNSTABLE"
 
     return "NO SIGNAL"
 
 
-def evaluate_experiment(
-    df: pd.DataFrame,
-    experiment: dict[str, Any],
-    target_definition: dict[str, Any],
-    window: dict[str, Any],
-) -> ExperimentResult:
-    experiment_id = experiment["id"]
-    experiment_name = experiment["name"]
-    signal_name = experiment["signal"]
-    target_name = experiment["target"]
+def _evaluate(
+    frame: pd.DataFrame,
+    experiment: Experiment,
+    window_id: str,
+    test_start: str,
+    test_end: str,
+) -> dict:
+    target = TARGET_BY_NAME[
+        experiment.target_name
+    ]
 
-    window_name = (
-        f"{window['train_end']}_"
-        f"{window['validation_end']}_"
-        f"{window['test_end']}"
+    test_start_ts = pd.Timestamp(
+        test_start
+    )
+
+    test_end_ts = pd.Timestamp(
+        test_end
+    )
+
+    mask = (
+        (frame["snapshot_date"] > test_start_ts)
+        & (frame["snapshot_date"] <= test_end_ts)
+    )
+
+    data = frame.loc[
+        mask
+    ].copy()
+
+    if len(data) < TEST_MIN_ROWS:
+        return {
+            "experiment_id": experiment.experiment_id,
+            "window_id": window_id,
+            "signal_name": experiment.signal_name,
+            "target_name": experiment.target_name,
+            "tail_fraction": experiment.tail_fraction,
+            "tail_direction": experiment.tail_direction,
+            "test_start": test_start,
+            "test_end": test_end,
+            "status": "INSUFFICIENT DATA",
+            "reason": "test_rows_below_minimum",
+            "rows": int(len(data)),
+        }
+
+    target_values = build_target(
+        data,
+        target,
     )
 
     signal = build_signal(
-        df,
-        signal_name,
-        experiment.get("signal_params", {}),
+        data,
+        experiment.signal_name,
     )
 
-    if signal is None:
-        return ExperimentResult(
-            experiment_id=experiment_id,
-            experiment_name=experiment_name,
-            signal=signal_name,
-            target=target_name,
-            window=window_name,
-            n=0,
-            selected_n=0,
-            non_selected_n=0,
-            baseline_rate=None,
-            selected_rate=None,
-            lift=None,
-            selected_mean_return=None,
-            non_selected_mean_return=None,
-            return_difference=None,
-            selected_median_return=None,
-            non_selected_median_return=None,
-            return_ci_low=None,
-            return_ci_high=None,
-            probability_positive_difference=None,
-            status="SIGNAL NOT AVAILABLE",
+    return_column = target.return_column
+
+    returns = pd.to_numeric(
+        data[return_column],
+        errors="coerce",
+    )
+
+    valid = (
+        target_values.notna()
+        & signal.notna()
+        & returns.notna()
+    )
+
+    data = data.loc[valid].copy()
+
+    target_values = target_values.loc[
+        valid
+    ].astype(int)
+
+    signal = signal.loc[
+        valid
+    ]
+
+    returns = returns.loc[
+        valid
+    ].astype(float)
+
+    if len(data) < TEST_MIN_ROWS:
+        return {
+            "experiment_id": experiment.experiment_id,
+            "window_id": window_id,
+            "signal_name": experiment.signal_name,
+            "target_name": experiment.target_name,
+            "tail_fraction": experiment.tail_fraction,
+            "tail_direction": experiment.tail_direction,
+            "test_start": test_start,
+            "test_end": test_end,
+            "status": "INSUFFICIENT DATA",
+            "reason": "valid_rows_below_minimum",
+            "rows": int(len(data)),
+        }
+
+    selected = tail_mask(
+        data,
+        signal,
+        experiment.tail_fraction,
+        experiment.tail_direction,
+    )
+
+    selected = selected.fillna(False)
+
+    selected_returns = returns.loc[
+        selected
+    ]
+
+    other_returns = returns.loc[
+        ~selected
+    ]
+
+    selected_targets = target_values.loc[
+        selected
+    ]
+
+    baseline_rate = float(
+        target_values.mean()
+    )
+
+    selected_rate = (
+        float(selected_targets.mean())
+        if len(selected_targets)
+        else None
+    )
+
+    lift = (
+        selected_rate / baseline_rate
+        if (
+            selected_rate is not None
+            and baseline_rate > 0
         )
-
-    work = df.copy()
-    work["_research_signal"] = signal
-
-    target_name_column = f"_target_{target_name}"
-
-    target_values = build_target(
-        work,
-        target_definition,
+        else None
     )
 
-    work[target_name_column] = target_values
-
-    start_date = pd.Timestamp(window["train_end"]) + pd.Timedelta(days=1)
-    end_date = pd.Timestamp(window["test_end"])
-
-    work = work[
-        (work["snapshot_date"] >= start_date)
-        & (work["snapshot_date"] <= end_date)
-    ].copy()
-
-    work = work[
-        work["_research_signal"].notna()
-        & work[target_name_column].notna()
-    ].copy()
-
-    return_column = target_definition.get("return_column")
-
-    if return_column and return_column in work.columns:
-        work["_research_return"] = pd.to_numeric(
-            work[return_column],
-            errors="coerce",
-        )
-    else:
-        work["_research_return"] = np.nan
-
-    if work.empty:
-        return ExperimentResult(
-            experiment_id=experiment_id,
-            experiment_name=experiment_name,
-            signal=signal_name,
-            target=target_name,
-            window=window_name,
-            n=0,
-            selected_n=0,
-            non_selected_n=0,
-            baseline_rate=None,
-            selected_rate=None,
-            lift=None,
-            selected_mean_return=None,
-            non_selected_mean_return=None,
-            return_difference=None,
-            selected_median_return=None,
-            non_selected_median_return=None,
-            return_ci_low=None,
-            return_ci_high=None,
-            probability_positive_difference=None,
-            status="NO DATA",
-        )
-
-    fraction = experiment.get("fraction", 0.05)
-
-    selected = percentile_mask(
-        work["_research_signal"],
-        fraction,
+    return_difference = (
+        float(selected_returns.mean())
+        - float(other_returns.mean())
+        if len(selected_returns)
+        and len(other_returns)
+        else None
     )
 
-    selected_rows = work[selected]
-    non_selected_rows = work[~selected]
-
-    selected_n = len(selected_rows)
-    non_selected_n = len(non_selected_rows)
-
-    target_mean = safe_float(
-        pd.to_numeric(
-            work[target_name_column],
-            errors="coerce",
-        ).mean()
-    )
-
-    selected_rate = safe_float(
-        pd.to_numeric(
-            selected_rows[target_name_column],
-            errors="coerce",
-        ).mean()
-    )
-
-    baseline_rate = target_mean
-
-    lift = None
+    auc = None
 
     if (
-        baseline_rate is not None
-        and baseline_rate != 0
-        and selected_rate is not None
+        target_values.nunique() == 2
+        and signal.nunique() > 1
     ):
-        lift = selected_rate / baseline_rate
-
-    selected_returns = selected_rows["_research_return"].dropna().to_numpy()
-    non_selected_returns = (
-        non_selected_rows["_research_return"].dropna().to_numpy()
-    )
-
-    selected_mean_return = safe_float(
-        selected_returns.mean()
-        if len(selected_returns)
-        else None
-    )
-
-    non_selected_mean_return = safe_float(
-        non_selected_returns.mean()
-        if len(non_selected_returns)
-        else None
-    )
-
-    return_difference = None
-
-    if (
-        selected_mean_return is not None
-        and non_selected_mean_return is not None
-    ):
-        return_difference = (
-            selected_mean_return
-            - non_selected_mean_return
+        auc = float(
+            roc_auc_score(
+                target_values,
+                signal,
+            )
         )
 
-    selected_median_return = safe_float(
-        np.median(selected_returns)
-        if len(selected_returns)
-        else None
+    bootstrap = bootstrap_mean_difference(
+        selected_returns.to_numpy(),
+        other_returns.to_numpy(),
+        _seed_for(
+            experiment.experiment_id,
+            window_id,
+        ),
     )
 
-    non_selected_median_return = safe_float(
-        np.median(non_selected_returns)
-        if len(non_selected_returns)
-        else None
+    result = {
+        "experiment_id": experiment.experiment_id,
+        "window_id": window_id,
+        "signal_name": experiment.signal_name,
+        "target_name": experiment.target_name,
+        "tail_fraction": experiment.tail_fraction,
+        "tail_direction": experiment.tail_direction,
+        "test_start": test_start,
+        "test_end": test_end,
+        "rows": int(len(data)),
+        "selected_n": int(selected.sum()),
+        "other_n": int((~selected).sum()),
+        "baseline_rate": baseline_rate,
+        "selected_rate": selected_rate,
+        "lift": _safe_float(lift),
+        "auc": _safe_float(auc),
+        "selected_mean_return": _safe_float(
+            selected_returns.mean()
+        ),
+        "selected_median_return": _safe_float(
+            selected_returns.median()
+        ),
+        "other_mean_return": _safe_float(
+            other_returns.mean()
+        ),
+        "other_median_return": _safe_float(
+            other_returns.median()
+        ),
+        "return_difference": _safe_float(
+            return_difference
+        ),
+        **bootstrap,
+    }
+
+    result["status"] = _status(
+        result
     )
 
-    (
-        return_ci_low,
-        return_ci_high,
-        probability_positive_difference,
-    ) = bootstrap_difference(
-        selected_returns,
-        non_selected_returns,
-    )
-
-    status = classify_status(
-        selected_n=selected_n,
-        difference=return_difference,
-        ci_low=return_ci_low,
-        ci_high=return_ci_high,
-        probability_positive=probability_positive_difference,
-    )
-
-    return ExperimentResult(
-        experiment_id=experiment_id,
-        experiment_name=experiment_name,
-        signal=signal_name,
-        target=target_name,
-        window=window_name,
-        n=len(work),
-        selected_n=selected_n,
-        non_selected_n=non_selected_n,
-        baseline_rate=baseline_rate,
-        selected_rate=selected_rate,
-        lift=lift,
-        selected_mean_return=selected_mean_return,
-        non_selected_mean_return=non_selected_mean_return,
-        return_difference=return_difference,
-        selected_median_return=selected_median_return,
-        non_selected_median_return=non_selected_median_return,
-        return_ci_low=return_ci_low,
-        return_ci_high=return_ci_high,
-        probability_positive_difference=probability_positive_difference,
-        status=status,
-    )
+    return result
 
 
-def target_definition(
-    target_name: str,
-) -> dict[str, Any]:
-    target = TARGETS[target_name]
+def _pool_results(
+    results: list[dict],
+) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
 
-    if hasattr(target, "model_dump"):
-        return target.model_dump()
+    for result in results:
+        if "selected_n" not in result:
+            continue
 
-    if hasattr(target, "__dict__"):
-        return dict(target.__dict__)
+        grouped.setdefault(
+            result["experiment_id"],
+            [],
+        ).append(result)
 
-    if isinstance(target, dict):
-        return target
+    pooled: list[dict] = []
 
-    return asdict(target)
+    for experiment_id, rows in grouped.items():
+        if not rows:
+            continue
 
-
-def run_research() -> tuple[list[ExperimentResult], str]:
-    run_id = utc_run_id()
-
-    print("=" * 80)
-    print("Blankdiss Research Matrix")
-    print("=" * 80)
-    print(f"Run ID: {run_id}")
-    print(f"Experiments: {len(EXPERIMENTS)}")
-
-    print("\nLoading feature data...")
-    df = load_features()
-
-    print(f"Rows loaded: {len(df):,}")
-
-    if "snapshot_date" in df.columns:
-        print(
-            "Date range: "
-            f"{df['snapshot_date'].min()} → "
-            f"{df['snapshot_date'].max()}"
+        selected_n = sum(
+            row["selected_n"]
+            for row in rows
         )
 
-    results: list[ExperimentResult] = []
-
-    for experiment_index, experiment in enumerate(
-        EXPERIMENTS,
-        start=1,
-    ):
-        experiment_id = experiment["id"]
-        experiment_name = experiment["name"]
-        target_name = experiment["target"]
-
-        print()
-        print("-" * 80)
-        print(
-            f"[{experiment_index}/{len(EXPERIMENTS)}] "
-            f"{experiment_id}: {experiment_name}"
+        other_n = sum(
+            row["other_n"]
+            for row in rows
         )
-        print(f"Signal: {experiment['signal']}")
-        print(f"Target: {target_name}")
 
-        target_def = target_definition(target_name)
+        weighted_selected_rate = (
+            sum(
+                row["selected_rate"]
+                * row["selected_n"]
+                for row in rows
+                if row["selected_rate"] is not None
+            )
+            / selected_n
+            if selected_n
+            else None
+        )
 
-        for window_index, window in enumerate(
-            WALK_FORWARD_WINDOWS,
-            start=1,
+        weighted_baseline = (
+            sum(
+                row["baseline_rate"]
+                * row["rows"]
+                for row in rows
+            )
+            / sum(
+                row["rows"]
+                for row in rows
+            )
+        )
+
+        pooled = {
+            "experiment_id": experiment_id,
+            "window_id": "pooled_oos",
+            "signal_name": rows[0]["signal_name"],
+            "target_name": rows[0]["target_name"],
+            "tail_fraction": rows[0]["tail_fraction"],
+            "tail_direction": rows[0]["tail_direction"],
+            "rows": sum(
+                row["rows"]
+                for row in rows
+            ),
+            "selected_n": selected_n,
+            "other_n": other_n,
+            "baseline_rate": weighted_baseline,
+            "selected_rate": weighted_selected_rate,
+            "lift": (
+                weighted_selected_rate
+                / weighted_baseline
+                if (
+                    weighted_selected_rate is not None
+                    and weighted_baseline > 0
+                )
+                else None
+            ),
+            "window_count": len(rows),
+            "window_statuses": [
+                row["status"]
+                for row in rows
+            ],
+        }
+
+        # Poolad return-difference är viktad från de separata
+        # fönstrens grupper.
+        selected_means = [
+            (
+                row["selected_mean_return"],
+                row["selected_n"],
+            )
+            for row in rows
+            if row["selected_mean_return"] is not None
+        ]
+
+        other_means = [
+            (
+                row["other_mean_return"],
+                row["other_n"],
+            )
+            for row in rows
+            if row["other_mean_return"] is not None
+        ]
+
+        if selected_means:
+            pooled_selected_mean = (
+                sum(
+                    value * count
+                    for value, count in selected_means
+                )
+                / sum(
+                    count
+                    for _, count in selected_means
+                )
+            )
+        else:
+            pooled_selected_mean = None
+
+        if other_means:
+            pooled_other_mean = (
+                sum(
+                    value * count
+                    for value, count in other_means
+                )
+                / sum(
+                    count
+                    for _, count in other_means
+                )
+            )
+        else:
+            pooled_other_mean = None
+
+        pooled[
+            "selected_mean_return"
+        ] = _safe_float(
+            pooled_selected_mean
+        )
+
+        pooled[
+            "other_mean_return"
+        ] = _safe_float(
+            pooled_other_mean
+        )
+
+        pooled[
+            "return_difference"
+        ] = _safe_float(
+            (
+                pooled_selected_mean
+                - pooled_other_mean
+                if (
+                    pooled_selected_mean is not None
+                    and pooled_other_mean is not None
+                )
+                else None
+            )
+        )
+
+        positive_windows = sum(
+            1
+            for row in rows
+            if (
+                row.get("return_difference")
+                is not None
+                and row["return_difference"] > 0
+            )
+        )
+
+        pooled[
+            "positive_return_windows"
+        ] = positive_windows
+
+        pooled[
+            "stable_direction"
+        ] = (
+            positive_windows == 0
+            or positive_windows == len(rows)
+        )
+
+        ci_values = [
+            (
+                row.get("bootstrap_ci_low"),
+                row.get("bootstrap_ci_high"),
+            )
+            for row in rows
+        ]
+
+        pooled[
+            "window_ci_excludes_zero"
+        ] = [
+            (
+                low is not None
+                and high is not None
+                and (
+                    low > 0
+                    or high < 0
+                )
+            )
+            for low, high in ci_values
+        ]
+
+        if (
+            pooled["stable_direction"]
+            and any(
+                pooled["window_ci_excludes_zero"]
+            )
         ):
-            print(
-                f"  Window {window_index}: "
-                f"train≤{window['train_end']} "
-                f"validation≤{window['validation_end']} "
-                f"test≤{window['test_end']}"
+            pooled["status"] = (
+                "STRONG RESEARCH CANDIDATE"
+            )
+        elif (
+            len(
+                set(
+                    pooled["window_statuses"]
+                )
+            ) > 1
+        ):
+            pooled["status"] = "UNSTABLE"
+        else:
+            pooled["status"] = (
+                "NO SIGNAL"
             )
 
-            result = evaluate_experiment(
-                df=df,
-                experiment=experiment,
-                target_definition=target_def,
-                window=window,
+        pooled.append(
+            pooled
+        )
+
+    return pooled
+
+
+def _write_jsonl(
+    path: Path,
+    rows: list[dict],
+) -> None:
+    with path.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        for row in rows:
+            handle.write(
+                json.dumps(
+                    row,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                + "\n"
             )
 
-            results.append(result)
 
-            print(
-                f"    n={result.n:,} "
-                f"selected={result.selected_n:,} "
-                f"diff={result.return_difference} "
-                f"p={result.probability_positive_difference} "
-                f"status={result.status}"
-            )
+def _build_summary(
+    window_results: list[dict],
+    pooled_results: list[dict],
+) -> dict:
+    status_counts: dict[str, int] = {}
 
-    return results, run_id
+    for result in pooled_results:
+        status = result["status"]
+
+        status_counts[status] = (
+            status_counts.get(status, 0)
+            + 1
+        )
+
+    return {
+        "created_at": datetime.now(
+            timezone.utc
+        ).isoformat(),
+        "result_count": len(
+            pooled_results
+        ),
+        "window_result_count": len(
+            window_results
+        ),
+        "experiment_count": len(
+            {
+                result["experiment_id"]
+                for result in pooled_results
+            }
+        ),
+        "status_counts": status_counts,
+        "multiple_testing_note": (
+            "Research sweepen testar många signaler, "
+            "tails och targets. Enstaka starka resultat "
+            "ska därför betraktas som hypotesgenererande "
+            "tills de replikerats i separat data."
+        ),
+    }
 
 
-def write_results(
-    results: list[ExperimentResult],
-    run_id: str,
-) -> Path:
-    run_dir = OUTPUT_DIR / "runs" / run_id
-    latest_dir = OUTPUT_DIR / "latest"
+def _write_report(
+    path: Path,
+    summary: dict,
+    pooled_results: list[dict],
+) -> None:
+    lines = [
+        "# Blankdiss Research Report",
+        "",
+        f"Resultat: **{summary['result_count']}**",
+        "",
+        "## Status",
+        "",
+    ]
+
+    for status, count in sorted(
+        summary["status_counts"].items()
+    ):
+        lines.append(
+            f"- {status}: {count}"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Metod",
+            "",
+            "- Deterministisk experimentmatris.",
+            "- Cross-sectional tails per snapshot-datum.",
+            "- Endast OOS walk-forward-perioder.",
+            "- Bootstrap-CI med fast seed.",
+            "- Pooled OOS-resultat.",
+            "",
+            "## Viktig begränsning",
+            "",
+            summary[
+                "multiple_testing_note"
+            ],
+            "",
+            "Detta är research-resultat och inte "
+            "investeringsrekommendationer.",
+            "",
+        ]
+    )
+
+    path.write_text(
+        "\n".join(lines),
+        encoding="utf-8",
+    )
+
+
+def main() -> None:
+    run_id = datetime.now(
+        timezone.utc
+    ).strftime(
+        "%Y%m%dT%H%M%SZ"
+    )
+
+    run_dir = RUNS_DIR / run_id
 
     run_dir.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    latest_dir.mkdir(
+    frame = load_features()
+
+    experiments = (
+        build_experiment_matrix()
+    )
+
+    print(
+        f"Research experiments: "
+        f"{len(experiments):,}"
+    )
+
+    window_results: list[dict] = []
+
+    for window_index, window in enumerate(
+        WALK_FORWARD_WINDOWS,
+        start=1,
+    ):
+        window_id = (
+            f"window_{window_index}"
+        )
+
+        print(
+            f"\nRunning {window_id}: "
+            f"test <= {window.test_end}"
+        )
+
+        for index, experiment in enumerate(
+            experiments,
+            start=1,
+        ):
+            result = _evaluate(
+                frame,
+                experiment,
+                window_id,
+                window.validation_end,
+                window.test_end,
+            )
+
+            window_results.append(
+                result
+            )
+
+            if index % 100 == 0:
+                print(
+                    f"  {index:,}/"
+                    f"{len(experiments):,}"
+                )
+
+    pooled_results = _pool_results(
+        window_results
+    )
+
+    summary = _build_summary(
+        window_results,
+        pooled_results,
+    )
+
+    window_path = (
+        run_dir
+        / "experiment_results.jsonl"
+    )
+
+    pooled_path = (
+        run_dir
+        / "pooled_results.jsonl"
+    )
+
+    summary_path = (
+        run_dir
+        / "research_summary.json"
+    )
+
+    report_path = (
+        run_dir
+        / "research_report.md"
+    )
+
+    _write_jsonl(
+        window_path,
+        window_results,
+    )
+
+    _write_jsonl(
+        pooled_path,
+        pooled_results,
+    )
+
+    summary_path.write_text(
+        json.dumps(
+            summary,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    _write_report(
+        report_path,
+        summary,
+        pooled_results,
+    )
+
+    if LATEST_DIR.exists():
+        shutil.rmtree(
+            LATEST_DIR
+        )
+
+    LATEST_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    result_dicts = [
-        asdict(result)
-        for result in results
-    ]
-
-    run_jsonl = run_dir / "experiment_results.jsonl"
-    latest_jsonl = latest_dir / "experiment_results.jsonl"
-
-    for path in (run_jsonl, latest_jsonl):
-        with path.open(
-            "w",
-            encoding="utf-8",
-        ) as handle:
-            for result in result_dicts:
-                handle.write(
-                    json.dumps(
-                        result,
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
-
-    summary = build_summary(
-        results,
-        run_id,
+    shutil.copy2(
+        window_path,
+        LATEST_DIR
+        / "experiment_results.jsonl",
     )
 
-    run_summary = run_dir / "research_summary.json"
-    latest_summary = latest_dir / "research_summary.json"
+    shutil.copy2(
+        pooled_path,
+        LATEST_DIR
+        / "pooled_results.jsonl",
+    )
 
-    for path in (run_summary, latest_summary):
-        path.write_text(
-            json.dumps(
-                summary,
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+    shutil.copy2(
+        summary_path,
+        LATEST_DIR
+        / "research_summary.json",
+    )
+
+    shutil.copy2(
+        report_path,
+        LATEST_DIR
+        / "research_report.md",
+    )
+
+    print(
+        "\nResearch complete."
+    )
+
+    print(
+        json.dumps(
+            summary[
+                "status_counts"
+            ],
+            ensure_ascii=False,
+            indent=2,
         )
-
-    report = build_markdown_report(
-        results,
-        run_id,
     )
-
-    run_report = run_dir / "research_report.md"
-    latest_report = latest_dir / "research_report.md"
-
-    for path in (run_report, latest_report):
-        path.write_text(
-            report,
-            encoding="utf-8",
-        )
-
-    return run_dir
-
-
-def build_summary(
-    results: list[ExperimentResult],
-    run_id: str,
-) -> dict[str, Any]:
-    status_counts: dict[str, int] = {}
-
-    for result in results:
-        status_counts[result.status] = (
-            status_counts.get(result.status, 0) + 1
-        )
-
-    return {
-        "run_id": run_id,
-        "created_at_utc": datetime.now(
-            timezone.utc
-        ).isoformat(),
-        "experiment_count": len(
-            {
-                result.experiment_id
-                for result in results
-            }
-        ),
-        "result_count": len(results),
-        "status_counts": status_counts,
-        "results": [
-            asdict(result)
-            for result in results
-        ],
-    }
-
-
-def build_markdown_report(
-    results: list[ExperimentResult],
-    run_id: str,
-) -> str:
-    lines: list[str] = []
-
-    lines.append("# Blankdiss Research Matrix")
-    lines.append("")
-    lines.append(f"Run: `{run_id}`")
-    lines.append("")
-    lines.append(
-        "Deterministic exploratory signal research. "
-        "Results are descriptive and are not investment recommendations."
-    )
-    lines.append("")
-
-    lines.append("## Overview")
-    lines.append("")
-    lines.append(
-        f"- Results: {len(results)}"
-    )
-
-    status_counts: dict[str, int] = {}
-
-    for result in results:
-        status_counts[result.status] = (
-            status_counts.get(result.status, 0) + 1
-        )
-
-    for status, count in sorted(
-        status_counts.items()
-    ):
-        lines.append(
-            f"- {status}: {count}"
-        )
-
-    lines.append("")
-    lines.append("## Results")
-    lines.append("")
-    lines.append(
-        "| Experiment | Window | n | Selected | "
-        "Rate | Lift | Mean diff | CI | P(diff > 0) | Status |"
-    )
-    lines.append(
-        "|---|---|---:|---:|---:|---:|---:|---|---:|---|"
-    )
-
-    for result in results:
-        rate = (
-            f"{result.selected_rate:.4f}"
-            if result.selected_rate is not None
-            else ""
-        )
-
-        lift = (
-            f"{result.lift:.3f}"
-            if result.lift is not None
-            else ""
-        )
-
-        difference = (
-            f"{result.return_difference:.4f}"
-            if result.return_difference is not None
-            else ""
-        )
-
-        if (
-            result.return_ci_low is not None
-            and result.return_ci_high is not None
-        ):
-            ci = (
-                f"[{result.return_ci_low:.4f}, "
-                f"{result.return_ci_high:.4f}]"
-            )
-        else:
-            ci = ""
-
-        probability = (
-            f"{result.probability_positive_difference:.3f}"
-            if result.probability_positive_difference is not None
-            else ""
-        )
-
-        lines.append(
-            f"| {result.experiment_id} "
-            f"{result.experiment_name} "
-            f"| {result.window} "
-            f"| {result.n:,} "
-            f"| {result.selected_n:,} "
-            f"| {rate} "
-            f"| {lift} "
-            f"| {difference} "
-            f"| {ci} "
-            f"| {probability} "
-            f"| {result.status} |"
-        )
-
-    lines.append("")
-    lines.append("## Interpretation")
-    lines.append("")
-    lines.append(
-        "The matrix is intended to identify reproducible research "
-        "signals across walk-forward periods. A result is not considered "
-        "established merely because one experiment or tail produces a "
-        "positive difference."
-    )
-    lines.append("")
-    lines.append(
-        "Particular attention should be paid to:"
-    )
-    lines.append("")
-    lines.append(
-        "- consistency across walk-forward windows"
-    )
-    lines.append(
-        "- sample size in the selected tail"
-    )
-    lines.append(
-        "- bootstrap confidence intervals"
-    )
-    lines.append(
-        "- probability that the return difference is positive"
-    )
-    lines.append(
-        "- multiple-testing effects across the experiment matrix"
-    )
-    lines.append(
-        "- placebo and negative-control experiments when available"
-    )
-
-    return "\n".join(lines)
-
-
-def main() -> None:
-    results, run_id = run_research()
-
-    output_dir = write_results(
-        results,
-        run_id,
-    )
-
-    print()
-    print("=" * 80)
-    print("Research completed")
-    print("=" * 80)
-    print(f"Run: {run_id}")
-    print(f"Output: {output_dir}")
 
 
 if __name__ == "__main__":
