@@ -30,6 +30,8 @@ Tails:
     1%
     2%
     5%
+    10%
+    20%
 FI groups
 ---------
 - FI levels
@@ -46,7 +48,7 @@ simple label-preserving placebo test.
 HORIZONS
 --------
 The diagnostic also reports the realized direction / magnitude
-for 1d, 5d and 20d returns inside the 5d event-risk tail.
+for 1d, 5d and 20d returns inside the event-risk tail.
 WALK-FORWARD
 ------------
 Uses the project's existing chronological windows.
@@ -73,6 +75,8 @@ TOP_FRACTIONS = (
     0.01,
     0.02,
     0.05,
+    0.10,
+    0.20,
 )
 PLACEBO_SEEDS = (
     101,
@@ -835,13 +839,14 @@ def print_top_fi_direction(
     rows = []
     for column in fi_columns:
         raw_values = train_events[column]
-        # A boolean feature cannot be passed directly to
-        # Series.quantile() because NumPy may attempt boolean
-        # subtraction during interpolation.
-        #
-        # For binary/state features we therefore test the
-        # positive state directly instead of inventing a
-        # percentile threshold.
+        if isinstance(
+            raw_values,
+            pd.DataFrame,
+        ):
+            raw_values = raw_values.iloc[
+                :,
+                0,
+            ]
         numeric_values = pd.to_numeric(
             raw_values,
             errors="coerce",
@@ -865,8 +870,6 @@ def print_top_fi_direction(
                 numeric_values == positive_value
             ].copy()
         else:
-            # Quantile is now calculated on a real numeric
-            # Series, never on bool/object values.
             threshold = numeric_values.quantile(
                 0.95
             )
@@ -980,27 +983,28 @@ def evaluate_window(
     print(
         f"Test:       {len(test):,}"
     )
+    event_feature_columns = list(
+        dict.fromkeys(
+            column
+            for columns in EVENT_FEATURE_SETS.values()
+            for column in columns
+        )
+    )
     event_train = train.dropna(
         subset=[
-            *set().union(
-                *EVENT_FEATURE_SETS.values()
-            ),
+            *event_feature_columns,
             "forward_return_5d",
         ]
     ).copy()
     event_validation = validation.dropna(
         subset=[
-            *set().union(
-                *EVENT_FEATURE_SETS.values()
-            ),
+            *event_feature_columns,
             "forward_return_5d",
         ]
     ).copy()
     event_test = test.dropna(
         subset=[
-            *set().union(
-                *EVENT_FEATURE_SETS.values()
-            ),
+            *event_feature_columns,
             "forward_return_5d",
         ]
     ).copy()
