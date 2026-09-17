@@ -9,7 +9,6 @@ Separate two different questions:
    Given that a large move occurs, can FI short-interest data
    distinguish DOWN from UP?
 The diagnostic deliberately separates these questions.
-It evaluates:
 EVENT MODEL
 -----------
 - abs_10pct_5d
@@ -1619,6 +1618,27 @@ def main() -> None:
         "=" * 80
     )
     original = load_features()
+    duplicate_columns = (
+        original.columns[
+            original.columns.duplicated()
+        ]
+        .tolist()
+    )
+    if duplicate_columns:
+        print()
+        print(
+            "Duplicate feature columns detected;"
+            " keeping first occurrence:"
+        )
+        print(
+            f"  {duplicate_columns}"
+        )
+        original = original.loc[
+            :,
+            ~original.columns.duplicated(
+                keep="first"
+            ),
+        ].copy()
     print(
         "Loading raw prices..."
     )
