@@ -14,4 +14,4 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run volatility horizon logistic screening
-        run: python -u ml/diagnostics/volatility_horizon_logistic_screening.py
+        run: python -u -m ml.diagnostics.volatility_horizon_logistic_screening
