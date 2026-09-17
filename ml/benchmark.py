@@ -1,21 +1,16 @@
 """Snabb feature-screening för Blankdiss ML-pipeline.
 Syfte:
-- hitta användbara kombinationer av FI- och prisfeatures
+- testa en specifik feature-kombination mot befintliga resultat
 - mäta faktisk OOS-ekonomi
 - hålla beräkningskostnaden låg
-Benchmarken använder:
+Detta test:
 - Random Forest: 100 träd
 - RF n_jobs=1
-- 4 parallella experiment
+- 1 experiment
+- 1 experiment-worker
 - 2 walk-forward-fönster
 - target: down_5pct_5d
-Feature-set som testas:
-- FI-only
-- FI + volatility_20d
-- FI + return_60d
-- FI + volatility_20d + return_60d
-- FI + distance_from_20d_high
-- FI + volatility_20d + return_60d + distance_from_20d_high
+- FI + volatility_20d + distance_from_20d_high
 Produktionsfiler ändras inte.
 """
 from __future__ import annotations
@@ -33,7 +28,7 @@ from ml.dataset import (
     prepare_ml_data_from_feature_set,
 )
 from ml.models import build_models as original_build_models
-MAX_PARALLEL_EXPERIMENTS = 4
+MAX_PARALLEL_EXPERIMENTS = 1
 BENCHMARK_TREES = 100
 ECONOMIC_TARGET = "down_5pct_5d"
 ECONOMIC_TOP_FRACTIONS = (
@@ -45,33 +40,9 @@ ECONOMIC_TOP_FRACTIONS = (
 )
 FEATURE_SETS = (
     (
-        "fi_only",
-        None,
-    ),
-    (
-        "fi_plus_price_volatility_20d",
-        {"price_volatility_20d"},
-    ),
-    (
-        "fi_plus_price_return_60d",
-        {"price_return_60d"},
-    ),
-    (
-        "fi_plus_volatility_20d_return_60d",
+        "fi_plus_volatility_20d_distance_20d",
         {
             "price_volatility_20d",
-            "price_return_60d",
-        },
-    ),
-    (
-        "fi_plus_price_distance_from_20d_high",
-        {"price_distance_from_20d_high"},
-    ),
-    (
-        "fi_plus_volatility_return_60d_distance_20d",
-        {
-            "price_volatility_20d",
-            "price_return_60d",
             "price_distance_from_20d_high",
         },
     ),
