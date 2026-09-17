@@ -32,7 +32,7 @@ def write_jsonl(
 
 def write_json(
     path: Path,
-    payload: dict[str, Any],
+    payload: dict[str, Any] | list[Any],
 ) -> None:
     path.parent.mkdir(
         parents=True,
@@ -89,8 +89,8 @@ def build_markdown_report(
         "",
         f"Generated: {summary['generated_at']}",
         "",
-        f"Experiments: {summary['result_count']}",
-        f"Pooled results: {summary['pooled_result_count']}",
+        f"Split results: {summary['result_count']}",
+        f"Pooled experiments: {summary['pooled_result_count']}",
         "",
         "## Status",
         "",
@@ -108,8 +108,8 @@ def build_markdown_report(
             "",
             "## Pooled Results",
             "",
-            "| Experiment | Target | Signal | Tail | AUC | Hit rate | Return diff | Status |",
-            "|---|---|---|---:|---:|---:|---:|---|",
+            "| Experiment | Target | Signal | Tail | Direction | AUC | Event rate | Baseline | Lift | Mean return | Median return | N | Status |",
+            "|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|",
         ]
     )
 
@@ -120,13 +120,47 @@ def build_markdown_report(
             f"{result.get('target_name', '')} | "
             f"{result.get('signal_name', '')} | "
             f"{result.get('tail_fraction', '')} | "
+            f"{result.get('tail_direction', '')} | "
             f"{_fmt(result.get('auc'))} | "
-            f"{_fmt(result.get('hit_rate'))} | "
-            f"{_fmt(result.get('return_difference'))} | "
+            f"{_fmt(result.get('event_rate'))} | "
+            f"{_fmt(result.get('baseline_event_rate'))} | "
+            f"{_fmt(result.get('lift'))} | "
+            f"{_fmt(result.get('mean_return'))} | "
+            f"{_fmt(result.get('median_return'))} | "
+            f"{result.get('n', '')} | "
             f"{result.get('status', '')} |"
         )
 
     return "\n".join(lines) + "\n"
+
+
+def write_markdown_report(
+    path: Path,
+    pooled_results: list[dict[str, Any]],
+    metadata: dict[str, Any],
+) -> None:
+    summary = build_summary(
+        metadata.get(
+            "results",
+            [],
+        ),
+        pooled_results,
+    )
+
+    report = build_markdown_report(
+        summary,
+        pooled_results,
+    )
+
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    path.write_text(
+        report,
+        encoding="utf-8",
+    )
 
 
 def _fmt(value: Any) -> str:
