@@ -6,11 +6,12 @@
       "data/raw/prices/prices_2022-01-01_latest.jsonl",
       "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
       "data/raw/prices/prices_2026-03-19_latest.jsonl",
-      "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl"
+      "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
+      "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl"
     ]
   },
   "fi_rows": 202240,
-  "price_rows": 324306,
+  "price_rows": 324595,
   "feature_rows": 202240,
   "matched_fi_rows": 119639,
   "unmatched_fi_rows": 82601,
@@ -104,107 +105,107 @@
     {
       "path": "data/processed/analysis/features_0001.jsonl",
       "rows": 10000,
-      "size_bytes": 18719578
+      "size_bytes": 18721400
     },
     {
       "path": "data/processed/analysis/features_0002.jsonl",
       "rows": 10000,
-      "size_bytes": 18818805
+      "size_bytes": 18819286
     },
     {
       "path": "data/processed/analysis/features_0003.jsonl",
       "rows": 10000,
-      "size_bytes": 19318139
+      "size_bytes": 19318930
     },
     {
       "path": "data/processed/analysis/features_0004.jsonl",
       "rows": 10000,
-      "size_bytes": 18552891
+      "size_bytes": 18553420
     },
     {
       "path": "data/processed/analysis/features_0005.jsonl",
       "rows": 10000,
-      "size_bytes": 18442202
+      "size_bytes": 18442774
     },
     {
       "path": "data/processed/analysis/features_0006.jsonl",
       "rows": 10000,
-      "size_bytes": 18930304
+      "size_bytes": 18930818
     },
     {
       "path": "data/processed/analysis/features_0007.jsonl",
       "rows": 10000,
-      "size_bytes": 18429031
+      "size_bytes": 18429416
     },
     {
       "path": "data/processed/analysis/features_0008.jsonl",
       "rows": 10000,
-      "size_bytes": 18788092
+      "size_bytes": 18788695
     },
     {
       "path": "data/processed/analysis/features_0009.jsonl",
       "rows": 10000,
-      "size_bytes": 18852863
+      "size_bytes": 18853357
     },
     {
       "path": "data/processed/analysis/features_0010.jsonl",
       "rows": 10000,
-      "size_bytes": 18392220
+      "size_bytes": 18392842
     },
     {
       "path": "data/processed/analysis/features_0011.jsonl",
       "rows": 10000,
-      "size_bytes": 18999223
+      "size_bytes": 18999992
     },
     {
       "path": "data/processed/analysis/features_0012.jsonl",
       "rows": 10000,
-      "size_bytes": 19207267
+      "size_bytes": 19208012
     },
     {
       "path": "data/processed/analysis/features_0013.jsonl",
       "rows": 10000,
-      "size_bytes": 18328161
+      "size_bytes": 18328735
     },
     {
       "path": "data/processed/analysis/features_0014.jsonl",
       "rows": 10000,
-      "size_bytes": 19105469
+      "size_bytes": 19106239
     },
     {
       "path": "data/processed/analysis/features_0015.jsonl",
       "rows": 10000,
-      "size_bytes": 19214643
+      "size_bytes": 19215447
     },
     {
       "path": "data/processed/analysis/features_0016.jsonl",
       "rows": 10000,
-      "size_bytes": 18039272
+      "size_bytes": 18039698
     },
     {
       "path": "data/processed/analysis/features_0017.jsonl",
       "rows": 10000,
-      "size_bytes": 18555454
+      "size_bytes": 18555924
     },
     {
       "path": "data/processed/analysis/features_0018.jsonl",
       "rows": 10000,
-      "size_bytes": 19133232
+      "size_bytes": 19133968
     },
     {
       "path": "data/processed/analysis/features_0019.jsonl",
       "rows": 10000,
-      "size_bytes": 18625707
+      "size_bytes": 18626464
     },
     {
       "path": "data/processed/analysis/features_0020.jsonl",
       "rows": 10000,
-      "size_bytes": 17840815
+      "size_bytes": 17841310
     },
     {
       "path": "data/processed/analysis/features_0021.jsonl",
       "rows": 2240,
-      "size_bytes": 4137334
+      "size_bytes": 4137697
     }
   ],
   "feature_dataset": "fi_price_features.jsonl"
