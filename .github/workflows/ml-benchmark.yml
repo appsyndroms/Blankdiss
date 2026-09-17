@@ -23,7 +23,10 @@ jobs:
         run: python -u -m ml.benchmark
 
       - name: Run volatility diagnostics
-        run: python -u -m ml.volatility_diagnostics
+        run: python -u -m ml.diagnostics.volatility_diagnostics
 
       - name: Run volatility interaction screening
-        run: python -u -m ml.volatility_interaction_screening
+        run: python -u -m ml.diagnostics.volatility_interaction_screening
+
+      - name: Run volatility regime diagnostic
+        run: python -u -m ml.diagnostics.volatility_regime_diagnostic
