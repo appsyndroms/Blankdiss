@@ -12,6 +12,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run volatility horizon combination logistic screening
-        run: python -u -m ml.diagnostics.volatility_horizon_combination_logistic_screening
+        run: |
+          pip install -r requirements.txt
+      - name: Run volatility directional tail diagnostic
+        run: |
+          python -u -m ml.diagnostics.volatility_directional_tail_diagnostic
