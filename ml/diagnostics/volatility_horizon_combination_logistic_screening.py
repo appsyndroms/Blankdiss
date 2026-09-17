@@ -1,4 +1,4 @@
-"""Kontrollerad jämförelse av volatilitets-horisonter och förändring."""
+"""Kontrollerad jämförelse av volatilitets-horisonter och kombinationer."""
 from __future__ import annotations
 import time
 from typing import Any
@@ -23,18 +23,18 @@ ECONOMIC_TOP_FRACTIONS = (
     0.05,
 )
 FEATURE_SETS = {
+    "volatility_20d": [
+        "price_volatility_20d",
+    ],
     "volatility_60d": [
+        "volatility_60d",
+    ],
+    "volatility_20d_plus_60d": [
+        "price_volatility_20d",
         "volatility_60d",
     ],
     "volatility_60d_plus_change": [
         "volatility_60d",
-        "volatility_change_20d_60d",
-    ],
-    "volatility_20d": [
-        "price_volatility_20d",
-    ],
-    "volatility_20d_plus_change": [
-        "price_volatility_20d",
         "volatility_change_20d_60d",
     ],
 }
@@ -117,7 +117,7 @@ def add_volatility_features(
       - pct_change()
       - standardavvikelse av de 59 dagliga
         avkastningarna
-    Därefter:
+    Därefter beräknas:
         volatility_change_20d_60d =
             price_volatility_20d - volatility_60d
     """
@@ -691,16 +691,16 @@ def print_result(
 def print_comparison(
     results: list[dict[str, Any]],
 ) -> None:
-    print("=" * 90)
+    print("=" * 100)
     print(
         "CONTROLLED LOGISTIC COMPARISON"
     )
-    print("=" * 90)
+    print("=" * 100)
     print(
         "Feature set | AUC | top1 event | "
         "lift | top1 mean | total | fit"
     )
-    print("-" * 90)
+    print("-" * 100)
     for result in results:
         top1 = result[
             "economic"
@@ -774,8 +774,9 @@ def main() -> None:
     )
     print(
         "Question: "
-        "Ger förändringen VOL20-VOL60 extra "
-        "signal ovanpå VOL60 jämfört med ovanpå VOL20?"
+        "Ger VOL20 + VOL60 extra signal "
+        "jämfört med VOL20 eller VOL60 ensamt, "
+        "och hur står det mot VOL60 + CHANGE?"
     )
     print(
         "Loading feature data..."
@@ -829,11 +830,11 @@ def main() -> None:
         results.append(
             result
         )
-    print("=" * 90)
+    print("=" * 100)
     print(
         "RESULTAT"
     )
-    print("=" * 90)
+    print("=" * 100)
     for result in results:
         print_result(
             result
@@ -845,20 +846,11 @@ def main() -> None:
         result["name"]: result
         for result in results
     }
-    print("=" * 90)
+    print("=" * 100)
     print(
         "DELTA VS VOLATILITY_60D"
     )
-    print("=" * 90)
-    print_delta(
-        by_name[
-            "volatility_60d"
-        ],
-        by_name[
-            "volatility_60d_plus_change"
-        ],
-        "VOL60 -> VOL60 + CHANGE",
-    )
+    print("=" * 100)
     print_delta(
         by_name[
             "volatility_60d"
@@ -873,16 +865,10 @@ def main() -> None:
             "volatility_60d"
         ],
         by_name[
-            "volatility_20d_plus_change"
+            "volatility_20d_plus_60d"
         ],
-        "VOL60 -> VOL20 + CHANGE",
+        "VOL60 -> VOL20 + VOL60",
     )
-    print("=" * 90)
-    print(
-        "DELTA: CHANGE ABOVE EACH "
-        "VOLATILITY BASE"
-    )
-    print("=" * 90)
     print_delta(
         by_name[
             "volatility_60d"
@@ -892,14 +878,28 @@ def main() -> None:
         ],
         "VOL60 -> VOL60 + CHANGE",
     )
+    print("=" * 100)
+    print(
+        "DELTA: KOMBINERADE HORISONTER"
+    )
+    print("=" * 100)
     print_delta(
         by_name[
             "volatility_20d"
         ],
         by_name[
-            "volatility_20d_plus_change"
+            "volatility_20d_plus_60d"
         ],
-        "VOL20 -> VOL20 + CHANGE",
+        "VOL20 -> VOL20 + VOL60",
+    )
+    print_delta(
+        by_name[
+            "volatility_60d"
+        ],
+        by_name[
+            "volatility_20d_plus_60d"
+        ],
+        "VOL60 -> VOL20 + VOL60",
     )
 if __name__ == "__main__":
     main()
