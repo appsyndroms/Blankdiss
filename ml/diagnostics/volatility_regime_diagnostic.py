@@ -1,24 +1,17 @@
 """
-Blankdiss volatility regime diagnostic.
-Tests whether FI short-interest information behaves differently
-across volatility regimes.
-The analysis uses the same walk-forward setup and economic target
-as the main ML benchmark.
-For each OOS observation we retain:
-    - price_volatility_20d
-    - short_interest_pct
-    - FI-only model score
-    - FI+volatility model score
-    - target
-    - target_return
-The diagnostic compares:
-    1. FI-only vs FI+volatility within volatility quintiles.
-    2. Top-0.1%, 0.5%, 1%, 2% and 5% economic ranking.
-    3. A volatility x FI event-rate matrix.
-    4. The same analysis separately by OOS year.
-    5. Low / middle / high volatility regimes.
-    6. FI signal strength within each regime.
-    7. Economic performance of FI within each regime.
+Blankdiss volatility regime gate diagnostic.
+Tests whether a volatility-dependent model gate improves the
+economic OOS ranking compared with:
+    1. FI-only everywhere.
+    2. FI + volatility everywhere.
+    3. LOW -> FI, MID -> validation-selected, HIGH -> FI+VOL.
+    4. LOW -> FI, MID -> FI+VOL, HIGH -> FI+VOL.
+IMPORTANT:
+    Regime selection is performed using validation data only.
+    Test/OOS data is never used to decide which model to use.
+The volatility regime boundaries are also learned from the training
+period and then applied unchanged to validation and test data.
+This avoids look-ahead leakage.
 No repository files are modified by this script.
 """
 from __future__ import annotations
@@ -27,7 +20,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 import ml.walk_forward as walk_forward
-from ml.config import TARGETS, WALK_FORWARD_WINDOWS
+from ml.config import (
+    RANDOM_STATE,
+    TARGETS,
+    WALK_FORWARD_WINDOWS,
+)
 from ml.dataset import (
     load_features,
     prepare_feature_set,
@@ -39,9 +36,7 @@ from ml.models import build_models as original_build_models
 # ============================================================================
 BENCHMARK_TREES = 100
 ECONOMIC_TARGET = "down_5pct_5d"
-VOLATILITY_QUANTILES = 5
-BASE_FEATURES = "fi_only"
-VOL_FEATURES = "fi_plus_volatility_20d"
+VOLATILITY_FEATURE = "price_volatility_20d"
 ECONOMIC_FRACTIONS = (
     0.001,
     0.005,
@@ -54,6 +49,12 @@ REGIMES = (
     "MID",
     "HIGH",
 )
+STRATEGIES = (
+    "fi_only",
+    "fi_plus_volatility",
+    "gate_validation",
+    "gate_vol_mid_high",
+)
 # ============================================================================
 # Model configuration
 # ============================================================================
@@ -62,14 +63,17 @@ def build_benchmark_models(
     task: str = "classification",
 ):
     """
-    Build the normal model set while forcing the RF benchmark settings.
+    Build the normal Blankdiss model set while forcing RF benchmark
+    configuration.
     """
     models = original_build_models(
         random_state,
         task=task,
     )
     if task == "classification":
-        random_forest = models.get("random_forest")
+        random_forest = models.get(
+            "random_forest"
+        )
         if random_forest is not None:
             random_forest.set_params(
                 model__n_estimators=BENCHMARK_TREES,
@@ -77,225 +81,14 @@ def build_benchmark_models(
             )
     return models
 # ============================================================================
-# Feature construction
-# ============================================================================
-def build_feature_sets(
-    feature_df: pd.DataFrame,
-):
-    """
-    Build the two feature sets required by the diagnostic.
-    """
-    fi_only_data, fi_only_columns = prepare_feature_set(
-        feature_df,
-        include_price_features=False,
-        price_features=None,
-    )
-    volatility_data, volatility_columns = prepare_feature_set(
-        feature_df,
-        include_price_features=True,
-        price_features={
-            "price_volatility_20d",
-        },
-    )
-    return {
-        BASE_FEATURES: (
-            fi_only_data,
-            fi_only_columns,
-        ),
-        VOL_FEATURES: (
-            volatility_data,
-            volatility_columns,
-        ),
-    }
-# ============================================================================
-# Walk-forward execution
-# ============================================================================
-def run_feature_set(
-    name: str,
-    feature_data: pd.DataFrame,
-    feature_columns: list[str],
-    target_definition,
-):
-    """
-    Run the normal Blankdiss walk-forward engine for one feature set.
-    Model selection is performed independently inside each
-    walk-forward window.
-    """
-    all_oos_rows: list[pd.DataFrame] = []
-    window_results: list[dict] = []
-    total_start = time.perf_counter()
-    (
-        ml_data,
-        y,
-        feature_columns,
-    ) = prepare_ml_data_from_feature_set(
-        feature_data,
-        feature_columns,
-        target_definition,
-    )
-    for window_index, window in enumerate(
-        WALK_FORWARD_WINDOWS,
-        start=1,
-    ):
-        window_start = time.perf_counter()
-        (
-            results,
-            oos_predictions,
-            timing,
-        ) = walk_forward.train_window(
-            ml_data,
-            y,
-            feature_columns,
-            window,
-            task=target_definition.task,
-            direction=target_definition.direction,
-        )
-        if not results or not oos_predictions:
-            continue
-        selected_results = [
-            result
-            for result in results
-            if result["selected_for_oos"]
-        ]
-        if not selected_results:
-            continue
-        selected_result = selected_results[0]
-        oos = pd.DataFrame(
-            oos_predictions
-        )
-        oos["feature_set"] = name
-        oos["window_index"] = window_index
-        oos["selected_model"] = (
-            selected_result["model"]
-        )
-        all_oos_rows.append(
-            oos
-        )
-        window_results.append(
-            {
-                "window": window_index,
-                "train_end": window.train_end,
-                "validation_end": window.validation_end,
-                "test_end": window.test_end,
-                "validation_score": (
-                    selected_result[
-                        "validation_score"
-                    ]
-                ),
-                "selected_model": (
-                    selected_result["model"]
-                ),
-                "seconds": (
-                    time.perf_counter()
-                    - window_start
-                ),
-                "fit_seconds": timing[
-                    "fit_seconds"
-                ],
-                "oos_prediction_seconds": timing[
-                    "oos_prediction_seconds"
-                ],
-            }
-        )
-    if all_oos_rows:
-        oos = pd.concat(
-            all_oos_rows,
-            ignore_index=True,
-        )
-    else:
-        oos = pd.DataFrame()
-    return {
-        "name": name,
-        "oos": oos,
-        "windows": window_results,
-        "total_seconds": (
-            time.perf_counter()
-            - total_start
-        ),
-    }
-# ============================================================================
-# Source feature attachment
-# ============================================================================
-def attach_source_features(
-    oos: pd.DataFrame,
-    source_features: pd.DataFrame,
-):
-    """
-    Attach raw source features to OOS predictions.
-    Only columns actually present in source_features are requested.
-    """
-    desired_columns = [
-        "snapshot_date",
-        "security_key",
-        "price_volatility_20d",
-        "short_interest_pct",
-        "short_interest_delta_pp",
-        "short_interest_acceleration_pp",
-    ]
-    available_columns = [
-        column
-        for column in desired_columns
-        if column in source_features.columns
-    ]
-    required_columns = {
-        "snapshot_date",
-        "security_key",
-    }
-    missing_required = (
-        required_columns
-        - set(available_columns)
-    )
-    if missing_required:
-        raise KeyError(
-            "Source feature frame is missing required "
-            f"columns: {sorted(missing_required)}"
-        )
-    source = source_features[
-        available_columns
-    ].copy()
-    source["snapshot_date"] = pd.to_datetime(
-        source["snapshot_date"],
-        errors="coerce",
-    )
-    source["security_key"] = (
-        source["security_key"].astype(str)
-    )
-    source = source.drop_duplicates(
-        subset=[
-            "snapshot_date",
-            "security_key",
-        ],
-        keep="last",
-    )
-    result = oos.copy()
-    result["snapshot_date"] = pd.to_datetime(
-        result["snapshot_date"],
-        errors="coerce",
-    )
-    result["security_key"] = (
-        result["security_key"].astype(str)
-    )
-    return result.merge(
-        source,
-        on=[
-            "snapshot_date",
-            "security_key",
-        ],
-        how="left",
-        suffixes=(
-            "",
-            "_source",
-        ),
-    )
-# ============================================================================
-# AUC helpers
+# Helpers
 # ============================================================================
 def safe_auc(
     y_true,
     scores,
 ):
     """
-    Calculate ROC AUC when both classes are present.
+    Return ROC AUC or NaN when only one class exists.
     """
     y_true = np.asarray(
         y_true,
@@ -321,25 +114,14 @@ def safe_auc(
             scores,
         )
     )
-# ============================================================================
-# Economic metrics
-# ============================================================================
 def calculate_top_metrics(
     frame: pd.DataFrame,
     score_column: str,
     fraction: float,
 ):
     """
-    Calculate economic metrics for the highest-scored observations.
+    Economic metrics for the highest-scored observations.
     """
-    if frame.empty:
-        return {
-            "n": 0,
-            "event_rate": np.nan,
-            "lift": np.nan,
-            "mean_return": np.nan,
-            "median_return": np.nan,
-        }
     valid = frame[
         frame[score_column].notna()
         & frame["target"].notna()
@@ -376,13 +158,11 @@ def calculate_top_metrics(
     baseline_event_rate = valid[
         "target"
     ].mean()
-    if baseline_event_rate > 0:
-        lift = (
-            event_rate
-            / baseline_event_rate
-        )
-    else:
-        lift = np.nan
+    lift = (
+        event_rate / baseline_event_rate
+        if baseline_event_rate > 0
+        else np.nan
+    )
     return {
         "n": len(ranked),
         "event_rate": event_rate,
@@ -394,13 +174,13 @@ def calculate_top_metrics(
             "target_return"
         ].median(),
     }
-def print_economic_metrics(
+def print_top_metrics(
     frame: pd.DataFrame,
     score_column: str,
     indent: str = "    ",
 ):
     """
-    Print economic ranking metrics for all configured fractions.
+    Print economic ranking metrics.
     """
     for fraction in ECONOMIC_FRACTIONS:
         metrics = calculate_top_metrics(
@@ -417,647 +197,673 @@ def print_economic_metrics(
             f"mean={metrics['mean_return']:.4%} "
             f"median={metrics['median_return']:.4%}"
         )
-# ============================================================================
-# Comparison frame
-# ============================================================================
-def build_comparison_frame(
-    fi_oos: pd.DataFrame,
-    volatility_oos: pd.DataFrame,
+def make_target(
+    target_return: pd.Series,
 ):
     """
-    Match FI-only and FI+volatility predictions on identical OOS rows.
-    FI-only intentionally does not contain price_volatility_20d.
-    Therefore raw volatility and FI source features are taken from
-    volatility_oos, while the FI-only prediction remains separate.
+    Economic target matching down_5pct_5d.
     """
-    fi = fi_oos[
+    return (
+        target_return <= -0.05
+    ).astype(int)
+# ============================================================================
+# Source features
+# ============================================================================
+def attach_source_features(
+    frame: pd.DataFrame,
+    source: pd.DataFrame,
+):
+    """
+    Attach raw volatility and FI source features.
+    The volatility feature is intentionally sourced from the
+    FI+volatility dataframe because FI-only does not contain it.
+    """
+    columns = [
+        "snapshot_date",
+        "security_key",
+        "price_volatility_20d",
+        "short_interest_pct",
+    ]
+    missing = [
+        column
+        for column in columns
+        if column not in source.columns
+    ]
+    if missing:
+        raise KeyError(
+            "Source feature frame is missing columns: "
+            f"{missing}"
+        )
+    source_frame = source[
+        columns
+    ].copy()
+    source_frame["snapshot_date"] = pd.to_datetime(
+        source_frame["snapshot_date"],
+        errors="coerce",
+    )
+    source_frame["security_key"] = (
+        source_frame["security_key"].astype(str)
+    )
+    source_frame = source_frame.drop_duplicates(
+        subset=[
+            "snapshot_date",
+            "security_key",
+        ],
+        keep="last",
+    )
+    result = frame.copy()
+    result["snapshot_date"] = pd.to_datetime(
+        result["snapshot_date"],
+        errors="coerce",
+    )
+    result["security_key"] = (
+        result["security_key"].astype(str)
+    )
+    return result.merge(
+        source_frame,
+        on=[
+            "snapshot_date",
+            "security_key",
+        ],
+        how="left",
+    )
+# ============================================================================
+# Model training for one feature set
+# ============================================================================
+def train_feature_set_window(
+    ml_data: pd.DataFrame,
+    y: pd.Series,
+    feature_columns: list[str],
+    window,
+):
+    """
+    Train all candidate models for one feature set and one
+    walk-forward window.
+    Returns:
+        selected model
+        validation predictions
+        test predictions
+        validation data
+        test data
+        validation score
+        timing
+    """
+    (
+        train_mask,
+        validation_mask,
+        test_mask,
+    ) = walk_forward._split(
+        ml_data,
+        y,
+        window,
+    )
+    train = ml_data.loc[
+        train_mask,
+        feature_columns,
+    ]
+    validation = ml_data.loc[
+        validation_mask,
+        feature_columns,
+    ]
+    test = ml_data.loc[
+        test_mask,
+        feature_columns,
+    ]
+    y_train = y.loc[train_mask]
+    y_validation = y.loc[validation_mask]
+    y_test = y.loc[test_mask]
+    if (
+        len(train) == 0
+        or len(validation) == 0
+        or len(test) == 0
+    ):
+        raise RuntimeError(
+            "Empty train/validation/test split."
+        )
+    available_features = (
+        walk_forward._features_available_in_training(
+            train,
+            feature_columns,
+        )
+    )
+    if not available_features:
+        raise RuntimeError(
+            "No features available in training."
+        )
+    train = train.loc[
+        :,
+        available_features,
+    ]
+    validation = validation.loc[
+        :,
+        available_features,
+    ]
+    test = test.loc[
+        :,
+        available_features,
+    ]
+    models = build_benchmark_models(
+        RANDOM_STATE,
+        task="classification",
+    )
+    trained_models = []
+    total_fit_seconds = 0.0
+    total_validation_seconds = 0.0
+    for name, model in models.items():
+        fit_start = time.perf_counter()
+        model.fit(
+            train,
+            y_train,
+        )
+        total_fit_seconds += (
+            time.perf_counter()
+            - fit_start
+        )
+        validation_start = time.perf_counter()
+        validation_predictions = (
+            model.predict_proba(
+                validation
+            )[:, 1]
+        )
+        total_validation_seconds += (
+            time.perf_counter()
+            - validation_start
+        )
+        validation_score = safe_auc(
+            y_validation,
+            validation_predictions,
+        )
+        trained_models.append(
+            {
+                "name": name,
+                "model": model,
+                "validation_score": (
+                    validation_score
+                ),
+                "validation_predictions": (
+                    validation_predictions
+                ),
+            }
+        )
+    trained_models.sort(
+        key=lambda item: (
+            item["validation_score"]
+            if np.isfinite(
+                item["validation_score"]
+            )
+            else -np.inf
+        ),
+        reverse=True,
+    )
+    selected = trained_models[0]
+    test_predictions = (
+        selected["model"].predict_proba(
+            test
+        )[:, 1]
+    )
+    validation_frame = ml_data.loc[
+        validation_mask,
         [
             "snapshot_date",
             "security_key",
             "target_return",
+        ],
+    ].copy()
+    validation_frame[
+        "target"
+    ] = make_target(
+        validation_frame[
+            "target_return"
+        ]
+    )
+    validation_frame[
+        "prediction"
+    ] = selected[
+        "validation_predictions"
+    ]
+    validation_frame[
+        "price_volatility_20d"
+    ] = ml_data.loc[
+        validation_mask,
+        VOLATILITY_FEATURE,
+    ].to_numpy()
+    test_frame = ml_data.loc[
+        test_mask,
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+        ],
+    ].copy()
+    test_frame[
+        "target"
+    ] = make_target(
+        test_frame[
+            "target_return"
+        ]
+    )
+    test_frame[
+        "prediction"
+    ] = test_predictions
+    test_frame[
+        "price_volatility_20d"
+    ] = ml_data.loc[
+        test_mask,
+        VOLATILITY_FEATURE,
+    ].to_numpy()
+    return {
+        "selected_model": selected[
+            "name"
+        ],
+        "validation_score": selected[
+            "validation_score"
+        ],
+        "validation": validation_frame,
+        "test": test_frame,
+        "all_models": trained_models,
+        "fit_seconds": total_fit_seconds,
+        "validation_seconds": (
+            total_validation_seconds
+        ),
+    }
+# ============================================================================
+# Regime boundaries
+# ============================================================================
+def calculate_training_regime_boundaries(
+    train_volatility: pd.Series,
+):
+    """
+    Calculate LOW/MID/HIGH boundaries from training data only.
+    This is critical: validation/test data must not influence
+    the regime boundaries.
+    """
+    values = pd.to_numeric(
+        train_volatility,
+        errors="coerce",
+    ).dropna()
+    if values.empty:
+        raise RuntimeError(
+            "No training volatility values available."
+        )
+    q1 = float(
+        values.quantile(
+            1.0 / 3.0
+        )
+    )
+    q2 = float(
+        values.quantile(
+            2.0 / 3.0
+        )
+    )
+    return q1, q2
+def assign_regime(
+    volatility,
+    q1: float,
+    q2: float,
+):
+    """
+    Apply training-derived volatility boundaries.
+    """
+    if pd.isna(volatility):
+        return None
+    if volatility <= q1:
+        return "LOW"
+    if volatility <= q2:
+        return "MID"
+    return "HIGH"
+# ============================================================================
+# Validation gate selection
+# ============================================================================
+def select_regime_gate(
+    fi_validation: pd.DataFrame,
+    vol_validation: pd.DataFrame,
+    q1: float,
+    q2: float,
+):
+    """
+    Select FI or FI+VOL separately for each regime using
+    validation AUC only.
+    The returned gate is then frozen for OOS.
+    """
+    fi = fi_validation[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "price_volatility_20d",
             "prediction",
-            "score",
-            "window_index",
-            "selected_model",
         ]
     ].rename(
         columns={
             "prediction": "fi_prediction",
-            "score": "fi_score",
-            "selected_model": "fi_selected_model",
         }
     )
-    required_volatility_columns = [
-        "snapshot_date",
-        "security_key",
-        "target_return",
-        "price_volatility_20d",
-        "short_interest_pct",
-        "prediction",
-        "score",
-        "window_index",
-        "selected_model",
-    ]
-    missing = [
-        column
-        for column in required_volatility_columns
-        if column not in volatility_oos.columns
-    ]
-    if missing:
-        raise KeyError(
-            "FI+volatility OOS frame is missing required "
-            f"columns: {missing}"
-        )
-    volatility = volatility_oos[
-        required_volatility_columns
+    vol = vol_validation[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "price_volatility_20d",
+            "prediction",
+        ]
     ].rename(
         columns={
-            "target_return": "vol_target_return",
             "prediction": "vol_prediction",
-            "score": "vol_score",
-            "selected_model": "vol_selected_model",
         }
     )
     merged = fi.merge(
-        volatility,
+        vol,
         on=[
             "snapshot_date",
             "security_key",
-            "window_index",
         ],
-        how="inner",
+        suffixes=(
+            "_fi",
+            "_vol",
+        ),
     )
-    target_mismatch = (
-        merged["target_return"]
-        - merged["vol_target_return"]
-    ).abs() > 1e-10
-    mismatch_count = int(
-        target_mismatch.sum()
+    merged["regime"] = merged[
+        "price_volatility_fi"
+    ].apply(
+        lambda value: assign_regime(
+            value,
+            q1,
+            q2,
+        )
     )
-    if mismatch_count:
+    gate = {}
+    print()
+    print(
+        "Validation regime selection:"
+    )
+    for regime in REGIMES:
+        subset = merged[
+            merged["regime"]
+            == regime
+        ]
+        fi_auc = safe_auc(
+            subset["target_fi"],
+            subset["fi_prediction"],
+        )
+        vol_auc = safe_auc(
+            subset["target_vol"],
+            subset["vol_prediction"],
+        )
+        if (
+            np.isfinite(fi_auc)
+            and np.isfinite(vol_auc)
+        ):
+            selected = (
+                "fi"
+                if fi_auc >= vol_auc
+                else "vol"
+            )
+        elif np.isfinite(fi_auc):
+            selected = "fi"
+        elif np.isfinite(vol_auc):
+            selected = "vol"
+        else:
+            selected = "fi"
+        gate[regime] = selected
+        print(
+            f"  {regime}: "
+            f"FI AUC={fi_auc:.6f} | "
+            f"FI+VOL AUC={vol_auc:.6f} | "
+            f"selected={selected}"
+        )
+    return gate
+# ============================================================================
+# Apply strategy
+# ============================================================================
+def apply_strategy(
+    fi_test: pd.DataFrame,
+    vol_test: pd.DataFrame,
+    strategy: str,
+    gate: dict[str, str],
+    q1: float,
+    q2: float,
+):
+    """
+    Apply a frozen strategy to OOS/test data.
+    """
+    fi = fi_test[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "price_volatility_20d",
+            "prediction",
+        ]
+    ].rename(
+        columns={
+            "prediction": "fi_prediction",
+        }
+    )
+    vol = vol_test[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "price_volatility_20d",
+            "prediction",
+        ]
+    ].rename(
+        columns={
+            "prediction": "vol_prediction",
+        }
+    )
+    merged = fi.merge(
+        vol,
+        on=[
+            "snapshot_date",
+            "security_key",
+        ],
+        suffixes=(
+            "_fi",
+            "_vol",
+        ),
+    )
+    target_difference = (
+        merged["target_return_fi"]
+        - merged["target_return_vol"]
+    ).abs()
+    if (
+        target_difference
+        > 1e-10
+    ).any():
         raise ValueError(
             "Target return mismatch between "
-            "FI-only and FI+volatility OOS rows: "
-            f"{mismatch_count:,} rows"
+            "FI and FI+VOL test rows."
         )
-    merged["target"] = (
-        merged["target_return"] <= -0.05
-    ).astype(int)
-    return merged
+    merged["target"] = merged[
+        "target_fi"
+    ]
+    merged["target_return"] = merged[
+        "target_return_fi"
+    ]
+    merged["regime"] = merged[
+        "price_volatility_fi"
+    ].apply(
+        lambda value: assign_regime(
+            value,
+            q1,
+            q2,
+        )
+    )
+    if strategy == "fi_only":
+        merged["score"] = (
+            merged["fi_prediction"]
+        )
+        merged["chosen_model"] = "FI"
+    elif strategy == "fi_plus_volatility":
+        merged["score"] = (
+            merged["vol_prediction"]
+        )
+        merged["chosen_model"] = (
+            "FI+VOL"
+        )
+    elif strategy == "gate_validation":
+        def choose_validation(
+            regime
+        ):
+            return gate.get(
+                regime,
+                "fi",
+            )
+        selected = merged[
+            "regime"
+        ].map(
+            choose_validation
+        )
+        merged["score"] = np.where(
+            selected == "vol",
+            merged["vol_prediction"],
+            merged["fi_prediction"],
+        )
+        merged["chosen_model"] = np.where(
+            selected == "vol",
+            "FI+VOL",
+            "FI",
+        )
+    elif strategy == "gate_vol_mid_high":
+        selected = np.where(
+            merged["regime"]
+            == "LOW",
+            "fi",
+            "vol",
+        )
+        merged["score"] = np.where(
+            selected == "vol",
+            merged["vol_prediction"],
+            merged["fi_prediction"],
+        )
+        merged["chosen_model"] = np.where(
+            selected == "vol",
+            "FI+VOL",
+            "FI",
+        )
+    else:
+        raise ValueError(
+            f"Unknown strategy: {strategy}"
+        )
+    return merged[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "price_volatility_fi",
+            "regime",
+            "score",
+            "chosen_model",
+        ]
+    ].copy()
 # ============================================================================
-# Volatility quintiles
+# Strategy summary
 # ============================================================================
-def add_volatility_quintiles(
+def print_strategy_metrics(
+    frame: pd.DataFrame,
+    strategy: str,
+):
+    """
+    Print AUC and economic ranking metrics.
+    """
+    auc = safe_auc(
+        frame["target"],
+        frame["score"],
+    )
+    print()
+    print(
+        f"{strategy}"
+    )
+    print(
+        f"  Rows: {len(frame):,}"
+    )
+    print(
+        f"  AUC: {auc:.6f}"
+    )
+    print(
+        f"  Baseline event rate: "
+        f"{frame['target'].mean():.4f}"
+    )
+    print(
+        f"  Baseline mean return: "
+        f"{frame['target_return'].mean():.4%}"
+    )
+    print_top_metrics(
+        frame,
+        "score",
+    )
+def print_regime_usage(
     frame: pd.DataFrame,
 ):
     """
-    Assign five volatility quintiles.
+    Show how many OOS rows each gated model handled.
     """
-    result = frame.copy()
-    result["volatility_regime"] = pd.qcut(
-        result["price_volatility_20d"],
-        q=VOLATILITY_QUANTILES,
-        labels=[
-            "Q1_low",
-            "Q2",
-            "Q3",
-            "Q4",
-            "Q5_high",
-        ],
-        duplicates="drop",
-    )
-    return result
-# ============================================================================
-# Quintile regime analysis
-# ============================================================================
-def print_regime_analysis(
-    comparison: pd.DataFrame,
-):
-    """
-    Compare FI-only and FI+volatility within each volatility quintile.
-    """
-    data = comparison.dropna(
-        subset=[
-            "price_volatility_20d",
-            "fi_score",
-            "vol_score",
-            "target",
-            "target_return",
+    counts = (
+        frame[
+            "chosen_model"
         ]
-    ).copy()
-    data = add_volatility_quintiles(
-        data
+        .value_counts()
     )
-    print()
-    print("=" * 100)
-    print("FI SIGNAL WITHIN VOLATILITY REGIMES")
-    print("=" * 100)
-    for regime in [
-        "Q1_low",
-        "Q2",
-        "Q3",
-        "Q4",
-        "Q5_high",
+    print(
+        "  Model usage:"
+    )
+    for model_name in [
+        "FI",
+        "FI+VOL",
     ]:
-        subset = data[
-            data["volatility_regime"]
-            == regime
-        ]
-        if subset.empty:
-            continue
-        fi_auc = safe_auc(
-            subset["target"],
-            subset["fi_score"],
+        count = int(
+            counts.get(
+                model_name,
+                0,
+            )
         )
-        vol_auc = safe_auc(
-            subset["target"],
-            subset["vol_score"],
-        )
-        print()
-        print(regime)
-        print(
-            f"  Rows: {len(subset):,}"
+        fraction = (
+            count / len(frame)
+            if len(frame)
+            else np.nan
         )
         print(
-            f"  Volatility: "
-            f"{subset['price_volatility_20d'].min():.6f}"
-            f" -> "
-            f"{subset['price_volatility_20d'].max():.6f}"
+            f"    {model_name}: "
+            f"{count:,} "
+            f"({fraction:.1%})"
         )
-        print(
-            f"  Event rate: "
-            f"{subset['target'].mean():.4f}"
-        )
-        print()
-        print("  FI-only")
-        print(
-            f"    AUC: {fi_auc:.6f}"
-        )
-        print_economic_metrics(
-            subset,
-            "fi_score",
-        )
-        print()
-        print("  FI + volatility")
-        print(
-            f"    AUC: {vol_auc:.6f}"
-        )
-        print_economic_metrics(
-            subset,
-            "vol_score",
-        )
-        print()
-        print(
-            f"  AUC difference: "
-            f"{vol_auc - fi_auc:+.6f}"
-        )
-# ============================================================================
-# Three-regime analysis
-# ============================================================================
-def add_three_regimes(
+def print_regime_strategy_metrics(
     frame: pd.DataFrame,
 ):
     """
-    Divide observations into three equally sized volatility regimes.
-    LOW:
-        bottom third
-    MID:
-        middle third
-    HIGH:
-        top third
+    Show economics separately for LOW/MID/HIGH.
     """
-    result = frame.copy()
-    result["three_vol_regime"] = pd.qcut(
-        result["price_volatility_20d"],
-        q=3,
-        labels=[
-            "LOW",
-            "MID",
-            "HIGH",
-        ],
-        duplicates="drop",
-    )
-    return result
-def print_three_regime_analysis(
-    comparison: pd.DataFrame,
-):
-    """
-    Compare FI-only and FI+volatility in LOW/MID/HIGH volatility.
-    """
-    data = comparison.dropna(
-        subset=[
-            "price_volatility_20d",
-            "short_interest_pct",
-            "fi_score",
-            "vol_score",
-            "target",
-            "target_return",
-        ]
-    ).copy()
-    data = add_three_regimes(
-        data
-    )
     print()
-    print("=" * 100)
-    print("LOW / MID / HIGH VOLATILITY REGIME ANALYSIS")
-    print("=" * 100)
     for regime in REGIMES:
-        subset = data[
-            data["three_vol_regime"]
+        subset = frame[
+            frame["regime"]
             == regime
         ]
         if subset.empty:
             continue
-        fi_auc = safe_auc(
-            subset["target"],
-            subset["fi_score"],
-        )
-        vol_auc = safe_auc(
-            subset["target"],
-            subset["vol_score"],
-        )
-        print()
-        print(regime)
-        print("-" * 100)
         print(
-            f"Rows: {len(subset):,}"
+            f"  {regime}: "
+            f"n={len(subset):,} "
+            f"event={subset['target'].mean():.4f} "
+            f"mean={subset['target_return'].mean():.4%}"
         )
-        print(
-            f"Volatility: "
-            f"{subset['price_volatility_20d'].min():.6f}"
-            f" -> "
-            f"{subset['price_volatility_20d'].max():.6f}"
-        )
-        print(
-            f"Event rate: "
-            f"{subset['target'].mean():.4f}"
-        )
-        print()
-        print("FI-only")
-        print(
-            f"  AUC: {fi_auc:.6f}"
-        )
-        print_economic_metrics(
+        print_top_metrics(
             subset,
-            "fi_score",
-            indent="  ",
+            "score",
+            indent="    ",
         )
-        print()
-        print("FI + volatility")
-        print(
-            f"  AUC: {vol_auc:.6f}"
-        )
-        print_economic_metrics(
-            subset,
-            "vol_score",
-            indent="  ",
-        )
-        print()
-        print(
-            f"AUC difference: "
-            f"{vol_auc - fi_auc:+.6f}"
-        )
-# ============================================================================
-# FI signal strength
-# ============================================================================
-def print_fi_signal_strength(
-    comparison: pd.DataFrame,
-):
-    """
-    Measure FI signal strength inside each broad volatility regime.
-    Measures:
-        1. FI model AUC.
-        2. Raw short_interest_pct AUC.
-    """
-    data = comparison.dropna(
-        subset=[
-            "price_volatility_20d",
-            "short_interest_pct",
-            "fi_score",
-            "target",
-        ]
-    ).copy()
-    data = add_three_regimes(
-        data
-    )
-    print()
-    print("=" * 100)
-    print("FI SIGNAL STRENGTH BY VOLATILITY REGIME")
-    print("=" * 100)
-    for regime in REGIMES:
-        subset = data[
-            data["three_vol_regime"]
-            == regime
-        ]
-        if subset.empty:
-            continue
-        fi_auc = safe_auc(
-            subset["target"],
-            subset["fi_score"],
-        )
-        fi_raw_auc = safe_auc(
-            subset["target"],
-            subset["short_interest_pct"],
-        )
-        print()
-        print(regime)
-        print(
-            f"  Rows: {len(subset):,}"
-        )
-        print(
-            f"  Event rate: "
-            f"{subset['target'].mean():.4f}"
-        )
-        print(
-            f"  FI model AUC: "
-            f"{fi_auc:.6f}"
-        )
-        print(
-            f"  Raw short_interest_pct AUC: "
-            f"{fi_raw_auc:.6f}"
-        )
-# ============================================================================
-# Volatility x FI matrix
-# ============================================================================
-def print_fi_within_volatility_matrix(
-    comparison: pd.DataFrame,
-):
-    """
-    Print a 5x5 downside-event matrix.
-    Rows:
-        volatility quintiles
-    Columns:
-        short-interest quintiles
-    """
-    data = comparison.dropna(
-        subset=[
-            "price_volatility_20d",
-            "short_interest_pct",
-            "target",
-        ]
-    ).copy()
-    data["vol_q"] = pd.qcut(
-        data["price_volatility_20d"],
-        q=5,
-        labels=[
-            "V1",
-            "V2",
-            "V3",
-            "V4",
-            "V5",
-        ],
-        duplicates="drop",
-    )
-    data["fi_q"] = pd.qcut(
-        data["short_interest_pct"],
-        q=5,
-        labels=[
-            "F1",
-            "F2",
-            "F3",
-            "F4",
-            "F5",
-        ],
-        duplicates="drop",
-    )
-    matrix = pd.pivot_table(
-        data,
-        values="target",
-        index="vol_q",
-        columns="fi_q",
-        aggfunc="mean",
-    )
-    print()
-    print("=" * 100)
-    print("DOWNSIDE EVENT RATE: VOLATILITY x FI")
-    print("=" * 100)
-    print(
-        "Rows = volatility quintile, "
-        "columns = short-interest quintile"
-    )
-    print()
-    print(
-        matrix.to_string(
-            float_format=lambda x: f"{x:.4f}"
-        )
-    )
-# ============================================================================
-# Year-by-year analysis
-# ============================================================================
-def print_year_analysis(
-    comparison: pd.DataFrame,
-):
-    """
-    Repeat the volatility-quintile analysis separately for each OOS year.
-    Quintiles are calculated within each year.
-    """
-    data = comparison.dropna(
-        subset=[
-            "price_volatility_20d",
-            "fi_score",
-            "vol_score",
-            "target",
-        ]
-    ).copy()
-    data["year"] = pd.to_datetime(
-        data["snapshot_date"],
-        errors="coerce",
-    ).dt.year
-    print()
-    print("=" * 100)
-    print("YEAR-BY-YEAR VOLATILITY REGIMES")
-    print("=" * 100)
-    for year in sorted(
-        data["year"].dropna().unique()
-    ):
-        year_data = data[
-            data["year"] == year
-        ].copy()
-        if len(year_data) < 100:
-            continue
-        year_data["volatility_regime"] = (
-            pd.qcut(
-                year_data[
-                    "price_volatility_20d"
-                ],
-                q=5,
-                labels=[
-                    "Q1_low",
-                    "Q2",
-                    "Q3",
-                    "Q4",
-                    "Q5_high",
-                ],
-                duplicates="drop",
-            )
-        )
-        print()
-        print(
-            f"YEAR {int(year)}"
-        )
-        print("-" * 100)
-        for regime in [
-            "Q1_low",
-            "Q2",
-            "Q3",
-            "Q4",
-            "Q5_high",
-        ]:
-            subset = year_data[
-                year_data[
-                    "volatility_regime"
-                ]
-                == regime
-            ]
-            if subset.empty:
-                continue
-            fi_auc = safe_auc(
-                subset["target"],
-                subset["fi_score"],
-            )
-            vol_auc = safe_auc(
-                subset["target"],
-                subset["vol_score"],
-            )
-            print(
-                f"{regime:<8}"
-                f" n={len(subset):6,d}"
-                f" event={subset['target'].mean():.4f}"
-                f" FI_AUC={fi_auc:.4f}"
-                f" FI+VOL_AUC={vol_auc:.4f}"
-                f" delta={vol_auc - fi_auc:+.4f}"
-            )
-# ============================================================================
-# Economic comparison by regime
-# ============================================================================
-def print_regime_economic_comparison(
-    comparison: pd.DataFrame,
-):
-    """
-    Compare economic ranking performance within LOW/MID/HIGH
-    volatility regimes.
-    """
-    data = comparison.dropna(
-        subset=[
-            "price_volatility_20d",
-            "fi_score",
-            "vol_score",
-            "target",
-            "target_return",
-        ]
-    ).copy()
-    data = add_three_regimes(
-        data
-    )
-    print()
-    print("=" * 100)
-    print("ECONOMIC PERFORMANCE BY VOLATILITY REGIME")
-    print("=" * 100)
-    for regime in REGIMES:
-        subset = data[
-            data["three_vol_regime"]
-            == regime
-        ]
-        if subset.empty:
-            continue
-        print()
-        print(regime)
-        print("-" * 100)
-        for fraction in ECONOMIC_FRACTIONS:
-            fi_metrics = calculate_top_metrics(
-                subset,
-                "fi_score",
-                fraction,
-            )
-            vol_metrics = calculate_top_metrics(
-                subset,
-                "vol_score",
-                fraction,
-            )
-            print(
-                f"Top {fraction:.1%}: "
-                f"FI "
-                f"event={fi_metrics['event_rate']:.4f} "
-                f"lift={fi_metrics['lift']:.2f}x "
-                f"mean={fi_metrics['mean_return']:.4%} "
-                f"median={fi_metrics['median_return']:.4%}"
-                f" | "
-                f"FI+VOL "
-                f"event={vol_metrics['event_rate']:.4f} "
-                f"lift={vol_metrics['lift']:.2f}x "
-                f"mean={vol_metrics['mean_return']:.4%} "
-                f"median={vol_metrics['median_return']:.4%}"
-            )
-# ============================================================================
-# Overall comparison
-# ============================================================================
-def print_overall_comparison(
-    comparison: pd.DataFrame,
-):
-    """
-    Print overall OOS AUC and economic comparison.
-    """
-    data = comparison.dropna(
-        subset=[
-            "fi_score",
-            "vol_score",
-            "target",
-            "target_return",
-        ]
-    ).copy()
-    fi_auc = safe_auc(
-        data["target"],
-        data["fi_score"],
-    )
-    vol_auc = safe_auc(
-        data["target"],
-        data["vol_score"],
-    )
-    print()
-    print("=" * 100)
-    print("OVERALL OOS COMPARISON")
-    print("=" * 100)
-    print(
-        f"Rows: {len(data):,}"
-    )
-    print(
-        f"Baseline event rate: "
-        f"{data['target'].mean():.4f}"
-    )
-    print(
-        f"Baseline mean return: "
-        f"{data['target_return'].mean():.4%}"
-    )
-    print(
-        f"FI-only OOS AUC: "
-        f"{fi_auc:.6f}"
-    )
-    print(
-        f"FI + volatility OOS AUC: "
-        f"{vol_auc:.6f}"
-    )
-    print(
-        f"AUC difference: "
-        f"{vol_auc - fi_auc:+.6f}"
-    )
-    print()
-    print("FI-only economic ranking")
-    print_economic_metrics(
-        data,
-        "fi_score",
-    )
-    print()
-    print("FI + volatility economic ranking")
-    print_economic_metrics(
-        data,
-        "vol_score",
-    )
 # ============================================================================
 # Main
 # ============================================================================
 def main():
     print("=" * 100)
-    print("BLANKDISS VOLATILITY REGIME DIAGNOSTIC")
+    print("BLANKDISS VOLATILITY REGIME GATE DIAGNOSTIC")
     print("=" * 100)
     print(
         f"RF trees: {BENCHMARK_TREES}"
@@ -1073,184 +879,487 @@ def main():
         f"Economic target: "
         f"{ECONOMIC_TARGET}"
     )
+    print()
+    print(
+        "Strategies:"
+    )
+    print(
+        "  1. FI-only everywhere"
+    )
+    print(
+        "  2. FI+VOL everywhere"
+    )
+    print(
+        "  3. LOW=FI, MID=validation-selected, HIGH=VOL"
+    )
+    print(
+        "  4. LOW=FI, MID=VOL, HIGH=VOL"
+    )
     # ------------------------------------------------------------------
-    # Load data
+    # Load features
     # ------------------------------------------------------------------
     print()
-    print("Loading feature data...")
+    print(
+        "Loading feature data..."
+    )
     feature_df = load_features()
     print(
         f"Feature rows: "
         f"{len(feature_df):,}"
     )
     # ------------------------------------------------------------------
-    # Build feature sets
+    # Build exact feature sets
     # ------------------------------------------------------------------
     print()
-    print("Building feature sets...")
-    feature_sets = build_feature_sets(
-        feature_df
+    print(
+        "Building feature sets..."
     )
+    fi_data, fi_columns = (
+        prepare_feature_set(
+            feature_df,
+            include_price_features=False,
+            price_features=None,
+        )
+    )
+    vol_data, vol_columns = (
+        prepare_feature_set(
+            feature_df,
+            include_price_features=True,
+            price_features={
+                VOLATILITY_FEATURE,
+            },
+        )
+    )
+    # ------------------------------------------------------------------
+    # Target
+    # ------------------------------------------------------------------
     target_definition = next(
         target
         for target in TARGETS
-        if target.name == ECONOMIC_TARGET
+        if target.name
+        == ECONOMIC_TARGET
+    )
+    (
+        fi_ml_data,
+        fi_y,
+        fi_feature_columns,
+    ) = prepare_ml_data_from_feature_set(
+        fi_data,
+        fi_columns,
+        target_definition,
+    )
+    (
+        vol_ml_data,
+        vol_y,
+        vol_feature_columns,
+    ) = prepare_ml_data_from_feature_set(
+        vol_data,
+        vol_columns,
+        target_definition,
     )
     # ------------------------------------------------------------------
-    # Force benchmark RF configuration into the normal
-    # walk-forward engine.
+    # Run each walk-forward window
     # ------------------------------------------------------------------
-    original_walk_forward_build_models = (
-        walk_forward.build_models
-    )
-    walk_forward.build_models = (
-        build_benchmark_models
-    )
-    try:
-        # --------------------------------------------------------------
-        # FI-only
-        # --------------------------------------------------------------
-        print()
-        print("=" * 100)
-        print("RUNNING FI-ONLY")
-        print("=" * 100)
-        fi_data, fi_columns = (
-            feature_sets[BASE_FEATURES]
-        )
-        fi_result = run_feature_set(
-            BASE_FEATURES,
-            fi_data,
-            fi_columns,
-            target_definition,
-        )
-        # --------------------------------------------------------------
-        # FI + volatility
-        # --------------------------------------------------------------
-        print()
-        print("=" * 100)
-        print("RUNNING FI + VOLATILITY")
-        print("=" * 100)
-        vol_data, vol_columns = (
-            feature_sets[VOL_FEATURES]
-        )
-        vol_result = run_feature_set(
-            VOL_FEATURES,
-            vol_data,
-            vol_columns,
-            target_definition,
-        )
-    finally:
-        walk_forward.build_models = (
-            original_walk_forward_build_models
-        )
-    # ------------------------------------------------------------------
-    # Print window results
-    # ------------------------------------------------------------------
-    for result in [
-        fi_result,
-        vol_result,
-    ]:
+    all_strategy_results = {
+        strategy: []
+        for strategy in STRATEGIES
+    }
+    total_start = time.perf_counter()
+    for window_index, window in enumerate(
+        WALK_FORWARD_WINDOWS,
+        start=1,
+    ):
         print()
         print("=" * 100)
         print(
-            f"WINDOW RESULTS: "
-            f"{result['name']}"
+            f"WALK-FORWARD WINDOW {window_index}"
         )
         print("=" * 100)
-        for window in result["windows"]:
+        print(
+            f"Train <= {window.train_end}"
+        )
+        print(
+            f"Validation <= "
+            f"{window.validation_end}"
+        )
+        print(
+            f"Test <= {window.test_end}"
+        )
+        window_start = time.perf_counter()
+        # --------------------------------------------------------------
+        # Training volatility boundaries.
+        #
+        # Boundaries come from training only.
+        # --------------------------------------------------------------
+        (
+            train_mask,
+            validation_mask,
+            test_mask,
+        ) = walk_forward._split(
+            vol_ml_data,
+            vol_y,
+            window,
+        )
+        train_volatility = vol_ml_data.loc[
+            train_mask,
+            VOLATILITY_FEATURE,
+        ]
+        q1, q2 = (
+            calculate_training_regime_boundaries(
+                train_volatility
+            )
+        )
+        print()
+        print(
+            "Training-derived volatility boundaries:"
+        )
+        print(
+            f"  LOW <= {q1:.6f}"
+        )
+        print(
+            f"  MID <= {q2:.6f}"
+        )
+        print(
+            f"  HIGH > {q2:.6f}"
+        )
+        # --------------------------------------------------------------
+        # FI model
+        # --------------------------------------------------------------
+        fi_start = time.perf_counter()
+        fi_result = train_feature_set_window(
+            fi_ml_data,
+            fi_y,
+            fi_feature_columns,
+            window,
+        )
+        fi_seconds = (
+            time.perf_counter()
+            - fi_start
+        )
+        print()
+        print(
+            "FI-only:"
+        )
+        print(
+            f"  Selected model: "
+            f"{fi_result['selected_model']}"
+        )
+        print(
+            f"  Validation AUC: "
+            f"{fi_result['validation_score']:.6f}"
+        )
+        print(
+            f"  Time: "
+            f"{fi_seconds:.2f}s"
+        )
+        # --------------------------------------------------------------
+        # FI + volatility model
+        # --------------------------------------------------------------
+        vol_start = time.perf_counter()
+        vol_result = train_feature_set_window(
+            vol_ml_data,
+            vol_y,
+            vol_feature_columns,
+            window,
+        )
+        vol_seconds = (
+            time.perf_counter()
+            - vol_start
+        )
+        print()
+        print(
+            "FI + volatility:"
+        )
+        print(
+            f"  Selected model: "
+            f"{vol_result['selected_model']}"
+        )
+        print(
+            f"  Validation AUC: "
+            f"{vol_result['validation_score']:.6f}"
+        )
+        print(
+            f"  Time: "
+            f"{vol_seconds:.2f}s"
+        )
+        # --------------------------------------------------------------
+        # Validation gate
+        # --------------------------------------------------------------
+        gate = select_regime_gate(
+            fi_result["validation"],
+            vol_result["validation"],
+            q1,
+            q2,
+        )
+        # --------------------------------------------------------------
+        # Apply four strategies to this window's OOS test.
+        # --------------------------------------------------------------
+        for strategy in STRATEGIES:
+            result = apply_strategy(
+                fi_result["test"],
+                vol_result["test"],
+                strategy,
+                gate,
+                q1,
+                q2,
+            )
+            result[
+                "window_index"
+            ] = window_index
+            result[
+                "window_train_end"
+            ] = window.train_end
+            result[
+                "window_validation_end"
+            ] = window.validation_end
+            result[
+                "window_test_end"
+            ] = window.test_end
+            all_strategy_results[
+                strategy
+            ].append(
+                result
+            )
+        print()
+        print(
+            "Window strategy results:"
+        )
+        for strategy in STRATEGIES:
+            result = all_strategy_results[
+                strategy
+            ][-1]
             print()
             print(
-                f"Window {window['window']}"
+                f"  {strategy}: "
+                f"AUC="
+                f"{safe_auc(result['target'], result['score']):.6f} "
+                f"top1="
+                f"{calculate_top_metrics(result, 'score', 0.01)['event_rate']:.4f} "
+                f"mean="
+                f"{calculate_top_metrics(result, 'score', 0.01)['mean_return']:.4%}"
             )
-            print(
-                f"  Train <= "
-                f"{window['train_end']}"
-            )
-            print(
-                f"  Validation <= "
-                f"{window['validation_end']}"
-            )
-            print(
-                f"  Test <= "
-                f"{window['test_end']}"
-            )
-            print(
-                f"  Selected model: "
-                f"{window['selected_model']}"
-            )
-            print(
-                f"  Validation score: "
-                f"{window['validation_score']:.6f}"
-            )
-            print(
-                f"  Time: "
-                f"{window['seconds']:.2f}s"
-            )
-    # ------------------------------------------------------------------
-    # Verify OOS data
-    # ------------------------------------------------------------------
-    if fi_result["oos"].empty:
-        raise RuntimeError(
-            "FI-only produced no OOS predictions."
-        )
-    if vol_result["oos"].empty:
-        raise RuntimeError(
-            "FI+volatility produced no OOS predictions."
+        print()
+        print(
+            f"Window runtime: "
+            f"{time.perf_counter() - window_start:.2f}s"
         )
     # ------------------------------------------------------------------
-    # Attach raw source features.
-    #
-    # FI-only intentionally does not contain price_volatility_20d.
-    # The volatility source frame is therefore the authoritative source
-    # for price_volatility_20d and short_interest_pct.
+    # Combine OOS windows
     # ------------------------------------------------------------------
-    fi_oos = attach_source_features(
-        fi_result["oos"],
-        fi_data,
-    )
-    vol_oos = attach_source_features(
-        vol_result["oos"],
-        vol_data,
-    )
-    # ------------------------------------------------------------------
-    # Match both models on exactly the same OOS observations.
-    # ------------------------------------------------------------------
-    comparison = build_comparison_frame(
-        fi_oos,
-        vol_oos,
-    )
     print()
-    print(
-        f"Matched OOS rows: "
-        f"{len(comparison):,}"
-    )
-    if comparison.empty:
-        raise RuntimeError(
-            "No matched OOS observations."
+    print("=" * 100)
+    print("COMBINED OOS RESULTS")
+    print("=" * 100)
+    combined = {}
+    for strategy in STRATEGIES:
+        combined[strategy] = pd.concat(
+            all_strategy_results[
+                strategy
+            ],
+            ignore_index=True,
         )
     # ------------------------------------------------------------------
-    # Diagnostics
+    # Overall comparison
     # ------------------------------------------------------------------
-    print_regime_analysis(
-        comparison
+    for strategy in STRATEGIES:
+        frame = combined[
+            strategy
+        ]
+        print()
+        print("=" * 100)
+        print(
+            strategy.upper()
+        )
+        print("=" * 100)
+        print_strategy_metrics(
+            frame,
+            strategy,
+        )
+        if strategy in (
+            "gate_validation",
+            "gate_vol_mid_high",
+        ):
+            print()
+            print_regime_usage(
+                frame
+            )
+            print_regime_strategy_metrics(
+                frame
+            )
+    # ------------------------------------------------------------------
+    # Direct comparison table
+    # ------------------------------------------------------------------
+    print()
+    print("=" * 100)
+    print("STRATEGY COMPARISON")
+    print("=" * 100)
+    rows = []
+    for strategy in STRATEGIES:
+        frame = combined[
+            strategy
+        ]
+        top_metrics = calculate_top_metrics(
+            frame,
+            "score",
+            0.01,
+        )
+        rows.append(
+            {
+                "strategy": strategy,
+                "rows": len(frame),
+                "auc": safe_auc(
+                    frame["target"],
+                    frame["score"],
+                ),
+                "top_0.1_event": (
+                    calculate_top_metrics(
+                        frame,
+                        "score",
+                        0.001,
+                    )["event_rate"]
+                ),
+                "top_0.5_event": (
+                    calculate_top_metrics(
+                        frame,
+                        "score",
+                        0.005,
+                    )["event_rate"]
+                ),
+                "top_1_event": (
+                    top_metrics[
+                        "event_rate"
+                    ]
+                ),
+                "top_1_lift": (
+                    top_metrics[
+                        "lift"
+                    ]
+                ),
+                "top_1_mean_return": (
+                    top_metrics[
+                        "mean_return"
+                    ]
+                ),
+                "top_1_median_return": (
+                    top_metrics[
+                        "median_return"
+                    ]
+                ),
+                "top_2_mean_return": (
+                    calculate_top_metrics(
+                        frame,
+                        "score",
+                        0.02,
+                    )["mean_return"]
+                ),
+                "top_5_mean_return": (
+                    calculate_top_metrics(
+                        frame,
+                        "score",
+                        0.05,
+                    )["mean_return"]
+                ),
+            }
+        )
+    comparison = pd.DataFrame(
+        rows
     )
-    print_three_regime_analysis(
-        comparison
+    print(
+        comparison.to_string(
+            index=False,
+            float_format=lambda value: (
+                f"{value:.6f}"
+            ),
+        )
     )
-    print_fi_signal_strength(
-        comparison
+    # ------------------------------------------------------------------
+    # Gate selection consistency
+    # ------------------------------------------------------------------
+    print()
+    print("=" * 100)
+    print("REGIME GATE MODEL USAGE")
+    print("=" * 100)
+    for strategy in (
+        "gate_validation",
+        "gate_vol_mid_high",
+    ):
+        frame = combined[
+            strategy
+        ]
+        print()
+        print(
+            strategy
+        )
+        usage = (
+            frame.groupby(
+                [
+                    "regime",
+                    "chosen_model",
+                ]
+            )
+            .size()
+            .reset_index(
+                name="rows"
+            )
+        )
+        print(
+            usage.to_string(
+                index=False
+            )
+        )
+    # ------------------------------------------------------------------
+    # Per-window strategy comparison
+    # ------------------------------------------------------------------
+    print()
+    print("=" * 100)
+    print("PER-WINDOW STRATEGY COMPARISON")
+    print("=" * 100)
+    window_rows = []
+    for window_index in range(
+        1,
+        len(WALK_FORWARD_WINDOWS) + 1,
+    ):
+        row = {
+            "window": window_index,
+        }
+        for strategy in STRATEGIES:
+            frame = combined[
+                strategy
+            ]
+            subset = frame[
+                frame[
+                    "window_index"
+                ]
+                == window_index
+            ]
+            row[
+                f"{strategy}_auc"
+            ] = safe_auc(
+                subset["target"],
+                subset["score"],
+            )
+            row[
+                f"{strategy}_top1_mean"
+            ] = calculate_top_metrics(
+                subset,
+                "score",
+                0.01,
+            )[
+                "mean_return"
+            ]
+        window_rows.append(
+            row
+        )
+    window_comparison = pd.DataFrame(
+        window_rows
     )
-    print_fi_within_volatility_matrix(
-        comparison
-    )
-    print_year_analysis(
-        comparison
-    )
-    print_regime_economic_comparison(
-        comparison
-    )
-    print_overall_comparison(
-        comparison
+    print(
+        window_comparison.to_string(
+            index=False,
+            float_format=lambda value: (
+                f"{value:.6f}"
+            ),
+        )
     )
     # ------------------------------------------------------------------
     # Runtime
@@ -1260,12 +1369,8 @@ def main():
     print("RUNTIME")
     print("=" * 100)
     print(
-        f"FI-only: "
-        f"{fi_result['total_seconds']:.2f}s"
-    )
-    print(
-        f"FI + volatility: "
-        f"{vol_result['total_seconds']:.2f}s"
+        f"Total: "
+        f"{time.perf_counter() - total_start:.2f}s"
     )
     print()
     print("=" * 100)
