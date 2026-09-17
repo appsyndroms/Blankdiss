@@ -1,170 +1,169 @@
 """
 Conditional interaction diagnostic.
-
 Question:
     Is the positive short-interest-change effect stronger when event risk
-    is higher?
-
+    is extremely high?
 Design:
     1. Fit/select the event-risk model using train/validation only.
     2. Calculate OOS event-risk scores.
-    3. Define event-risk bands from TRAINING score distribution:
+    3. Define the extreme event-risk group from the training distribution:
            - top 5%
-           - 5-20%
-           - 20-50%
-           - bottom 50%
-    4. Within every OOS band, compare:
+           - remaining 95%
+    4. Within each OOS risk group, compare:
            - top 20% of positive short-interest changes
            - all other positive changes
     5. Only observations with an extreme direction are included:
            DOWN = forward return <= -10%
            UP   = forward return >= +10%
-
+    6. Test the interaction directly:
+           (HIGH SI - LOW SI) in top 5%
+           minus
+           (HIGH SI - LOW SI) in remaining 95%
 The positive-change threshold is fixed at the training 80th percentile
 among positive changes. It is NOT searched over multiple cutoffs.
-
 No repository files are modified by this script.
 """
-
 from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Iterable
-
 import numpy as np
 import pandas as pd
 from scipy.stats import fisher_exact
-
-from analysis.feature_config import PRICE_DIR
-from analysis.feature_prices import find_price_files, load_prices
+from sklearn.metrics import roc_auc_score
 from ml.config import WALK_FORWARD_WINDOWS
-from ml.dataset import load_features
-
 from ml.diagnostics.fi_direction_short_dynamics_diagnostic import (
     EVENT_FEATURE_SETS,
     EVENT_THRESHOLD,
     EVENT_TAIL,
     RANDOM_STATE,
-    build_event_model,
-    deduplicate_columns,
-    first_existing_column,
     fit_event_model,
-    load_price_data,
-    normalize_date_column,
-    numeric_series,
     predict_event_score,
     prepare_data,
 )
-
-
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
 POSITIVE_CHANGE_CUTOFF = 0.20
-
-RISK_BANDS = (
-    ("top_5pct", 0.00, 0.05),
-    ("5_to_20pct", 0.05, 0.20),
-    ("20_to_50pct", 0.20, 0.50),
-    ("bottom_50pct", 0.50, 1.00),
-)
-
-# Number of bootstrap iterations for confidence intervals.
+EVENT_RISK_CUTOFF = 0.05
 BOOTSTRAP_ITERATIONS = 2_000
-
-
 # ---------------------------------------------------------------------------
 # Statistics
 # ---------------------------------------------------------------------------
-
 @dataclass(frozen=True)
-class ComparisonResult:
-    band: str
-    low_n: int
-    low_down: int
-    low_down_rate: float
-    high_n: int
-    high_down: int
-    high_down_rate: float
-    delta: float
+class CellResult:
+    group: str
+    change_group: str
+    n: int
+    down: int
+    down_rate: float
+@dataclass(frozen=True)
+class InteractionResult:
+    top5_low_n: int
+    top5_high_n: int
+    top5_low_rate: float
+    top5_high_rate: float
+    top5_effect: float
+    other_low_n: int
+    other_high_n: int
+    other_low_rate: float
+    other_high_rate: float
+    other_effect: float
+    interaction: float
     ci_low: float
     ci_high: float
     p_positive: float
-    fisher_p: float
-
-
-def bootstrap_difference(
-    low: pd.Series,
-    high: pd.Series,
+def safe_rate(
+    values: pd.Series,
+) -> float:
+    if len(values) == 0:
+        return float("nan")
+    return float(
+        values.mean()
+    )
+def bootstrap_interaction(
+    top5_low: pd.Series,
+    top5_high: pd.Series,
+    other_low: pd.Series,
+    other_high: pd.Series,
     iterations: int = BOOTSTRAP_ITERATIONS,
     random_state: int = RANDOM_STATE,
 ) -> tuple[float, float, float, float]:
     """
-    Bootstrap:
-
-        mean(high) - mean(low)
-
+    Bootstrap the interaction:
+        (HIGH - LOW) in TOP5
+        -
+        (HIGH - LOW) in OTHER95
     Returns:
-        delta,
+        observed interaction,
         2.5% CI,
         97.5% CI,
-        P(delta > 0)
+        P(interaction > 0)
     """
-
-    low = pd.to_numeric(
-        low,
-        errors="coerce",
-    ).dropna().to_numpy()
-
-    high = pd.to_numeric(
-        high,
-        errors="coerce",
-    ).dropna().to_numpy()
-
-    if len(low) == 0 or len(high) == 0:
+    groups = [
+        pd.to_numeric(
+            values,
+            errors="coerce",
+        ).dropna().to_numpy()
+        for values in (
+            top5_low,
+            top5_high,
+            other_low,
+            other_high,
+        )
+    ]
+    if any(len(values) == 0 for values in groups):
         return (
             float("nan"),
             float("nan"),
             float("nan"),
             float("nan"),
         )
-
+    top5_low_values, top5_high_values, other_low_values, other_high_values = groups
+    observed = (
+        top5_high_values.mean()
+        - top5_low_values.mean()
+        - other_high_values.mean()
+        + other_low_values.mean()
+    )
     rng = np.random.default_rng(
         random_state
     )
-
-    deltas = np.empty(
+    interactions = np.empty(
         iterations,
         dtype=float,
     )
-
     for index in range(iterations):
-        low_sample = rng.choice(
-            low,
-            size=len(low),
+        top5_low_sample = rng.choice(
+            top5_low_values,
+            size=len(top5_low_values),
             replace=True,
         )
-
-        high_sample = rng.choice(
-            high,
-            size=len(high),
+        top5_high_sample = rng.choice(
+            top5_high_values,
+            size=len(top5_high_values),
             replace=True,
         )
-
-        deltas[index] = (
-            high_sample.mean()
-            - low_sample.mean()
+        other_low_sample = rng.choice(
+            other_low_values,
+            size=len(other_low_values),
+            replace=True,
         )
-
+        other_high_sample = rng.choice(
+            other_high_values,
+            size=len(other_high_values),
+            replace=True,
+        )
+        interactions[index] = (
+            top5_high_sample.mean()
+            - top5_low_sample.mean()
+            - other_high_sample.mean()
+            + other_low_sample.mean()
+        )
     return (
-        float(deltas.mean()),
-        float(np.quantile(deltas, 0.025)),
-        float(np.quantile(deltas, 0.975)),
-        float((deltas > 0).mean()),
+        float(observed),
+        float(np.quantile(interactions, 0.025)),
+        float(np.quantile(interactions, 0.975)),
+        float((interactions > 0).mean()),
     )
-
-
 def safe_fisher_p(
     low_down: int,
     low_up: int,
@@ -176,24 +175,18 @@ def safe_fisher_p(
         or high_down + high_up == 0
     ):
         return float("nan")
-
     table = [
         [low_down, low_up],
         [high_down, high_up],
     ]
-
     _, p_value = fisher_exact(
         table,
         alternative="two-sided",
     )
-
     return float(p_value)
-
-
 # ---------------------------------------------------------------------------
 # Event model selection
 # ---------------------------------------------------------------------------
-
 def select_event_model(
     train: pd.DataFrame,
     validation: pd.DataFrame,
@@ -201,7 +194,6 @@ def select_event_model(
     best_name: str | None = None
     best_model = None
     best_auc = float("-inf")
-
     for name, features in EVENT_FEATURE_SETS.items():
         missing = [
             column
@@ -209,343 +201,281 @@ def select_event_model(
             if column not in train.columns
             or column not in validation.columns
         ]
-
         if missing:
             continue
-
         model = fit_event_model(
             train,
             list(features),
         )
-
         if model is None:
             continue
-
         validation_scores = predict_event_score(
             model,
             validation,
             list(features),
         )
-
         frame = pd.DataFrame(
             {
                 "event": validation["event"],
                 "score": validation_scores,
             }
         ).dropna()
-
         if len(frame) < 100:
             continue
-
         if frame["event"].nunique() < 2:
             continue
-
-        from sklearn.metrics import roc_auc_score
-
         auc = float(
             roc_auc_score(
                 frame["event"],
                 frame["score"],
             )
         )
-
         if auc > best_auc:
             best_auc = auc
             best_name = name
             best_model = model
-
     return (
         best_name,
         best_model,
         best_auc,
     )
-
-
 # ---------------------------------------------------------------------------
 # Training thresholds
 # ---------------------------------------------------------------------------
-
-def training_event_score_boundaries(
-    train_scores: pd.Series,
-) -> dict[str, float]:
+def training_event_risk_threshold(
+    scores: pd.Series,
+) -> float:
     """
-    Returns score boundaries corresponding to:
-
-        top 5%
-        top 20%
-        top 50%
-
-    The values are calculated from TRAINING data only.
+    Extreme-risk threshold corresponding to the top 5%.
+    The threshold is calculated before the OOS test period.
     """
-
     scores = pd.to_numeric(
-        train_scores,
+        scores,
         errors="coerce",
     ).dropna()
-
     if scores.empty:
-        return {}
-
-    return {
-        "q95": float(
-            scores.quantile(0.95)
-        ),
-        "q80": float(
-            scores.quantile(0.80)
-        ),
-        "q50": float(
-            scores.quantile(0.50)
-        ),
-    }
-
-
+        return float("nan")
+    return float(
+        scores.quantile(
+            1.0 - EVENT_RISK_CUTOFF
+        )
+    )
 def positive_change_threshold(
     train: pd.DataFrame,
 ) -> float:
     """
-    Fixed top-20% threshold among positive absolute FI changes.
-
-    Learned from TRAINING data only.
+    Fixed top-20% threshold among positive short-interest changes.
+    Learned from pre-test data only.
     """
-
     values = pd.to_numeric(
         train["short_interest_pct_change"],
         errors="coerce",
     )
-
     positive = values[
         values > 0
     ].dropna()
-
     if positive.empty:
         return float("nan")
-
     return float(
         positive.quantile(
             1.0 - POSITIVE_CHANGE_CUTOFF
         )
     )
-
-
 # ---------------------------------------------------------------------------
-# Risk bands
+# OOS group assignment
 # ---------------------------------------------------------------------------
-
-def assign_risk_band(
+def assign_event_risk_group(
     scores: pd.Series,
-    boundaries: dict[str, float],
+    threshold: float,
 ) -> pd.Series:
     """
-    Assign each OOS score to a training-defined event-risk band.
+    Assign OOS observations to:
+        top_5pct
+        other_95pct
+    using a threshold calculated from pre-test data only.
     """
-
-    q95 = boundaries.get("q95")
-    q80 = boundaries.get("q80")
-    q50 = boundaries.get("q50")
-
+    numeric_scores = pd.to_numeric(
+        scores,
+        errors="coerce",
+    )
     result = pd.Series(
         pd.NA,
         index=scores.index,
         dtype="string",
     )
-
-    valid = pd.to_numeric(
-        scores,
-        errors="coerce",
-    ).notna()
-
+    valid = numeric_scores.notna()
     result.loc[
         valid
-        & (scores >= q95)
+        & (numeric_scores >= threshold)
     ] = "top_5pct"
-
     result.loc[
         valid
-        & (scores < q95)
-        & (scores >= q80)
-    ] = "5_to_20pct"
-
-    result.loc[
-        valid
-        & (scores < q80)
-        & (scores >= q50)
-    ] = "20_to_50pct"
-
-    result.loc[
-        valid
-        & (scores < q50)
-    ] = "bottom_50pct"
-
+        & (numeric_scores < threshold)
+    ] = "other_95pct"
     return result
-
-
 # ---------------------------------------------------------------------------
-# Analysis
+# 2x2 interaction
 # ---------------------------------------------------------------------------
-
-def analyze_band(
+def interaction_analysis(
     frame: pd.DataFrame,
-    band: str,
-) -> ComparisonResult:
-    subset = frame[
-        frame["risk_band"] == band
-    ].copy()
-
+    title: str = "Interaction",
+) -> InteractionResult | None:
+    """
+    Direct 2x2 interaction analysis.
+    Rows:
+        top 5% event risk
+        other 95% event risk
+    Columns:
+        LOW positive SI change
+        HIGH positive SI change
+    Target:
+        DOWN = 1
+        UP   = 0
+    """
+    subset = frame.copy()
     subset = subset.dropna(
         subset=[
-            "direction",
+            "event_risk_group",
             "short_interest_pct_change",
+            "direction",
+            "training_positive_threshold",
         ]
     )
-
+    # Only positive short-interest changes.
     subset = subset[
         subset[
             "short_interest_pct_change"
         ] > 0
     ].copy()
-
     if subset.empty:
-        return ComparisonResult(
-            band=band,
-            low_n=0,
-            low_down=0,
-            low_down_rate=float("nan"),
-            high_n=0,
-            high_down=0,
-            high_down_rate=float("nan"),
-            delta=float("nan"),
-            ci_low=float("nan"),
-            ci_high=float("nan"),
-            p_positive=float("nan"),
-            fisher_p=float("nan"),
-        )
-
-    threshold = float(
-        subset["training_positive_threshold"]
-        .iloc[0]
-    )
-
+        return None
     subset["high_change"] = (
         subset[
             "short_interest_pct_change"
         ]
-        >= threshold
+        >= subset[
+            "training_positive_threshold"
+        ]
     )
-
-    low = subset[
-        ~subset["high_change"]
-    ]["direction"]
-
-    high = subset[
-        subset["high_change"]
-    ]["direction"]
-
-    low_n = len(low)
-    high_n = len(high)
-
-    low_down = int(
-        (low == 1).sum()
+    subset["down"] = (
+        subset["direction"] == 1
+    ).astype(int)
+    top5_low = subset[
+        (subset["event_risk_group"] == "top_5pct")
+        & (~subset["high_change"])
+    ]["down"]
+    top5_high = subset[
+        (subset["event_risk_group"] == "top_5pct")
+        & (subset["high_change"])
+    ]["down"]
+    other_low = subset[
+        (subset["event_risk_group"] == "other_95pct")
+        & (~subset["high_change"])
+    ]["down"]
+    other_high = subset[
+        (subset["event_risk_group"] == "other_95pct")
+        & (subset["high_change"])
+    ]["down"]
+    if (
+        len(top5_low) == 0
+        or len(top5_high) == 0
+        or len(other_low) == 0
+        or len(other_high) == 0
+    ):
+        return None
+    top5_low_rate = safe_rate(top5_low)
+    top5_high_rate = safe_rate(top5_high)
+    other_low_rate = safe_rate(other_low)
+    other_high_rate = safe_rate(other_high)
+    top5_effect = (
+        top5_high_rate
+        - top5_low_rate
     )
-
-    high_down = int(
-        (high == 1).sum()
+    other_effect = (
+        other_high_rate
+        - other_low_rate
     )
-
-    low_rate = (
-        low_down / low_n
-        if low_n
-        else float("nan")
+    (
+        interaction,
+        ci_low,
+        ci_high,
+        p_positive,
+    ) = bootstrap_interaction(
+        top5_low=top5_low,
+        top5_high=top5_high,
+        other_low=other_low,
+        other_high=other_high,
     )
-
-    high_rate = (
-        high_down / high_n
-        if high_n
-        else float("nan")
-    )
-
-    if low_n and high_n:
-        delta, ci_low, ci_high, p_positive = (
-            bootstrap_difference(
-                low,
-                high,
-            )
-        )
-
-        fisher_p = safe_fisher_p(
-            low_down=low_down,
-            low_up=low_n - low_down,
-            high_down=high_down,
-            high_up=high_n - high_down,
-        )
-    else:
-        delta = float("nan")
-        ci_low = float("nan")
-        ci_high = float("nan")
-        p_positive = float("nan")
-        fisher_p = float("nan")
-
-    return ComparisonResult(
-        band=band,
-        low_n=low_n,
-        low_down=low_down,
-        low_down_rate=low_rate,
-        high_n=high_n,
-        high_down=high_down,
-        high_down_rate=high_rate,
-        delta=delta,
+    result = InteractionResult(
+        top5_low_n=len(top5_low),
+        top5_high_n=len(top5_high),
+        top5_low_rate=top5_low_rate,
+        top5_high_rate=top5_high_rate,
+        top5_effect=top5_effect,
+        other_low_n=len(other_low),
+        other_high_n=len(other_high),
+        other_low_rate=other_low_rate,
+        other_high_rate=other_high_rate,
+        other_effect=other_effect,
+        interaction=interaction,
         ci_low=ci_low,
         ci_high=ci_high,
         p_positive=p_positive,
-        fisher_p=fisher_p,
     )
-
-
-def print_result(
-    result: ComparisonResult,
-) -> None:
     print()
     print(
-        f"  {result.band}"
+        f"{title}:"
     )
-
     print(
-        f"    LOW  n={result.low_n:4d} "
-        f"DOWN={result.low_down:4d} "
-        f"rate={result.low_down_rate:.4f}"
+        "  "
+        "                    LOW SI       HIGH SI"
     )
-
     print(
-        f"    HIGH n={result.high_n:4d} "
-        f"DOWN={result.high_down:4d} "
-        f"rate={result.high_down_rate:.4f}"
+        f"  top 5% risk        "
+        f"{top5_low_rate:.4f} "
+        f"(n={len(top5_low):3d})    "
+        f"{top5_high_rate:.4f} "
+        f"(n={len(top5_high):3d})"
     )
-
     print(
-        f"    delta HIGH-LOW: "
-        f"{result.delta:+.4f}"
+        f"  other 95%         "
+        f"{other_low_rate:.4f} "
+        f"(n={len(other_low):3d})    "
+        f"{other_high_rate:.4f} "
+        f"(n={len(other_high):3d})"
     )
-
+    print()
     print(
-        f"    bootstrap CI: "
-        f"[{result.ci_low:+.4f}, "
-        f"{result.ci_high:+.4f}]"
+        "  HIGH - LOW effect:"
     )
-
     print(
-        f"    P(delta > 0): "
-        f"{result.p_positive:.4f}"
+        f"    top 5%:   "
+        f"{top5_effect:+.4f}"
     )
-
     print(
-        f"    Fisher p: "
-        f"{result.fisher_p:.4f}"
+        f"    other 95%:"
+        f"{other_effect:+.4f}"
     )
-
-
+    print()
+    print(
+        "  Interaction "
+        "(top5 effect - other95 effect):"
+    )
+    print(
+        f"    {interaction:+.4f}"
+    )
+    print(
+        "  Bootstrap CI:"
+        f" [{ci_low:+.4f}, {ci_high:+.4f}]"
+    )
+    print(
+        "  P(interaction > 0):"
+        f" {p_positive:.4f}"
+    )
+    return result
 # ---------------------------------------------------------------------------
 # Walk-forward window
 # ---------------------------------------------------------------------------
-
 def run_window(
     data: pd.DataFrame,
     train_end: str,
@@ -556,17 +486,14 @@ def run_window(
         data["price_date"]
         <= train_end
     ].copy()
-
     validation = data[
         (data["price_date"] > train_end)
         & (data["price_date"] <= validation_end)
     ].copy()
-
     test = data[
         (data["price_date"] > validation_end)
         & (data["price_date"] <= test_end)
     ].copy()
-
     print()
     print("=" * 80)
     print(
@@ -584,7 +511,6 @@ def run_window(
     print(
         f"Test rows:       {len(test):,}"
     )
-
     (
         model_name,
         event_model,
@@ -593,13 +519,11 @@ def run_window(
         train,
         validation,
     )
-
     if event_model is None:
         print(
             "No usable event model."
         )
         return pd.DataFrame()
-
     print(
         f"Event model: {model_name}"
     )
@@ -607,21 +531,14 @@ def run_window(
         f"Validation AUC: "
         f"{validation_auc:.4f}"
     )
-
     features = list(
         EVENT_FEATURE_SETS[
             model_name
         ]
     )
-
     # ---------------------------------------------------------------
-    # Refit the selected model on train + validation.
-    #
-    # Selection is based only on validation AUC.
-    # The final model then gets all historical information available
-    # before the test period.
+    # Refit selected model on all pre-test data.
     # ---------------------------------------------------------------
-
     train_validation = pd.concat(
         [
             train,
@@ -629,20 +546,21 @@ def run_window(
         ],
         ignore_index=True,
     )
-
     final_model = fit_event_model(
         train_validation,
         features,
     )
-
     if final_model is None:
         print(
             "Could not fit final event model."
         )
         return pd.DataFrame()
-
-    # Training+validation scores are used only to define the
-    # event-risk bands before looking at test outcomes.
+    # ---------------------------------------------------------------
+    # Pre-test event-risk scores.
+    #
+    # These are used only to establish the top-5% threshold before
+    # looking at test outcomes.
+    # ---------------------------------------------------------------
     train_validation_scores = (
         predict_event_score(
             final_model,
@@ -650,42 +568,38 @@ def run_window(
             features,
         )
     )
-
-    boundaries = (
-        training_event_score_boundaries(
+    event_risk_threshold = (
+        training_event_risk_threshold(
             train_validation_scores
         )
     )
-
-    if not boundaries:
+    if not np.isfinite(
+        event_risk_threshold
+    ):
         print(
-            "Could not calculate event-risk boundaries."
+            "Could not calculate event-risk threshold."
         )
         return pd.DataFrame()
-
     positive_threshold = (
         positive_change_threshold(
             train_validation
         )
     )
-
+    if not np.isfinite(
+        positive_threshold
+    ):
+        print(
+            "Could not calculate positive-change threshold."
+        )
+        return pd.DataFrame()
     print(
-        "Event-risk boundaries "
-        "(training-derived):"
+        "Extreme event-risk threshold "
+        "(pre-test derived):"
     )
     print(
-        f"  top 5%:    score >= "
-        f"{boundaries['q95']:.6f}"
+        f"  top 5%: score >= "
+        f"{event_risk_threshold:.6f}"
     )
-    print(
-        f"  top 20%:   score >= "
-        f"{boundaries['q80']:.6f}"
-    )
-    print(
-        f"  top 50%:   score >= "
-        f"{boundaries['q50']:.6f}"
-    )
-
     print(
         "Positive short-interest "
         "top-20% threshold:"
@@ -694,13 +608,10 @@ def run_window(
         f"  threshold = "
         f"{positive_threshold:.6f}"
     )
-
     # ---------------------------------------------------------------
-    # OOS scoring
+    # OOS scoring.
     # ---------------------------------------------------------------
-
     test = test.copy()
-
     test["event_score"] = (
         predict_event_score(
             final_model,
@@ -708,201 +619,124 @@ def run_window(
             features,
         )
     )
-
-    test["risk_band"] = assign_risk_band(
-        test["event_score"],
-        boundaries,
+    test["event_risk_group"] = (
+        assign_event_risk_group(
+            test["event_score"],
+            event_risk_threshold,
+        )
     )
-
     test[
         "training_positive_threshold"
     ] = positive_threshold
-
     # Direction only:
     # 1 = DOWN <= -10%
     # 0 = UP >= +10%
     test = test.dropna(
         subset=[
             "direction",
-            "risk_band",
+            "event_risk_group",
             "short_interest_pct_change",
         ]
     )
-
     print(
         f"Directional OOS rows: "
         f"{len(test):,}"
     )
-
-    print()
-    print(
-        "Positive short-interest "
-        "change interaction:"
+    interaction_analysis(
+        test,
+        title="2x2 OOS interaction",
     )
-
-    results: list[ComparisonResult] = []
-
-    for band, _, _ in RISK_BANDS:
-        result = analyze_band(
-            test,
-            band,
-        )
-
-        results.append(result)
-        print_result(result)
-
     test["window"] = (
         f"{train_end}_"
         f"{validation_end}_"
         f"{test_end}"
     )
-
     return test
-
-
 # ---------------------------------------------------------------------------
 # Pooled analysis
 # ---------------------------------------------------------------------------
-
 def pooled_analysis(
     frames: list[pd.DataFrame],
 ) -> None:
     if not frames:
         return
-
     pooled = pd.concat(
         frames,
         ignore_index=True,
     )
-
     print()
     print("=" * 80)
-    print("POOLED OOS INTERACTION")
+    print("POOLED OOS 2x2 INTERACTION")
     print("=" * 80)
-
     print(
         f"Directional OOS rows: "
         f"{len(pooled):,}"
     )
-
-    for band, _, _ in RISK_BANDS:
-        result = analyze_band(
-            pooled,
-            band,
-        )
-
-        print_result(result)
-
-    # ---------------------------------------------------------------
-    # Direct interaction view
-    # ---------------------------------------------------------------
-
-    pooled = pooled.copy()
-
-    pooled["high_change"] = (
-        pooled[
-            "short_interest_pct_change"
-        ]
-        >= pooled[
-            "training_positive_threshold"
-        ]
+    interaction_analysis(
+        pooled,
+        title="Pooled interaction",
     )
-
-    pooled["down"] = (
-        pooled["direction"] == 1
-    ).astype(int)
-
+    # ---------------------------------------------------------------
+    # Per-window interaction results.
+    # ---------------------------------------------------------------
     print()
-    print(
-        "Interaction summary:"
-    )
-
-    for band, _, _ in RISK_BANDS:
-        subset = pooled[
-            pooled["risk_band"] == band
-        ].copy()
-
-        if subset.empty:
-            continue
-
-        low = subset[
-            ~subset["high_change"]
-        ]
-
-        high = subset[
-            subset["high_change"]
-        ]
-
-        print()
-        print(
-            f"{band}:"
+    print("=" * 80)
+    print("PER-WINDOW INTERACTION")
+    print("=" * 80)
+    for window, frame in pooled.groupby(
+        "window",
+        sort=True,
+    ):
+        interaction_analysis(
+            frame,
+            title=window,
         )
-        print(
-            f"  LOW : n={len(low):4d}, "
-            f"DOWN={low['down'].mean():.4f}"
-            if len(low)
-            else "  LOW : n=0"
-        )
-        print(
-            f"  HIGH: n={len(high):4d}, "
-            f"DOWN={high['down'].mean():.4f}"
-            if len(high)
-            else "  HIGH: n=0"
-        )
-
-
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-
 def main() -> None:
     print(
         "Blankdiss Short-Interest / "
         "Event-Risk Interaction Diagnostic"
     )
-
     print(
         f"Event threshold: "
         f"{EVENT_THRESHOLD:.0%}"
     )
-
     print(
         f"Event tail reference: "
         f"{EVENT_TAIL:.0%}"
     )
-
     print(
         "Positive-change cutoff: "
         f"top {POSITIVE_CHANGE_CUTOFF:.0%}"
     )
-
     print(
-        "Risk bands:"
+        "Extreme event-risk cutoff: "
+        f"top {EVENT_RISK_CUTOFF:.0%}"
     )
-
-    for name, low, high in RISK_BANDS:
-        print(
-            f"  {name}: "
-            f"{low:.0%} -> {high:.0%}"
-        )
-
+    print(
+        "Risk groups:"
+    )
+    print(
+        "  top_5pct:    0% -> 5%"
+    )
+    print(
+        "  other_95pct: 5% -> 100%"
+    )
     data = prepare_data()
-
     print()
     print(
         f"Prepared rows: "
         f"{len(data):,}"
     )
-
     print(
         f"Date range: "
         f"{data['price_date'].min()} "
         f"-> "
         f"{data['price_date'].max()}"
     )
-
     frames: list[pd.DataFrame] = []
-
     for window in WALK_FORWARD_WINDOWS:
         frame = run_window(
             data=data,
@@ -910,14 +744,10 @@ def main() -> None:
             validation_end=window.validation_end,
             test_end=window.test_end,
         )
-
         if not frame.empty:
             frames.append(frame)
-
     pooled_analysis(
         frames
     )
-
-
 if __name__ == "__main__":
     main()
