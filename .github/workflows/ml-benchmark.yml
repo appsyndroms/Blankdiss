@@ -13,5 +13,5 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Run volatility change logistic screening
-        run: python -u -m ml.diagnostics.volatility_change_logistic_screening
+      - name: Run volatility horizon logistic screening
+        run: python -u ml/diagnostics/volatility_horizon_logistic_screening.py
