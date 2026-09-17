@@ -7,17 +7,23 @@ on:
         description: "Startdatum"
         required: true
         default: "2020-01-01"
+
       end:
         description: "Slutdatum"
         required: true
         default: "2020-06-30"
+
       max_archives:
-        description: "Max antal ZIP-arkiv"
+        description: "Max antal ZIP-arkiv per körning"
         required: true
         default: "30"
 
 permissions:
   contents: read
+
+concurrency:
+  group: bolagsverket-download
+  cancel-in-progress: false
 
 jobs:
   download:
@@ -33,7 +39,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download Bolagsverket data
+      - name: Download Bolagsverket annual reports
         run: |
           python -u -m bolagsverket.download \
             --start "${{ inputs.start }}" \
@@ -41,10 +47,53 @@ jobs:
             --max-archives "${{ inputs.max_archives }}" \
             --output data/bolagsverket
 
-      - name: Inspect data
+      - name: Inspect downloaded data
         run: |
           test -f data/bolagsverket/manifest.json
-          find data/bolagsverket -type f -printf '%p %s bytes\n' | sort
+
+          find data/bolagsverket \
+            -maxdepth 2 \
+            -type f \
+            -printf '%p %s bytes\n' \
+            | sort
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "data/bolagsverket/manifest.json"
+          )
+
+          data = json.loads(
+              path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          archives = data.get(
+              "archives",
+              []
+          )
+
+          if not archives:
+              raise SystemExit(
+                  "No Bolagsverket archives downloaded."
+              )
+
+          print(
+              "Archives:",
+              len(archives)
+          )
+
+          print(
+              "Bytes:",
+              sum(
+                  int(item["bytes"])
+                  for item in archives
+              )
+          )
+          PY
 
       - name: Upload Bolagsverket data
         uses: actions/upload-artifact@v4
