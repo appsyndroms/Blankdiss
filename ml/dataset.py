@@ -138,11 +138,48 @@ def build_target(
 def get_feature_columns(
     frame: pd.DataFrame,
     include_price_features: bool,
+    price_features: set[str] | None = None,
 ) -> list[str]:
-    if include_price_features:
+    """
+    Returnerar ML-features.
+
+    Om price_features anges inkluderas exakt dessa prisfeatures.
+    Om price_features är None används include_price_features för
+    bakåtkompatibilitet:
+      - True  -> alla price features
+      - False -> inga price features
+    """
+    if price_features is not None:
+        unknown_price_features = (
+            price_features
+            - set(PRICE_FEATURE_COLUMNS)
+        )
+
+        if unknown_price_features:
+            raise ValueError(
+                "Okända price features: "
+                + ", ".join(
+                    sorted(unknown_price_features)
+                )
+            )
+
         excluded = FEATURE_EXCLUDE_COLUMNS
+
+        selected_price_features = set(
+            price_features
+        )
+
+    elif include_price_features:
+        excluded = FEATURE_EXCLUDE_COLUMNS
+
+        selected_price_features = set(
+            PRICE_FEATURE_COLUMNS
+        )
+
     else:
         excluded = FI_ONLY_EXCLUDE_COLUMNS
+
+        selected_price_features = set()
 
     columns: list[str] = []
 
@@ -164,6 +201,10 @@ def get_feature_columns(
             "max_return_"
         ):
             continue
+
+        if column in PRICE_FEATURE_COLUMNS:
+            if column not in selected_price_features:
+                continue
 
         if pd.api.types.is_bool_dtype(
             frame[column]
@@ -187,6 +228,7 @@ def get_feature_columns(
 def prepare_feature_set(
     frame: pd.DataFrame,
     include_price_features: bool,
+    price_features: set[str] | None = None,
 ) -> tuple[
     pd.DataFrame,
     list[str],
@@ -197,10 +239,15 @@ def prepare_feature_set(
     Resultatet kan återanvändas av flera targets. Target-specifika
     rader filtreras först när prepare_ml_data_from_feature_set()
     anropas.
+
+    price_features:
+        None -> använd include_price_features för bakåtkompatibilitet.
+        Set  -> inkludera exakt dessa price features.
     """
     feature_columns = get_feature_columns(
         frame,
         include_price_features,
+        price_features=price_features,
     )
 
     required_columns = [
