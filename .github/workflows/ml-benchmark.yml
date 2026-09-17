@@ -14,6 +14,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      - name: Run volatility directional tail diagnostic
+      - name: Run event-direction benchmark
         run: |
-          python -u -m ml.diagnostics.volatility_directional_tail_diagnostic
+          python -u -m ml.diagnostics.volatility_event_fi_direction_diagnostic
