@@ -1,0 +1,55 @@
+name: Blankdiss Bolagsverket
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Startdatum"
+        required: true
+        default: "2020-01-01"
+      end:
+        description: "Slutdatum"
+        required: true
+        default: "2020-06-30"
+      max_archives:
+        description: "Max antal ZIP-arkiv"
+        required: true
+        default: "30"
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    name: Hämta Bolagsverket
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download Bolagsverket data
+        run: |
+          python -u -m bolagsverket.download \
+            --start "${{ inputs.start }}" \
+            --end "${{ inputs.end }}" \
+            --max-archives "${{ inputs.max_archives }}" \
+            --output data/bolagsverket
+
+      - name: Inspect data
+        run: |
+          test -f data/bolagsverket/manifest.json
+          find data/bolagsverket -type f -printf '%p %s bytes\n' | sort
+
+      - name: Upload Bolagsverket data
+        uses: actions/upload-artifact@v4
+        with:
+          name: bolagsverket-${{ inputs.start }}-${{ inputs.end }}
+          path: data/bolagsverket
+          if-no-files-found: error
+          retention-days: 30
