@@ -19,28 +19,34 @@ jobs:
       - name: Install requests
         run: python -m pip install requests
 
-      - name: Test Bolagsverket OAuth and API
+      - name: Test Bolagsverket organisation API
         env:
           BOLAGSVERKET_CLIENT_ID: ${{ secrets.BOLAGSVERKET_CLIENT_ID_TEST }}
           BOLAGSVERKET_CLIENT_SECRET: ${{ secrets.BOLAGSVERKET_CLIENT_SECRET_TEST }}
         run: |
           python - <<'PY'
           import os
+          import uuid
           import requests
 
-          token_url = (
+          TOKEN_URL = (
               "https://portal-accept2.api.bolagsverket.se/oauth2/token"
           )
 
-          api_url = (
+          API_URL = (
               "https://gw-accept2.api.bolagsverket.se/"
               "foretagsinformation/v4/organisationer"
           )
 
+          # ------------------------------------------------------------
           # OAuth
+          # ------------------------------------------------------------
+
           token_response = requests.post(
-              token_url,
-              data={"grant_type": "client_credentials"},
+              TOKEN_URL,
+              data={
+                  "grant_type": "client_credentials",
+              },
               auth=(
                   os.environ["BOLAGSVERKET_CLIENT_ID"],
                   os.environ["BOLAGSVERKET_CLIENT_SECRET"],
@@ -59,18 +65,50 @@ jobs:
           print(f"Token type: {token_data.get('token_type')}")
           print(f"Expires in: {token_data.get('expires_in')} seconds")
 
-          # API
-          response = requests.get(
-              api_url,
+          # ------------------------------------------------------------
+          # Organisation API
+          # ------------------------------------------------------------
+
+          request_id = str(uuid.uuid4())
+
+          payload = {
+              "identitetsbeteckning": "556000-0000",
+              "organisationInformationsmangd": [
+                  "ORGANISATIONSDATUM",
+              ],
+          }
+
+          print()
+          print("Calling:")
+          print(API_URL)
+          print()
+          print("Request body:")
+          print(payload)
+          print()
+          print(f"X-Request-Id: {request_id}")
+
+          response = requests.post(
+              API_URL,
               headers={
                   "Authorization": f"Bearer {token}",
                   "Accept": "application/json",
+                  "Content-Type": "application/json",
+                  "X-Request-Id": request_id,
               },
+              json=payload,
               timeout=30,
           )
 
+          print()
           print(f"API HTTP status: {response.status_code}")
           print("API response:")
+          print(response.text[:10000])
 
-          print(response.text[:5000])
+          if not response.ok:
+              print()
+              print("API request failed.")
+              raise SystemExit(1)
+
+          print()
+          print("Organisation API: OK")
           PY
