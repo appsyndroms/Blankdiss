@@ -5,22 +5,29 @@ Question:
     is extremely high?
 Design:
     1. Fit/select the event-risk model using train/validation only.
-    2. Calculate OOS event-risk scores.
-    3. Define the extreme event-risk group from the training distribution:
+    2. Refit the selected model on all pre-test data.
+    3. Calculate OOS event-risk scores.
+    4. Define several extreme event-risk groups from the pre-test
+       score distribution:
+           - top 20%
+           - top 10%
            - top 5%
-           - remaining 95%
-    4. Within each OOS risk group, compare:
+           - top 2.5%
+           - top 1%
+    5. Within each OOS risk group, compare:
            - top 20% of positive short-interest changes
            - all other positive changes
-    5. Only observations with an extreme direction are included:
+    6. Only observations with an extreme direction are included:
            DOWN = forward return <= -10%
            UP   = forward return >= +10%
-    6. Test the interaction directly:
-           (HIGH SI - LOW SI) in top 5%
+    7. Test the interaction directly for every risk tail:
+           (HIGH SI - LOW SI) in risk tail
            minus
-           (HIGH SI - LOW SI) in remaining 95%
+           (HIGH SI - LOW SI) in all observations outside that tail
 The positive-change threshold is fixed at the training 80th percentile
 among positive changes. It is NOT searched over multiple cutoffs.
+Risk-tail thresholds are calculated from pre-test event-risk scores only.
+They are never derived from test outcomes.
 No repository files are modified by this script.
 """
 from __future__ import annotations
@@ -43,25 +50,26 @@ from ml.diagnostics.fi_direction_short_dynamics_diagnostic import (
 # Configuration
 # ---------------------------------------------------------------------------
 POSITIVE_CHANGE_CUTOFF = 0.20
-EVENT_RISK_CUTOFF = 0.05
+# Sweep the event-risk tail rather than testing only top 5%.
+EVENT_RISK_CUTOFFS = (
+    0.20,
+    0.10,
+    0.05,
+    0.025,
+    0.01,
+)
 BOOTSTRAP_ITERATIONS = 2_000
 # ---------------------------------------------------------------------------
 # Statistics
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
-class CellResult:
-    group: str
-    change_group: str
-    n: int
-    down: int
-    down_rate: float
-@dataclass(frozen=True)
 class InteractionResult:
-    top5_low_n: int
-    top5_high_n: int
-    top5_low_rate: float
-    top5_high_rate: float
-    top5_effect: float
+    risk_cutoff: float
+    risk_low_n: int
+    risk_high_n: int
+    risk_low_rate: float
+    risk_high_rate: float
+    risk_effect: float
     other_low_n: int
     other_high_n: int
     other_low_rate: float
@@ -71,6 +79,9 @@ class InteractionResult:
     ci_low: float
     ci_high: float
     p_positive: float
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 def safe_rate(
     values: pd.Series,
 ) -> float:
@@ -79,9 +90,15 @@ def safe_rate(
     return float(
         values.mean()
     )
+def risk_label(
+    cutoff: float,
+) -> str:
+    if cutoff >= 0.01:
+        return f"top_{cutoff:.0%}"
+    return f"top_{cutoff * 100:.1f}%"
 def bootstrap_interaction(
-    top5_low: pd.Series,
-    top5_high: pd.Series,
+    risk_low: pd.Series,
+    risk_high: pd.Series,
     other_low: pd.Series,
     other_high: pd.Series,
     iterations: int = BOOTSTRAP_ITERATIONS,
@@ -89,9 +106,9 @@ def bootstrap_interaction(
 ) -> tuple[float, float, float, float]:
     """
     Bootstrap the interaction:
-        (HIGH - LOW) in TOP5
+        (HIGH - LOW) in selected risk tail
         -
-        (HIGH - LOW) in OTHER95
+        (HIGH - LOW) outside selected risk tail
     Returns:
         observed interaction,
         2.5% CI,
@@ -102,25 +119,35 @@ def bootstrap_interaction(
         pd.to_numeric(
             values,
             errors="coerce",
-        ).dropna().to_numpy()
+        )
+        .dropna()
+        .to_numpy()
         for values in (
-            top5_low,
-            top5_high,
+            risk_low,
+            risk_high,
             other_low,
             other_high,
         )
     ]
-    if any(len(values) == 0 for values in groups):
+    if any(
+        len(values) == 0
+        for values in groups
+    ):
         return (
             float("nan"),
             float("nan"),
             float("nan"),
             float("nan"),
         )
-    top5_low_values, top5_high_values, other_low_values, other_high_values = groups
+    (
+        risk_low_values,
+        risk_high_values,
+        other_low_values,
+        other_high_values,
+    ) = groups
     observed = (
-        top5_high_values.mean()
-        - top5_low_values.mean()
+        risk_high_values.mean()
+        - risk_low_values.mean()
         - other_high_values.mean()
         + other_low_values.mean()
     )
@@ -132,14 +159,14 @@ def bootstrap_interaction(
         dtype=float,
     )
     for index in range(iterations):
-        top5_low_sample = rng.choice(
-            top5_low_values,
-            size=len(top5_low_values),
+        risk_low_sample = rng.choice(
+            risk_low_values,
+            size=len(risk_low_values),
             replace=True,
         )
-        top5_high_sample = rng.choice(
-            top5_high_values,
-            size=len(top5_high_values),
+        risk_high_sample = rng.choice(
+            risk_high_values,
+            size=len(risk_high_values),
             replace=True,
         )
         other_low_sample = rng.choice(
@@ -153,16 +180,24 @@ def bootstrap_interaction(
             replace=True,
         )
         interactions[index] = (
-            top5_high_sample.mean()
-            - top5_low_sample.mean()
+            risk_high_sample.mean()
+            - risk_low_sample.mean()
             - other_high_sample.mean()
             + other_low_sample.mean()
         )
     return (
         float(observed),
-        float(np.quantile(interactions, 0.025)),
-        float(np.quantile(interactions, 0.975)),
-        float((interactions > 0).mean()),
+        float(np.quantile(
+            interactions,
+            0.025,
+        )),
+        float(np.quantile(
+            interactions,
+            0.975,
+        )),
+        float(
+            (interactions > 0).mean()
+        ),
     )
 def safe_fisher_p(
     low_down: int,
@@ -244,10 +279,15 @@ def select_event_model(
 # ---------------------------------------------------------------------------
 def training_event_risk_threshold(
     scores: pd.Series,
+    risk_cutoff: float,
 ) -> float:
     """
-    Extreme-risk threshold corresponding to the top 5%.
-    The threshold is calculated before the OOS test period.
+    Calculate the event-risk threshold corresponding to the selected
+    upper tail.
+    Example:
+        risk_cutoff=0.05 -> top 5%
+        risk_cutoff=0.01 -> top 1%
+    Threshold is calculated from pre-test scores only.
     """
     scores = pd.to_numeric(
         scores,
@@ -257,7 +297,7 @@ def training_event_risk_threshold(
         return float("nan")
     return float(
         scores.quantile(
-            1.0 - EVENT_RISK_CUTOFF
+            1.0 - risk_cutoff
         )
     )
 def positive_change_threshold(
@@ -282,21 +322,28 @@ def positive_change_threshold(
         )
     )
 # ---------------------------------------------------------------------------
-# OOS group assignment
+# OOS risk-tail assignment
 # ---------------------------------------------------------------------------
 def assign_event_risk_group(
     scores: pd.Series,
     threshold: float,
+    cutoff: float,
 ) -> pd.Series:
     """
     Assign OOS observations to:
-        top_5pct
-        other_95pct
+        selected risk tail
+        other observations
     using a threshold calculated from pre-test data only.
     """
     numeric_scores = pd.to_numeric(
         scores,
         errors="coerce",
+    )
+    label = risk_label(
+        cutoff
+    )
+    other_label = (
+        f"other_{(1.0 - cutoff):.1%}"
     )
     result = pd.Series(
         pd.NA,
@@ -307,24 +354,25 @@ def assign_event_risk_group(
     result.loc[
         valid
         & (numeric_scores >= threshold)
-    ] = "top_5pct"
+    ] = label
     result.loc[
         valid
         & (numeric_scores < threshold)
-    ] = "other_95pct"
+    ] = other_label
     return result
 # ---------------------------------------------------------------------------
-# 2x2 interaction
+# Single risk-tail interaction
 # ---------------------------------------------------------------------------
 def interaction_analysis(
     frame: pd.DataFrame,
+    risk_cutoff: float,
     title: str = "Interaction",
 ) -> InteractionResult | None:
     """
-    Direct 2x2 interaction analysis.
+    Direct interaction analysis for one event-risk tail.
     Rows:
-        top 5% event risk
-        other 95% event risk
+        selected event-risk tail
+        all observations outside selected tail
     Columns:
         LOW positive SI change
         HIGH positive SI change
@@ -349,7 +397,7 @@ def interaction_analysis(
     ].copy()
     if subset.empty:
         return None
-    subset["high_change"] = (
+    high_change = (
         subset[
             "short_interest_pct_change"
         ]
@@ -357,39 +405,54 @@ def interaction_analysis(
             "training_positive_threshold"
         ]
     )
+    subset["high_change"] = high_change
     subset["down"] = (
         subset["direction"] == 1
     ).astype(int)
-    top5_low = subset[
-        (subset["event_risk_group"] == "top_5pct")
+    selected_label = risk_label(
+        risk_cutoff
+    )
+    other_label = (
+        f"other_{(1.0 - risk_cutoff):.1%}"
+    )
+    risk_low = subset[
+        (subset["event_risk_group"] == selected_label)
         & (~subset["high_change"])
     ]["down"]
-    top5_high = subset[
-        (subset["event_risk_group"] == "top_5pct")
+    risk_high = subset[
+        (subset["event_risk_group"] == selected_label)
         & (subset["high_change"])
     ]["down"]
     other_low = subset[
-        (subset["event_risk_group"] == "other_95pct")
+        (subset["event_risk_group"] == other_label)
         & (~subset["high_change"])
     ]["down"]
     other_high = subset[
-        (subset["event_risk_group"] == "other_95pct")
+        (subset["event_risk_group"] == other_label)
         & (subset["high_change"])
     ]["down"]
     if (
-        len(top5_low) == 0
-        or len(top5_high) == 0
+        len(risk_low) == 0
+        or len(risk_high) == 0
         or len(other_low) == 0
         or len(other_high) == 0
     ):
         return None
-    top5_low_rate = safe_rate(top5_low)
-    top5_high_rate = safe_rate(top5_high)
-    other_low_rate = safe_rate(other_low)
-    other_high_rate = safe_rate(other_high)
-    top5_effect = (
-        top5_high_rate
-        - top5_low_rate
+    risk_low_rate = safe_rate(
+        risk_low
+    )
+    risk_high_rate = safe_rate(
+        risk_high
+    )
+    other_low_rate = safe_rate(
+        other_low
+    )
+    other_high_rate = safe_rate(
+        other_high
+    )
+    risk_effect = (
+        risk_high_rate
+        - risk_low_rate
     )
     other_effect = (
         other_high_rate
@@ -401,17 +464,18 @@ def interaction_analysis(
         ci_high,
         p_positive,
     ) = bootstrap_interaction(
-        top5_low=top5_low,
-        top5_high=top5_high,
+        risk_low=risk_low,
+        risk_high=risk_high,
         other_low=other_low,
         other_high=other_high,
     )
     result = InteractionResult(
-        top5_low_n=len(top5_low),
-        top5_high_n=len(top5_high),
-        top5_low_rate=top5_low_rate,
-        top5_high_rate=top5_high_rate,
-        top5_effect=top5_effect,
+        risk_cutoff=risk_cutoff,
+        risk_low_n=len(risk_low),
+        risk_high_n=len(risk_high),
+        risk_low_rate=risk_low_rate,
+        risk_high_rate=risk_high_rate,
+        risk_effect=risk_effect,
         other_low_n=len(other_low),
         other_high_n=len(other_high),
         other_low_rate=other_low_rate,
@@ -424,21 +488,22 @@ def interaction_analysis(
     )
     print()
     print(
-        f"{title}:"
+        f"{title} "
+        f"[{risk_label(risk_cutoff)}]:"
     )
     print(
         "  "
-        "                    LOW SI       HIGH SI"
+        "                         LOW SI       HIGH SI"
     )
     print(
-        f"  top 5% risk        "
-        f"{top5_low_rate:.4f} "
-        f"(n={len(top5_low):3d})    "
-        f"{top5_high_rate:.4f} "
-        f"(n={len(top5_high):3d})"
+        f"  {selected_label:<20}"
+        f"{risk_low_rate:.4f} "
+        f"(n={len(risk_low):3d})    "
+        f"{risk_high_rate:.4f} "
+        f"(n={len(risk_high):3d})"
     )
     print(
-        f"  other 95%         "
+        f"  {other_label:<20}"
         f"{other_low_rate:.4f} "
         f"(n={len(other_low):3d})    "
         f"{other_high_rate:.4f} "
@@ -449,17 +514,17 @@ def interaction_analysis(
         "  HIGH - LOW effect:"
     )
     print(
-        f"    top 5%:   "
-        f"{top5_effect:+.4f}"
+        f"    {risk_label(risk_cutoff):<12}"
+        f"{risk_effect:+.4f}"
     )
     print(
-        f"    other 95%:"
+        f"    {other_label:<12}"
         f"{other_effect:+.4f}"
     )
     print()
     print(
         "  Interaction "
-        "(top5 effect - other95 effect):"
+        "(risk-tail effect - outside effect):"
     )
     print(
         f"    {interaction:+.4f}"
@@ -474,6 +539,78 @@ def interaction_analysis(
     )
     return result
 # ---------------------------------------------------------------------------
+# Risk-tail sweep
+# ---------------------------------------------------------------------------
+def risk_tail_sweep(
+    frame: pd.DataFrame,
+    thresholds: dict[float, float],
+    title: str = "Risk-tail sweep",
+) -> list[InteractionResult]:
+    results: list[InteractionResult] = []
+    for cutoff in EVENT_RISK_CUTOFFS:
+        threshold = thresholds.get(
+            cutoff
+        )
+        if threshold is None:
+            continue
+        scored = frame.copy()
+        scored["event_risk_group"] = (
+            assign_event_risk_group(
+                scored["event_score"],
+                threshold,
+                cutoff,
+            )
+        )
+        result = interaction_analysis(
+            scored,
+            risk_cutoff=cutoff,
+            title=title,
+        )
+        if result is not None:
+            results.append(
+                result
+            )
+    return results
+def print_risk_tail_summary(
+    results: list[InteractionResult],
+    title: str,
+) -> None:
+    if not results:
+        return
+    print()
+    print("=" * 80)
+    print(title)
+    print("=" * 80)
+    print(
+        "Risk tail     "
+        "n_tail    n_other    "
+        "tail effect    "
+        "other effect    "
+        "interaction    "
+        "CI low       CI high      "
+        "P(>0)"
+    )
+    for result in results:
+        n_tail = (
+            result.risk_low_n
+            + result.risk_high_n
+        )
+        n_other = (
+            result.other_low_n
+            + result.other_high_n
+        )
+        print(
+            f"{risk_label(result.risk_cutoff):<12}"
+            f"{n_tail:7d}    "
+            f"{n_other:7d}    "
+            f"{result.risk_effect:+.4f}        "
+            f"{result.other_effect:+.4f}        "
+            f"{result.interaction:+.4f}        "
+            f"{result.ci_low:+.4f}      "
+            f"{result.ci_high:+.4f}      "
+            f"{result.p_positive:.4f}"
+        )
+# ---------------------------------------------------------------------------
 # Walk-forward window
 # ---------------------------------------------------------------------------
 def run_window(
@@ -481,7 +618,7 @@ def run_window(
     train_end: str,
     validation_end: str,
     test_end: str,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, list[InteractionResult]]:
     train = data[
         data["price_date"]
         <= train_end
@@ -523,7 +660,10 @@ def run_window(
         print(
             "No usable event model."
         )
-        return pd.DataFrame()
+        return (
+            pd.DataFrame(),
+            [],
+        )
     print(
         f"Event model: {model_name}"
     )
@@ -554,11 +694,14 @@ def run_window(
         print(
             "Could not fit final event model."
         )
-        return pd.DataFrame()
+        return (
+            pd.DataFrame(),
+            [],
+        )
     # ---------------------------------------------------------------
     # Pre-test event-risk scores.
     #
-    # These are used only to establish the top-5% threshold before
+    # These are used only to establish the risk-tail thresholds before
     # looking at test outcomes.
     # ---------------------------------------------------------------
     train_validation_scores = (
@@ -568,18 +711,24 @@ def run_window(
             features,
         )
     )
-    event_risk_threshold = (
-        training_event_risk_threshold(
-            train_validation_scores
-        )
+    thresholds: dict[float, float] = {}
+    print()
+    print(
+        "Extreme event-risk thresholds "
+        "(pre-test derived):"
     )
-    if not np.isfinite(
-        event_risk_threshold
-    ):
-        print(
-            "Could not calculate event-risk threshold."
+    for cutoff in EVENT_RISK_CUTOFFS:
+        threshold = (
+            training_event_risk_threshold(
+                train_validation_scores,
+                cutoff,
+            )
         )
-        return pd.DataFrame()
+        thresholds[cutoff] = threshold
+        print(
+            f"  {risk_label(cutoff):<12}"
+            f"score >= {threshold:.6f}"
+        )
     positive_threshold = (
         positive_change_threshold(
             train_validation
@@ -591,15 +740,11 @@ def run_window(
         print(
             "Could not calculate positive-change threshold."
         )
-        return pd.DataFrame()
-    print(
-        "Extreme event-risk threshold "
-        "(pre-test derived):"
-    )
-    print(
-        f"  top 5%: score >= "
-        f"{event_risk_threshold:.6f}"
-    )
+        return (
+            pd.DataFrame(),
+            [],
+        )
+    print()
     print(
         "Positive short-interest "
         "top-20% threshold:"
@@ -619,12 +764,6 @@ def run_window(
             features,
         )
     )
-    test["event_risk_group"] = (
-        assign_event_risk_group(
-            test["event_score"],
-            event_risk_threshold,
-        )
-    )
     test[
         "training_positive_threshold"
     ] = positive_threshold
@@ -634,7 +773,7 @@ def run_window(
     test = test.dropna(
         subset=[
             "direction",
-            "event_risk_group",
+            "event_score",
             "short_interest_pct_change",
         ]
     )
@@ -642,16 +781,27 @@ def run_window(
         f"Directional OOS rows: "
         f"{len(test):,}"
     )
-    interaction_analysis(
-        test,
-        title="2x2 OOS interaction",
+    # ---------------------------------------------------------------
+    # Risk-tail sweep.
+    # ---------------------------------------------------------------
+    results = risk_tail_sweep(
+        frame=test,
+        thresholds=thresholds,
+        title="OOS interaction",
+    )
+    print_risk_tail_summary(
+        results,
+        title="RISK-TAIL SWEEP",
     )
     test["window"] = (
         f"{train_end}_"
         f"{validation_end}_"
         f"{test_end}"
     )
-    return test
+    return (
+        test,
+        results,
+    )
 # ---------------------------------------------------------------------------
 # Pooled analysis
 # ---------------------------------------------------------------------------
@@ -666,29 +816,154 @@ def pooled_analysis(
     )
     print()
     print("=" * 80)
-    print("POOLED OOS 2x2 INTERACTION")
+    print("POOLED OOS RISK-TAIL INTERACTION")
     print("=" * 80)
     print(
         f"Directional OOS rows: "
         f"{len(pooled):,}"
     )
-    interaction_analysis(
-        pooled,
-        title="Pooled interaction",
+    # ---------------------------------------------------------------
+    # Reconstruct the pre-test thresholds for each window from the
+    # stored OOS event scores.
+    #
+    # The window-specific threshold information is stored by rerunning
+    # the percentile on the OOS score would be wrong, so thresholds
+    # are recovered from the group labels already assigned below.
+    #
+    # Therefore pooled analysis uses each window's existing
+    # event-risk score together with thresholds reconstructed from
+    # the window-specific pre-test score distribution stored in
+    # `event_risk_thresholds`.
+    # ---------------------------------------------------------------
+    if "event_risk_thresholds" not in pooled.columns:
+        print(
+            "No window-specific risk thresholds available "
+            "for pooled risk-tail analysis."
+        )
+        return
+    pooled_results: list[InteractionResult] = []
+    for cutoff in EVENT_RISK_CUTOFFS:
+        threshold_column = (
+            f"risk_threshold_{cutoff}"
+        )
+        if threshold_column not in pooled.columns:
+            continue
+        frame = pooled.copy()
+        threshold = pd.to_numeric(
+            frame[threshold_column],
+            errors="coerce",
+        )
+        label = risk_label(
+            cutoff
+        )
+        other_label = (
+            f"other_{(1.0 - cutoff):.1%}"
+        )
+        frame["event_risk_group"] = pd.Series(
+            pd.NA,
+            index=frame.index,
+            dtype="string",
+        )
+        valid = (
+            frame["event_score"].notna()
+            & threshold.notna()
+        )
+        frame.loc[
+            valid
+            & (
+                frame["event_score"]
+                >= threshold
+            ),
+            "event_risk_group",
+        ] = label
+        frame.loc[
+            valid
+            & (
+                frame["event_score"]
+                < threshold
+            ),
+            "event_risk_group",
+        ] = other_label
+        result = interaction_analysis(
+            frame,
+            risk_cutoff=cutoff,
+            title="Pooled interaction",
+        )
+        if result is not None:
+            pooled_results.append(
+                result
+            )
+    print_risk_tail_summary(
+        pooled_results,
+        title="POOLED RISK-TAIL SWEEP SUMMARY",
     )
     # ---------------------------------------------------------------
     # Per-window interaction results.
     # ---------------------------------------------------------------
     print()
     print("=" * 80)
-    print("PER-WINDOW INTERACTION")
+    print("PER-WINDOW RISK-TAIL INTERACTION")
     print("=" * 80)
     for window, frame in pooled.groupby(
         "window",
         sort=True,
     ):
-        interaction_analysis(
-            frame,
+        window_results: list[
+            InteractionResult
+        ] = []
+        for cutoff in EVENT_RISK_CUTOFFS:
+            threshold_column = (
+                f"risk_threshold_{cutoff}"
+            )
+            if threshold_column not in frame.columns:
+                continue
+            local = frame.copy()
+            threshold = pd.to_numeric(
+                local[threshold_column],
+                errors="coerce",
+            )
+            label = risk_label(
+                cutoff
+            )
+            other_label = (
+                f"other_{(1.0 - cutoff):.1%}"
+            )
+            local["event_risk_group"] = pd.Series(
+                pd.NA,
+                index=local.index,
+                dtype="string",
+            )
+            valid = (
+                local["event_score"].notna()
+                & threshold.notna()
+            )
+            local.loc[
+                valid
+                & (
+                    local["event_score"]
+                    >= threshold
+                ),
+                "event_risk_group",
+            ] = label
+            local.loc[
+                valid
+                & (
+                    local["event_score"]
+                    < threshold
+                ),
+                "event_risk_group",
+            ] = other_label
+            result = interaction_analysis(
+                local,
+                risk_cutoff=cutoff,
+                title=window,
+            )
+            if result is not None:
+                window_results.append(
+                    result
+                )
+        print_risk_tail_summary(
+            window_results,
             title=window,
         )
 # ---------------------------------------------------------------------------
@@ -712,18 +987,12 @@ def main() -> None:
         f"top {POSITIVE_CHANGE_CUTOFF:.0%}"
     )
     print(
-        "Extreme event-risk cutoff: "
-        f"top {EVENT_RISK_CUTOFF:.0%}"
+        "Extreme event-risk cutoffs:"
     )
-    print(
-        "Risk groups:"
-    )
-    print(
-        "  top_5pct:    0% -> 5%"
-    )
-    print(
-        "  other_95pct: 5% -> 100%"
-    )
+    for cutoff in EVENT_RISK_CUTOFFS:
+        print(
+            f"  {risk_label(cutoff)}"
+        )
     data = prepare_data()
     print()
     print(
@@ -738,14 +1007,77 @@ def main() -> None:
     )
     frames: list[pd.DataFrame] = []
     for window in WALK_FORWARD_WINDOWS:
-        frame = run_window(
+        frame, results = run_window(
             data=data,
             train_end=window.train_end,
             validation_end=window.validation_end,
             test_end=window.test_end,
         )
-        if not frame.empty:
-            frames.append(frame)
+        if frame.empty:
+            continue
+        # Store the exact pre-test threshold used for every risk tail
+        # so pooled and per-window analyses never recalculate a
+        # threshold from OOS/test observations.
+        train = data[
+            data["price_date"]
+            <= window.train_end
+        ].copy()
+        validation = data[
+            (data["price_date"] > window.train_end)
+            & (
+                data["price_date"]
+                <= window.validation_end
+            )
+        ].copy()
+        (
+            model_name,
+            event_model,
+            _,
+        ) = select_event_model(
+            train,
+            validation,
+        )
+        if event_model is None:
+            continue
+        features = list(
+            EVENT_FEATURE_SETS[
+                model_name
+            ]
+        )
+        train_validation = pd.concat(
+            [
+                train,
+                validation,
+            ],
+            ignore_index=True,
+        )
+        final_model = fit_event_model(
+            train_validation,
+            features,
+        )
+        if final_model is None:
+            continue
+        pretest_scores = predict_event_score(
+            final_model,
+            train_validation,
+            features,
+        )
+        for cutoff in EVENT_RISK_CUTOFFS:
+            threshold = (
+                training_event_risk_threshold(
+                    pretest_scores,
+                    cutoff,
+                )
+            )
+            frame[
+                f"risk_threshold_{cutoff}"
+            ] = threshold
+        frame[
+            "event_risk_thresholds"
+        ] = True
+        frames.append(
+            frame
+        )
     pooled_analysis(
         frames
     )
