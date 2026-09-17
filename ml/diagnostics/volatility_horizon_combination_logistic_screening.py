@@ -1,4 +1,4 @@
-"""Kontrollerad jämförelse av volatilitets-horisonter och kombinationer."""
+"""Kontrollerad jämförelse av FI-information ovanpå volatilitet."""
 from __future__ import annotations
 import time
 from typing import Any
@@ -22,10 +22,37 @@ ECONOMIC_TOP_FRACTIONS = (
     0.02,
     0.05,
 )
+FI_FEATURES = [
+    "short_interest_pct",
+    "active_holders",
+    "max_individual_position_pct",
+    "max_position_share_pct",
+    "previous_short_interest_pct",
+    "previous_active_holders",
+    "previous_max_individual_position_pct",
+    "previous_max_position_share_pct",
+    "fi_observation_gap_days",
+    "short_interest_delta_pp",
+    "holder_delta",
+    "max_position_delta_pp",
+    "concentration_delta_pp",
+    "short_interest_relative_change",
+    "short_interest_acceleration_pp",
+    "above_1_0pct",
+    "entered_above_1_0pct",
+    "exited_below_1_0pct",
+    "above_2_0pct",
+    "entered_above_2_0pct",
+    "exited_below_2_0pct",
+    "above_3_0pct",
+    "entered_above_3_0pct",
+    "exited_below_3_0pct",
+    "above_5_0pct",
+    "entered_above_5_0pct",
+    "exited_below_5_0pct",
+    "new_visible_observation",
+]
 FEATURE_SETS = {
-    "volatility_20d": [
-        "price_volatility_20d",
-    ],
     "volatility_60d": [
         "volatility_60d",
     ],
@@ -33,9 +60,14 @@ FEATURE_SETS = {
         "price_volatility_20d",
         "volatility_60d",
     ],
-    "volatility_60d_plus_change": [
+    "fi_plus_volatility_60d": [
+        *FI_FEATURES,
         "volatility_60d",
-        "volatility_change_20d_60d",
+    ],
+    "fi_plus_volatility_20d_plus_60d": [
+        *FI_FEATURES,
+        "price_volatility_20d",
+        "volatility_60d",
     ],
 }
 def find_target(target_name: str):
@@ -117,9 +149,6 @@ def add_volatility_features(
       - pct_change()
       - standardavvikelse av de 59 dagliga
         avkastningarna
-    Därefter beräknas:
-        volatility_change_20d_60d =
-            price_volatility_20d - volatility_60d
     """
     prices = price_data[
         [
@@ -185,23 +214,15 @@ def add_volatility_features(
         how="left",
         validate="many_to_one",
     )
-    result[
-        "volatility_change_20d_60d"
-    ] = (
-        result[
-            "price_volatility_20d"
-        ]
-        - result["volatility_60d"]
-    )
     return result
 def print_feature_qc(
     features: pd.DataFrame,
 ) -> None:
-    print("=" * 50)
+    print("=" * 60)
     print(
-        "VOLATILITY HORIZON COMBINATION QC"
+        "FI + VOLATILITY COMBINATION QC"
     )
-    print("=" * 50)
+    print("=" * 60)
     print(
         f"Feature rows: "
         f"{len(features):,}"
@@ -218,14 +239,26 @@ def print_feature_qc(
         f"{(~valid_60d).sum():,}"
     )
     print(
+        "FI features: "
+        f"{len(FI_FEATURES)}"
+    )
+    missing_fi = [
+        column
+        for column in FI_FEATURES
+        if column not in features.columns
+    ]
+    if missing_fi:
+        raise ValueError(
+            "Missing FI feature columns: "
+            f"{missing_fi}"
+        )
+    print(
         "Volatility statistics:"
     )
-    columns = (
+    for column in (
         "price_volatility_20d",
         "volatility_60d",
-        "volatility_change_20d_60d",
-    )
-    for column in columns:
+    ):
         series = features[
             column
         ].dropna()
@@ -460,11 +493,11 @@ def run_feature_set(
     print(
         f"  Rows: {len(data):,}"
     )
-    print("=" * 50)
+    print("=" * 60)
     print(
         f"RUNNING: {name}"
     )
-    print("=" * 50)
+    print("=" * 60)
     started = time.perf_counter()
     original_build_models = (
         walk_forward.build_models
@@ -691,16 +724,16 @@ def print_result(
 def print_comparison(
     results: list[dict[str, Any]],
 ) -> None:
-    print("=" * 100)
+    print("=" * 110)
     print(
-        "CONTROLLED LOGISTIC COMPARISON"
+        "CONTROLLED FI + VOLATILITY LOGISTIC COMPARISON"
     )
-    print("=" * 100)
+    print("=" * 110)
     print(
         "Feature set | AUC | top1 event | "
         "lift | top1 mean | total | fit"
     )
-    print("-" * 100)
+    print("-" * 110)
     for result in results:
         top1 = result[
             "economic"
@@ -708,7 +741,7 @@ def print_comparison(
             "fractions"
         ][0.01]
         print(
-            f"{result['name']:<34}"
+            f"{result['name']:<40}"
             f"{result['average_auc']:.6f}   "
             f"{top1['event_rate']:.4f}   "
             f"{top1['lift']:.2f}x   "
@@ -758,7 +791,7 @@ def print_delta(
     )
 def main() -> None:
     print(
-        "BLANKDISS VOLATILITY HORIZON "
+        "BLANKDISS FI + VOLATILITY "
         "COMBINATION LOGISTIC SCREENING"
     )
     print(
@@ -774,9 +807,12 @@ def main() -> None:
     )
     print(
         "Question: "
-        "Ger VOL20 + VOL60 extra signal "
-        "jämfört med VOL20 eller VOL60 ensamt, "
-        "och hur står det mot VOL60 + CHANGE?"
+        "Tillför FI-information prediktiv signal "
+        "ovanpå volatilitet?"
+    )
+    print(
+        "FI feature count: "
+        f"{len(FI_FEATURES)}"
     )
     print(
         "Loading feature data..."
@@ -830,11 +866,11 @@ def main() -> None:
         results.append(
             result
         )
-    print("=" * 100)
+    print("=" * 110)
     print(
         "RESULTAT"
     )
-    print("=" * 100)
+    print("=" * 110)
     for result in results:
         print_result(
             result
@@ -846,60 +882,47 @@ def main() -> None:
         result["name"]: result
         for result in results
     }
-    print("=" * 100)
+    print("=" * 110)
     print(
-        "DELTA VS VOLATILITY_60D"
+        "DELTA: FI OVANPÅ VOL60"
     )
-    print("=" * 100)
+    print("=" * 110)
     print_delta(
         by_name[
             "volatility_60d"
         ],
         by_name[
-            "volatility_20d"
+            "fi_plus_volatility_60d"
         ],
-        "VOL60 -> VOL20",
+        "VOL60 -> FI + VOL60",
     )
-    print_delta(
-        by_name[
-            "volatility_60d"
-        ],
-        by_name[
-            "volatility_20d_plus_60d"
-        ],
-        "VOL60 -> VOL20 + VOL60",
-    )
-    print_delta(
-        by_name[
-            "volatility_60d"
-        ],
-        by_name[
-            "volatility_60d_plus_change"
-        ],
-        "VOL60 -> VOL60 + CHANGE",
-    )
-    print("=" * 100)
+    print("=" * 110)
     print(
-        "DELTA: KOMBINERADE HORISONTER"
+        "DELTA: FI OVANPÅ VOL20 + VOL60"
     )
-    print("=" * 100)
+    print("=" * 110)
     print_delta(
-        by_name[
-            "volatility_20d"
-        ],
         by_name[
             "volatility_20d_plus_60d"
         ],
-        "VOL20 -> VOL20 + VOL60",
+        by_name[
+            "fi_plus_volatility_20d_plus_60d"
+        ],
+        "VOL20 + VOL60 -> FI + VOL20 + VOL60",
     )
+    print("=" * 110)
+    print(
+        "DELTA: FI + VOL60 VS FI + VOL20 + VOL60"
+    )
+    print("=" * 110)
     print_delta(
         by_name[
-            "volatility_60d"
+            "fi_plus_volatility_60d"
         ],
         by_name[
-            "volatility_20d_plus_60d"
+            "fi_plus_volatility_20d_plus_60d"
         ],
-        "VOL60 -> VOL20 + VOL60",
+        "FI + VOL60 -> FI + VOL20 + VOL60",
     )
 if __name__ == "__main__":
     main()
