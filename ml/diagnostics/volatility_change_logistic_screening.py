@@ -1,3 +1,4 @@
+"""Kontrollerad jämförelse av 20d-volatilitet med förändring mot 60d-volatilitet."""
 from __future__ import annotations
 import time
 from typing import Any
@@ -6,10 +7,9 @@ import pandas as pd
 from analysis.feature_config import PRICE_DIR
 from analysis.feature_prices import load_prices
 from ml.config import TARGETS, WALK_FORWARD_WINDOWS
-from ml.dataset import load_feature_data, prepare_feature_set
+from ml.dataset import build_target, load_features
+from ml.models import build_models
 from ml.walk_forward import train_window
-BENCHMARK_TREES = 100
-RF_N_JOBS = 1
 ECONOMIC_TARGET = "down_5pct_5d"
 ECONOMIC_TOP_FRACTIONS = (
     0.001,
@@ -19,63 +19,94 @@ ECONOMIC_TOP_FRACTIONS = (
     0.05,
 )
 FEATURE_SETS = {
-    "volatility_20d": {
-        "price_features": {
-            "price_volatility_20d",
-        },
-    },
-    "volatility_20d_plus_change": {
-        "price_features": {
-            "price_volatility_20d",
-            "volatility_change_20d_60d",
-        },
-    },
+    "volatility_20d": [
+        "price_volatility_20d",
+    ],
+    "volatility_20d_plus_change": [
+        "price_volatility_20d",
+        "volatility_change_20d_60d",
+    ],
 }
 def find_target(target_name: str):
     for target in TARGETS:
         if target.name == target_name:
             return target
-    available = ", ".join(target.name for target in TARGETS)
+    available = ", ".join(
+        target.name
+        for target in TARGETS
+    )
     raise ValueError(
         f"Unknown target: {target_name}. "
         f"Available targets: {available}"
     )
 def load_price_data() -> pd.DataFrame:
-    print("Loading raw price data for 60d volatility...")
-    price_data = load_prices(PRICE_DIR)
+    print(
+        "Loading raw price data for 60d volatility..."
+    )
+    price_data = load_prices(
+        PRICE_DIR
+    )
     if price_data.empty:
-        raise ValueError("No raw price data found.")
+        raise ValueError(
+            "No raw price data found."
+        )
     required = {
         "yahoo_symbol",
         "date",
         "close",
     }
-    missing = required - set(price_data.columns)
+    missing = (
+        required
+        - set(price_data.columns)
+    )
     if missing:
         raise ValueError(
-            "Raw price data is missing required columns: "
+            "Raw price data is missing "
+            "required columns: "
             f"{sorted(missing)}"
         )
     price_data = price_data.copy()
     price_data["date"] = pd.to_datetime(
-        price_data["date"]
+        price_data["date"],
+        errors="coerce",
+    )
+    price_data["close"] = pd.to_numeric(
+        price_data["close"],
+        errors="coerce",
+    )
+    price_data = price_data.dropna(
+        subset=[
+            "yahoo_symbol",
+            "date",
+            "close",
+        ]
     )
     price_data = price_data.sort_values(
-        ["yahoo_symbol", "date"]
-    ).reset_index(drop=True)
-    print(f"Prisrader: {len(price_data):,}")
+        [
+            "yahoo_symbol",
+            "date",
+        ]
+    ).reset_index(
+        drop=True
+    )
+    print(
+        f"Prisrader: {len(price_data):,}"
+    )
     return price_data
 def add_volatility_change(
     features: pd.DataFrame,
     price_data: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Reconstruct 60d volatility using the same conceptual
-    definition as price_volatility_20d:
-      - last 60 close observations
-      - daily pct_change()
-      - standard deviation of those returns
-    60 close observations produce 59 daily returns.
+    Beräknar 60d-volatilitet med samma princip
+    som price_volatility_20d:
+      - 60 close-observationer
+      - pct_change()
+      - standardavvikelse av de 59 dagliga
+        avkastningarna
+    Därefter:
+        volatility_change_20d_60d =
+            volatility_20d - volatility_60d
     """
     prices = price_data[
         [
@@ -89,20 +120,30 @@ def add_volatility_change(
             "yahoo_symbol",
             "date",
         ]
-    ).reset_index(drop=True)
+    ).reset_index(
+        drop=True
+    )
     prices["daily_return"] = (
         prices
-        .groupby("yahoo_symbol")["close"]
+        .groupby(
+            "yahoo_symbol"
+        )["close"]
         .pct_change()
     )
     prices["volatility_60d"] = (
         prices
-        .groupby("yahoo_symbol")["daily_return"]
+        .groupby(
+            "yahoo_symbol"
+        )["daily_return"]
         .transform(
-            lambda series: series.rolling(
-                window=59,
-                min_periods=59,
-            ).std()
+            lambda series: (
+                series
+                .rolling(
+                    window=59,
+                    min_periods=59,
+                )
+                .std()
+            )
         )
     )
     prices = prices.rename(
@@ -119,7 +160,8 @@ def add_volatility_change(
     ]
     result = features.copy()
     result["price_date"] = pd.to_datetime(
-        result["price_date"]
+        result["price_date"],
+        errors="coerce",
     )
     result = result.merge(
         lookup,
@@ -130,19 +172,24 @@ def add_volatility_change(
         how="left",
         validate="many_to_one",
     )
-    result["volatility_change_20d_60d"] = (
-        result["price_volatility_20d"]
+    result[
+        "volatility_change_20d_60d"
+    ] = (
+        result[
+            "price_volatility_20d"
+        ]
         - result["volatility_60d"]
     )
     return result
 def print_feature_qc(
     features: pd.DataFrame,
 ) -> None:
-    print("=" * 40)
+    print("=" * 50)
     print("VOLATILITY CHANGE QC")
-    print("=" * 40)
+    print("=" * 50)
     print(
-        f"Feature rows: {len(features):,}"
+        f"Feature rows: "
+        f"{len(features):,}"
     )
     valid_60d = features[
         "volatility_60d"
@@ -155,65 +202,97 @@ def print_feature_qc(
         "Rows without 60d volatility: "
         f"{(~valid_60d).sum():,}"
     )
-    print("Volatility statistics:")
+    print(
+        "Volatility statistics:"
+    )
     columns = (
         "price_volatility_20d",
         "volatility_60d",
         "volatility_change_20d_60d",
     )
     for column in columns:
-        series = features[column].dropna()
+        series = features[
+            column
+        ].dropna()
         print(
             f"  {column}: "
             f"median={series.median():.6f} "
             f"p20={series.quantile(0.20):.6f} "
             f"p80={series.quantile(0.80):.6f}"
         )
-def build_feature_sets(
+def build_ml_dataset(
     features: pd.DataFrame,
-) -> dict[str, pd.DataFrame]:
-    print("Building feature sets...")
-    result = {}
-    for name, config in FEATURE_SETS.items():
-        price_features = config[
-            "price_features"
+    feature_columns: list[str],
+    target,
+) -> tuple[
+    pd.DataFrame,
+    pd.Series,
+]:
+    """
+    Bygger exakt det dataformat som train_window()
+    i ml.walk_forward.py förväntar sig.
+    """
+    required_columns = [
+        "snapshot_date",
+        "security_key",
+        "forward_return_5d",
+        *feature_columns,
+    ]
+    missing = [
+        column
+        for column in required_columns
+        if column not in features.columns
+    ]
+    if missing:
+        raise ValueError(
+            "Missing required columns: "
+            f"{missing}"
+        )
+    target_values = build_target(
+        features,
+        target,
+    )
+    valid = target_values.notna()
+    data = features.loc[
+        valid,
+        required_columns,
+    ].copy()
+    y = target_values.loc[
+        valid
+    ].copy()
+    data["target_return"] = pd.to_numeric(
+        data["forward_return_5d"],
+        errors="coerce",
+    )
+    data = data.drop(
+        columns=[
+            "forward_return_5d",
         ]
-        prepared = prepare_feature_set(
-            features,
-            include_price_features=True,
-            price_features=price_features,
-        )
-        result[name] = prepared
-    print("=" * 40)
-    print("FEATURE SET QC")
-    print("=" * 40)
-    for name, data in result.items():
-        feature_columns = [
-            column
-            for column in data.columns
-            if column in {
-                "price_volatility_20d",
-                "volatility_change_20d_60d",
-            }
-        ]
-        print(
-            f"{name}: "
-            f"{len(feature_columns)} features"
-        )
-        print(
-            "  Features: "
-            f"{', '.join(feature_columns)}"
-        )
-    return result
+    )
+    valid_returns = data[
+        "target_return"
+    ].notna()
+    data = data.loc[
+        valid_returns
+    ].copy()
+    y = y.loc[
+        data.index
+    ].copy()
+    data = data.reset_index(
+        drop=True
+    )
+    y = y.reset_index(
+        drop=True
+    )
+    return data, y
 def logistic_only_models(
     random_state: int,
 ):
     """
-    Use only logistic regression so that both
-    feature sets are evaluated with exactly the
-    same model family.
+    Returnerar endast logistic regression.
+    Det gör jämförelsen mellan feature-seten
+    kontrollerad på modellfamilj.
     """
-    from ml.models import build_models
     models = build_models(
         random_state=random_state,
         task="classification",
@@ -230,112 +309,115 @@ def logistic_only_models(
     }
 def evaluate_economic_oos(
     rows: list[dict[str, Any]],
-    target_column: str,
 ) -> dict[str, Any]:
     if not rows:
         raise ValueError(
             "No OOS rows available."
         )
-    data = pd.DataFrame(rows)
-    if "prediction" not in data.columns:
+    data = pd.DataFrame(
+        rows
+    )
+    required = [
+        "prediction",
+        "target_return",
+    ]
+    missing = [
+        column
+        for column in required
+        if column not in data.columns
+    ]
+    if missing:
         raise ValueError(
-            "OOS result rows do not contain "
-            "'prediction'."
-        )
-    if target_column not in data.columns:
-        raise ValueError(
-            "OOS result rows do not contain "
-            f"target column '{target_column}'."
+            "OOS rows are missing columns: "
+            f"{missing}"
         )
     data = data.dropna(
-        subset=[
-            "prediction",
-            target_column,
-        ]
+        subset=required
     ).copy()
     if data.empty:
         raise ValueError(
             "No valid OOS rows after filtering."
         )
-    event_rate = data[
-        target_column
-    ].mean()
-    if "return_5d" in data.columns:
-        baseline_return = data[
-            "return_5d"
-        ].mean()
-    elif "target_return" in data.columns:
-        baseline_return = data[
-            "target_return"
-        ].mean()
-    else:
-        baseline_return = np.nan
+    data["event"] = (
+        data["target_return"] <= -0.05
+    ).astype(int)
+    baseline_event_rate = (
+        data["event"].mean()
+    )
+    baseline_mean_return = (
+        data["target_return"].mean()
+    )
     result = {
         "rows": len(data),
-        "baseline_event_rate": event_rate,
-        "baseline_mean_return": baseline_return,
+        "baseline_event_rate": (
+            baseline_event_rate
+        ),
+        "baseline_mean_return": (
+            baseline_mean_return
+        ),
         "fractions": {},
     }
-    for fraction in ECONOMIC_TOP_FRACTIONS:
+    for fraction in (
+        ECONOMIC_TOP_FRACTIONS
+    ):
         n = max(
             1,
-            int(round(len(data) * fraction)),
+            int(
+                round(
+                    len(data)
+                    * fraction
+                )
+            ),
         )
         top = data.nlargest(
             n,
             "prediction",
         )
-        top_event_rate = top[
-            target_column
-        ].mean()
-        if "return_5d" in top.columns:
-            mean_return = top[
-                "return_5d"
-            ].mean()
-            median_return = top[
-                "return_5d"
-            ].median()
-        elif "target_return" in top.columns:
-            mean_return = top[
-                "target_return"
-            ].mean()
-            median_return = top[
-                "target_return"
-            ].median()
-        else:
-            mean_return = np.nan
-            median_return = np.nan
-        result["fractions"][fraction] = {
+        event_rate = (
+            top["event"].mean()
+        )
+        result[
+            "fractions"
+        ][fraction] = {
             "n": n,
-            "event_rate": top_event_rate,
+            "event_rate": event_rate,
             "lift": (
-                top_event_rate / event_rate
-                if event_rate
+                event_rate
+                / baseline_event_rate
+                if baseline_event_rate
                 else np.nan
             ),
-            "mean_return": mean_return,
-            "median_return": median_return,
+            "mean_return": (
+                top[
+                    "target_return"
+                ].mean()
+            ),
+            "median_return": (
+                top[
+                    "target_return"
+                ].median()
+            ),
         }
     return result
 def print_economic_result(
     result: dict[str, Any],
 ) -> None:
     print(
-        f"      Rows: {result['rows']:,}"
+        "      Rows: "
+        f"{result['rows']:,}"
     )
     print(
         "      Baseline event rate: "
         f"{result['baseline_event_rate']:.4f}"
     )
-    baseline_return = (
-        result["baseline_mean_return"]
+    print(
+        "      Baseline mean return: "
+        f"{result['baseline_mean_return']:+.4%}"
     )
-    if np.isfinite(baseline_return):
-        print(
-            "      Baseline mean return: "
-            f"{baseline_return:+.4%}"
-        )
-    for fraction, values in result[
+    for (
+        fraction,
+        values,
+    ) in result[
         "fractions"
     ].items():
         print(
@@ -349,13 +431,16 @@ def print_economic_result(
 def run_feature_set(
     name: str,
     data: pd.DataFrame,
-    target,
+    y: pd.Series,
+    feature_columns: list[str],
 ) -> dict[str, Any]:
-    print("=" * 32)
-    print(f"RUNNING: {name}")
-    print("=" * 32)
+    print("=" * 50)
+    print(
+        f"RUNNING: {name}"
+    )
+    print("=" * 50)
     started = time.perf_counter()
-    from ml import walk_forward
+    import ml.walk_forward as walk_forward
     original_build_models = (
         walk_forward.build_models
     )
@@ -371,18 +456,59 @@ def run_feature_set(
     )
     try:
         window_results = []
+        oos_rows = []
+        total_fit_seconds = 0.0
         for index, window in enumerate(
             WALK_FORWARD_WINDOWS,
             start=1,
         ):
-            result = train_window(
+            (
+                model_results,
+                window_oos_rows,
+                timing,
+            ) = train_window(
                 data=data,
+                y=y,
+                feature_columns=feature_columns,
                 window=window,
-                target=target,
-                random_state=42,
+                task="classification",
+                direction="below",
             )
-            window_results.append(result)
-            print(f"  Window {index}")
+            if not model_results:
+                raise ValueError(
+                    f"No model result for "
+                    f"{name}, window {index}."
+                )
+            selected = next(
+                (
+                    result
+                    for result in model_results
+                    if result[
+                        "selected_for_oos"
+                    ]
+                ),
+                None,
+            )
+            if selected is None:
+                raise ValueError(
+                    "No selected OOS model "
+                    f"for {name}, "
+                    f"window {index}."
+                )
+            window_results.append(
+                selected
+            )
+            oos_rows.extend(
+                window_oos_rows
+            )
+            total_fit_seconds += (
+                timing[
+                    "fit_seconds"
+                ]
+            )
+            print(
+                f"  Window {index}"
+            )
             print(
                 f"    Train <= "
                 f"{window.train_end}"
@@ -396,18 +522,25 @@ def run_feature_set(
                 f"{window.test_end}"
             )
             print(
-                "    Selected model: "
-                f"{result['model']}"
+                "    Model: "
+                f"{selected['model']}"
             )
             print(
-                "    Selected validation AUC: "
-                f"{result['validation_score']:.6f}"
+                "    Validation AUC: "
+                f"{selected['validation_score']:.6f}"
             )
-            economic = evaluate_economic_oos(
-                result["oos_rows"],
-                target_column=target.name,
+            print(
+                "    Fit: "
+                f"{timing['fit_seconds']:.2f}s"
             )
-            print("    Economic OOS:")
+            economic = (
+                evaluate_economic_oos(
+                    window_oos_rows
+                )
+            )
+            print(
+                "    Economic OOS:"
+            )
             print_economic_result(
                 economic
             )
@@ -419,15 +552,9 @@ def run_feature_set(
         walk_forward.build_models = (
             original_build_models
         )
-    oos_rows = []
-    for result in window_results:
-        oos_rows.extend(
-            result["oos_rows"]
-        )
     combined_economic = (
         evaluate_economic_oos(
-            oos_rows,
-            target_column=target.name,
+            oos_rows
         )
     )
     average_auc = float(
@@ -440,24 +567,20 @@ def run_feature_set(
             ]
         )
     )
-    total_fit_time = sum(
-        result.get(
-            "fit_seconds",
-            0.0,
-        )
-        for result in window_results
-    )
     return {
         "name": name,
         "feature_count": len(
-            FEATURE_SETS[name][
-                "price_features"
-            ]
+            feature_columns
         ),
+        "features": feature_columns,
         "rows": len(data),
-        "windows": len(window_results),
+        "windows": len(
+            window_results
+        ),
         "total_seconds": elapsed,
-        "fit_seconds": total_fit_time,
+        "fit_seconds": (
+            total_fit_seconds
+        ),
         "average_auc": average_auc,
         "selected_models": [
             result["model"]
@@ -468,17 +591,25 @@ def run_feature_set(
 def print_summary(
     results: list[dict[str, Any]],
 ) -> None:
-    print("=" * 40)
+    print("=" * 80)
     print("RESULTAT")
-    print("=" * 40)
+    print("=" * 80)
     for result in results:
-        print(result["name"])
         print(
-            f"  Features: "
+            result["name"]
+        )
+        print(
+            "  Features: "
             f"{result['feature_count']}"
         )
         print(
-            f"  Rows: "
+            "  Feature names: "
+            + ", ".join(
+                result["features"]
+            )
+        )
+        print(
+            "  Rows: "
             f"{result['rows']:,}"
         )
         print(
@@ -486,11 +617,11 @@ def print_summary(
             f"{result['windows']}"
         )
         print(
-            f"  Total: "
+            "  Total: "
             f"{result['total_seconds']:.2f}s"
         )
         print(
-            f"  Fit: "
+            "  Fit: "
             f"{result['fit_seconds']:.2f}s"
         )
         print(
@@ -500,30 +631,52 @@ def print_summary(
         print(
             "  Selected models: "
             + ", ".join(
-                result["selected_models"]
+                result[
+                    "selected_models"
+                ]
             )
         )
-        print("  Combined economic OOS:")
+        print(
+            "  Combined economic OOS:"
+        )
         print_economic_result(
             result["economic"]
         )
 def print_comparison(
     results: list[dict[str, Any]],
 ) -> None:
-    print("=" * 80)
-    print("CONTROLLED LOGISTIC COMPARISON")
-    print("=" * 80)
-    print(
-        "Feature set | AUC | top1 event | lift | "
-        "top1 mean | total | fit"
-    )
-    print("-" * 80)
-    for result in results:
-        top1 = result[
+    baseline = results[0]
+    baseline_top1 = (
+        baseline[
             "economic"
-        ]["fractions"][0.01]
+        ][
+            "fractions"
+        ][
+            0.01
+        ]
+    )
+    print("=" * 90)
+    print(
+        "CONTROLLED LOGISTIC COMPARISON"
+    )
+    print("=" * 90)
+    print(
+        "Feature set | AUC | top1 event | "
+        "lift | top1 mean | total | fit"
+    )
+    print("-" * 90)
+    for result in results:
+        top1 = (
+            result[
+                "economic"
+            ][
+                "fractions"
+            ][
+                0.01
+            ]
+        )
         print(
-            f"{result['name']:<32}"
+            f"{result['name']:<34}"
             f"{result['average_auc']:.6f}   "
             f"{top1['event_rate']:.4f}   "
             f"{top1['lift']:.2f}x   "
@@ -531,102 +684,148 @@ def print_comparison(
             f"{result['total_seconds']:.2f}s   "
             f"{result['fit_seconds']:.2f}s"
         )
-    print("=" * 80)
-    print("DELTA VS VOLATILITY_20D")
-    print("=" * 80)
-    baseline = results[0]
-    baseline_auc = (
-        baseline["average_auc"]
+    print("=" * 90)
+    print(
+        "DELTA VS VOLATILITY_20D"
     )
-    baseline_top1 = baseline[
-        "economic"
-    ]["fractions"][0.01]
+    print("=" * 90)
     for result in results[1:]:
-        top1 = result[
-            "economic"
-        ]["fractions"][0.01]
-        print(result["name"])
+        top1 = (
+            result[
+                "economic"
+            ][
+                "fractions"
+            ][
+                0.01
+            ]
+        )
+        print(
+            result["name"]
+        )
         print(
             "  AUC delta: "
-            f"{result['average_auc'] - baseline_auc:+.6f}"
+            f"{result['average_auc'] - baseline['average_auc']:+.6f}"
         )
         print(
             "  Top1 event delta: "
             f"{top1['event_rate'] - baseline_top1['event_rate']:+.4f}"
         )
         print(
+            "  Top1 lift delta: "
+            f"{top1['lift'] - baseline_top1['lift']:+.2f}x"
+        )
+        print(
             "  Top1 mean return delta: "
             f"{top1['mean_return'] - baseline_top1['mean_return']:+.4%}"
         )
-    print("=" * 80)
-    print("QUESTION")
-    print("=" * 80)
-    print(
-        "Är volatility_change_20d_60d en faktisk "
-        "extra signal när modelltypen hålls konstant?"
-    )
+        print(
+            "  Total time delta: "
+            f"{result['total_seconds'] - baseline['total_seconds']:+.2f}s"
+        )
+        print(
+            "  Fit time delta: "
+            f"{result['fit_seconds'] - baseline['fit_seconds']:+.2f}s"
+        )
 def main() -> None:
-    print()
     print(
         "BLANKDISS VOLATILITY CHANGE "
         "LOGISTIC SCREENING"
     )
     print(
-        f"RF trees: {BENCHMARK_TREES}"
-    )
-    print(
-        f"RF n_jobs: {RF_N_JOBS}"
+        "Model: logistic_regression only"
     )
     print(
         "Walk-forward windows: "
         f"{len(WALK_FORWARD_WINDOWS)}"
     )
     print(
-        f"Economic target: "
+        "Economic target: "
         f"{ECONOMIC_TARGET}"
     )
     print(
-        "Question: Ger förändringen mellan "
-        "20d- och 60d-volatilitet extra information?"
+        "Question: "
+        "Tillför förändringen i volatilitet "
+        "mot 60d något utöver absolut 20d-volatilitet?"
     )
+    print()
     print(
         "Loading feature data..."
     )
-    features = load_feature_data()
+    features = load_features()
     print(
         f"Feature rows: "
         f"{len(features):,}"
     )
+    print()
+    print(
+        "Loading raw price data..."
+    )
     price_data = load_price_data()
+    print()
+    print(
+        "Building volatility change..."
+    )
     features = add_volatility_change(
         features,
         price_data,
     )
+    print()
     print_feature_qc(
-        features
-    )
-    feature_sets = build_feature_sets(
         features
     )
     target = find_target(
         ECONOMIC_TARGET
     )
+    print()
     print(
-        f"Target resolved: "
+        "Target resolved: "
         f"{target.name}"
     )
     results = []
-    for name, data in feature_sets.items():
+    for (
+        name,
+        feature_columns,
+    ) in FEATURE_SETS.items():
+        print()
+        print(
+            "Preparing feature set: "
+            f"{name}"
+        )
+        data, y = build_ml_dataset(
+            features,
+            feature_columns,
+            target,
+        )
+        print(
+            f"  Features: "
+            f"{len(feature_columns)}"
+        )
+        print(
+            "  Feature names: "
+            + ", ".join(
+                feature_columns
+            )
+        )
+        print(
+            f"  Rows: "
+            f"{len(data):,}"
+        )
         result = run_feature_set(
             name=name,
             data=data,
-            target=target,
+            y=y,
+            feature_columns=feature_columns,
         )
-        results.append(result)
-    print_summary(results)
-    print_comparison(results)
-    print("=" * 40)
-    print("BENCHMARK COMPLETE")
-    print("=" * 40)
+        results.append(
+            result
+        )
+    print()
+    print_summary(
+        results
+    )
+    print()
+    print_comparison(
+        results
+    )
 if __name__ == "__main__":
     main()
