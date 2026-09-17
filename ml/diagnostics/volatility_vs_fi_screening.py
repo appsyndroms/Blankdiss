@@ -116,9 +116,6 @@ def build_feature_sets(features):
         "price_volatility_20d"
     ]
 
-    fi_plus_volatility_data = price_data.copy()
-    fi_plus_volatility_columns = list(price_columns)
-
     feature_sets["fi_only"] = (
         fi_data,
         fi_columns,
@@ -130,8 +127,8 @@ def build_feature_sets(features):
     )
 
     feature_sets["fi_plus_volatility_20d"] = (
-        fi_plus_volatility_data,
-        fi_plus_volatility_columns,
+        price_data.copy(),
+        list(price_columns),
     )
 
     return feature_sets
@@ -329,7 +326,7 @@ def print_economic_results(
         )
 
 
-def selected_validation_score(results):
+def get_selected_validation_score(results):
     selected = [
         result
         for result in results
@@ -339,16 +336,11 @@ def selected_validation_score(results):
     if not selected:
         return None, None
 
-    selected.sort(
-        key=lambda result: result["validation_score"],
-        reverse=True,
-    )
-
-    result = selected[0]
+    selected_result = selected[0]
 
     return (
-        float(result["validation_score"]),
-        result["model"],
+        float(selected_result["validation_score"]),
+        selected_result["model"],
     )
 
 
@@ -390,7 +382,9 @@ def run_one_experiment(
         )
 
         validation_score, selected_model = (
-            selected_validation_score(results)
+            get_selected_validation_score(
+                results
+            )
         )
 
         if validation_score is not None:
@@ -637,20 +631,28 @@ def print_key_deltas(results):
         fi["validation_score"] is not None
         and volatility["validation_score"] is not None
     ):
+        delta = (
+            volatility["validation_score"]
+            - fi["validation_score"]
+        )
+
         print(
             "VOL vs FI validation AUC: "
-            f"{volatility['validation_score'] "
-            f"- fi['validation_score']:+.6f}"
+            f"{delta:+.6f}"
         )
 
     if (
         volatility["validation_score"] is not None
         and combined["validation_score"] is not None
     ):
+        delta = (
+            combined["validation_score"]
+            - volatility["validation_score"]
+        )
+
         print(
             "FI+VOL vs VOL validation AUC: "
-            f"{combined['validation_score'] "
-            f"- volatility['validation_score']:+.6f}"
+            f"{delta:+.6f}"
         )
 
     fi_metrics = calculate_economic_metrics(
@@ -665,7 +667,7 @@ def print_key_deltas(results):
         combined["economic_oos"]
     )
 
-    def top1(metrics):
+    def get_top1(metrics):
         return next(
             (
                 item
@@ -675,40 +677,60 @@ def print_key_deltas(results):
             None,
         )
 
-    fi_top1 = top1(fi_metrics)
-    volatility_top1 = top1(volatility_metrics)
-    combined_top1 = top1(combined_metrics)
+    fi_top1 = get_top1(fi_metrics)
+    volatility_top1 = get_top1(
+        volatility_metrics
+    )
+    combined_top1 = get_top1(
+        combined_metrics
+    )
 
     if (
         fi_top1 is not None
         and volatility_top1 is not None
     ):
+        event_delta = (
+            volatility_top1["event_rate"]
+            - fi_top1["event_rate"]
+        )
+
+        return_delta = (
+            volatility_top1["mean_return"]
+            - fi_top1["mean_return"]
+        )
+
         print(
             "VOL vs FI top1 event rate: "
-            f"{volatility_top1['event_rate'] "
-            f"- fi_top1['event_rate']:+.4f}"
+            f"{event_delta:+.4f}"
         )
 
         print(
             "VOL vs FI top1 mean return: "
-            f"{volatility_top1['mean_return'] "
-            f"- fi_top1['mean_return']:+.4%}"
+            f"{return_delta:+.4%}"
         )
 
     if (
         volatility_top1 is not None
         and combined_top1 is not None
     ):
+        event_delta = (
+            combined_top1["event_rate"]
+            - volatility_top1["event_rate"]
+        )
+
+        return_delta = (
+            combined_top1["mean_return"]
+            - volatility_top1["mean_return"]
+        )
+
         print(
             "FI+VOL vs VOL top1 event rate: "
-            f"{combined_top1['event_rate'] "
-            f"- volatility_top1['event_rate']:+.4f}"
+            f"{event_delta:+.4f}"
         )
 
         print(
             "FI+VOL vs VOL top1 mean return: "
-            f"{combined_top1['mean_return'] "
-            f"- volatility_top1['mean_return']:+.4%}"
+            f"{return_delta:+.4%}"
         )
 
 
@@ -760,7 +782,6 @@ def main():
         feature_sets
     )
 
-    # Patch walk_forward only for this diagnostic.
     walk_forward.build_models = (
         build_benchmark_models
     )
