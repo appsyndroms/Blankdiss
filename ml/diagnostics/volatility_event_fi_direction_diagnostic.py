@@ -135,7 +135,9 @@ def normalize_date_column(
         data[column],
         errors="coerce",
     ).dt.strftime("%Y-%m-%d")
-def deduplicate_columns(data: pd.DataFrame) -> pd.DataFrame:
+def deduplicate_columns(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Keep the first occurrence of duplicate column names.
     Duplicate names are particularly dangerous here because:
@@ -151,7 +153,10 @@ def deduplicate_columns(data: pd.DataFrame) -> pd.DataFrame:
             "keeping first occurrence:"
         )
         print(f"  {duplicate_names}")
-        data = data.loc[:, ~duplicated].copy()
+        data = data.loc[
+            :,
+            ~duplicated,
+        ].copy()
     return data
 def numeric_series(
     data: pd.DataFrame,
@@ -238,7 +243,9 @@ def load_price_data() -> pd.DataFrame:
         ],
     )
     return prices
-def find_close_column(prices: pd.DataFrame) -> str:
+def find_close_column(
+    prices: pd.DataFrame,
+) -> str:
     """Find the project's close-price column."""
     column = first_existing_column(
         prices,
@@ -377,7 +384,9 @@ def prepare_data() -> pd.DataFrame:
     )
     print("Loading prices for volatility_60d...")
     prices = load_price_data()
-    volatility = build_volatility_60d(prices)
+    volatility = build_volatility_60d(
+        prices
+    )
     volatility["price_date"] = normalize_date_column(
         volatility,
         "price_date",
