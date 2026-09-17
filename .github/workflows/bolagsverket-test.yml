@@ -19,7 +19,7 @@ jobs:
       - name: Install requests
         run: python -m pip install requests
 
-      - name: Test Bolagsverket API
+      - name: Test Bolagsverket TEST API
         env:
           BOLAGSVERKET_CLIENT_ID: ${{ secrets.BOLAGSVERKET_CLIENT_ID_TEST }}
           BOLAGSVERKET_CLIENT_SECRET: ${{ secrets.BOLAGSVERKET_CLIENT_SECRET_TEST }}
@@ -38,6 +38,14 @@ jobs:
               "foretagsinformation/v4/organisationer"
           )
 
+          print("Environment: TEST / ACCEPT2")
+          print("API: VärdefullaDatamängder")
+          print()
+
+          # ------------------------------------------------------------
+          # OAuth
+          # ------------------------------------------------------------
+
           token_response = requests.post(
               TOKEN_URL,
               data={
@@ -51,6 +59,7 @@ jobs:
           )
 
           print(f"OAuth HTTP status: {token_response.status_code}")
+
           token_response.raise_for_status()
 
           token_data = token_response.json()
@@ -60,11 +69,19 @@ jobs:
           print(f"Token type: {token_data.get('token_type')}")
           print(f"Expires in: {token_data.get('expires_in')} seconds")
 
+          # ------------------------------------------------------------
+          # API
+          # ------------------------------------------------------------
+
           request_id = str(uuid.uuid4())
 
           payload = {
               "identitetsbeteckning": "5299999994"
           }
+
+          print()
+          print(f"X-Request-Id: {request_id}")
+          print("Calling organisation API...")
 
           response = requests.post(
               API_URL,
@@ -83,8 +100,15 @@ jobs:
           print("API response:")
           print(response.text[:10000])
 
+          if response.status_code == 403:
+              print()
+              print("ERROR: API subscription/authorization failed.")
+              print("OAuth succeeded, but the TEST client is not authorized")
+              print("for this API resource in the TEST environment.")
+              raise SystemExit(2)
+
           response.raise_for_status()
 
           print()
-          print("Bolagsverket organisation API: OK")
+          print("Bolagsverket TEST API: OK")
           PY
