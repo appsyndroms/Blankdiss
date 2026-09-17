@@ -272,66 +272,49 @@ def print_extreme_groups(
     if data.empty:
         return
 
+    fi_q20 = data[FI_COLUMN].quantile(0.2)
+    fi_q80 = data[FI_COLUMN].quantile(0.8)
+
+    vol_q20 = data[VOLATILITY_COLUMN].quantile(0.2)
+    vol_q80 = data[VOLATILITY_COLUMN].quantile(0.8)
+
     fi_high = data[
-        FI_COLUMN
-        >= data[FI_COLUMN].quantile(0.8)
+        data[FI_COLUMN] >= fi_q80
     ]
 
     fi_low = data[
-        FI_COLUMN
-        <= data[FI_COLUMN].quantile(0.2)
+        data[FI_COLUMN] <= fi_q20
     ]
 
     vol_high = data[
-        VOLATILITY_COLUMN
-        >= data[VOLATILITY_COLUMN].quantile(
-            0.8
-        )
+        data[VOLATILITY_COLUMN] >= vol_q80
     ]
 
     vol_low = data[
-        VOLATILITY_COLUMN
-        <= data[VOLATILITY_COLUMN].quantile(
-            0.2
-        )
+        data[VOLATILITY_COLUMN] <= vol_q20
     ]
 
     fi_high_vol_high = data[
-        (
-            FI_COLUMN
-            >= data[FI_COLUMN].quantile(0.8)
-        )
+        (data[FI_COLUMN] >= fi_q80)
         & (
-            VOLATILITY_COLUMN
-            >= data[VOLATILITY_COLUMN].quantile(
-                0.8
-            )
+            data[VOLATILITY_COLUMN]
+            >= vol_q80
         )
     ]
 
     fi_high_vol_low = data[
-        (
-            FI_COLUMN
-            >= data[FI_COLUMN].quantile(0.8)
-        )
+        (data[FI_COLUMN] >= fi_q80)
         & (
-            VOLATILITY_COLUMN
-            <= data[VOLATILITY_COLUMN].quantile(
-                0.2
-            )
+            data[VOLATILITY_COLUMN]
+            <= vol_q20
         )
     ]
 
     fi_low_vol_high = data[
-        (
-            FI_COLUMN
-            <= data[FI_COLUMN].quantile(0.2)
-        )
+        (data[FI_COLUMN] <= fi_q20)
         & (
-            VOLATILITY_COLUMN
-            >= data[VOLATILITY_COLUMN].quantile(
-                0.8
-            )
+            data[VOLATILITY_COLUMN]
+            >= vol_q80
         )
     ]
 
