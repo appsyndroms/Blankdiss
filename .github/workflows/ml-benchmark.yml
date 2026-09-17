@@ -14,6 +14,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      - name: Run event-direction benchmark
+      - name: Run FI direction bootstrap benchmark
         run: |
-          python -u -m ml.diagnostics.volatility_event_fi_direction_diagnostic
+          python -u -m ml.diagnostics.fi_direction_bootstrap_diagnostic
