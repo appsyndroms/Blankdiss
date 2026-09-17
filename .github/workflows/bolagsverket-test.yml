@@ -1,37 +1,76 @@
-- name: Test Bolagsverket API
-  env:
-    BOLAGSVERKET_CLIENT_ID: ${{ secrets.BOLAGSVERKET_CLIENT_ID_TEST }}
-    BOLAGSVERKET_CLIENT_SECRET: ${{ secrets.BOLAGSVERKET_CLIENT_SECRET_TEST }}
-  run: |
-    python - <<'PY'
-    import os
-    import requests
+name: Bolagsverket API Test
 
-    token_url = "https://portal-accept2.api.bolagsverket.se/oauth2/token"
-    api_url = "https://gw-accept2.api.bolagsverket.se/foretagsinformation/v4/organisationer"
+on:
+  workflow_dispatch:
 
-    token_response = requests.post(
-        token_url,
-        data={"grant_type": "client_credentials"},
-        auth=(
-            os.environ["BOLAGSVERKET_CLIENT_ID"],
-            os.environ["BOLAGSVERKET_CLIENT_SECRET"],
-        ),
-        timeout=30,
-    )
+permissions:
+  contents: read
 
-    token_response.raise_for_status()
-    token = token_response.json()["access_token"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
 
-    response = requests.get(
-        api_url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        },
-        timeout=30,
-    )
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-    print(f"API HTTP status: {response.status_code}")
-    print(response.text[:5000])
-    PY
+      - name: Install requests
+        run: python -m pip install requests
+
+      - name: Test Bolagsverket OAuth and API
+        env:
+          BOLAGSVERKET_CLIENT_ID: ${{ secrets.BOLAGSVERKET_CLIENT_ID_TEST }}
+          BOLAGSVERKET_CLIENT_SECRET: ${{ secrets.BOLAGSVERKET_CLIENT_SECRET_TEST }}
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          token_url = (
+              "https://portal-accept2.api.bolagsverket.se/oauth2/token"
+          )
+
+          api_url = (
+              "https://gw-accept2.api.bolagsverket.se/"
+              "foretagsinformation/v4/organisationer"
+          )
+
+          # OAuth
+          token_response = requests.post(
+              token_url,
+              data={"grant_type": "client_credentials"},
+              auth=(
+                  os.environ["BOLAGSVERKET_CLIENT_ID"],
+                  os.environ["BOLAGSVERKET_CLIENT_SECRET"],
+              ),
+              timeout=30,
+          )
+
+          print(f"OAuth HTTP status: {token_response.status_code}")
+
+          token_response.raise_for_status()
+
+          token_data = token_response.json()
+          token = token_data["access_token"]
+
+          print("OAuth: OK")
+          print(f"Token type: {token_data.get('token_type')}")
+          print(f"Expires in: {token_data.get('expires_in')} seconds")
+
+          # API
+          response = requests.get(
+              api_url,
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/json",
+              },
+              timeout=30,
+          )
+
+          print(f"API HTTP status: {response.status_code}")
+          print("API response:")
+
+          print(response.text[:5000])
+          PY
