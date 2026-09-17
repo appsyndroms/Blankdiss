@@ -10,6 +10,67 @@ MIN_ROWS = 20
 CHUNK_SIZE = 100
 
 
+def bootstrap_mean_ci(
+    values: np.ndarray,
+    *,
+    iterations: int = DEFAULT_ITERATIONS,
+    seed: int,
+) -> tuple[float | None, float | None]:
+    """
+    Bootstrap 95% confidence interval for the mean.
+
+    NumPy arrays are used throughout the bootstrap loop.
+    """
+    values = np.asarray(
+        values,
+        dtype=np.float64,
+    )
+
+    values = values[np.isfinite(values)]
+
+    if len(values) < MIN_ROWS:
+        return None, None
+
+    rng = np.random.default_rng(seed)
+
+    n = len(values)
+
+    means = np.empty(
+        iterations,
+        dtype=np.float64,
+    )
+
+    offset = 0
+
+    while offset < iterations:
+        current = min(
+            CHUNK_SIZE,
+            iterations - offset,
+        )
+
+        indices = rng.integers(
+            0,
+            n,
+            size=(current, n),
+        )
+
+        means[
+            offset:offset + current
+        ] = values[indices].mean(axis=1)
+
+        offset += current
+
+    lower, upper = np.quantile(
+        means,
+        [0.025, 0.975],
+    )
+
+    return (
+        float(lower),
+        float(upper),
+    )
+
+
 def bootstrap_mean_difference(
     tail_returns: np.ndarray,
     rest_returns: np.ndarray,
@@ -21,10 +82,7 @@ def bootstrap_mean_difference(
     Bootstrap 95% CI for:
 
         mean(tail) - mean(rest)
-
-    NumPy arrays are used throughout the bootstrap loop.
     """
-
     tail = np.asarray(
         tail_returns,
         dtype=np.float64,
