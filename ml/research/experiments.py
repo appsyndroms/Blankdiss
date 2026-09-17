@@ -1,34 +1,20 @@
-"""
-Definition av Blankdiss research matrix.
-
-Experimenten definieras deklarativt så att hundratals tester
-kan genereras utan hundratals manuellt skrivna experiment.
-"""
+"""Deklarativ definition av Blankdiss research-matris."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import product
 
 
-@dataclass(frozen=True)
-class Experiment:
-    name: str
-    signal: str
-    tail: str
-    description: str
-
-
-SIGNAL_TAILS = (
-    ("top_20", 0.80),
-    ("top_10", 0.90),
-    ("top_5", 0.95),
-    ("top_2_5", 0.975),
-    ("top_1", 0.99),
+TAIL_FRACTIONS = (
+    0.20,
+    0.10,
+    0.05,
+    0.025,
+    0.01,
 )
 
 
-TARGETS = (
+TARGET_NAMES = (
     "up_5pct_5d",
     "up_5pct_20d",
     "up_10pct_60d",
@@ -41,77 +27,100 @@ TARGETS = (
 )
 
 
-BASE_SIGNALS = (
-    "short_interest_level",
-    "short_interest_change",
-    "short_interest_acceleration",
-    "event_risk",
-    "price_momentum",
-    "price_volatility",
-    "distance_from_20d_high",
-    "distance_from_60d_high",
+SIGNAL_SPECS = (
+    (
+        "short_interest_level",
+        ("upper",),
+    ),
+    (
+        "short_interest_change",
+        ("upper",),
+    ),
+    (
+        "short_interest_acceleration",
+        ("upper",),
+    ),
+    (
+        "price_momentum_5d",
+        ("upper", "lower"),
+    ),
+    (
+        "price_momentum_20d",
+        ("upper", "lower"),
+    ),
+    (
+        "price_momentum_60d",
+        ("upper", "lower"),
+    ),
+    (
+        "price_volatility_20d",
+        ("upper",),
+    ),
+    (
+        "distance_from_20d_high",
+        ("upper", "lower"),
+    ),
+    (
+        "distance_from_60d_high",
+        ("upper", "lower"),
+    ),
 )
 
 
-INTERACTION_SIGNALS = (
-    "event_risk_x_short_interest_change",
-    "event_risk_x_short_interest_acceleration",
-    "event_risk_x_price_volatility",
-    "event_risk_x_price_momentum",
-    "short_interest_change_x_price_volatility",
-    "short_interest_change_x_price_momentum",
-)
+@dataclass(frozen=True)
+class Experiment:
+    experiment_id: str
+    signal_name: str
+    target_name: str
+    tail_fraction: float
+    tail_direction: str
 
 
-def build_experiments() -> list[Experiment]:
+def _fraction_name(
+    fraction: float,
+) -> str:
+    if fraction == 0.20:
+        return "20pct"
+
+    if fraction == 0.10:
+        return "10pct"
+
+    if fraction == 0.05:
+        return "5pct"
+
+    if fraction == 0.025:
+        return "2_5pct"
+
+    if fraction == 0.01:
+        return "1pct"
+
+    raise ValueError(
+        f"Okänd tail-fraktion: {fraction}"
+    )
+
+
+def build_experiment_matrix() -> list[Experiment]:
     experiments: list[Experiment] = []
 
-    for signal in BASE_SIGNALS:
-        for tail, _ in SIGNAL_TAILS:
-            experiments.append(
-                Experiment(
-                    name=f"{signal}_{tail}",
-                    signal=signal,
-                    tail=tail,
-                    description=(
-                        f"{signal} {tail}"
-                    ),
-                )
-            )
+    for signal_name, directions in SIGNAL_SPECS:
+        for target_name in TARGET_NAMES:
+            for direction in directions:
+                for fraction in TAIL_FRACTIONS:
+                    experiment_id = (
+                        f"{signal_name}"
+                        f"__{direction}"
+                        f"__{_fraction_name(fraction)}"
+                        f"__{target_name}"
+                    )
 
-    for signal in INTERACTION_SIGNALS:
-        for tail, _ in SIGNAL_TAILS:
-            experiments.append(
-                Experiment(
-                    name=f"{signal}_{tail}",
-                    signal=signal,
-                    tail=tail,
-                    description=(
-                        f"{signal} {tail}"
-                    ),
-                )
-            )
+                    experiments.append(
+                        Experiment(
+                            experiment_id=experiment_id,
+                            signal_name=signal_name,
+                            target_name=target_name,
+                            tail_fraction=fraction,
+                            tail_direction=direction,
+                        )
+                    )
 
     return experiments
-
-
-EXPERIMENTS = tuple(
-    build_experiments()
-)
-
-
-def tail_fraction(
-    tail: str,
-) -> float:
-    mapping = dict(SIGNAL_TAILS)
-
-    if tail not in mapping:
-        raise ValueError(
-            f"Okänd tail: {tail}"
-        )
-
-    return mapping[tail]
-
-
-def target_names() -> tuple[str, ...]:
-    return TARGETS
