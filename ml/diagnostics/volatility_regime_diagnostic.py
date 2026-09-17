@@ -1,8 +1,8 @@
 """
 Blankdiss volatility regime diagnostic.
 
-Tests whether FI short-interest information adds predictive value
-within different volatility regimes.
+Tests whether FI short-interest information behaves differently
+across volatility regimes.
 
 The analysis uses the same walk-forward setup and economic target
 as the main ML benchmark.
@@ -15,11 +15,15 @@ For each OOS observation we retain:
     - target
     - target_return
 
-The analysis then compares:
-    1. FI-only vs FI+volatility AUC within volatility quintiles.
-    2. Top-1% economic ranking within volatility quintiles.
-    3. A 5x5 volatility x FI event-rate matrix.
-    4. The same regime analysis separately by OOS year.
+The diagnostic compares:
+
+    1. FI-only vs FI+volatility within volatility quintiles.
+    2. Top-0.1%, 0.5%, 1%, 2% and 5% economic ranking.
+    3. A volatility x FI event-rate matrix.
+    4. The same analysis separately by OOS year.
+    5. Low / middle / high volatility regimes.
+    6. FI signal strength within each regime.
+    7. A direct regime comparison of economic performance.
 
 No repository files are modified by this script.
 """
@@ -42,23 +46,36 @@ from ml.dataset import (
 from ml.models import build_models as original_build_models
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Configuration
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 BENCHMARK_TREES = 100
 ECONOMIC_TARGET = "down_5pct_5d"
 
-TOP_FRACTION = 0.01
 VOLATILITY_QUANTILES = 5
 
 BASE_FEATURES = "fi_only"
 VOL_FEATURES = "fi_plus_volatility_20d"
 
+ECONOMIC_FRACTIONS = (
+    0.001,
+    0.005,
+    0.01,
+    0.02,
+    0.05,
+)
 
-# ---------------------------------------------------------------------------
+REGIMES = (
+    "LOW",
+    "MID",
+    "HIGH",
+)
+
+
+# ============================================================================
 # Model configuration
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 
 def build_benchmark_models(
@@ -75,9 +92,7 @@ def build_benchmark_models(
     )
 
     if task == "classification":
-        random_forest = models.get(
-            "random_forest"
-        )
+        random_forest = models.get("random_forest")
 
         if random_forest is not None:
             random_forest.set_params(
@@ -88,9 +103,9 @@ def build_benchmark_models(
     return models
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Feature construction
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 
 def build_feature_sets(
@@ -100,22 +115,18 @@ def build_feature_sets(
     Build the two feature sets required by the diagnostic.
     """
 
-    fi_only_data, fi_only_columns = (
-        prepare_feature_set(
-            feature_df,
-            include_price_features=False,
-            price_features=None,
-        )
+    fi_only_data, fi_only_columns = prepare_feature_set(
+        feature_df,
+        include_price_features=False,
+        price_features=None,
     )
 
-    volatility_data, volatility_columns = (
-        prepare_feature_set(
-            feature_df,
-            include_price_features=True,
-            price_features={
-                "price_volatility_20d"
-            },
-        )
+    volatility_data, volatility_columns = prepare_feature_set(
+        feature_df,
+        include_price_features=True,
+        price_features={
+            "price_volatility_20d",
+        },
     )
 
     return {
@@ -130,9 +141,9 @@ def build_feature_sets(
     }
 
 
-# ---------------------------------------------------------------------------
-# Walk-forward model execution
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Walk-forward execution
+# ============================================================================
 
 
 def run_feature_set(
@@ -142,10 +153,10 @@ def run_feature_set(
     target_definition,
 ):
     """
-    Run the actual Blankdiss walk-forward engine for one feature set.
+    Run the normal Blankdiss walk-forward engine for one feature set.
 
-    The selected model is determined independently in every
-    walk-forward window by validation score.
+    Model selection is performed independently inside each
+    walk-forward window.
     """
 
     all_oos_rows: list[pd.DataFrame] = []
@@ -212,9 +223,7 @@ def run_feature_set(
             {
                 "window": window_index,
                 "train_end": window.train_end,
-                "validation_end": (
-                    window.validation_end
-                ),
+                "validation_end": window.validation_end,
                 "test_end": window.test_end,
                 "validation_score": (
                     selected_result[
@@ -256,9 +265,9 @@ def run_feature_set(
     }
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Source feature attachment
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 
 def attach_source_features(
@@ -266,7 +275,7 @@ def attach_source_features(
     source_features: pd.DataFrame,
 ):
     """
-    Attach the raw FI and volatility features to OOS predictions.
+    Attach raw FI and volatility features to OOS predictions.
     """
 
     required_columns = [
@@ -323,45 +332,16 @@ def attach_source_features(
             "security_key",
         ],
         how="left",
-        suffixes=("", "_source"),
+        suffixes=(
+            "",
+            "_source",
+        ),
     )
 
 
-# ---------------------------------------------------------------------------
-# Volatility regimes
-# ---------------------------------------------------------------------------
-
-
-def add_volatility_regimes(
-    frame: pd.DataFrame,
-):
-    """
-    Assign volatility quintiles using the complete OOS population.
-
-    The thresholds are derived only from OOS observations.
-    """
-
-    result = frame.copy()
-
-    result["volatility_regime"] = pd.qcut(
-        result["price_volatility_20d"],
-        q=VOLATILITY_QUANTILES,
-        labels=[
-            "Q1_low",
-            "Q2",
-            "Q3",
-            "Q4",
-            "Q5_high",
-        ],
-        duplicates="drop",
-    )
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# AUC
-# ---------------------------------------------------------------------------
+# ============================================================================
+# AUC helpers
+# ============================================================================
 
 
 def safe_auc(
@@ -404,17 +384,18 @@ def safe_auc(
     )
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Economic metrics
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 
 def calculate_top_metrics(
     frame: pd.DataFrame,
     score_column: str,
+    fraction: float,
 ):
     """
-    Calculate economic metrics for the highest-scored 1%.
+    Calculate economic metrics for the highest-scored observations.
     """
 
     if frame.empty:
@@ -431,7 +412,7 @@ def calculate_top_metrics(
         int(
             np.ceil(
                 len(frame)
-                * TOP_FRACTION
+                * fraction
             )
         ),
     )
@@ -474,9 +455,36 @@ def calculate_top_metrics(
     }
 
 
-# ---------------------------------------------------------------------------
-# Regime analysis
-# ---------------------------------------------------------------------------
+def print_economic_metrics(
+    frame: pd.DataFrame,
+    score_column: str,
+    indent: str = "    ",
+):
+    """
+    Print the economic ranking metrics for all configured fractions.
+    """
+
+    for fraction in ECONOMIC_FRACTIONS:
+        metrics = calculate_top_metrics(
+            frame,
+            score_column,
+            fraction,
+        )
+
+        print(
+            f"{indent}"
+            f"Top {fraction:.1%}: "
+            f"n={metrics['n']:,} "
+            f"event={metrics['event_rate']:.4f} "
+            f"lift={metrics['lift']:.2f}x "
+            f"mean={metrics['mean_return']:.4%} "
+            f"median={metrics['median_return']:.4%}"
+        )
+
+
+# ============================================================================
+# Comparison frame
+# ============================================================================
 
 
 def build_comparison_frame(
@@ -484,10 +492,9 @@ def build_comparison_frame(
     volatility_oos: pd.DataFrame,
 ):
     """
-    Match FI-only and FI+volatility predictions on the same OOS rows.
+    Match FI-only and FI+volatility predictions on identical OOS rows.
 
-    Raw volatility and FI features are retained because the downstream
-    diagnostic uses them to define regimes.
+    Raw volatility and FI features are retained for regime analysis.
     """
 
     fi = fi_oos[
@@ -523,9 +530,7 @@ def build_comparison_frame(
         ]
     ].rename(
         columns={
-            "prediction": (
-                "vol_prediction"
-            ),
+            "prediction": "vol_prediction",
             "score": "vol_score",
             "selected_model": (
                 "vol_selected_model"
@@ -550,11 +555,78 @@ def build_comparison_frame(
     return merged
 
 
+# ============================================================================
+# Volatility regimes
+# ============================================================================
+
+
+def add_volatility_quintiles(
+    frame: pd.DataFrame,
+):
+    """
+    Assign five volatility quintiles.
+    """
+
+    result = frame.copy()
+
+    result["volatility_regime"] = pd.qcut(
+        result["price_volatility_20d"],
+        q=VOLATILITY_QUANTILES,
+        labels=[
+            "Q1_low",
+            "Q2",
+            "Q3",
+            "Q4",
+            "Q5_high",
+        ],
+        duplicates="drop",
+    )
+
+    return result
+
+
+def add_three_regimes(
+    frame: pd.DataFrame,
+):
+    """
+    Divide observations into three broad volatility regimes.
+
+    LOW:
+        bottom third
+
+    MID:
+        middle third
+
+    HIGH:
+        top third
+    """
+
+    result = frame.copy()
+
+    result["three_vol_regime"] = pd.qcut(
+        result["price_volatility_20d"],
+        q=3,
+        labels=[
+            "LOW",
+            "MID",
+            "HIGH",
+        ],
+        duplicates="drop",
+    )
+
+    return result
+
+
+# ============================================================================
+# Quintile analysis
+# ============================================================================
+
+
 def print_regime_analysis(
     comparison: pd.DataFrame,
 ):
     """
-    Compare FI-only and FI+volatility within each volatility regime.
+    Compare FI-only and FI+volatility within each volatility quintile.
     """
 
     data = comparison.dropna(
@@ -567,13 +639,13 @@ def print_regime_analysis(
         ]
     ).copy()
 
-    data = add_volatility_regimes(
+    data = add_volatility_quintiles(
         data
     )
 
     print()
     print("=" * 100)
-    print("FI SIGNAL WITHIN VOLATILITY REGIMES")
+    print("FI SIGNAL WITHIN VOLATILITY QUINTILES")
     print("=" * 100)
 
     for regime in [
@@ -601,16 +673,6 @@ def print_regime_analysis(
             subset["vol_score"],
         )
 
-        fi_top = calculate_top_metrics(
-            subset,
-            "fi_score",
-        )
-
-        vol_top = calculate_top_metrics(
-            subset,
-            "vol_score",
-        )
-
         print()
         print(regime)
         print(
@@ -632,12 +694,9 @@ def print_regime_analysis(
         print(
             f"    AUC: {fi_auc:.6f}"
         )
-        print(
-            f"    Top 1%: "
-            f"event={fi_top['event_rate']:.4f} "
-            f"lift={fi_top['lift']:.2f}x "
-            f"mean={fi_top['mean_return']:.4%} "
-            f"median={fi_top['median_return']:.4%}"
+        print_economic_metrics(
+            subset,
+            "fi_score",
         )
 
         print()
@@ -645,12 +704,9 @@ def print_regime_analysis(
         print(
             f"    AUC: {vol_auc:.6f}"
         )
-        print(
-            f"    Top 1%: "
-            f"event={vol_top['event_rate']:.4f} "
-            f"lift={vol_top['lift']:.2f}x "
-            f"mean={vol_top['mean_return']:.4%} "
-            f"median={vol_top['median_return']:.4%}"
+        print_economic_metrics(
+            subset,
+            "vol_score",
         )
 
         print()
@@ -660,16 +716,195 @@ def print_regime_analysis(
         )
 
 
-# ---------------------------------------------------------------------------
-# FI x volatility matrix
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Three-regime analysis
+# ============================================================================
+
+
+def print_three_regime_analysis(
+    comparison: pd.DataFrame,
+):
+    """
+    Main diagnostic requested for low / middle / high volatility.
+
+    This is deliberately broader than quintiles so that the analysis
+    answers whether FI behaves differently in clearly separated
+    volatility environments.
+    """
+
+    data = comparison.dropna(
+        subset=[
+            "price_volatility_20d",
+            "short_interest_pct",
+            "fi_score",
+            "vol_score",
+            "target",
+            "target_return",
+        ]
+    ).copy()
+
+    data = add_three_regimes(
+        data
+    )
+
+    print()
+    print("=" * 100)
+    print("LOW / MID / HIGH VOLATILITY REGIME ANALYSIS")
+    print("=" * 100)
+
+    for regime in REGIMES:
+        subset = data[
+            data["three_vol_regime"]
+            == regime
+        ]
+
+        if subset.empty:
+            continue
+
+        fi_auc = safe_auc(
+            subset["target"],
+            subset["fi_score"],
+        )
+
+        vol_auc = safe_auc(
+            subset["target"],
+            subset["vol_score"],
+        )
+
+        print()
+        print(regime)
+        print("-" * 100)
+
+        print(
+            f"Rows: {len(subset):,}"
+        )
+
+        print(
+            f"Volatility: "
+            f"{subset['price_volatility_20d'].min():.6f}"
+            f" -> "
+            f"{subset['price_volatility_20d'].max():.6f}"
+        )
+
+        print(
+            f"Event rate: "
+            f"{subset['target'].mean():.4f}"
+        )
+
+        print()
+        print("FI-only")
+        print(
+            f"  AUC: {fi_auc:.6f}"
+        )
+
+        print_economic_metrics(
+            subset,
+            "fi_score",
+            indent="  ",
+        )
+
+        print()
+        print("FI + volatility")
+        print(
+            f"  AUC: {vol_auc:.6f}"
+        )
+
+        print_economic_metrics(
+            subset,
+            "vol_score",
+            indent="  ",
+        )
+
+        print()
+        print(
+            f"AUC difference: "
+            f"{vol_auc - fi_auc:+.6f}"
+        )
+
+
+# ============================================================================
+# FI signal strength by volatility regime
+# ============================================================================
+
+
+def print_fi_signal_strength(
+    comparison: pd.DataFrame,
+):
+    """
+    Measure how strongly FI itself separates the downside event
+    inside each volatility regime.
+
+    This deliberately ignores the FI+volatility model and asks:
+
+        Does FI still contain information when volatility is known?
+    """
+
+    data = comparison.dropna(
+        subset=[
+            "price_volatility_20d",
+            "short_interest_pct",
+            "fi_score",
+            "target",
+        ]
+    ).copy()
+
+    data = add_three_regimes(
+        data
+    )
+
+    print()
+    print("=" * 100)
+    print("FI SIGNAL STRENGTH BY VOLATILITY REGIME")
+    print("=" * 100)
+
+    for regime in REGIMES:
+        subset = data[
+            data["three_vol_regime"]
+            == regime
+        ]
+
+        if subset.empty:
+            continue
+
+        fi_auc = safe_auc(
+            subset["target"],
+            subset["fi_score"],
+        )
+
+        fi_raw_auc = safe_auc(
+            subset["target"],
+            subset["short_interest_pct"],
+        )
+
+        print()
+        print(regime)
+        print(
+            f"  Rows: {len(subset):,}"
+        )
+        print(
+            f"  Event rate: "
+            f"{subset['target'].mean():.4f}"
+        )
+        print(
+            f"  FI model AUC: "
+            f"{fi_auc:.6f}"
+        )
+        print(
+            f"  Raw short_interest_pct AUC: "
+            f"{fi_raw_auc:.6f}"
+        )
+
+
+# ============================================================================
+# Volatility x FI matrix
+# ============================================================================
 
 
 def print_fi_within_volatility_matrix(
     comparison: pd.DataFrame,
 ):
     """
-    Print a 5x5 event-rate matrix.
+    Print a 5x5 downside-event matrix.
 
     Rows:
         volatility quintiles
@@ -712,59 +947,41 @@ def print_fi_within_volatility_matrix(
         duplicates="drop",
     )
 
-    matrix = data.pivot_table(
+    matrix = pd.pivot_table(
+        data,
+        values="target",
         index="vol_q",
         columns="fi_q",
-        values="target",
         aggfunc="mean",
-    )
-
-    matrix = matrix.reindex(
-        index=[
-            "V1",
-            "V2",
-            "V3",
-            "V4",
-            "V5",
-        ],
-        columns=[
-            "F1",
-            "F2",
-            "F3",
-            "F4",
-            "F5",
-        ],
     )
 
     print()
     print("=" * 100)
     print("DOWNSIDE EVENT RATE: VOLATILITY x FI")
     print("=" * 100)
+
     print(
         "Rows = volatility quintile, "
         "columns = short-interest quintile"
     )
+
     print()
-
-    print(
-        matrix.to_string(
-            float_format=lambda value:
-                f"{value:.4f}"
-        )
-    )
+    print(matrix.to_string(float_format=lambda x: f"{x:.4f}"))
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Year-by-year analysis
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 
 def print_year_analysis(
     comparison: pd.DataFrame,
 ):
     """
-    Repeat the volatility-regime analysis independently for each
-    OOS calendar year.
+    Repeat the volatility-quintile analysis separately for each OOS year.
+
+    This is useful because a pooled regime effect can otherwise hide
+    temporal instability.
     """
 
     data = comparison.dropna(
@@ -777,7 +994,8 @@ def print_year_analysis(
     ).copy()
 
     data["year"] = pd.to_datetime(
-        data["snapshot_date"]
+        data["snapshot_date"],
+        errors="coerce",
     ).dt.year
 
     print()
@@ -786,14 +1004,30 @@ def print_year_analysis(
     print("=" * 100)
 
     for year in sorted(
-        data["year"].unique()
+        data["year"].dropna().unique()
     ):
         year_data = data[
             data["year"] == year
         ].copy()
 
-        year_data = add_volatility_regimes(
-            year_data
+        if len(year_data) < 100:
+            continue
+
+        year_data["volatility_regime"] = (
+            pd.qcut(
+                year_data[
+                    "price_volatility_20d"
+                ],
+                q=5,
+                labels=[
+                    "Q1_low",
+                    "Q2",
+                    "Q3",
+                    "Q4",
+                    "Q5_high",
+                ],
+                duplicates="drop",
+            )
         )
 
         print()
@@ -809,107 +1043,269 @@ def print_year_analysis(
             "Q4",
             "Q5_high",
         ]:
-            regime_data = year_data[
+            subset = year_data[
                 year_data[
                     "volatility_regime"
-                ] == regime
+                ]
+                == regime
             ]
 
-            if regime_data.empty:
+            if subset.empty:
                 continue
 
             fi_auc = safe_auc(
-                regime_data["target"],
-                regime_data["fi_score"],
+                subset["target"],
+                subset["fi_score"],
             )
 
             vol_auc = safe_auc(
-                regime_data["target"],
-                regime_data["vol_score"],
+                subset["target"],
+                subset["vol_score"],
             )
 
             print(
-                f"{regime:8s} "
-                f"n={len(regime_data):6,d} "
-                f"event="
-                f"{regime_data['target'].mean():.4f} "
-                f"FI_AUC={fi_auc:.4f} "
-                f"FI+VOL_AUC={vol_auc:.4f} "
-                f"delta="
-                f"{vol_auc - fi_auc:+.4f}"
+                f"{regime:<8}"
+                f" n={len(subset):6,d}"
+                f" event={subset['target'].mean():.4f}"
+                f" FI_AUC={fi_auc:.4f}"
+                f" FI+VOL_AUC={vol_auc:.4f}"
+                f" delta={vol_auc - fi_auc:+.4f}"
             )
 
 
-# ---------------------------------------------------------------------------
-# Window analysis
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Direct economic regime comparison
+# ============================================================================
 
 
-def print_window_results(
-    result: dict,
+def print_regime_economic_comparison(
+    comparison: pd.DataFrame,
 ):
     """
-    Print which model was selected in each walk-forward window.
+    Compare the actual economic ranking performance of FI-only
+    across LOW/MID/HIGH volatility regimes.
+
+    This is intentionally focused on the economic target rather than
+    just AUC.
+    """
+
+    data = comparison.dropna(
+        subset=[
+            "price_volatility_20d",
+            "fi_score",
+            "vol_score",
+            "target",
+            "target_return",
+        ]
+    ).copy()
+
+    data = add_three_regimes(
+        data
+    )
+
+    print()
+    print("=" * 100)
+    print("ECONOMIC PERFORMANCE BY VOLATILITY REGIME")
+    print("=" * 100)
+
+    for regime in REGIMES:
+        subset = data[
+            data["three_vol_regime"]
+            == regime
+        ]
+
+        if subset.empty:
+            continue
+
+        print()
+        print(regime)
+        print("-" * 100)
+
+        for fraction in ECONOMIC_FRACTIONS:
+            fi_metrics = calculate_top_metrics(
+                subset,
+                "fi_score",
+                fraction,
+            )
+
+            vol_metrics = calculate_top_metrics(
+                subset,
+                "vol_score",
+                fraction,
+            )
+
+            print(
+                f"Top {fraction:.1%}: "
+                f"FI event={fi_metrics['event_rate']:.4f} "
+                f"mean={fi_metrics['mean_return']:.4%} "
+                f"| "
+                f"FI+VOL event={vol_metrics['event_rate']:.4f} "
+                f"mean={vol_metrics['mean_return']:.4%}"
+            )
+
+
+# ============================================================================
+# Overall comparison
+# ============================================================================
+
+
+def print_overall_comparison(
+    comparison: pd.DataFrame,
+):
+    """
+    Print overall OOS AUC and economic comparison.
+    """
+
+    data = comparison.dropna(
+        subset=[
+            "fi_score",
+            "vol_score",
+            "target",
+            "target_return",
+        ]
+    ).copy()
+
+    fi_auc = safe_auc(
+        data["target"],
+        data["fi_score"],
+    )
+
+    vol_auc = safe_auc(
+        data["target"],
+        data["vol_score"],
+    )
+
+    print()
+    print("=" * 100)
+    print("OVERALL OOS COMPARISON")
+    print("=" * 100)
+
+    print(
+        f"Rows: {len(data):,}"
+    )
+
+    print(
+        f"Baseline event rate: "
+        f"{data['target'].mean():.4f}"
+    )
+
+    print(
+        f"Baseline mean return: "
+        f"{data['target_return'].mean():.4%}"
+    )
+
+    print(
+        f"FI-only OOS AUC: "
+        f"{fi_auc:.6f}"
+    )
+
+    print(
+        f"FI + volatility OOS AUC: "
+        f"{vol_auc:.6f}"
+    )
+
+    print(
+        f"AUC difference: "
+        f"{vol_auc - fi_auc:+.6f}"
+    )
+
+    print()
+    print("FI-only economic ranking")
+
+    print_economic_metrics(
+        data,
+        "fi_score",
+    )
+
+    print()
+    print("FI + volatility economic ranking")
+
+    print_economic_metrics(
+        data,
+        "vol_score",
+    )
+
+
+# ============================================================================
+# Model selection summary
+# ============================================================================
+
+
+def print_model_selection_summary(
+    results: dict,
+):
+    """
+    Print the model actually selected for OOS in each window.
     """
 
     print()
     print("=" * 100)
     print(
         f"WINDOW RESULTS: "
-        f"{result['name']}"
+        f"{results['name']}"
     )
     print("=" * 100)
 
-    for window in result["windows"]:
+    for result in results["windows"]:
         print()
         print(
-            f"Window {window['window']}"
+            f"Window {result['window']}"
         )
+
         print(
             f"  Train <= "
-            f"{window['train_end']}"
+            f"{result['train_end']}"
         )
+
         print(
             f"  Validation <= "
-            f"{window['validation_end']}"
+            f"{result['validation_end']}"
         )
+
         print(
             f"  Test <= "
-            f"{window['test_end']}"
+            f"{result['test_end']}"
         )
+
         print(
             f"  Selected model: "
-            f"{window['selected_model']}"
+            f"{result['selected_model']}"
         )
+
         print(
             f"  Validation score: "
-            f"{window['validation_score']:.6f}"
+            f"{result['validation_score']:.6f}"
         )
+
         print(
             f"  Time: "
-            f"{window['seconds']:.2f}s"
+            f"{result['seconds']:.2f}s"
         )
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Main
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 
 def main():
     print("=" * 100)
-    print(
-        "BLANKDISS VOLATILITY REGIME DIAGNOSTIC"
-    )
+    print("BLANKDISS VOLATILITY REGIME DIAGNOSTIC")
     print("=" * 100)
+
     print(
         f"RF trees: {BENCHMARK_TREES}"
     )
-    print("RF n_jobs: 1")
+
+    print(
+        "RF n_jobs: 1"
+    )
+
     print(
         f"Walk-forward windows: "
         f"{len(WALK_FORWARD_WINDOWS)}"
     )
+
     print(
         f"Economic target: "
         f"{ECONOMIC_TARGET}"
@@ -925,12 +1321,6 @@ def main():
         f"{len(feature_df):,}"
     )
 
-    target_definition = next(
-        target
-        for target in TARGETS
-        if target.name == ECONOMIC_TARGET
-    )
-
     print()
     print("Building feature sets...")
 
@@ -938,68 +1328,102 @@ def main():
         feature_df
     )
 
-    # train_window() imports build_models into the
-    # ml.walk_forward module namespace, so patch that
-    # symbol rather than trying to call a nonexistent
-    # run_walk_forward() API.
+    target_definition = next(
+        target
+        for target in TARGETS
+        if target.name == ECONOMIC_TARGET
+    )
+
+    # ------------------------------------------------------------------
+    # Force the benchmark RF configuration into the existing
+    # walk-forward engine.
+    # ------------------------------------------------------------------
+
+    original_walk_forward_build_models = (
+        walk_forward.build_models
+    )
+
     walk_forward.build_models = (
         build_benchmark_models
     )
 
-    print()
-    print("=" * 100)
-    print("RUNNING FI-ONLY")
-    print("=" * 100)
+    try:
+        print()
+        print("=" * 100)
+        print("RUNNING FI-ONLY")
+        print("=" * 100)
 
-    fi_data, fi_columns = feature_sets[
-        BASE_FEATURES
-    ]
+        fi_data, fi_columns = (
+            feature_sets[BASE_FEATURES]
+        )
 
-    fi_result = run_feature_set(
-        BASE_FEATURES,
-        fi_data,
-        fi_columns,
-        target_definition,
-    )
+        fi_result = run_feature_set(
+            BASE_FEATURES,
+            fi_data,
+            fi_columns,
+            target_definition,
+        )
 
-    print_window_results(
-        fi_result
-    )
+        print_model_selection_summary(
+            fi_result
+        )
 
-    print()
-    print("=" * 100)
-    print("RUNNING FI + VOLATILITY")
-    print("=" * 100)
+        print()
+        print("=" * 100)
+        print("RUNNING FI + VOLATILITY")
+        print("=" * 100)
 
-    volatility_data, volatility_columns = (
-        feature_sets[VOL_FEATURES]
-    )
+        vol_data, vol_columns = (
+            feature_sets[VOL_FEATURES]
+        )
 
-    volatility_result = run_feature_set(
-        VOL_FEATURES,
-        volatility_data,
-        volatility_columns,
-        target_definition,
-    )
+        vol_result = run_feature_set(
+            VOL_FEATURES,
+            vol_data,
+            vol_columns,
+            target_definition,
+        )
 
-    print_window_results(
-        volatility_result
-    )
+        print_model_selection_summary(
+            vol_result
+        )
 
+    finally:
+        walk_forward.build_models = (
+            original_walk_forward_build_models
+        )
+
+    if (
+        fi_result["oos"].empty
+        or vol_result["oos"].empty
+    ):
+        print()
+        print(
+            "No OOS predictions available."
+        )
+        return
+
+    # ------------------------------------------------------------------
     # Attach raw source features.
+    # ------------------------------------------------------------------
+
     fi_oos = attach_source_features(
         fi_result["oos"],
-        feature_df,
+        fi_data,
     )
 
-    volatility_oos = attach_source_features(
-        volatility_result["oos"],
-        feature_df,
+    vol_oos = attach_source_features(
+        vol_result["oos"],
+        vol_data,
     )
+
+    # ------------------------------------------------------------------
+    # Match both models on exactly the same OOS observations.
+    # ------------------------------------------------------------------
 
     comparison = build_comparison_frame(
         fi_oos,
-        volatility_oos,
+        vol_oos,
     )
 
     print()
@@ -1008,7 +1432,25 @@ def main():
         f"{len(comparison):,}"
     )
 
+    if comparison.empty:
+        print(
+            "No matched OOS observations."
+        )
+        return
+
+    # ------------------------------------------------------------------
+    # Diagnostics
+    # ------------------------------------------------------------------
+
     print_regime_analysis(
+        comparison
+    )
+
+    print_three_regime_analysis(
+        comparison
+    )
+
+    print_fi_signal_strength(
         comparison
     )
 
@@ -1020,34 +1462,31 @@ def main():
         comparison
     )
 
+    print_regime_economic_comparison(
+        comparison
+    )
+
+    print_overall_comparison(
+        comparison
+    )
+
+    # ------------------------------------------------------------------
+    # Runtime summary
+    # ------------------------------------------------------------------
+
     print()
     print("=" * 100)
-    print("OVERALL OOS COMPARISON")
+    print("RUNTIME")
     print("=" * 100)
 
-    fi_auc = safe_auc(
-        comparison["target"],
-        comparison["fi_score"],
-    )
-
-    volatility_auc = safe_auc(
-        comparison["target"],
-        comparison["vol_score"],
+    print(
+        f"FI-only: "
+        f"{fi_result['total_seconds']:.2f}s"
     )
 
     print(
-        f"FI-only OOS AUC: "
-        f"{fi_auc:.6f}"
-    )
-
-    print(
-        f"FI + volatility OOS AUC: "
-        f"{volatility_auc:.6f}"
-    )
-
-    print(
-        f"AUC difference: "
-        f"{volatility_auc - fi_auc:+.6f}"
+        f"FI + volatility: "
+        f"{vol_result['total_seconds']:.2f}s"
     )
 
     print()
