@@ -485,6 +485,9 @@ def build_comparison_frame(
 ):
     """
     Match FI-only and FI+volatility predictions on the same OOS rows.
+
+    Raw volatility and FI features are retained because the downstream
+    diagnostic uses them to define regimes.
     """
 
     fi = fi_oos[
@@ -492,6 +495,8 @@ def build_comparison_frame(
             "snapshot_date",
             "security_key",
             "target_return",
+            "price_volatility_20d",
+            "short_interest_pct",
             "prediction",
             "score",
             "window_index",
