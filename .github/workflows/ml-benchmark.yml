@@ -14,6 +14,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      - name: Run conditional FI direction benchmark
+      - name: Run short-interest dynamics benchmark
         run: |
-          python -u -m ml.diagnostics.fi_direction_conditional_diagnostic
+          python -u -m ml.diagnostics.fi_direction_short_dynamics_diagnostic
