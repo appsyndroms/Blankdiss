@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 from ml.config import WALK_FORWARD_WINDOWS
 from ml.dataset import load_features
-from ml.research.aggregation import aggregate_results
+from ml.research.aggregation import pool_results
 from ml.research.cache import build_research_cache
 from ml.research.evaluator import evaluate_experiment
 from ml.research.experiments import build_experiment_matrix
@@ -19,7 +18,13 @@ from ml.research.reporting import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
-OUTPUT_DIR = ROOT / "data" / "processed" / "ml" / "research"
+OUTPUT_DIR = (
+    ROOT
+    / "data"
+    / "processed"
+    / "ml"
+    / "research"
+)
 
 
 def _window_name(index: int) -> str:
@@ -27,7 +32,10 @@ def _window_name(index: int) -> str:
 
 
 def run() -> None:
-    print("Loading features...", flush=True)
+    print(
+        "Loading features...",
+        flush=True,
+    )
 
     frame = load_features()
 
@@ -84,14 +92,16 @@ def run() -> None:
 
     results: list[dict] = []
 
-    for window_index, _window in enumerate(WALK_FORWARD_WINDOWS):
-        window_name = _window_name(window_index)
+    for window_index, window in enumerate(
+        WALK_FORWARD_WINDOWS
+    ):
+        window_name = _window_name(
+            window_index
+        )
 
-        # WalkForwardWindow is a dataclass/object.
-        # Keep this explicit here so the runner never assumes dictionary access.
-        train_end = _window.train_end
-        validation_end = _window.validation_end
-        test_end = _window.test_end
+        train_end = window.train_end
+        validation_end = window.validation_end
+        test_end = window.test_end
 
         print(
             f"\n{window_name}: "
@@ -117,9 +127,13 @@ def run() -> None:
                     split_name=split_name,
                 )
 
-                split_results.append(result)
+                split_results.append(
+                    result
+                )
 
-            results.extend(split_results)
+            results.extend(
+                split_results
+            )
 
             print(
                 f"  {split_name}: "
@@ -128,11 +142,13 @@ def run() -> None:
             )
 
     print(
-        f"\nRaw results: {len(results):,}",
+        f"\nSplit results: {len(results):,}",
         flush=True,
     )
 
-    pooled = aggregate_results(results)
+    pooled = pool_results(
+        results
+    )
 
     print(
         f"Pooled experiments: {len(pooled):,}",
@@ -145,12 +161,16 @@ def run() -> None:
     )
 
     run_timestamp = datetime.now(
-        timezone.utc,
+        timezone.utc
     ).strftime(
-        "%Y%m%dT%H%M%SZ",
+        "%Y%m%dT%H%M%SZ"
     )
 
-    run_dir = OUTPUT_DIR / run_timestamp
+    run_dir = (
+        OUTPUT_DIR
+        / run_timestamp
+    )
+
     run_dir.mkdir(
         parents=True,
         exist_ok=True,
@@ -158,17 +178,28 @@ def run() -> None:
 
     metadata = {
         "created_at_utc": run_timestamp,
-        "feature_rows": int(len(frame)),
-        "experiments": int(len(experiments)),
+        "feature_rows": int(
+            len(frame)
+        ),
+        "experiments": int(
+            len(experiments)
+        ),
         "signals": signal_names,
         "targets": target_names,
         "walk_forward_windows": [
             {
-                "train_end": str(window.train_end),
-                "validation_end": str(window.validation_end),
-                "test_end": str(window.test_end),
+                "train_end": str(
+                    window.train_end
+                ),
+                "validation_end": str(
+                    window.validation_end
+                ),
+                "test_end": str(
+                    window.test_end
+                ),
             }
-            for window in WALK_FORWARD_WINDOWS
+            for window
+            in WALK_FORWARD_WINDOWS
         ],
     }
 
@@ -189,11 +220,16 @@ def run() -> None:
 
     write_markdown_report(
         run_dir / "report.md",
+        results,
         pooled,
         metadata,
     )
 
-    latest_dir = OUTPUT_DIR / "latest"
+    latest_dir = (
+        OUTPUT_DIR
+        / "latest"
+    )
+
     latest_dir.mkdir(
         parents=True,
         exist_ok=True,
@@ -216,6 +252,7 @@ def run() -> None:
 
     write_markdown_report(
         latest_dir / "report.md",
+        results,
         pooled,
         metadata,
     )
