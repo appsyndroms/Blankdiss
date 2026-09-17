@@ -1,71 +1,46 @@
-"""Entry point for the Blankdiss deterministic research matrix."""
-
 from __future__ import annotations
 
-import shutil
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 from ml.config import WALK_FORWARD_WINDOWS
 from ml.dataset import load_features
-
-from .aggregation import pool_results
-from .cache import ResearchCache
-from .evaluator import evaluate_experiment
-from .experiments import build_experiment_matrix
-from .reporting import (
-    build_markdown_report,
-    build_summary,
+from ml.research.aggregation import aggregate_results
+from ml.research.cache import build_research_cache
+from ml.research.evaluator import evaluate_experiment
+from ml.research.experiments import build_experiment_matrix
+from ml.research.reporting import (
     write_json,
     write_jsonl,
+    write_markdown_report,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
-RESEARCH_DIR = (
-    ROOT
-    / "data"
-    / "processed"
-    / "research"
-)
-
-RUNS_DIR = (
-    RESEARCH_DIR
-    / "runs"
-)
-
-LATEST_DIR = (
-    RESEARCH_DIR
-    / "latest"
-)
+OUTPUT_DIR = ROOT / "data" / "processed" / "ml" / "research"
 
 
-def main() -> None:
-    started_at = datetime.now(
-        timezone.utc
-    )
+def _window_name(index: int) -> str:
+    return f"window_{index + 1}"
 
-    # ---------------------------------------------------------
-    # Load
-    # ---------------------------------------------------------
 
-    print(
-        "Loading features..."
-    )
+def run() -> None:
+    print("Loading features...", flush=True)
 
     frame = load_features()
 
     print(
-        f"Loaded {len(frame):,} feature rows"
+        f"Loaded {len(frame):,} feature rows",
+        flush=True,
     )
 
-    # ---------------------------------------------------------
-    # Experiment matrix
-    # ---------------------------------------------------------
+    experiments = build_experiment_matrix()
 
-    experiments = (
-        build_experiment_matrix()
+    print(
+        f"Experiments: {len(experiments):,}",
+        flush=True,
     )
 
     signal_names = sorted(
@@ -83,208 +58,173 @@ def main() -> None:
     )
 
     print(
-        f"Experiments: {len(experiments):,}"
+        f"Signals: {len(signal_names):,}",
+        flush=True,
     )
 
     print(
-        f"Signals: {len(signal_names):,}"
+        f"Targets: {len(target_names):,}",
+        flush=True,
     )
 
     print(
-        f"Targets: {len(target_names):,}"
+        "Building research cache...",
+        flush=True,
     )
 
-    # ---------------------------------------------------------
-    # Precompute
-    #
-    # This is where the expensive pandas work happens.
-    # It happens once.
-    # ---------------------------------------------------------
-
-    print(
-        "Building research cache..."
-    )
-
-    cache = ResearchCache.build(
+    cache = build_research_cache(
         frame,
-        signal_names,
-        target_names,
+        experiments,
     )
 
     print(
-        "Research cache ready."
+        "Research cache ready.",
+        flush=True,
     )
 
-    # ---------------------------------------------------------
-    # Evaluate
-    # ---------------------------------------------------------
+    results: list[dict] = []
 
-    results = []
+    for window_index, _window in enumerate(WALK_FORWARD_WINDOWS):
+        window_name = _window_name(window_index)
 
-    window_count = len(
-        WALK_FORWARD_WINDOWS
-    )
-
-    total = (
-        len(experiments)
-        * window_count
-    )
-
-    completed = 0
-
-    for window in WALK_FORWARD_WINDOWS:
-        train_end = window[
-            "train_end"
-        ]
-
-        validation_end = window[
-            "validation_end"
-        ]
-
-        test_end = window[
-            "test_end"
-        ]
+        # WalkForwardWindow is a dataclass/object.
+        # Keep this explicit here so the runner never assumes dictionary access.
+        train_end = _window.train_end
+        validation_end = _window.validation_end
+        test_end = _window.test_end
 
         print(
-            ""
+            f"\n{window_name}: "
+            f"train <= {train_end}, "
+            f"validation <= {validation_end}, "
+            f"test <= {test_end}",
+            flush=True,
         )
 
-        print(
-            "Evaluating window "
-            f"{train_end} → {test_end}"
-        )
+        for split_name in (
+            "train",
+            "validation",
+            "test",
+        ):
+            split_results = []
 
-        for experiment in experiments:
-            results.append(
-                evaluate_experiment(
-                    frame,
-                    experiment,
-                    cache,
-                    train_end=train_end,
-                    validation_end=validation_end,
-                    test_end=test_end,
+            for experiment in experiments:
+                result = evaluate_experiment(
+                    frame=frame,
+                    cache=cache,
+                    experiment=experiment,
+                    window_name=window_name,
+                    split_name=split_name,
                 )
+
+                split_results.append(result)
+
+            results.extend(split_results)
+
+            print(
+                f"  {split_name}: "
+                f"{len(split_results):,} experiments",
+                flush=True,
             )
 
-            completed += 1
+    print(
+        f"\nRaw results: {len(results):,}",
+        flush=True,
+    )
 
-            if (
-                completed % 100 == 0
-                or completed == total
-            ):
-                print(
-                    "Progress: "
-                    f"{completed:,}/"
-                    f"{total:,}"
-                )
-
-    # ---------------------------------------------------------
-    # Aggregate
-    # ---------------------------------------------------------
+    pooled = aggregate_results(results)
 
     print(
-        ""
+        f"Pooled experiments: {len(pooled):,}",
+        flush=True,
     )
 
-    print(
-        "Pooling walk-forward results..."
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    pooled_results = pool_results(
-        results
+    run_timestamp = datetime.now(
+        timezone.utc,
+    ).strftime(
+        "%Y%m%dT%H%M%SZ",
     )
 
-    # ---------------------------------------------------------
-    # Reports
-    # ---------------------------------------------------------
-
-    summary = build_summary(
-        results,
-        pooled_results,
-    )
-
-    report = build_markdown_report(
-        summary,
-        pooled_results,
-    )
-
-    run_id = started_at.strftime(
-        "%Y%m%dT%H%M%SZ"
-    )
-
-    run_dir = RUNS_DIR / run_id
-
+    run_dir = OUTPUT_DIR / run_timestamp
     run_dir.mkdir(
         parents=True,
         exist_ok=True,
     )
 
+    metadata = {
+        "created_at_utc": run_timestamp,
+        "feature_rows": int(len(frame)),
+        "experiments": int(len(experiments)),
+        "signals": signal_names,
+        "targets": target_names,
+        "walk_forward_windows": [
+            {
+                "train_end": str(window.train_end),
+                "validation_end": str(window.validation_end),
+                "test_end": str(window.test_end),
+            }
+            for window in WALK_FORWARD_WINDOWS
+        ],
+    }
+
     write_jsonl(
-        run_dir
-        / "experiment_results.jsonl",
+        run_dir / "results.jsonl",
         results,
     )
 
-    write_jsonl(
-        run_dir
-        / "pooled_results.jsonl",
-        pooled_results,
+    write_json(
+        run_dir / "pooled.json",
+        pooled,
     )
 
     write_json(
-        run_dir
-        / "research_summary.json",
-        summary,
+        run_dir / "metadata.json",
+        metadata,
     )
 
-    (
-        run_dir
-        / "research_report.md"
-    ).write_text(
-        report,
-        encoding="utf-8",
+    write_markdown_report(
+        run_dir / "report.md",
+        pooled,
+        metadata,
     )
 
-    # ---------------------------------------------------------
-    # Latest
-    # ---------------------------------------------------------
-
-    if LATEST_DIR.exists():
-        shutil.rmtree(
-            LATEST_DIR
-        )
-
-    shutil.copytree(
-        run_dir,
-        LATEST_DIR,
+    latest_dir = OUTPUT_DIR / "latest"
+    latest_dir.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    # ---------------------------------------------------------
-    # Done
-    # ---------------------------------------------------------
-
-    print(
-        ""
+    write_jsonl(
+        latest_dir / "results.jsonl",
+        results,
     )
 
-    print(
-        "Research completed."
+    write_json(
+        latest_dir / "pooled.json",
+        pooled,
     )
 
-    print(
-        f"Window results: "
-        f"{len(results):,}"
+    write_json(
+        latest_dir / "metadata.json",
+        metadata,
+    )
+
+    write_markdown_report(
+        latest_dir / "report.md",
+        pooled,
+        metadata,
     )
 
     print(
-        f"Pooled experiments: "
-        f"{len(pooled_results):,}"
-    )
-
-    print(
-        f"Output: {run_dir}"
+        f"\nResearch complete: {run_dir}",
+        flush=True,
     )
 
 
 if __name__ == "__main__":
-    main()
+    run()
