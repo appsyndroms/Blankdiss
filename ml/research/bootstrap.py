@@ -1,12 +1,13 @@
+"""Bootstrap statistics for Blankdiss research."""
+
 from __future__ import annotations
 
 import numpy as np
 
-from ml.config import RANDOM_STATE
-
 
 DEFAULT_ITERATIONS = 2000
 MIN_ROWS = 20
+CHUNK_SIZE = 100
 
 
 def bootstrap_mean_difference(
@@ -14,52 +15,39 @@ def bootstrap_mean_difference(
     rest_returns: np.ndarray,
     *,
     iterations: int = DEFAULT_ITERATIONS,
-    seed: int = RANDOM_STATE,
+    seed: int,
 ) -> tuple[float | None, float | None]:
     """
     Bootstrap 95% CI for:
 
-        mean(tail_returns) - mean(rest_returns)
+        mean(tail) - mean(rest)
 
-    Returns:
-        (lower, upper)
-
-    The implementation uses NumPy arrays rather than pandas operations
-    inside the bootstrap loop.
+    NumPy arrays are used throughout the bootstrap loop.
     """
 
-    tail_returns = np.asarray(
+    tail = np.asarray(
         tail_returns,
         dtype=np.float64,
     )
 
-    rest_returns = np.asarray(
+    rest = np.asarray(
         rest_returns,
         dtype=np.float64,
     )
 
-    tail_returns = tail_returns[
-        np.isfinite(tail_returns)
-    ]
-
-    rest_returns = rest_returns[
-        np.isfinite(rest_returns)
-    ]
+    tail = tail[np.isfinite(tail)]
+    rest = rest[np.isfinite(rest)]
 
     if (
-        len(tail_returns) < MIN_ROWS
-        or len(rest_returns) < MIN_ROWS
+        len(tail) < MIN_ROWS
+        or len(rest) < MIN_ROWS
     ):
         return None, None
 
     rng = np.random.default_rng(seed)
 
-    tail_n = len(tail_returns)
-    rest_n = len(rest_returns)
-
-    # Process in chunks to avoid creating one enormous
-    # iterations × n array.
-    chunk_size = 100
+    tail_n = len(tail)
+    rest_n = len(rest)
 
     differences = np.empty(
         iterations,
@@ -70,7 +58,7 @@ def bootstrap_mean_difference(
 
     while offset < iterations:
         current = min(
-            chunk_size,
+            CHUNK_SIZE,
             iterations - offset,
         )
 
@@ -86,13 +74,15 @@ def bootstrap_mean_difference(
             size=(current, rest_n),
         )
 
-        tail_means = tail_returns[
-            tail_indices
-        ].mean(axis=1)
+        tail_means = (
+            tail[tail_indices]
+            .mean(axis=1)
+        )
 
-        rest_means = rest_returns[
-            rest_indices
-        ].mean(axis=1)
+        rest_means = (
+            rest[rest_indices]
+            .mean(axis=1)
+        )
 
         differences[
             offset:offset + current
@@ -105,4 +95,7 @@ def bootstrap_mean_difference(
         [0.025, 0.975],
     )
 
-    return float(lower), float(upper)
+    return (
+        float(lower),
+        float(upper),
+    )
