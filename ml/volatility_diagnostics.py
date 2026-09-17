@@ -1,23 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import numpy as np
 import pandas as pd
 
-from ml.config import TARGET_DEFINITIONS
 from ml.dataset import load_features
 
 
 TARGET_NAME = "down_5pct_5d"
-
+RETURN_COLUMN = "forward_return_5d"
 VOLATILITY_COLUMN = "price_volatility_20d"
 FI_COLUMN = "short_interest_pct"
-
-TEST_PERIODS = {
-    "2025": ("2025-01-01", "2025-12-31"),
-    "2026": ("2026-01-01", "2026-12-31"),
-}
 
 
 def print_header(title: str) -> None:
@@ -27,92 +18,20 @@ def print_header(title: str) -> None:
     print("=" * 100)
 
 
-def build_target(df: pd.DataFrame) -> pd.Series:
-    definition = TARGET_DEFINITIONS[TARGET_NAME]
-
-    target_return = df[definition.return_column]
-    horizon = definition.horizon_days
-
-    if definition.direction == "down":
-        return (
-            df[definition.min_return_column]
-            <= -definition.threshold
-        ).astype(int)
-
-    if definition.direction == "up":
-        return (
-            df[definition.max_return_column]
-            >= definition.threshold
-        ).astype(int)
-
-    raise ValueError(
-        f"Unsupported target direction for {TARGET_NAME}: "
-        f"{definition.direction}"
-    )
-
-
-def add_quantile_bins(
+def add_quantiles(
     df: pd.DataFrame,
     column: str,
-    bins: int = 5,
 ) -> pd.DataFrame:
     result = df.copy()
 
-    values = result[column]
-
-    try:
-        result[f"{column}_q"] = pd.qcut(
-            values,
-            q=bins,
-            labels=[f"Q{i}" for i in range(1, bins + 1)],
-            duplicates="drop",
-        )
-    except ValueError:
-        result[f"{column}_q"] = pd.cut(
-            values,
-            bins=bins,
-            labels=[f"Q{i}" for i in range(1, bins + 1)],
-        )
+    result[f"{column}_q"] = pd.qcut(
+        result[column],
+        q=5,
+        labels=["Q1", "Q2", "Q3", "Q4", "Q5"],
+        duplicates="drop",
+    )
 
     return result
-
-
-def print_basic_summary(df: pd.DataFrame) -> None:
-    print_header("DATASET")
-
-    print(f"Rows:              {len(df):,}")
-    print(
-        f"Date range:        "
-        f"{df['snapshot_date'].min()} -> "
-        f"{df['snapshot_date'].max()}"
-    )
-
-    print()
-    print(
-        f"Baseline event rate: "
-        f"{df[TARGET_NAME].mean():.4f}"
-    )
-
-    print(
-        f"Baseline mean return: "
-        f"{df['target_return'].mean():+.4f}%"
-    )
-
-    print(
-        f"Baseline median return: "
-        f"{df['target_return'].median():+.4f}%"
-    )
-
-    print()
-    print("Feature availability:")
-
-    for column in [VOLATILITY_COLUMN, FI_COLUMN]:
-        available = df[column].notna().sum()
-        print(
-            f"  {column:<35} "
-            f"{available:,} / {len(df):,} "
-            f"({available / len(df):.1%})"
-        )
 
 
 def print_bucket_summary(
@@ -122,16 +41,29 @@ def print_bucket_summary(
 ) -> None:
     print_header(title)
 
-    baseline_event = df[TARGET_NAME].mean()
+    clean = df.dropna(
+        subset=[
+            bucket_column,
+            RETURN_COLUMN,
+        ]
+    )
+
+    if clean.empty:
+        print("No data.")
+        return
+
+    baseline_event = clean[TARGET_NAME].mean()
 
     grouped = (
-        df.dropna(subset=[bucket_column])
-        .groupby(bucket_column, observed=True)
+        clean.groupby(
+            bucket_column,
+            observed=True,
+        )
         .agg(
             rows=(TARGET_NAME, "size"),
             event_rate=(TARGET_NAME, "mean"),
-            mean_return=("target_return", "mean"),
-            median_return=("target_return", "median"),
+            mean_return=(RETURN_COLUMN, "mean"),
+            median_return=(RETURN_COLUMN, "median"),
         )
         .reset_index()
     )
@@ -162,75 +94,22 @@ def print_bucket_summary(
         )
 
 
-def print_quantile_boundaries(
-    df: pd.DataFrame,
-    column: str,
-) -> None:
-    print_header(f"QUANTILE BOUNDARIES: {column}")
-
-    values = df[column].dropna()
-
-    quantiles = values.quantile(
-        [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+def print_matrix(df: pd.DataFrame) -> None:
+    print_header(
+        "5 x 5 FI SHORTNESS × VOLATILITY"
     )
-
-    for q, value in quantiles.items():
-        print(f"{q:>4.0%}: {value:.6f}")
-
-
-def print_year_summary(df: pd.DataFrame) -> None:
-    print_header("VOLATILITY BY YEAR")
-
-    for year, (start, end) in TEST_PERIODS.items():
-        period = df[
-            (df["snapshot_date"] >= start)
-            & (df["snapshot_date"] <= end)
-        ].copy()
-
-        if period.empty:
-            continue
-
-        print()
-        print(f"--- {year} ---")
-
-        print(f"Rows: {len(period):,}")
-
-        print(
-            f"Baseline event rate: "
-            f"{period[TARGET_NAME].mean():.4f}"
-        )
-
-        print(
-            f"Baseline mean return: "
-            f"{period['target_return'].mean():+.4f}%"
-        )
-
-        print(
-            f"Volatility mean: "
-            f"{period[VOLATILITY_COLUMN].mean():.6f}"
-        )
-
-        print(
-            f"Volatility median: "
-            f"{period[VOLATILITY_COLUMN].median():.6f}"
-        )
-
-        print_bucket_summary(
-            period,
-            f"{VOLATILITY_COLUMN}_q",
-            f"{year}: VOLATILITY QUINTILES",
-        )
-
-
-def print_fi_volatility_matrix(df: pd.DataFrame) -> None:
-    print_header("5 × 5 FI SHORTNESS × VOLATILITY")
 
     clean = df.dropna(
         subset=[
             FI_COLUMN,
             VOLATILITY_COLUMN,
+            RETURN_COLUMN,
         ]
     ).copy()
+
+    if clean.empty:
+        print("No data.")
+        return
 
     baseline_event = clean[TARGET_NAME].mean()
 
@@ -245,16 +124,22 @@ def print_fi_volatility_matrix(df: pd.DataFrame) -> None:
         .agg(
             rows=(TARGET_NAME, "size"),
             event_rate=(TARGET_NAME, "mean"),
-            mean_return=("target_return", "mean"),
-            median_return=("target_return", "median"),
+            mean_return=(RETURN_COLUMN, "mean"),
+            median_return=(RETURN_COLUMN, "median"),
         )
         .reset_index()
     )
 
-    for fi_bucket in sorted(
-        matrix[f"{FI_COLUMN}_q"].dropna().unique(),
-        key=str,
-    ):
+    for fi_bucket in ["Q1", "Q2", "Q3", "Q4", "Q5"]:
+        subset = matrix[
+            matrix[f"{FI_COLUMN}_q"] == fi_bucket
+        ].sort_values(
+            f"{VOLATILITY_COLUMN}_q"
+        )
+
+        if subset.empty:
+            continue
+
         print()
         print(f"FI {fi_bucket}")
 
@@ -269,12 +154,6 @@ def print_fi_volatility_matrix(df: pd.DataFrame) -> None:
 
         print("-" * 70)
 
-        subset = matrix[
-            matrix[f"{FI_COLUMN}_q"] == fi_bucket
-        ].sort_values(
-            f"{VOLATILITY_COLUMN}_q"
-        )
-
         for _, row in subset.iterrows():
             print(
                 f"{str(row[f'{VOLATILITY_COLUMN}_q']):<8}"
@@ -286,20 +165,25 @@ def print_fi_volatility_matrix(df: pd.DataFrame) -> None:
             )
 
 
-def print_extreme_combinations(df: pd.DataFrame) -> None:
+def print_extremes(df: pd.DataFrame) -> None:
     print_header("EXTREME COMBINATIONS")
 
     clean = df.dropna(
         subset=[
             FI_COLUMN,
             VOLATILITY_COLUMN,
+            RETURN_COLUMN,
         ]
     ).copy()
+
+    if clean.empty:
+        print("No data.")
+        return
 
     fi_q80 = clean[FI_COLUMN].quantile(0.80)
     vol_q80 = clean[VOLATILITY_COLUMN].quantile(0.80)
 
-    combinations = {
+    groups = {
         "All rows": clean,
         "High FI (top 20%)": clean[
             clean[FI_COLUMN] >= fi_q80
@@ -334,7 +218,7 @@ def print_extreme_combinations(df: pd.DataFrame) -> None:
 
     print("-" * 90)
 
-    for name, subset in combinations.items():
+    for name, subset in groups.items():
         if subset.empty:
             continue
 
@@ -345,74 +229,57 @@ def print_extreme_combinations(df: pd.DataFrame) -> None:
             f"{len(subset):>10,}"
             f"{event_rate:>12.4f}"
             f"{event_rate / baseline_event:>10.2f}x"
-            f"{subset['target_return'].mean():>+14.4f}%"
-            f"{subset['target_return'].median():>+14.4f}%"
+            f"{subset[RETURN_COLUMN].mean():>+14.4f}%"
+            f"{subset[RETURN_COLUMN].median():>+14.4f}%"
         )
 
 
-def print_year_extremes(df: pd.DataFrame) -> None:
-    print_header("EXTREME COMBINATIONS BY YEAR")
+def print_year_analysis(df: pd.DataFrame) -> None:
+    print_header("YEAR-BY-YEAR VOLATILITY ANALYSIS")
 
-    for year, (start, end) in TEST_PERIODS.items():
+    for year in [2025, 2026]:
         period = df[
-            (df["snapshot_date"] >= start)
-            & (df["snapshot_date"] <= end)
+            df["snapshot_date"].dt.year == year
         ].copy()
 
         if period.empty:
             continue
 
-        clean = period.dropna(
-            subset=[
-                FI_COLUMN,
-                VOLATILITY_COLUMN,
-            ]
-        ).copy()
-
-        fi_q80 = clean[FI_COLUMN].quantile(0.80)
-        vol_q80 = clean[VOLATILITY_COLUMN].quantile(0.80)
-
-        groups = {
-            "High FI": clean[
-                clean[FI_COLUMN] >= fi_q80
-            ],
-            "High volatility": clean[
-                clean[VOLATILITY_COLUMN] >= vol_q80
-            ],
-            "High FI + high volatility": clean[
-                (clean[FI_COLUMN] >= fi_q80)
-                & (clean[VOLATILITY_COLUMN] >= vol_q80)
-            ],
-        }
-
-        baseline_event = clean[TARGET_NAME].mean()
-
         print()
         print(f"--- {year} ---")
+        print(f"Rows: {len(period):,}")
 
         print(
-            f"{'Group':<30}"
-            f"{'Rows':>10}"
-            f"{'Event':>12}"
-            f"{'Lift':>10}"
-            f"{'Mean ret':>14}"
+            f"Baseline event rate: "
+            f"{period[TARGET_NAME].mean():.4f}"
         )
 
-        print("-" * 80)
+        print(
+            f"Baseline mean return: "
+            f"{period[RETURN_COLUMN].mean():+.4f}%"
+        )
 
-        for name, subset in groups.items():
-            if subset.empty:
-                continue
+        print(
+            f"Volatility mean: "
+            f"{period[VOLATILITY_COLUMN].mean():.6f}"
+        )
 
-            event_rate = subset[TARGET_NAME].mean()
+        print(
+            f"Volatility median: "
+            f"{period[VOLATILITY_COLUMN].median():.6f}"
+        )
 
-            print(
-                f"{name:<30}"
-                f"{len(subset):>10,}"
-                f"{event_rate:>12.4f}"
-                f"{event_rate / baseline_event:>10.2f}x"
-                f"{subset['target_return'].mean():>+14.4f}%"
-            )
+        print_bucket_summary(
+            period,
+            f"{VOLATILITY_COLUMN}_q",
+            f"{year}: VOLATILITY QUINTILES",
+        )
+
+        print_bucket_summary(
+            period,
+            f"{FI_COLUMN}_q",
+            f"{year}: FI SHORTNESS QUINTILES",
+        )
 
 
 def main() -> None:
@@ -425,15 +292,15 @@ def main() -> None:
     if df.empty:
         raise RuntimeError("No feature data found.")
 
-    required_columns = {
+    required = {
         "snapshot_date",
         "security_key",
-        "target_return",
+        RETURN_COLUMN,
         VOLATILITY_COLUMN,
         FI_COLUMN,
     }
 
-    missing = required_columns - set(df.columns)
+    missing = required - set(df.columns)
 
     if missing:
         raise RuntimeError(
@@ -444,11 +311,12 @@ def main() -> None:
     df = df.copy()
 
     df["snapshot_date"] = pd.to_datetime(
-        df["snapshot_date"]
-    ).dt.date
+        df["snapshot_date"],
+        errors="coerce",
+    )
 
-    df["target_return"] = pd.to_numeric(
-        df["target_return"],
+    df[RETURN_COLUMN] = pd.to_numeric(
+        df[RETURN_COLUMN],
         errors="coerce",
     )
 
@@ -462,33 +330,66 @@ def main() -> None:
         errors="coerce",
     )
 
-    df[TARGET_NAME] = build_target(df)
+    # down_5pct_5d:
+    # forward_return_5d <= -5%.
+    df[TARGET_NAME] = (
+        df[RETURN_COLUMN] <= -0.05
+    ).astype(int)
 
     df = df.dropna(
         subset=[
-            "target_return",
             "snapshot_date",
+            RETURN_COLUMN,
         ]
     ).copy()
 
-    print_basic_summary(df)
+    print()
+    print(f"Rows: {len(df):,}")
 
-    print_quantile_boundaries(
+    print(
+        f"Date range: "
+        f"{df['snapshot_date'].min().date()} -> "
+        f"{df['snapshot_date'].max().date()}"
+    )
+
+    print(
+        f"Baseline event rate: "
+        f"{df[TARGET_NAME].mean():.4f}"
+    )
+
+    print(
+        f"Baseline mean return: "
+        f"{df[RETURN_COLUMN].mean():+.4f}%"
+    )
+
+    print_header("VOLATILITY QUANTILE BOUNDARIES")
+
+    print(
+        df[VOLATILITY_COLUMN]
+        .dropna()
+        .quantile(
+            [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        )
+        .to_string()
+    )
+
+    print_header("FI QUANTILE BOUNDARIES")
+
+    print(
+        df[FI_COLUMN]
+        .dropna()
+        .quantile(
+            [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        )
+        .to_string()
+    )
+
+    df = add_quantiles(
         df,
         VOLATILITY_COLUMN,
     )
 
-    print_quantile_boundaries(
-        df,
-        FI_COLUMN,
-    )
-
-    df = add_quantile_bins(
-        df,
-        VOLATILITY_COLUMN,
-    )
-
-    df = add_quantile_bins(
+    df = add_quantiles(
         df,
         FI_COLUMN,
     )
@@ -505,22 +406,16 @@ def main() -> None:
         "FI SHORTNESS QUINTILES — ALL DATA",
     )
 
-    print_year_summary(df)
+    print_year_analysis(df)
 
-    print_fi_volatility_matrix(df)
+    print_matrix(df)
 
-    print_extreme_combinations(df)
+    print_extremes(df)
 
-    print_year_extremes(df)
+    print_header("DIAGNOSTICS COMPLETE")
 
-    print_header("DONE")
-
-    print(
-        "No model training was performed."
-    )
-    print(
-        "No files were modified."
-    )
+    print("No additional ML model was trained.")
+    print("No repository files were modified.")
 
 
 if __name__ == "__main__":
