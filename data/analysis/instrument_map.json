@@ -1,5 +1,6 @@
 {
   "ISIN:CA00829Q1019": {
+    "exchange": null,
     "isin": "CA00829Q1019",
     "issuer": "Meren Energy Inc.",
     "lei": "549300071188HIDJEB11",
@@ -9,6 +10,7 @@
     "yahoo_symbol": "MER.ST"
   },
   "ISIN:CA46016U1084": {
+    "exchange": null,
     "isin": "CA46016U1084",
     "issuer": "INTERNATIONAL PETROLEUM CORPORATION",
     "lei": "54930025D80LU0SMR645",
@@ -18,6 +20,7 @@
     "yahoo_symbol": "IPCO.ST"
   },
   "ISIN:DK0060952240": {
+    "exchange": null,
     "isin": "DK0060952240",
     "issuer": "Better Collective A/S",
     "lei": "2549001EPXH6NK7I2R78",
@@ -27,6 +30,7 @@
     "yahoo_symbol": "BETCO.ST"
   },
   "ISIN:FI4000297767": {
+    "exchange": null,
     "isin": "FI4000297767",
     "issuer": "Nordea Bank Abp",
     "lei": "529900ODI3047E2LIV03",
@@ -36,15 +40,17 @@
     "yahoo_symbol": "NDA-SE.ST"
   },
   "ISIN:GB00B635TG28": {
+    "exchange": null,
     "isin": "GB00B635TG28",
     "issuer": "ENQUEST PLC",
     "lei": "2138008LJU6WFQWOXJ73",
     "map_key": "ISIN:GB00B635TG28",
-    "mapping_source": null,
+    "mapping_source": "issuer_search",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "ENQ.L"
   },
   "ISIN:GB00BVMN1558": {
+    "exchange": null,
     "isin": "GB00BVMN1558",
     "issuer": "Verisure plc",
     "lei": "636700ZY9PP0NGXTA943",
@@ -54,15 +60,17 @@
     "yahoo_symbol": "VSURE.ST"
   },
   "ISIN:LU0038705702": {
+    "exchange": null,
     "isin": "LU0038705702",
     "issuer": "Millicom International Cellular S.A.",
     "lei": "549300CTHC1CP86P2G96",
     "map_key": "ISIN:LU0038705702",
-    "mapping_source": null,
+    "mapping_source": "issuer_search",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "TIGO"
   },
   "ISIN:MT0000780107": {
+    "exchange": null,
     "isin": "MT0000780107",
     "issuer": "KAMBI GROUP PLC",
     "lei": "2138003TN71ZS4RHIJ87",
@@ -72,6 +80,7 @@
     "yahoo_symbol": "KAMBI.ST"
   },
   "ISIN:MT0001000109": {
+    "exchange": null,
     "isin": "MT0001000109",
     "issuer": "CATENA MEDIA P.L.C",
     "lei": "549300609A73DL5C5Z86",
@@ -81,15 +90,17 @@
     "yahoo_symbol": "CTM.ST"
   },
   "ISIN:SE0000101032": {
+    "exchange": null,
     "isin": "SE0000101032",
     "issuer": "Atlas Copco Aktiebolag",
     "lei": "213800T8PC8Q4FYJZR07",
     "map_key": "ISIN:SE0000101032",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "ATCO-B.ST"
   },
   "ISIN:SE0000103699": {
+    "exchange": null,
     "isin": "SE0000103699",
     "issuer": "Hexagon Aktiebolag",
     "lei": "549300WJFW6ILNI4TA80",
@@ -99,6 +110,7 @@
     "yahoo_symbol": "HEXA-B.ST"
   },
   "ISIN:SE0000103814": {
+    "exchange": null,
     "isin": "SE0000103814",
     "issuer": "Aktiebolaget Electrolux",
     "lei": "549300Y3HHZB1ZGFPJ93",
@@ -108,6 +120,7 @@
     "yahoo_symbol": "ELUX-B.ST"
   },
   "ISIN:SE0000106205": {
+    "exchange": null,
     "isin": "SE0000106205",
     "issuer": "Peab AB",
     "lei": "549300FQS4VD3153I854",
@@ -117,6 +130,7 @@
     "yahoo_symbol": "PEAB-B.ST"
   },
   "ISIN:SE0000106270": {
+    "exchange": null,
     "isin": "SE0000106270",
     "issuer": "H & M Hennes & Mauritz AB",
     "lei": "529900O5RR7R39FRDM42",
@@ -126,6 +140,7 @@
     "yahoo_symbol": "HM-B.ST"
   },
   "ISIN:SE0000107203": {
+    "exchange": null,
     "isin": "SE0000107203",
     "issuer": "Aktiebolaget Industrivärden",
     "lei": "549300TM1DLIQI3B3T37",
@@ -135,6 +150,7 @@
     "yahoo_symbol": "INDU-C.ST"
   },
   "ISIN:SE0000108227": {
+    "exchange": null,
     "isin": "SE0000108227",
     "issuer": "Aktiebolaget SKF",
     "lei": "549300B6HWYEE57O8J84",
@@ -144,6 +160,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0000108656": {
+    "exchange": null,
     "isin": "SE0000108656",
     "issuer": "Telefonaktiebolaget LM Ericsson",
     "lei": "549300W9JLPW15XIFM52",
@@ -153,15 +170,17 @@
     "yahoo_symbol": "ERIC-B.ST"
   },
   "ISIN:SE0000109290": {
+    "exchange": null,
     "isin": "SE0000109290",
     "issuer": "Holmen Aktiebolag",
     "lei": "52990080SH3454F0QE68",
     "map_key": "ISIN:SE0000109290",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "HOLM-B.ST"
   },
   "ISIN:SE0000111940": {
+    "exchange": null,
     "isin": "SE0000111940",
     "issuer": "Ratos AB",
     "lei": "2138008KECUUB9VR4798",
@@ -171,6 +190,7 @@
     "yahoo_symbol": "RATO-B.ST"
   },
   "ISIN:SE0000112385": {
+    "exchange": null,
     "isin": "SE0000112385",
     "issuer": "SAAB Aktiebolag",
     "lei": "549300ZHO4JCQQI13M69",
@@ -180,6 +200,7 @@
     "yahoo_symbol": "SAAB-B.ST"
   },
   "ISIN:SE0000112724": {
+    "exchange": null,
     "isin": "SE0000112724",
     "issuer": "Svenska Cellulosa Aktiebolaget SCA",
     "lei": "549300FW5JDRV1IJ0M67",
@@ -189,6 +210,7 @@
     "yahoo_symbol": "SCA-B.ST"
   },
   "ISIN:SE0000113250": {
+    "exchange": null,
     "isin": "SE0000113250",
     "issuer": "Skanska AB",
     "lei": "549300UINV5RINHGMG07",
@@ -198,6 +220,7 @@
     "yahoo_symbol": "SKA-B.ST"
   },
   "ISIN:SE0000114837": {
+    "exchange": null,
     "isin": "SE0000114837",
     "issuer": "Trelleborg AB",
     "lei": "213800XY16PAWG2PAD14",
@@ -207,15 +230,17 @@
     "yahoo_symbol": "TREL-B.ST"
   },
   "ISIN:SE0000117970": {
+    "exchange": null,
     "isin": "SE0000117970",
     "issuer": "NCC Aktiebolag",
     "lei": "213800WRGLW3CY4MHW53",
     "map_key": "ISIN:SE0000117970",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "NCC-B.ST"
   },
   "ISIN:SE0000120669": {
+    "exchange": null,
     "isin": "SE0000120669",
     "issuer": "SSAB AB",
     "lei": "529900329VS14ZIML164",
@@ -225,6 +250,7 @@
     "yahoo_symbol": "SSAB-B.ST"
   },
   "ISIN:SE0000123671": {
+    "exchange": null,
     "isin": "SE0000123671",
     "issuer": "Rejlers AB (publ)",
     "lei": "549300K5464VN6QLVB64",
@@ -234,6 +260,7 @@
     "yahoo_symbol": "REJL-B.ST"
   },
   "ISIN:SE0000135485": {
+    "exchange": null,
     "isin": "SE0000135485",
     "issuer": "RaySearch Laboratories AB (publ)",
     "lei": "549300TYFVYGS0JFWM28",
@@ -243,6 +270,7 @@
     "yahoo_symbol": "RAY-B.ST"
   },
   "ISIN:SE0000148884": {
+    "exchange": null,
     "isin": "SE0000148884",
     "issuer": "Skandinaviska Enskilda Banken AB",
     "lei": "F3JS33DEI6XQ4ZBPTN86",
@@ -252,6 +280,7 @@
     "yahoo_symbol": "SEB-C.ST"
   },
   "ISIN:SE0000163594": {
+    "exchange": null,
     "isin": "SE0000163594",
     "issuer": "Securitas AB",
     "lei": "635400TTYKE8EIWDS617",
@@ -261,6 +290,7 @@
     "yahoo_symbol": "SECU-B.ST"
   },
   "ISIN:SE0000163628": {
+    "exchange": null,
     "isin": "SE0000163628",
     "issuer": "Elekta AB (publ)",
     "lei": "54930044O54BK617EP80",
@@ -270,6 +300,7 @@
     "yahoo_symbol": "EKTA-B.ST"
   },
   "ISIN:SE0000170110": {
+    "exchange": null,
     "isin": "SE0000170110",
     "issuer": "Avanza Bank Holding AB",
     "lei": "549300MBWR5H8SIJLE03",
@@ -279,6 +310,7 @@
     "yahoo_symbol": "AZA.ST"
   },
   "ISIN:SE0000170375": {
+    "exchange": null,
     "isin": "SE0000170375",
     "issuer": "Hufvudstaden AB",
     "lei": "213800UEV5ZAFFVQ4J85",
@@ -288,6 +320,7 @@
     "yahoo_symbol": "HUFV-A.ST"
   },
   "ISIN:SE0000191827": {
+    "exchange": null,
     "isin": "SE0000191827",
     "issuer": "Atrium Ljungberg AB",
     "lei": "5493001NNP6HM67OVU09",
@@ -297,6 +330,7 @@
     "yahoo_symbol": "ATRLJ-B.ST"
   },
   "ISIN:SE0000195810": {
+    "exchange": null,
     "isin": "SE0000195810",
     "issuer": "Bure Equity AB",
     "lei": "5493000EHCBQ7QQBGX32",
@@ -306,6 +340,7 @@
     "yahoo_symbol": "BURE.ST"
   },
   "ISIN:SE0000202624": {
+    "exchange": null,
     "isin": "SE0000202624",
     "issuer": "Getinge AB (publ)",
     "lei": "5493003PZ4F570G3W735",
@@ -315,6 +350,7 @@
     "yahoo_symbol": "GETI-B.ST"
   },
   "ISIN:SE0000241614": {
+    "exchange": null,
     "isin": "SE0000241614",
     "issuer": "SkiStar Aktiebolag",
     "lei": "529900CD7HSJ1CZS7089",
@@ -324,6 +360,7 @@
     "yahoo_symbol": "SKIS-B.ST"
   },
   "ISIN:SE0000242455": {
+    "exchange": null,
     "isin": "SE0000242455",
     "issuer": "Swedbank AB",
     "lei": "M312WZV08Y7LYUC71685",
@@ -333,15 +370,27 @@
     "yahoo_symbol": "SWED-A.ST"
   },
   "ISIN:SE0000273294": {
+    "exchange": null,
     "isin": "SE0000273294",
     "issuer": "Medivir Aktiebolag",
     "lei": "549300VWDGUX0WMJ1T79",
     "map_key": "ISIN:SE0000273294",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "MVIR.ST"
+  },
+  "ISIN:SE0000310336": {
+    "exchange": null,
+    "isin": "SE0000310336",
+    "issuer": "Swedish Match AB",
+    "lei": "529900YVXCGNWAUYZG78",
+    "map_key": "ISIN:SE0000310336",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "ISIN:SE0000366098": {
+    "exchange": null,
     "isin": "SE0000366098",
     "issuer": "Net Insight AB",
     "lei": "549300BMCT8IT2CFDH63",
@@ -351,6 +400,7 @@
     "yahoo_symbol": "NETI-B.ST"
   },
   "ISIN:SE0000375115": {
+    "exchange": null,
     "isin": "SE0000375115",
     "issuer": "Mycronic AB (publ)",
     "lei": "549300S5CCFESE4C6Y07",
@@ -360,6 +410,7 @@
     "yahoo_symbol": "MYCR.ST"
   },
   "ISIN:SE0000379190": {
+    "exchange": null,
     "isin": "SE0000379190",
     "issuer": "Castellum Aktiebolag",
     "lei": "549300GU5OHTR1T5IY68",
@@ -369,15 +420,17 @@
     "yahoo_symbol": "CAST.ST"
   },
   "ISIN:SE0000382335": {
+    "exchange": null,
     "isin": "SE0000382335",
     "issuer": "AUTOLIV, INC.",
     "lei": "A23RUXWKASG834LTMK28",
     "map_key": "ISIN:SE0000382335",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "ALIV-SDB.ST"
   },
   "ISIN:SE0000412371": {
+    "exchange": null,
     "isin": "SE0000412371",
     "issuer": "Modern Times Group MTG AB",
     "lei": "549300E8NDODRSX29339",
@@ -387,6 +440,7 @@
     "yahoo_symbol": "MTG-B.ST"
   },
   "ISIN:SE0000421273": {
+    "exchange": null,
     "isin": "SE0000421273",
     "issuer": "Knowit Aktiebolag (publ)",
     "lei": "549300CM6KSG2GY3HV62",
@@ -396,6 +450,7 @@
     "yahoo_symbol": "KNOW.ST"
   },
   "ISIN:SE0000426546": {
+    "exchange": null,
     "isin": "SE0000426546",
     "issuer": "New Wave Group AB",
     "lei": "5493006EIYZZYQILKS31",
@@ -405,6 +460,7 @@
     "yahoo_symbol": "NEWA-B.ST"
   },
   "ISIN:SE0000455057": {
+    "exchange": null,
     "isin": "SE0000455057",
     "issuer": "Fastighets AB Balder",
     "lei": "549300GHKJCEZOAEUU82",
@@ -413,7 +469,18 @@
     "ticker": null,
     "yahoo_symbol": "BALD-B.ST"
   },
+  "ISIN:SE0000549412": {
+    "exchange": null,
+    "isin": "SE0000549412",
+    "issuer": "Kungsleden Aktiebolag",
+    "lei": "5493005OXRTBK0WSJN46",
+    "map_key": "ISIN:SE0000549412",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "ISIN:SE0000584948": {
+    "exchange": null,
     "isin": "SE0000584948",
     "issuer": "Clas Ohlson Aktiebolag",
     "lei": "549300MH8OETHBBKJU80",
@@ -423,6 +490,7 @@
     "yahoo_symbol": "CLAS-B.ST"
   },
   "ISIN:SE0000635401": {
+    "exchange": null,
     "isin": "SE0000635401",
     "issuer": "Axfood AB",
     "lei": "549300QIXCZWZLHE8L05",
@@ -432,15 +500,17 @@
     "yahoo_symbol": "AXFO.ST"
   },
   "ISIN:SE0000652216": {
+    "exchange": null,
     "isin": "SE0000652216",
     "issuer": "ICA Gruppen Aktiebolag",
     "lei": "549300ZEFN8VKPK9I111",
     "map_key": "ISIN:SE0000652216",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "ICA.ST"
   },
   "ISIN:SE0000653230": {
+    "exchange": null,
     "isin": "SE0000653230",
     "issuer": "Studsvik AB",
     "lei": "549300MLJ046XFQNVH42",
@@ -450,6 +520,7 @@
     "yahoo_symbol": "SVIK.ST"
   },
   "ISIN:SE0000667891": {
+    "exchange": null,
     "isin": "SE0000667891",
     "issuer": "Sandvik Aktiebolag",
     "lei": "5299008ZUAXN43LVZF54",
@@ -459,6 +530,7 @@
     "yahoo_symbol": "SAND.ST"
   },
   "ISIN:SE0000667925": {
+    "exchange": null,
     "isin": "SE0000667925",
     "issuer": "Telia Company AB",
     "lei": "213800FSR9RNDUOTXO25",
@@ -468,6 +540,7 @@
     "yahoo_symbol": "TELIA.ST"
   },
   "ISIN:SE0000683484": {
+    "exchange": null,
     "isin": "SE0000683484",
     "issuer": "CellaVision AB",
     "lei": "529900IUBZBZ0HXFJ114",
@@ -477,6 +550,7 @@
     "yahoo_symbol": "CEVI.ST"
   },
   "ISIN:SE0000695876": {
+    "exchange": null,
     "isin": "SE0000695876",
     "issuer": "Alfa Laval AB",
     "lei": "549300UCKT2UK88AG251",
@@ -485,7 +559,18 @@
     "ticker": null,
     "yahoo_symbol": "ALFA.ST"
   },
+  "ISIN:SE0000718017": {
+    "exchange": null,
+    "isin": "SE0000718017",
+    "issuer": "Eniro Group AB",
+    "lei": "549300DYME127YXNIN46",
+    "map_key": "ISIN:SE0000718017",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ENRO.ST"
+  },
   "ISIN:SE0000736415": {
+    "exchange": null,
     "isin": "SE0000736415",
     "issuer": "Orexo AB",
     "lei": "549300LJ5CCWDPTK9Z08",
@@ -495,6 +580,7 @@
     "yahoo_symbol": "ORX.ST"
   },
   "ISIN:SE0000767188": {
+    "exchange": null,
     "isin": "SE0000767188",
     "issuer": "Alligator Bioscience AB",
     "lei": "549300E15VI0MB7LXV19",
@@ -504,6 +590,7 @@
     "yahoo_symbol": "ATORX.ST"
   },
   "ISIN:SE0000806994": {
+    "exchange": null,
     "isin": "SE0000806994",
     "issuer": "JM AB",
     "lei": "529900X0UEM9DOM6FK12",
@@ -513,6 +600,7 @@
     "yahoo_symbol": "JM.ST"
   },
   "ISIN:SE0000825820": {
+    "exchange": null,
     "isin": "SE0000825820",
     "issuer": "Orrön Energy AB",
     "lei": "549300IULC8F8IGXKI15",
@@ -522,6 +610,7 @@
     "yahoo_symbol": "ORRON.ST"
   },
   "ISIN:SE0000862997": {
+    "exchange": null,
     "isin": "SE0000862997",
     "issuer": "Billerud Aktiebolag (publ)",
     "lei": "549300YJUYJ9A24RXL71",
@@ -531,6 +620,7 @@
     "yahoo_symbol": "BILL.ST"
   },
   "ISIN:SE0000872095": {
+    "exchange": null,
     "isin": "SE0000872095",
     "issuer": "Swedish Orphan Biovitrum AB (publ)",
     "lei": "549300124Y3MQI87PT35",
@@ -540,6 +630,7 @@
     "yahoo_symbol": "SOBI.ST"
   },
   "ISIN:SE0000936478": {
+    "exchange": null,
     "isin": "SE0000936478",
     "issuer": "Intrum AB",
     "lei": "549300UNCO2FCUWXX470",
@@ -549,6 +640,7 @@
     "yahoo_symbol": "INTRUM.ST"
   },
   "ISIN:SE0000949331": {
+    "exchange": null,
     "isin": "SE0000949331",
     "issuer": "Nobia AB",
     "lei": "529900MZ8Y3QGPDF6815",
@@ -558,6 +650,7 @@
     "yahoo_symbol": "NOBI.ST"
   },
   "ISIN:SE0000950636": {
+    "exchange": null,
     "isin": "SE0000950636",
     "issuer": "Fabege AB",
     "lei": "549300JNPI46XNH0PM97",
@@ -567,6 +660,7 @@
     "yahoo_symbol": "FABG.ST"
   },
   "ISIN:SE0001161654": {
+    "exchange": null,
     "isin": "SE0001161654",
     "issuer": "NOTE AB (publ)",
     "lei": "54930038JVQ3CMTEO084",
@@ -576,6 +670,7 @@
     "yahoo_symbol": "NOTE.ST"
   },
   "ISIN:SE0001200015": {
+    "exchange": null,
     "isin": "SE0001200015",
     "issuer": "INVISIO AB",
     "lei": "54930054EB7KX3MY2Q11",
@@ -585,15 +680,17 @@
     "yahoo_symbol": "IVSO.ST"
   },
   "ISIN:SE0001296542": {
+    "exchange": null,
     "isin": "SE0001296542",
     "issuer": "Cortus Energy AB",
     "lei": "549300VX4JS45IIBBN05",
     "map_key": "ISIN:SE0001296542",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "CE.ST"
   },
   "ISIN:SE0001515552": {
+    "exchange": null,
     "isin": "SE0001515552",
     "issuer": "Indutrade Aktiebolag",
     "lei": "549300FISLQ6CEFP1867",
@@ -603,6 +700,7 @@
     "yahoo_symbol": "INDT.ST"
   },
   "ISIN:SE0001634262": {
+    "exchange": null,
     "isin": "SE0001634262",
     "issuer": "Diös Fastigheter AB",
     "lei": "549300G3VF7LZQ9IW435",
@@ -612,6 +710,7 @@
     "yahoo_symbol": "DIOS.ST"
   },
   "ISIN:SE0001662230": {
+    "exchange": null,
     "isin": "SE0001662230",
     "issuer": "Husqvarna AB",
     "lei": "549300GYQIIJ3UXB7655",
@@ -621,6 +720,7 @@
     "yahoo_symbol": "HUSQ-B.ST"
   },
   "ISIN:SE0001664707": {
+    "exchange": null,
     "isin": "SE0001664707",
     "issuer": "Catena AB",
     "lei": "549300EMLM7AH5LDLY65",
@@ -630,6 +730,7 @@
     "yahoo_symbol": "CATE.ST"
   },
   "ISIN:SE0001824004": {
+    "exchange": null,
     "isin": "SE0001824004",
     "issuer": "G5 Entertainment AB (publ)",
     "lei": "549300K7QJ1N1FEG2X81",
@@ -639,6 +740,7 @@
     "yahoo_symbol": "G5EN.ST"
   },
   "ISIN:SE0001852419": {
+    "exchange": null,
     "isin": "SE0001852419",
     "issuer": "Lindab International AB",
     "lei": "54930085MH6IRQ1JP227",
@@ -648,6 +750,7 @@
     "yahoo_symbol": "LIAB.ST"
   },
   "ISIN:SE0002110064": {
+    "exchange": null,
     "isin": "SE0002110064",
     "issuer": "MEKO AB",
     "lei": "529900R809HC1RFRQA91",
@@ -657,6 +760,7 @@
     "yahoo_symbol": "MEKO.ST"
   },
   "ISIN:SE0002148817": {
+    "exchange": null,
     "isin": "SE0002148817",
     "issuer": "Hansa Biopharma AB",
     "lei": "549300LLEO25ZJJ3NT91",
@@ -666,6 +770,7 @@
     "yahoo_symbol": "HNSA.ST"
   },
   "ISIN:SE0002367797": {
+    "exchange": null,
     "isin": "SE0002367797",
     "issuer": "Hexatronic Group AB",
     "lei": "2138001VSY1B4U9JLM82",
@@ -675,6 +780,7 @@
     "yahoo_symbol": "HTRO.ST"
   },
   "ISIN:SE0002480442": {
+    "exchange": null,
     "isin": "SE0002480442",
     "issuer": "ZinZino Holding AB",
     "lei": "549300Z20D1BP4MA0040",
@@ -684,6 +790,7 @@
     "yahoo_symbol": "ZZ-B.ST"
   },
   "ISIN:SE0002591420": {
+    "exchange": null,
     "isin": "SE0002591420",
     "issuer": "Tobii AB",
     "lei": "54930045LD4XTJCBGS35",
@@ -693,6 +800,7 @@
     "yahoo_symbol": "TOBII.ST"
   },
   "ISIN:SE0002626861": {
+    "exchange": null,
     "isin": "SE0002626861",
     "issuer": "Cloetta AB",
     "lei": "549300CSLHPO6Y1AZN37",
@@ -702,6 +810,7 @@
     "yahoo_symbol": "CLA-B.ST"
   },
   "ISIN:SE0002683557": {
+    "exchange": null,
     "isin": "SE0002683557",
     "issuer": "Loomis AB",
     "lei": "213800NS2XXVRYS7WP40",
@@ -711,6 +820,7 @@
     "yahoo_symbol": "LOOMIS.ST"
   },
   "ISIN:SE0002756130": {
+    "exchange": null,
     "isin": "SE0002756130",
     "issuer": "Clinical Laserthermia Systems AB",
     "lei": "549300TH4O6D9205O691",
@@ -720,6 +830,7 @@
     "yahoo_symbol": "CLS-B.ST"
   },
   "ISIN:SE0003303627": {
+    "exchange": null,
     "isin": "SE0003303627",
     "issuer": "Byggmax Group AB",
     "lei": "549300MPJPYQB0KCNH03",
@@ -729,24 +840,27 @@
     "yahoo_symbol": "BMAX.ST"
   },
   "ISIN:SE0003366871": {
+    "exchange": null,
     "isin": "SE0003366871",
     "issuer": "SAS AB",
     "lei": "549300ZJTLE5T4SGP021",
     "map_key": "ISIN:SE0003366871",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "SAS-DKK.CO"
   },
   "ISIN:SE0003622265": {
+    "exchange": null,
     "isin": "SE0003622265",
     "issuer": "Kancera AB",
     "lei": "5493002P3RCOFW6HI207",
     "map_key": "ISIN:SE0003622265",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "KAN.ST"
   },
   "ISIN:SE0003756758": {
+    "exchange": null,
     "isin": "SE0003756758",
     "issuer": "Sdiptech AB (publ)",
     "lei": "549300JBO7VTEGMRW310",
@@ -756,6 +870,7 @@
     "yahoo_symbol": "SDIP-B.ST"
   },
   "ISIN:SE0003917798": {
+    "exchange": null,
     "isin": "SE0003917798",
     "issuer": "Sivers Semiconductors AB",
     "lei": "254900UBKNY2EJ588J53",
@@ -764,7 +879,18 @@
     "ticker": null,
     "yahoo_symbol": "SIVE.ST"
   },
+  "ISIN:SE0003950864": {
+    "exchange": null,
+    "isin": "SE0003950864",
+    "issuer": "Concentric AB",
+    "lei": "5493002G9GMTKIP3PW19",
+    "map_key": "ISIN:SE0003950864",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "ISIN:SE0004840718": {
+    "exchange": null,
     "isin": "SE0004840718",
     "issuer": "Xvivo Perfusion Aktiebolag",
     "lei": "549300G2464FYLS14B41",
@@ -774,6 +900,7 @@
     "yahoo_symbol": "XVIVO.ST"
   },
   "ISIN:SE0005003217": {
+    "exchange": null,
     "isin": "SE0005003217",
     "issuer": "Cell Impact AB (publ)",
     "lei": "549300PS6XPVP3MP2W76",
@@ -783,6 +910,7 @@
     "yahoo_symbol": "CI.ST"
   },
   "ISIN:SE0005034550": {
+    "exchange": null,
     "isin": "SE0005034550",
     "issuer": "Neobo Fastigheter AB (publ)",
     "lei": "213800QBPS3L89U9TZ44",
@@ -792,6 +920,7 @@
     "yahoo_symbol": "NEOBO.ST"
   },
   "ISIN:SE0005127818": {
+    "exchange": null,
     "isin": "SE0005127818",
     "issuer": "AB Sagax",
     "lei": "549300LJX28T6OM8DT95",
@@ -801,6 +930,7 @@
     "yahoo_symbol": "SAGA-D.ST"
   },
   "ISIN:SE0005190238": {
+    "exchange": null,
     "isin": "SE0005190238",
     "issuer": "Tele2 AB",
     "lei": "213800EKD193RVI9HL76",
@@ -810,6 +940,7 @@
     "yahoo_symbol": "TEL2-B.ST"
   },
   "ISIN:SE0005250719": {
+    "exchange": null,
     "isin": "SE0005250719",
     "issuer": "aXichem AB (publ)",
     "lei": "549300REE3038LIBWS21",
@@ -819,6 +950,7 @@
     "yahoo_symbol": "AXIC-A.ST"
   },
   "ISIN:SE0005308558": {
+    "exchange": null,
     "isin": "SE0005308558",
     "issuer": "Clavister AB",
     "lei": "549300WTKDTN285YJC32",
@@ -828,6 +960,7 @@
     "yahoo_symbol": "CLAV.ST"
   },
   "ISIN:SE0005794617": {
+    "exchange": null,
     "isin": "SE0005794617",
     "issuer": "Saniona AB",
     "lei": "549300XO4L9XNOCFCZ84",
@@ -837,6 +970,7 @@
     "yahoo_symbol": "SANION.ST"
   },
   "ISIN:SE0005878543": {
+    "exchange": null,
     "isin": "SE0005878543",
     "issuer": "HANZA AB",
     "lei": "549300X0C14ZL28N1L09",
@@ -846,6 +980,7 @@
     "yahoo_symbol": "HANZA.ST"
   },
   "ISIN:SE0005999836": {
+    "exchange": null,
     "isin": "SE0005999836",
     "issuer": "AFRY AB",
     "lei": "549300Q87LKPPD4X9R30",
@@ -855,6 +990,7 @@
     "yahoo_symbol": "AFRY.ST"
   },
   "ISIN:SE0006091997": {
+    "exchange": null,
     "isin": "SE0006091997",
     "issuer": "Immunovia AB (publ)",
     "lei": "549300KHWL6KK1XGUO81",
@@ -864,6 +1000,7 @@
     "yahoo_symbol": "IMMNOV.ST"
   },
   "ISIN:SE0006220018": {
+    "exchange": null,
     "isin": "SE0006220018",
     "issuer": "Inwido AB (publ)",
     "lei": "529900A9NKQW5UTHBG13",
@@ -873,6 +1010,7 @@
     "yahoo_symbol": "INWI.ST"
   },
   "ISIN:SE0006288015": {
+    "exchange": null,
     "isin": "SE0006288015",
     "issuer": "Gränges AB",
     "lei": "5493006UG44TYSIXOB13",
@@ -882,6 +1020,7 @@
     "yahoo_symbol": "GRNG.ST"
   },
   "ISIN:SE0006371126": {
+    "exchange": null,
     "isin": "SE0006371126",
     "issuer": "CANTARGIA AB",
     "lei": "549300GKWRT7RXI4VS85",
@@ -891,6 +1030,7 @@
     "yahoo_symbol": "CANTA.ST"
   },
   "ISIN:SE0006422390": {
+    "exchange": null,
     "isin": "SE0006422390",
     "issuer": "Thule Group AB",
     "lei": "549300XHHOGBOERKU333",
@@ -900,6 +1040,7 @@
     "yahoo_symbol": "THULE.ST"
   },
   "ISIN:SE0006425815": {
+    "exchange": null,
     "isin": "SE0006425815",
     "issuer": "Powercell Sweden AB (publ)",
     "lei": "54930075IJ7TGOK3VC02",
@@ -909,6 +1050,7 @@
     "yahoo_symbol": "PCELL.ST"
   },
   "ISIN:SE0006625471": {
+    "exchange": null,
     "isin": "SE0006625471",
     "issuer": "Dustin Group AB",
     "lei": "549300C3IRYAOWOT0783",
@@ -918,6 +1060,7 @@
     "yahoo_symbol": "DUST.ST"
   },
   "ISIN:SE0006887063": {
+    "exchange": null,
     "isin": "SE0006887063",
     "issuer": "Hoist Finance AB (publ)",
     "lei": "549300NPK3FB2BEL4D08",
@@ -927,6 +1070,7 @@
     "yahoo_symbol": "HOFI.ST"
   },
   "ISIN:SE0006993986": {
+    "exchange": null,
     "isin": "SE0006993986",
     "issuer": "Betsson AB",
     "lei": "549300W61XW8OFGBG077",
@@ -936,6 +1080,7 @@
     "yahoo_symbol": "BETS-B.ST"
   },
   "ISIN:SE0007074281": {
+    "exchange": null,
     "isin": "SE0007074281",
     "issuer": "HEXPOL AB",
     "lei": "549300MN30TBRLYN3465",
@@ -945,6 +1090,7 @@
     "yahoo_symbol": "HPOL-B.ST"
   },
   "ISIN:SE0007075056": {
+    "exchange": null,
     "isin": "SE0007075056",
     "issuer": "EOLUS VIND AB",
     "lei": "549300NNUPH6DE8DVO06",
@@ -954,6 +1100,7 @@
     "yahoo_symbol": "EOLU-B.ST"
   },
   "ISIN:SE0007100359": {
+    "exchange": null,
     "isin": "SE0007100359",
     "issuer": "Pandox Aktiebolag",
     "lei": "549300K4HA8EBLSL3B97",
@@ -963,6 +1110,7 @@
     "yahoo_symbol": "PDX.ST"
   },
   "ISIN:SE0007100581": {
+    "exchange": null,
     "isin": "SE0007100581",
     "issuer": "ASSA ABLOY AB",
     "lei": "549300YECS8HKCIMMB67",
@@ -972,6 +1120,7 @@
     "yahoo_symbol": "ASSA-B.ST"
   },
   "ISIN:SE0007100599": {
+    "exchange": null,
     "isin": "SE0007100599",
     "issuer": "Svenska Handelsbanken AB",
     "lei": "NHBDILHZTYCNBV5UYZ31",
@@ -981,6 +1130,7 @@
     "yahoo_symbol": "SHB-B.ST"
   },
   "ISIN:SE0007158829": {
+    "exchange": null,
     "isin": "SE0007158829",
     "issuer": "Coor Service Management Holding AB",
     "lei": "529900TMO6717OKBSU69",
@@ -990,6 +1140,7 @@
     "yahoo_symbol": "COOR.ST"
   },
   "ISIN:SE0007158910": {
+    "exchange": null,
     "isin": "SE0007158910",
     "issuer": "Alimak Group AB (publ)",
     "lei": "549300LC2ER06GDV6565",
@@ -999,6 +1150,7 @@
     "yahoo_symbol": "ALIG.ST"
   },
   "ISIN:SE0007413455": {
+    "exchange": null,
     "isin": "SE0007413455",
     "issuer": "Alzinova AB",
     "lei": "549300K3IMVT20EK2S13",
@@ -1008,6 +1160,7 @@
     "yahoo_symbol": "ALZ.ST"
   },
   "ISIN:SE0007439112": {
+    "exchange": null,
     "isin": "SE0007439112",
     "issuer": "Sinch AB (publ)",
     "lei": "549300UXY7QM6IDCGI12",
@@ -1017,6 +1170,7 @@
     "yahoo_symbol": "SINCH.ST"
   },
   "ISIN:SE0007439443": {
+    "exchange": null,
     "isin": "SE0007439443",
     "issuer": "Storytel AB (publ)",
     "lei": "549300I1FSPPI9HHU419",
@@ -1026,6 +1180,7 @@
     "yahoo_symbol": "STORY-B.ST"
   },
   "ISIN:SE0007491303": {
+    "exchange": null,
     "isin": "SE0007491303",
     "issuer": "Bravida Holding AB",
     "lei": "549300H88IJGPNNL3T61",
@@ -1035,6 +1190,7 @@
     "yahoo_symbol": "BRAV.ST"
   },
   "ISIN:SE0007577895": {
+    "exchange": null,
     "isin": "SE0007577895",
     "issuer": "Vicore Pharma Holding AB",
     "lei": "549300KTNBPTZLF01130",
@@ -1044,6 +1200,7 @@
     "yahoo_symbol": "VICO.ST"
   },
   "ISIN:SE0007614722": {
+    "exchange": null,
     "isin": "SE0007614722",
     "issuer": "K33 AB (publ)",
     "lei": "549300O9UB56DF0JPH61",
@@ -1053,6 +1210,7 @@
     "yahoo_symbol": "K33.ST"
   },
   "ISIN:SE0007640156": {
+    "exchange": null,
     "isin": "SE0007640156",
     "issuer": "Scandic Hotels Group AB",
     "lei": "529900JY9ZBGUXGRKQ86",
@@ -1062,15 +1220,17 @@
     "yahoo_symbol": "SHOT.ST"
   },
   "ISIN:SE0007665823": {
+    "exchange": null,
     "isin": "SE0007665823",
     "issuer": "Resurs Holding AB (publ)",
     "lei": "5493006KHWZ6OVF3IO54",
     "map_key": "ISIN:SE0007665823",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "RESURS.ST"
   },
   "ISIN:SE0007666110": {
+    "exchange": null,
     "isin": "SE0007666110",
     "issuer": "Attendo AB (publ)",
     "lei": "549300KEJDL2FNITUW65",
@@ -1080,6 +1240,7 @@
     "yahoo_symbol": "ATT.ST"
   },
   "ISIN:SE0007691613": {
+    "exchange": null,
     "isin": "SE0007691613",
     "issuer": "Dometic Group AB (publ)",
     "lei": "549300STIPMK5VSA7Y59",
@@ -1089,6 +1250,7 @@
     "yahoo_symbol": "DOM.ST"
   },
   "ISIN:SE0007692850": {
+    "exchange": null,
     "isin": "SE0007692850",
     "issuer": "Camurus AB",
     "lei": "5493003S6Z6VI7WYFQ06",
@@ -1098,6 +1260,7 @@
     "yahoo_symbol": "CAMX.ST"
   },
   "ISIN:SE0007871363": {
+    "exchange": null,
     "isin": "SE0007871363",
     "issuer": "Vitec Software Group AB (publ)",
     "lei": "5493005EB5RV1QHE6H94",
@@ -1107,15 +1270,17 @@
     "yahoo_symbol": "VIT-B.ST"
   },
   "ISIN:SE0007871645": {
+    "exchange": null,
     "isin": "SE0007871645",
     "issuer": "KINDRED GROUP PLC",
     "lei": "213800D1MJVOT6SNBX11",
     "map_key": "ISIN:SE0007871645",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "KIND-SDB.ST"
   },
   "ISIN:SE0007897079": {
+    "exchange": null,
     "isin": "SE0007897079",
     "issuer": "AcadeMedia AB",
     "lei": "549300H47PGHY4JNKO68",
@@ -1125,6 +1290,7 @@
     "yahoo_symbol": "ACAD.ST"
   },
   "ISIN:SE0008008262": {
+    "exchange": null,
     "isin": "SE0008008262",
     "issuer": "GARO Aktiebolag",
     "lei": "549300RKWROUEEV6VP74",
@@ -1134,6 +1300,7 @@
     "yahoo_symbol": "GARO.ST"
   },
   "ISIN:SE0008014476": {
+    "exchange": null,
     "isin": "SE0008014476",
     "issuer": "Plejd AB",
     "lei": "549300AOUXS7RTR3OV14",
@@ -1142,7 +1309,18 @@
     "ticker": null,
     "yahoo_symbol": "PLEJD.ST"
   },
+  "ISIN:SE0008015259": {
+    "exchange": null,
+    "isin": "SE0008015259",
+    "issuer": "Infant Bacterial Therapeutics AB",
+    "lei": "2138008KVBXCRJGP6Z26",
+    "map_key": "ISIN:SE0008015259",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "IBT-B.ST"
+  },
   "ISIN:SE0008091581": {
+    "exchange": null,
     "isin": "SE0008091581",
     "issuer": "Bonava AB (publ)",
     "lei": "213800SLYJ6HYXWP8L95",
@@ -1151,7 +1329,28 @@
     "ticker": null,
     "yahoo_symbol": "BONAV-B.ST"
   },
+  "ISIN:SE0008091904": {
+    "exchange": null,
+    "isin": "SE0008091904",
+    "issuer": "LeoVegas AB (publ)",
+    "lei": "549300Z1CNOA0L1K8J51",
+    "map_key": "ISIN:SE0008091904",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "3LV.MU"
+  },
+  "ISIN:SE0008212971": {
+    "exchange": null,
+    "isin": "SE0008212971",
+    "issuer": "NetEnt AB (publ)",
+    "lei": "549300KMAL1H1YLMWP02",
+    "map_key": "ISIN:SE0008212971",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "ISIN:SE0008241491": {
+    "exchange": null,
     "isin": "SE0008241491",
     "issuer": "SynAct Pharma AB",
     "lei": "549300RRYIEFEQ72N546",
@@ -1161,6 +1360,7 @@
     "yahoo_symbol": "SYNACT.ST"
   },
   "ISIN:SE0008294953": {
+    "exchange": null,
     "isin": "SE0008294953",
     "issuer": "Paradox Interactive AB (publ)",
     "lei": "529900QNSZUY53R5WW95",
@@ -1170,6 +1370,7 @@
     "yahoo_symbol": "PDX.ST"
   },
   "ISIN:SE0008321293": {
+    "exchange": null,
     "isin": "SE0008321293",
     "issuer": "NIBE Industrier AB",
     "lei": "549300ZQH0FIF1P0MX67",
@@ -1179,6 +1380,7 @@
     "yahoo_symbol": "NIBE-B.ST"
   },
   "ISIN:SE0008321608": {
+    "exchange": null,
     "isin": "SE0008321608",
     "issuer": "Investment AB Öresund",
     "lei": "549300ZNNKE1UFGNNE47",
@@ -1188,24 +1390,27 @@
     "yahoo_symbol": "SIVE.ST"
   },
   "ISIN:SE0008374250": {
+    "exchange": null,
     "isin": "SE0008374250",
     "issuer": "Fingerprint Cards AB",
     "lei": "5493004YF5D7Z612Z822",
     "map_key": "ISIN:SE0008374250",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "FING-B.ST"
   },
   "ISIN:SE0008374383": {
+    "exchange": null,
     "isin": "SE0008374383",
     "issuer": "MAHA ENERGY AB",
     "lei": "213800USNX47LQFQQN20",
     "map_key": "ISIN:SE0008374383",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "MAHA-A.ST"
   },
   "ISIN:SE0008966295": {
+    "exchange": null,
     "isin": "SE0008966295",
     "issuer": "InDex Pharmaceuticals Holding AB",
     "lei": "54930047C4A74IBXR037",
@@ -1215,6 +1420,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0009143662": {
+    "exchange": null,
     "isin": "SE0009143662",
     "issuer": "Volati AB",
     "lei": "529900R2YHW43H9B4342",
@@ -1224,6 +1430,7 @@
     "yahoo_symbol": "VOLO.ST"
   },
   "ISIN:SE0009155518": {
+    "exchange": null,
     "isin": "SE0009155518",
     "issuer": "Gapwaves AB",
     "lei": "549300Z7VEJLHEVAJ835",
@@ -1233,6 +1440,7 @@
     "yahoo_symbol": "GAPW-B.ST"
   },
   "ISIN:SE0009216278": {
+    "exchange": null,
     "isin": "SE0009216278",
     "issuer": "Mips AB",
     "lei": "549300LZSA4S0L54VQ25",
@@ -1242,6 +1450,7 @@
     "yahoo_symbol": "MIPS.ST"
   },
   "ISIN:SE0009268279": {
+    "exchange": null,
     "isin": "SE0009268279",
     "issuer": "Smart Eye Aktiebolag (publ)",
     "lei": "549300BUD7ZPFPKM6856",
@@ -1251,6 +1460,7 @@
     "yahoo_symbol": "SEYE.ST"
   },
   "ISIN:SE0009414576": {
+    "exchange": null,
     "isin": "SE0009414576",
     "issuer": "Oncopeptides AB",
     "lei": "549300J9WWQ5CBYQ1M77",
@@ -1260,6 +1470,7 @@
     "yahoo_symbol": "ONCO.ST"
   },
   "ISIN:SE0009554454": {
+    "exchange": null,
     "isin": "SE0009554454",
     "issuer": "Samhällsbyggnadsbolaget i Norden AB",
     "lei": "549300HX9MRFY47AH564",
@@ -1269,6 +1480,7 @@
     "yahoo_symbol": "SBB-B.ST"
   },
   "ISIN:SE0009663826": {
+    "exchange": null,
     "isin": "SE0009663826",
     "issuer": "Ambea AB ( publ )",
     "lei": "549300AEVNZRHYI5HV24",
@@ -1278,6 +1490,7 @@
     "yahoo_symbol": "AMBEA.ST"
   },
   "ISIN:SE0009664253": {
+    "exchange": null,
     "isin": "SE0009664253",
     "issuer": "Instalco AB",
     "lei": "549300DZ9ONT2AXY4029",
@@ -1287,6 +1500,7 @@
     "yahoo_symbol": "INSTAL.ST"
   },
   "ISIN:SE0009697220": {
+    "exchange": null,
     "isin": "SE0009697220",
     "issuer": "Enea Aktiebolag",
     "lei": "549300UNMLWLG6B2R803",
@@ -1296,15 +1510,17 @@
     "yahoo_symbol": "ENEA.ST"
   },
   "ISIN:SE0009806045": {
+    "exchange": null,
     "isin": "SE0009806045",
     "issuer": "Terranet Holding AB",
     "lei": "549300B4CGWDK6FGRY73",
     "map_key": "ISIN:SE0009806045",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "TERRNT-B.ST"
   },
   "ISIN:SE0009806607": {
+    "exchange": null,
     "isin": "SE0009806607",
     "issuer": "Munters Group AB",
     "lei": "549300KYCB37YAVUV523",
@@ -1314,6 +1530,7 @@
     "yahoo_symbol": "MTRS.ST"
   },
   "ISIN:SE0009858152": {
+    "exchange": null,
     "isin": "SE0009858152",
     "issuer": "BONESUPPORT HOLDING AB",
     "lei": "549300COLY053IGTLD63",
@@ -1323,6 +1540,7 @@
     "yahoo_symbol": "BONEX.ST"
   },
   "ISIN:SE0009888738": {
+    "exchange": null,
     "isin": "SE0009888738",
     "issuer": "Boozt AB",
     "lei": "549300HOEUKTVLRKQQ57",
@@ -1332,6 +1550,7 @@
     "yahoo_symbol": "BOOZT.ST"
   },
   "ISIN:SE0009921588": {
+    "exchange": null,
     "isin": "SE0009921588",
     "issuer": "Bilia AB",
     "lei": "2138002GW5WN1UYZAO32",
@@ -1341,6 +1560,7 @@
     "yahoo_symbol": "BILI-A.ST"
   },
   "ISIN:SE0009922164": {
+    "exchange": null,
     "isin": "SE0009922164",
     "issuer": "Essity Aktiebolag (publ)",
     "lei": "549300G8E6YUVJ1DA153",
@@ -1350,6 +1570,7 @@
     "yahoo_symbol": "ESSITY-B.ST"
   },
   "ISIN:SE0009922305": {
+    "exchange": null,
     "isin": "SE0009922305",
     "issuer": "Momentum Group AB",
     "lei": "549300QOHUWQMD9G3757",
@@ -1359,6 +1580,7 @@
     "yahoo_symbol": "MMGR-B.ST"
   },
   "ISIN:SE0009997018": {
+    "exchange": null,
     "isin": "SE0009997018",
     "issuer": "HMS Networks AB",
     "lei": "549300MOY2FDUUDIQ179",
@@ -1368,6 +1590,7 @@
     "yahoo_symbol": "HMS.ST"
   },
   "ISIN:SE0010048884": {
+    "exchange": null,
     "isin": "SE0010048884",
     "issuer": "Fagerhult Group AB",
     "lei": "549300G9NPD8LSJLMP91",
@@ -1377,6 +1600,7 @@
     "yahoo_symbol": "FAG.ST"
   },
   "ISIN:SE0010100958": {
+    "exchange": null,
     "isin": "SE0010100958",
     "issuer": "Investmentaktiebolaget Latour",
     "lei": "5493006GFBLNB3Y0Y789",
@@ -1386,6 +1610,7 @@
     "yahoo_symbol": "LATO-B.ST"
   },
   "ISIN:SE0010323311": {
+    "exchange": null,
     "isin": "SE0010323311",
     "issuer": "BioArctic AB",
     "lei": "549300Y0OI2WVUNHLC33",
@@ -1395,6 +1620,7 @@
     "yahoo_symbol": "BIOA-B.ST"
   },
   "ISIN:SE0010468116": {
+    "exchange": null,
     "isin": "SE0010468116",
     "issuer": "Arjo AB (publ)",
     "lei": "549300OWGJPYKC6JF790",
@@ -1404,6 +1630,7 @@
     "yahoo_symbol": "ARJO-B.ST"
   },
   "ISIN:SE0010546242": {
+    "exchange": null,
     "isin": "SE0010546242",
     "issuer": "Acconeer AB",
     "lei": "549300QTX5BP5V02EK37",
@@ -1413,6 +1640,7 @@
     "yahoo_symbol": "ACCON.ST"
   },
   "ISIN:SE0010546911": {
+    "exchange": null,
     "isin": "SE0010546911",
     "issuer": "Done.ai Group AB",
     "lei": "549300HN4ITSR6ZSAO17",
@@ -1422,6 +1650,7 @@
     "yahoo_symbol": "DONE.ST"
   },
   "ISIN:SE0010573113": {
+    "exchange": null,
     "isin": "SE0010573113",
     "issuer": "Ascelia Pharma AB",
     "lei": "5493002YR9VCJJPWYN08",
@@ -1431,6 +1660,7 @@
     "yahoo_symbol": "ACE.ST"
   },
   "ISIN:SE0010714279": {
+    "exchange": null,
     "isin": "SE0010714279",
     "issuer": "Corem Property Group AB",
     "lei": "213800CHXQQD7TSS1T59",
@@ -1440,6 +1670,7 @@
     "yahoo_symbol": "CORE-D.ST"
   },
   "ISIN:SE0010832204": {
+    "exchange": null,
     "isin": "SE0010832204",
     "issuer": "Cibus Real Estate AB (publ)",
     "lei": "549300PW36MFK96GCR23",
@@ -1449,6 +1680,7 @@
     "yahoo_symbol": "CIBUS.ST"
   },
   "ISIN:SE0010832287": {
+    "exchange": null,
     "isin": "SE0010832287",
     "issuer": "KlaraBo Sverige AB",
     "lei": "5493001FIOIXOKMHG857",
@@ -1458,6 +1690,7 @@
     "yahoo_symbol": "KLARA-B.ST"
   },
   "ISIN:SE0010948588": {
+    "exchange": null,
     "isin": "SE0010948588",
     "issuer": "BHG Group AB",
     "lei": "549300ZLCWL2QTO3HR86",
@@ -1467,6 +1700,7 @@
     "yahoo_symbol": "BHG.ST"
   },
   "ISIN:SE0010948711": {
+    "exchange": null,
     "isin": "SE0010948711",
     "issuer": "Ovzon AB (publ)",
     "lei": "549300U82F1HQRSTYZ66",
@@ -1476,15 +1710,17 @@
     "yahoo_symbol": "OVZON.ST"
   },
   "ISIN:SE0011115971": {
+    "exchange": null,
     "isin": "SE0011115971",
     "issuer": "Tethys Oil AB",
     "lei": "549300WI3UNWMNQDVQ18",
     "map_key": "ISIN:SE0011115971",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "TETY.ST"
   },
   "ISIN:SE0011205202": {
+    "exchange": null,
     "isin": "SE0011205202",
     "issuer": "Vitrolife AB",
     "lei": "5493001WDZMONMSPPR49",
@@ -1494,6 +1730,7 @@
     "yahoo_symbol": "VITR.ST"
   },
   "ISIN:SE0011281757": {
+    "exchange": null,
     "isin": "SE0011281757",
     "issuer": "Midsummer AB",
     "lei": "549300ZOWFLNDFSHNB56",
@@ -1503,6 +1740,7 @@
     "yahoo_symbol": "MIDS.ST"
   },
   "ISIN:SE0011337708": {
+    "exchange": null,
     "isin": "SE0011337708",
     "issuer": "AAK AB (publ)",
     "lei": "549300GK4LGIDDWJWL07",
@@ -1512,6 +1750,7 @@
     "yahoo_symbol": "AAK.ST"
   },
   "ISIN:SE0011426428": {
+    "exchange": null,
     "isin": "SE0011426428",
     "issuer": "Altra Fastigheter AB",
     "lei": "5493000YR2B83SILCJ50",
@@ -1521,6 +1760,7 @@
     "yahoo_symbol": "ALTRA.ST"
   },
   "ISIN:SE0011527845": {
+    "exchange": null,
     "isin": "SE0011527845",
     "issuer": "Q-linea AB",
     "lei": "549300BXVB4XRM8WSC73",
@@ -1530,6 +1770,7 @@
     "yahoo_symbol": "QLINEA.ST"
   },
   "ISIN:SE0011870195": {
+    "exchange": null,
     "isin": "SE0011870195",
     "issuer": "Lime Technologies AB (publ)",
     "lei": "5493008UUFYDF3ZTHC65",
@@ -1539,6 +1780,7 @@
     "yahoo_symbol": "LIME.ST"
   },
   "ISIN:SE0012116390": {
+    "exchange": null,
     "isin": "SE0012116390",
     "issuer": "Viaplay Group AB (publ)",
     "lei": "5493006E0IJD0DHJSR89",
@@ -1548,6 +1790,7 @@
     "yahoo_symbol": "VPLAY-B.ST"
   },
   "ISIN:SE0012323715": {
+    "exchange": null,
     "isin": "SE0012323715",
     "issuer": "Karnov Group AB (publ)",
     "lei": "549300P7312749LJS754",
@@ -1557,6 +1800,7 @@
     "yahoo_symbol": "KAR.ST"
   },
   "ISIN:SE0012455525": {
+    "exchange": null,
     "isin": "SE0012455525",
     "issuer": "Evolution Services Sweden AB",
     "lei": "549300KMAL1H1YLMWP02",
@@ -1566,6 +1810,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0012455673": {
+    "exchange": null,
     "isin": "SE0012455673",
     "issuer": "Boliden AB",
     "lei": "21380059QU7IM1ONDJ56",
@@ -1575,6 +1820,7 @@
     "yahoo_symbol": "BOL.ST"
   },
   "ISIN:SE0012570448": {
+    "exchange": null,
     "isin": "SE0012570448",
     "issuer": "OssDsign AB",
     "lei": "5493005SNS5NAYE2WL53",
@@ -1584,6 +1830,7 @@
     "yahoo_symbol": "OSSD.ST"
   },
   "ISIN:SE0012673267": {
+    "exchange": null,
     "isin": "SE0012673267",
     "issuer": "Evolution AB (publ)",
     "lei": "549300SUH6ZR1RF6TA88",
@@ -1593,6 +1840,7 @@
     "yahoo_symbol": "EVO.ST"
   },
   "ISIN:SE0012729366": {
+    "exchange": null,
     "isin": "SE0012729366",
     "issuer": "Troax Group AB (publ)",
     "lei": "5493003TBEWGBIEG1X97",
@@ -1602,6 +1850,7 @@
     "yahoo_symbol": "TROAX.ST"
   },
   "ISIN:SE0012853455": {
+    "exchange": null,
     "isin": "SE0012853455",
     "issuer": "EQT AB",
     "lei": "213800U7P9GOIRKCTB34",
@@ -1611,6 +1860,7 @@
     "yahoo_symbol": "EQT.ST"
   },
   "ISIN:SE0012853661": {
+    "exchange": null,
     "isin": "SE0012853661",
     "issuer": "SECTRA Aktiebolag",
     "lei": "549300R9ZBT8YSFFK266",
@@ -1620,6 +1870,7 @@
     "yahoo_symbol": "SECT-B.ST"
   },
   "ISIN:SE0013121340": {
+    "exchange": null,
     "isin": "SE0013121340",
     "issuer": "Moberg Pharma AB (publ)",
     "lei": "549300XFXK7DVGDRP410",
@@ -1629,6 +1880,7 @@
     "yahoo_symbol": "MOB.ST"
   },
   "ISIN:SE0013121589": {
+    "exchange": null,
     "isin": "SE0013121589",
     "issuer": "Embracer Group AB",
     "lei": "549300RFXXKT652HB549",
@@ -1638,6 +1890,7 @@
     "yahoo_symbol": "EMBRAC-B.ST"
   },
   "ISIN:SE0013647385": {
+    "exchange": null,
     "isin": "SE0013647385",
     "issuer": "BICO Group AB",
     "lei": "549300FE4PT8NDXXNK85",
@@ -1647,6 +1900,7 @@
     "yahoo_symbol": "BICO.ST"
   },
   "ISIN:SE0013747870": {
+    "exchange": null,
     "isin": "SE0013747870",
     "issuer": "Electrolux Professional AB (publ)",
     "lei": "254900KI62Q46ZWD8084",
@@ -1656,6 +1910,7 @@
     "yahoo_symbol": "EPRO-B.ST"
   },
   "ISIN:SE0014428512": {
+    "exchange": null,
     "isin": "SE0014428512",
     "issuer": "Surgical Science Sweden AB",
     "lei": "549300YROAI18G6JL885",
@@ -1665,6 +1920,7 @@
     "yahoo_symbol": "SUS.ST"
   },
   "ISIN:SE0014428835": {
+    "exchange": null,
     "isin": "SE0014428835",
     "issuer": "VNV Global AB (publ)",
     "lei": "549300ONMNSTOBAU0S14",
@@ -1674,6 +1930,7 @@
     "yahoo_symbol": "VNV.ST"
   },
   "ISIN:SE0014781795": {
+    "exchange": null,
     "isin": "SE0014781795",
     "issuer": "Addtech AB",
     "lei": "549300QZ5U2IDRHPWL60",
@@ -1683,6 +1940,7 @@
     "yahoo_symbol": "ADDT-B.ST"
   },
   "ISIN:SE0014960431": {
+    "exchange": null,
     "isin": "SE0014960431",
     "issuer": "Re:NewCell AB",
     "lei": "549300ODX3D04SRRH667",
@@ -1692,6 +1950,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0015192067": {
+    "exchange": null,
     "isin": "SE0015192067",
     "issuer": "Nordnet AB (publ)",
     "lei": "549300D6WW5ZTWLZ4C08",
@@ -1701,6 +1960,7 @@
     "yahoo_symbol": "SAVE.ST"
   },
   "ISIN:SE0015195771": {
+    "exchange": null,
     "isin": "SE0015195771",
     "issuer": "Fasadgruppen Group AB (publ)",
     "lei": "549300E24LG2Z7KCFQ23",
@@ -1710,6 +1970,7 @@
     "yahoo_symbol": "FG.ST"
   },
   "ISIN:SE0015245535": {
+    "exchange": null,
     "isin": "SE0015245535",
     "issuer": "Nelly Group AB (publ)",
     "lei": "549300TY1ZF7FQEF0552",
@@ -1719,6 +1980,7 @@
     "yahoo_symbol": "NELLY.ST"
   },
   "ISIN:SE0015346135": {
+    "exchange": null,
     "isin": "SE0015346135",
     "issuer": "Stillfront Group AB (publ)",
     "lei": "529900SYKCO4GYBTIJ54",
@@ -1728,6 +1990,7 @@
     "yahoo_symbol": "SF.ST"
   },
   "ISIN:SE0015657788": {
+    "exchange": null,
     "isin": "SE0015657788",
     "issuer": "Yubico AB",
     "lei": "549300I9RBIU9DW59H39",
@@ -1737,6 +2000,7 @@
     "yahoo_symbol": "YUBICO.ST"
   },
   "ISIN:SE0015671995": {
+    "exchange": null,
     "isin": "SE0015671995",
     "issuer": "Hemnet Group AB (publ)",
     "lei": "5493008VIU67J3HUAR07",
@@ -1746,6 +2010,7 @@
     "yahoo_symbol": "HEM.ST"
   },
   "ISIN:SE0015810247": {
+    "exchange": null,
     "isin": "SE0015810247",
     "issuer": "Kinnevik AB",
     "lei": "2138006PZH76JOS6MN27",
@@ -1755,6 +2020,7 @@
     "yahoo_symbol": "KINV-B.ST"
   },
   "ISIN:SE0015812516": {
+    "exchange": null,
     "isin": "SE0015812516",
     "issuer": "Wyld Networks AB",
     "lei": "984500E76A454BADAI39",
@@ -1764,6 +2030,7 @@
     "yahoo_symbol": "WYLD.ST"
   },
   "ISIN:SE0015949201": {
+    "exchange": null,
     "isin": "SE0015949201",
     "issuer": "Lifco AB (publ)",
     "lei": "549300RTLL4VDQRCTW41",
@@ -1773,6 +2040,7 @@
     "yahoo_symbol": "LIFCO-B.ST"
   },
   "ISIN:SE0015949748": {
+    "exchange": null,
     "isin": "SE0015949748",
     "issuer": "Beijer Ref AB (publ)",
     "lei": "549300PZZEUVH08H4G75",
@@ -1782,6 +2050,7 @@
     "yahoo_symbol": "BEIJ-B.ST"
   },
   "ISIN:SE0015960935": {
+    "exchange": null,
     "isin": "SE0015960935",
     "issuer": "Acast AB (publ)",
     "lei": "5493004UROJFQSP6RC85",
@@ -1791,6 +2060,7 @@
     "yahoo_symbol": "ACAST.ST"
   },
   "ISIN:SE0015961222": {
+    "exchange": null,
     "isin": "SE0015961222",
     "issuer": "Proact IT Group AB",
     "lei": "549300HMPIC1B86ZHC96",
@@ -1800,6 +2070,7 @@
     "yahoo_symbol": "PACT.ST"
   },
   "ISIN:SE0015962485": {
+    "exchange": null,
     "isin": "SE0015962485",
     "issuer": "RVRC Holding AB",
     "lei": "549300YU7003VHQV3J57",
@@ -1809,6 +2080,7 @@
     "yahoo_symbol": "RVRC.ST"
   },
   "ISIN:SE0015988167": {
+    "exchange": null,
     "isin": "SE0015988167",
     "issuer": "Swedencare AB (publ)",
     "lei": "549300FZT7YIF6SWX789",
@@ -1818,6 +2090,7 @@
     "yahoo_symbol": "SECARE.ST"
   },
   "ISIN:SE0015988373": {
+    "exchange": null,
     "isin": "SE0015988373",
     "issuer": "Sedana Medical AB (publ)",
     "lei": "549300FQ3NJRI56LCX32",
@@ -1827,6 +2100,7 @@
     "yahoo_symbol": "SEDANA.ST"
   },
   "ISIN:SE0016074249": {
+    "exchange": null,
     "isin": "SE0016074249",
     "issuer": "MilDef Group AB",
     "lei": "9845009F7Q0D56B38270",
@@ -1836,6 +2110,7 @@
     "yahoo_symbol": "MILDEF.ST"
   },
   "ISIN:SE0016075063": {
+    "exchange": null,
     "isin": "SE0016075063",
     "issuer": "Intellego Technologies AB",
     "lei": "549300KTMO4X275LNL41",
@@ -1845,6 +2120,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0016278154": {
+    "exchange": null,
     "isin": "SE0016278154",
     "issuer": "Hilbert Group AB (publ)",
     "lei": "5493009PL18HHU5PKF66",
@@ -1854,6 +2130,7 @@
     "yahoo_symbol": "HILB-B.ST"
   },
   "ISIN:SE0016609846": {
+    "exchange": null,
     "isin": "SE0016609846",
     "issuer": "Flat Capital AB (publ)",
     "lei": "549300LHOWJ5TLK68326",
@@ -1863,6 +2140,7 @@
     "yahoo_symbol": "FLAT-B.ST"
   },
   "ISIN:SE0016787071": {
+    "exchange": null,
     "isin": "SE0016787071",
     "issuer": "Truecaller AB",
     "lei": "549300TEYF1FA5G5GK26",
@@ -1872,6 +2150,7 @@
     "yahoo_symbol": "TRUE-B.ST"
   },
   "ISIN:SE0016797591": {
+    "exchange": null,
     "isin": "SE0016797591",
     "issuer": "Kjell Group AB (publ)",
     "lei": "549300NRNTB6O4IKO841",
@@ -1881,6 +2160,7 @@
     "yahoo_symbol": "KJELL.ST"
   },
   "ISIN:SE0016797732": {
+    "exchange": null,
     "isin": "SE0016797732",
     "issuer": "Storskogen Group AB (publ)",
     "lei": "549300DL3K4HLJ41KD24",
@@ -1890,6 +2170,7 @@
     "yahoo_symbol": "STOR-B.ST"
   },
   "ISIN:SE0016799068": {
+    "exchange": null,
     "isin": "SE0016799068",
     "issuer": "BeammWave AB",
     "lei": "9845008AD575B0BD7B65",
@@ -1899,6 +2180,7 @@
     "yahoo_symbol": "BEAMMW-B.ST"
   },
   "ISIN:SE0016829469": {
+    "exchange": null,
     "isin": "SE0016829469",
     "issuer": "Haypp Group AB (publ)",
     "lei": "549300NDGL14NS31UP49",
@@ -1908,6 +2190,7 @@
     "yahoo_symbol": "HAYPP.ST"
   },
   "ISIN:SE0016829709": {
+    "exchange": null,
     "isin": "SE0016829709",
     "issuer": "Synsam AB (publ)",
     "lei": "5493000TMEGW9DHNOQ70",
@@ -1917,6 +2200,7 @@
     "yahoo_symbol": "SYNSAM.ST"
   },
   "ISIN:SE0016844831": {
+    "exchange": null,
     "isin": "SE0016844831",
     "issuer": "Volvo Car AB",
     "lei": "5299000EAMGGBEYP7J33",
@@ -1926,6 +2210,7 @@
     "yahoo_symbol": "VOLCAR-B.ST"
   },
   "ISIN:SE0017083207": {
+    "exchange": null,
     "isin": "SE0017083207",
     "issuer": "Logistea AB",
     "lei": "549300ZSB0ZCKM1SL747",
@@ -1935,6 +2220,7 @@
     "yahoo_symbol": "LOGI-B.ST"
   },
   "ISIN:SE0017083983": {
+    "exchange": null,
     "isin": "SE0017083983",
     "issuer": "Coala-Life Group AB (publ)",
     "lei": "549300MAN4M3OKQPID57",
@@ -1944,6 +2230,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0017105620": {
+    "exchange": null,
     "isin": "SE0017105620",
     "issuer": "Dynavox Group AB",
     "lei": "5493008X1XZR4R5R0P66",
@@ -1953,6 +2240,7 @@
     "yahoo_symbol": "DYVOX.ST"
   },
   "ISIN:SE0017160773": {
+    "exchange": null,
     "isin": "SE0017160773",
     "issuer": "NCAB Group AB (publ)",
     "lei": "549300RUPCK2N43ES354",
@@ -1962,6 +2250,7 @@
     "yahoo_symbol": "NCAB.ST"
   },
   "ISIN:SE0017161243": {
+    "exchange": null,
     "isin": "SE0017161243",
     "issuer": "Fortnox Aktiebolag",
     "lei": "549300MSNMHPC3O60W78",
@@ -1971,6 +2260,7 @@
     "yahoo_symbol": null
   },
   "ISIN:SE0017161458": {
+    "exchange": null,
     "isin": "SE0017161458",
     "issuer": "Svolder Aktiebolag",
     "lei": "5493006ZVS6SHCKH6I37",
@@ -1980,6 +2270,7 @@
     "yahoo_symbol": "SVOL-B.ST"
   },
   "ISIN:SE0017615644": {
+    "exchange": null,
     "isin": "SE0017615644",
     "issuer": "Alleima AB",
     "lei": "529900EBHTYGLA6PGP77",
@@ -1989,6 +2280,7 @@
     "yahoo_symbol": "ALLEI.ST"
   },
   "ISIN:SE0017769847": {
+    "exchange": null,
     "isin": "SE0017769847",
     "issuer": "engcon AB",
     "lei": "549300EMZ2B768S85S50",
@@ -1998,6 +2290,7 @@
     "yahoo_symbol": "ENGCON-B.ST"
   },
   "ISIN:SE0017769995": {
+    "exchange": null,
     "isin": "SE0017769995",
     "issuer": "BioGaia AB",
     "lei": "549300UBUJOY2L7TT361",
@@ -2007,6 +2300,7 @@
     "yahoo_symbol": "BIOG-B.ST"
   },
   "ISIN:SE0017780133": {
+    "exchange": null,
     "isin": "SE0017780133",
     "issuer": "Wallenstam AB",
     "lei": "21380081R2P9MKFQBD25",
@@ -2016,6 +2310,7 @@
     "yahoo_symbol": "WALL-B.ST"
   },
   "ISIN:SE0017831795": {
+    "exchange": null,
     "isin": "SE0017831795",
     "issuer": "Norion Bank AB",
     "lei": "529900AGWAKUTYNETM62",
@@ -2025,6 +2320,7 @@
     "yahoo_symbol": "NORION.ST"
   },
   "ISIN:SE0017885767": {
+    "exchange": null,
     "isin": "SE0017885767",
     "issuer": "Addnode Group Aktiebolag (publ)",
     "lei": "213800CQXEA3W1YWXZ31",
@@ -2034,6 +2330,7 @@
     "yahoo_symbol": "ANOD-B.ST"
   },
   "ISIN:SE0017911480": {
+    "exchange": null,
     "isin": "SE0017911480",
     "issuer": "Heba Fastighets Aktiebolag",
     "lei": "549300B1UZTBDU27UJ88",
@@ -2043,6 +2340,7 @@
     "yahoo_symbol": "HEBA-B.ST"
   },
   "ISIN:SE0018012635": {
+    "exchange": null,
     "isin": "SE0018012635",
     "issuer": "Wihlborgs Fastigheter AB",
     "lei": "549300RC1YDJPITF8X06",
@@ -2052,6 +2350,7 @@
     "yahoo_symbol": "WIHL.ST"
   },
   "ISIN:SE0018014243": {
+    "exchange": null,
     "isin": "SE0018014243",
     "issuer": "GRANGEX AB (publ)",
     "lei": "549300MZ7HL7X6AXMC13",
@@ -2061,6 +2360,7 @@
     "yahoo_symbol": "GRANGX.ST"
   },
   "ISIN:SE0018538068": {
+    "exchange": null,
     "isin": "SE0018538068",
     "issuer": "Verve Group Media SE",
     "lei": "391200UIIWMXRLGARB95",
@@ -2070,6 +2370,7 @@
     "yahoo_symbol": "VER.ST"
   },
   "ISIN:SE0020848356": {
+    "exchange": null,
     "isin": "SE0020848356",
     "issuer": "Rusta AB (publ)",
     "lei": "549300V512S3QMRNO618",
@@ -2079,6 +2380,7 @@
     "yahoo_symbol": "RUSTA.ST"
   },
   "ISIN:SE0021020716": {
+    "exchange": null,
     "isin": "SE0021020716",
     "issuer": "AAC Clyde Space AB",
     "lei": "549300XQ7MZYAEFJLX90",
@@ -2088,6 +2390,7 @@
     "yahoo_symbol": "AAC.ST"
   },
   "ISIN:SE0021148160": {
+    "exchange": null,
     "isin": "SE0021148160",
     "issuer": "Gruvaktiebolaget Viscaria",
     "lei": "5299004NWV90GIWSWQ04",
@@ -2097,6 +2400,7 @@
     "yahoo_symbol": "VISC.ST"
   },
   "ISIN:SE0022243812": {
+    "exchange": null,
     "isin": "SE0022243812",
     "issuer": "Sveafastigheter AB (publ)",
     "lei": "636700W1VM86O2G2AA36",
@@ -2106,6 +2410,7 @@
     "yahoo_symbol": "SVEAF.ST"
   },
   "ISIN:SE0023313762": {
+    "exchange": null,
     "isin": "SE0023313762",
     "issuer": "Apotea AB (publ)",
     "lei": "636700XU8GQ8ZL4RNM17",
@@ -2115,6 +2420,7 @@
     "yahoo_symbol": "APOTEA.ST"
   },
   "ISIN:SE0023615638": {
+    "exchange": null,
     "isin": "SE0023615638",
     "issuer": "Asmodee Group AB",
     "lei": "636700G5993BBAFDYD02",
@@ -2124,6 +2430,7 @@
     "yahoo_symbol": "ASMDEE-B.ST"
   },
   "ISIN:SE0023950795": {
+    "exchange": null,
     "isin": "SE0023950795",
     "issuer": "Röko AB (publ)",
     "lei": "549300X76X1DK285JB13",
@@ -2133,6 +2440,7 @@
     "yahoo_symbol": "ROKO-B.ST"
   },
   "ISIN:SE0024171458": {
+    "exchange": null,
     "isin": "SE0024171458",
     "issuer": "Asker Healthcare Group AB",
     "lei": "636700RZEYK9TOWV8F05",
@@ -2142,6 +2450,7 @@
     "yahoo_symbol": "ASKER.ST"
   },
   "ISIN:SE0025011463": {
+    "exchange": null,
     "isin": "SE0025011463",
     "issuer": "ALVOTECH",
     "lei": "222100DCZBOWV5DZ8372",
@@ -2151,6 +2460,7 @@
     "yahoo_symbol": "ALVO-SDB.ST"
   },
   "ISIN:SE0025138357": {
+    "exchange": null,
     "isin": "SE0025138357",
     "issuer": "Hacksaw AB",
     "lei": "636700SMLZDCBPNPMJ36",
@@ -2160,6 +2470,7 @@
     "yahoo_symbol": "HACK.ST"
   },
   "ISIN:SE0025667033": {
+    "exchange": null,
     "isin": "SE0025667033",
     "issuer": "Guldbrev Holding AB (publ)",
     "lei": "64889UO4P1E89XSM9619",
@@ -2169,6 +2480,7 @@
     "yahoo_symbol": "GULD.ST"
   },
   "ISIN:SE0026599557": {
+    "exchange": null,
     "isin": "SE0026599557",
     "issuer": "Coffee Stain Group AB",
     "lei": "636700R8GB3NJ2J6DG90",
@@ -2178,6 +2490,7 @@
     "yahoo_symbol": "COFFEE-B.ST"
   },
   "LEI:2138001H6FCSZBP26351": {
+    "exchange": null,
     "isin": null,
     "issuer": "ITAB Group AB",
     "lei": "2138001H6FCSZBP26351",
@@ -2187,6 +2500,7 @@
     "yahoo_symbol": "ITAB.ST"
   },
   "LEI:21380057HUGFEAF25W84": {
+    "exchange": null,
     "isin": null,
     "issuer": "NOBA Bank Group AB (publ)",
     "lei": "21380057HUGFEAF25W84",
@@ -2195,7 +2509,18 @@
     "ticker": null,
     "yahoo_symbol": "NOBA.ST"
   },
+  "LEI:2138006QFV6OJMYQC847": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Qliro AB",
+    "lei": "2138006QFV6OJMYQC847",
+    "map_key": "LEI:2138006QFV6OJMYQC847",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "QLIRO.ST"
+  },
   "LEI:2138009N2FO2BZTVYS76": {
+    "exchange": null,
     "isin": null,
     "issuer": "Eastnine AB (publ)",
     "lei": "2138009N2FO2BZTVYS76",
@@ -2204,7 +2529,48 @@
     "ticker": null,
     "yahoo_symbol": "EAST.ST"
   },
+  "LEI:213800CGP4AKXSLWWS08": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "DistIT AB",
+    "lei": "213800CGP4AKXSLWWS08",
+    "map_key": "LEI:213800CGP4AKXSLWWS08",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "DIST.ST"
+  },
+  "LEI:213800CITFPHX4TL8G93": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "CombiGene AB",
+    "lei": "213800CITFPHX4TL8G93",
+    "map_key": "LEI:213800CITFPHX4TL8G93",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:213800CLGZW58U8QAJ68": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Concordia Maritime Aktiebolag",
+    "lei": "213800CLGZW58U8QAJ68",
+    "map_key": "LEI:213800CLGZW58U8QAJ68",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:213800DM8OBVX8QWUR14": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Rottneros AB",
+    "lei": "213800DM8OBVX8QWUR14",
+    "map_key": "LEI:213800DM8OBVX8QWUR14",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "RROS.ST"
+  },
   "LEI:213800ES6SHKK5QTN734": {
+    "exchange": null,
     "isin": null,
     "issuer": "GomSpace Group AB",
     "lei": "213800ES6SHKK5QTN734",
@@ -2214,6 +2580,7 @@
     "yahoo_symbol": "GOMX.ST"
   },
   "LEI:213800HJQ519AT4VCK42": {
+    "exchange": null,
     "isin": null,
     "issuer": "ALELION ENERGY SYSTEMS AB",
     "lei": "213800HJQ519AT4VCK42",
@@ -2223,6 +2590,7 @@
     "yahoo_symbol": null
   },
   "LEI:213800IK1TGY858TKZ45": {
+    "exchange": null,
     "isin": null,
     "issuer": "Boule Diagnostics AB",
     "lei": "213800IK1TGY858TKZ45",
@@ -2231,7 +2599,18 @@
     "ticker": null,
     "yahoo_symbol": "BOUL.ST"
   },
+  "LEI:213800JKT38J2VSPJV88": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Nexam Chemical Holding AB",
+    "lei": "213800JKT38J2VSPJV88",
+    "map_key": "LEI:213800JKT38J2VSPJV88",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "NEXAM.ST"
+  },
   "LEI:213800K7LQU3H85KCU96": {
+    "exchange": null,
     "isin": null,
     "issuer": "Bahnhof AB (publ)",
     "lei": "213800K7LQU3H85KCU96",
@@ -2241,6 +2620,7 @@
     "yahoo_symbol": "BAHN-B.ST"
   },
   "LEI:213800KL43V8X6MPRD94": {
+    "exchange": null,
     "isin": null,
     "issuer": "Berner Industrier AB",
     "lei": "213800KL43V8X6MPRD94",
@@ -2249,7 +2629,38 @@
     "ticker": null,
     "yahoo_symbol": "BERNER-B.ST"
   },
+  "LEI:213800MB71X1WANLGO09": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Freja eID Group AB",
+    "lei": "213800MB71X1WANLGO09",
+    "map_key": "LEI:213800MB71X1WANLGO09",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "FREJA.ST"
+  },
+  "LEI:213800REBFN6T3PU8L97": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "AKELIUS RESIDENTIAL PROPERTY AB (PUBL)",
+    "lei": "213800REBFN6T3PU8L97",
+    "map_key": "LEI:213800REBFN6T3PU8L97",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:213800T68IVZFR868L42": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Starbreeze AB",
+    "lei": "213800T68IVZFR868L42",
+    "map_key": "LEI:213800T68IVZFR868L42",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "STAR-B.ST"
+  },
   "LEI:213800T7T7I7WAOX8Y72": {
+    "exchange": null,
     "isin": null,
     "issuer": "Nolato Aktiebolag",
     "lei": "213800T7T7I7WAOX8Y72",
@@ -2259,6 +2670,7 @@
     "yahoo_symbol": "EOLU-B.ST"
   },
   "LEI:213800WNI4X4LCFHV831": {
+    "exchange": null,
     "isin": null,
     "issuer": "Catella AB",
     "lei": "213800WNI4X4LCFHV831",
@@ -2267,7 +2679,18 @@
     "ticker": null,
     "yahoo_symbol": "CAT-B.ST"
   },
+  "LEI:213800X1259MBEKD5H24": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Stockwik Förvaltning AB",
+    "lei": "213800X1259MBEKD5H24",
+    "map_key": "LEI:213800X1259MBEKD5H24",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:254900AWRHP1QNE6OQ19": {
+    "exchange": null,
     "isin": null,
     "issuer": "Swedish Logistic Property AB",
     "lei": "254900AWRHP1QNE6OQ19",
@@ -2276,7 +2699,48 @@
     "ticker": null,
     "yahoo_symbol": "SLP-B.ST"
   },
+  "LEI:254900IRBEGO53G9R228": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Zordix AB (publ)",
+    "lei": "254900IRBEGO53G9R228",
+    "map_key": "LEI:254900IRBEGO53G9R228",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:391200UIIWMXRLGARB95": {
+    "exchange": null,
+    "isin": "SE0018538068",
+    "issuer": "MGI - Media and Games Invest SE",
+    "lei": "391200UIIWMXRLGARB95",
+    "map_key": "LEI:391200UIIWMXRLGARB95",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "VER.ST"
+  },
+  "LEI:48510000OEBNE6ZZRY63": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Raketech Group Holding Limited",
+    "lei": "48510000OEBNE6ZZRY63",
+    "map_key": "LEI:48510000OEBNE6ZZRY63",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "RAKE.ST"
+  },
+  "LEI:5299001CH8K0RXSYV047": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Brighter AB (publ)",
+    "lei": "5299001CH8K0RXSYV047",
+    "map_key": "LEI:5299001CH8K0RXSYV047",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:529900AFBGFR7ZB50J95": {
+    "exchange": null,
     "isin": null,
     "issuer": "Mendus AB (publ)",
     "lei": "529900AFBGFR7ZB50J95",
@@ -2285,16 +2749,58 @@
     "ticker": null,
     "yahoo_symbol": "IMMU.ST"
   },
-  "LEI:529900BPSFZS6O3A9R04": {
+  "LEI:529900AGWAKUTYNETM62": {
+    "exchange": null,
+    "isin": "SE0017831795",
+    "issuer": "Collector Bank AB",
+    "lei": "529900AGWAKUTYNETM62",
+    "map_key": "LEI:529900AGWAKUTYNETM62",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "NORION.ST"
+  },
+  "LEI:529900ARVN1D3A4CHI81": {
+    "exchange": null,
     "isin": null,
-    "issuer": "L E Lundbergföretagen Aktiebolag (publ)",
-    "lei": "529900BPSFZS6O3A9R04",
-    "map_key": "LEI:529900BPSFZS6O3A9R04",
+    "issuer": "Toleranzia AB",
+    "lei": "529900ARVN1D3A4CHI81",
+    "map_key": "LEI:529900ARVN1D3A4CHI81",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:529900BGZZZTLLBR1X49": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "TF Bank AB",
+    "lei": "529900BGZZZTLLBR1X49",
+    "map_key": "LEI:529900BGZZZTLLBR1X49",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "6TF0.SG"
+  },
+  "LEI:529900BPSFZS6O3A9R04": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "L E Lundbergföretagen Aktiebolag (publ)",
+    "lei": "529900BPSFZS6O3A9R04",
+    "map_key": "LEI:529900BPSFZS6O3A9R04",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "LUND-B.ST"
+  },
+  "LEI:529900BWE386D22MGZ23": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Bambuser AB",
+    "lei": "529900BWE386D22MGZ23",
+    "map_key": "LEI:529900BWE386D22MGZ23",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BUSER.ST"
+  },
   "LEI:529900G9LZILBPCZXA17": {
+    "exchange": null,
     "isin": null,
     "issuer": "Collector AB",
     "lei": "529900G9LZILBPCZXA17",
@@ -2303,7 +2809,38 @@
     "ticker": null,
     "yahoo_symbol": "ABSL-B.ST"
   },
+  "LEI:529900HKIZBVX08VLG76": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "LMK Group AB (publ)",
+    "lei": "529900HKIZBVX08VLG76",
+    "map_key": "LEI:529900HKIZBVX08VLG76",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:529900HNJP0335URJQ76": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Enzymatica AB (publ)",
+    "lei": "529900HNJP0335URJQ76",
+    "map_key": "LEI:529900HNJP0335URJQ76",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ENZY.ST"
+  },
+  "LEI:529900JIV2O9HEPWIN77": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Solid Försäkringsaktiebolag",
+    "lei": "529900JIV2O9HEPWIN77",
+    "map_key": "LEI:529900JIV2O9HEPWIN77",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:529900JYCV3JMCOGGU35": {
+    "exchange": null,
     "isin": null,
     "issuer": "Irisity AB (publ)",
     "lei": "529900JYCV3JMCOGGU35",
@@ -2312,7 +2849,18 @@
     "ticker": null,
     "yahoo_symbol": "IRIS.ST"
   },
+  "LEI:529900M00QZG3C24PX08": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Doxa Aktiebolag",
+    "lei": "529900M00QZG3C24PX08",
+    "map_key": "LEI:529900M00QZG3C24PX08",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "DOXA.ST"
+  },
   "LEI:529900N708O043JCCO23": {
+    "exchange": null,
     "isin": null,
     "issuer": "Image Systems AB",
     "lei": "529900N708O043JCCO23",
@@ -2321,7 +2869,18 @@
     "ticker": null,
     "yahoo_symbol": "IS.ST"
   },
+  "LEI:529900SR87NBUKX74L58": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Biotage AB",
+    "lei": "529900SR87NBUKX74L58",
+    "map_key": "LEI:529900SR87NBUKX74L58",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:529900U9GE0JYU3PUP93": {
+    "exchange": null,
     "isin": null,
     "issuer": "Minesto AB",
     "lei": "529900U9GE0JYU3PUP93",
@@ -2330,7 +2889,18 @@
     "ticker": null,
     "yahoo_symbol": "MINEST.ST"
   },
+  "LEI:549300071188HIDJEB11": {
+    "exchange": null,
+    "isin": "CA00829Q1019",
+    "issuer": "Africa Oil Corp.",
+    "lei": "549300071188HIDJEB11",
+    "map_key": "LEI:549300071188HIDJEB11",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "MER.ST"
+  },
   "LEI:5493000E9BUOYMOW2K53": {
+    "exchange": null,
     "isin": null,
     "issuer": "Medicover AB",
     "lei": "5493000E9BUOYMOW2K53",
@@ -2339,7 +2909,18 @@
     "ticker": null,
     "yahoo_symbol": "MCOV-B.ST"
   },
+  "LEI:5493000JP703HGPJEX27": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Annexin Pharmaceuticals AB (publ)",
+    "lei": "5493000JP703HGPJEX27",
+    "map_key": "LEI:5493000JP703HGPJEX27",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ANNX.ST"
+  },
   "LEI:5493000LKVGOO9PELI61": {
+    "exchange": null,
     "isin": null,
     "issuer": "ABB Ltd",
     "lei": "5493000LKVGOO9PELI61",
@@ -2348,7 +2929,18 @@
     "ticker": null,
     "yahoo_symbol": "ABB.ST"
   },
+  "LEI:5493000MATG2DYK19F35": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Pricer Aktiebolag",
+    "lei": "5493000MATG2DYK19F35",
+    "map_key": "LEI:5493000MATG2DYK19F35",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "PRIC-B.ST"
+  },
   "LEI:5493000RSYC7Q56WHO76": {
+    "exchange": null,
     "isin": null,
     "issuer": "Advenica AB (publ)",
     "lei": "5493000RSYC7Q56WHO76",
@@ -2357,7 +2949,48 @@
     "ticker": null,
     "yahoo_symbol": "ADVE.ST"
   },
+  "LEI:5493000T8MZ5GQREJW94": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Nordic Waterproofing Holding AB",
+    "lei": "5493000T8MZ5GQREJW94",
+    "map_key": "LEI:5493000T8MZ5GQREJW94",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:5493000YR2B83SILCJ50": {
+    "exchange": null,
+    "isin": "SE0011426428",
+    "issuer": "Nyfosa AB",
+    "lei": "5493000YR2B83SILCJ50",
+    "map_key": "LEI:5493000YR2B83SILCJ50",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "ALTRA.ST"
+  },
+  "LEI:54930011ZA52NKO5W681": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Karolinska Development AB",
+    "lei": "54930011ZA52NKO5W681",
+    "map_key": "LEI:54930011ZA52NKO5W681",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "2I9.SG"
+  },
+  "LEI:5493001IZXU12M8NYV95": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Annehem Fastigheter AB",
+    "lei": "5493001IZXU12M8NYV95",
+    "map_key": "LEI:5493001IZXU12M8NYV95",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ANNE-B.ST"
+  },
   "LEI:549300233PQ1UWNYVK79": {
+    "exchange": null,
     "isin": null,
     "issuer": "Svedbergs Group AB",
     "lei": "549300233PQ1UWNYVK79",
@@ -2366,16 +2999,38 @@
     "ticker": null,
     "yahoo_symbol": "SVED-B.ST"
   },
-  "LEI:5493002L6I4YHANEYR87": {
+  "LEI:54930024H9YVJ44DPZ25": {
+    "exchange": null,
     "isin": null,
-    "issuer": "Lagercrantz Group Aktiebolag",
-    "lei": "5493002L6I4YHANEYR87",
-    "map_key": "LEI:5493002L6I4YHANEYR87",
+    "issuer": "Alcadon Group AB",
+    "lei": "54930024H9YVJ44DPZ25",
+    "map_key": "LEI:54930024H9YVJ44DPZ25",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ALCA.ST"
+  },
+  "LEI:5493002CWEZ4BUCNG484": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Hövding Sverige AB (publ)",
+    "lei": "5493002CWEZ4BUCNG484",
+    "map_key": "LEI:5493002CWEZ4BUCNG484",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:5493002L6I4YHANEYR87": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Lagercrantz Group Aktiebolag",
+    "lei": "5493002L6I4YHANEYR87",
+    "map_key": "LEI:5493002L6I4YHANEYR87",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "LAGR-B.ST"
+  },
   "LEI:5493002TF62S16D67T17": {
+    "exchange": null,
     "isin": null,
     "issuer": "Bufab AB (publ)",
     "lei": "5493002TF62S16D67T17",
@@ -2385,24 +3040,37 @@
     "yahoo_symbol": "BUFAB.ST"
   },
   "LEI:54930030A8V6LH0G1Z92": {
+    "exchange": null,
     "isin": null,
     "issuer": "Nederman Holding Aktiebolag",
     "lei": "54930030A8V6LH0G1Z92",
     "map_key": "LEI:54930030A8V6LH0G1Z92",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "NMAN.ST"
   },
   "LEI:54930033BTSY61VHUR49": {
+    "exchange": null,
     "isin": null,
     "issuer": "Haldex Aktiebolag",
     "lei": "54930033BTSY61VHUR49",
     "map_key": "LEI:54930033BTSY61VHUR49",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "HLDX.ST"
+  },
+  "LEI:54930034OH16ROAY4K87": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Cyxone AB",
+    "lei": "54930034OH16ROAY4K87",
+    "map_key": "LEI:54930034OH16ROAY4K87",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "LEI:549300365FORUXLUWL17": {
+    "exchange": null,
     "isin": null,
     "issuer": "SinterCast Aktiebolag",
     "lei": "549300365FORUXLUWL17",
@@ -2412,6 +3080,7 @@
     "yahoo_symbol": "SINT.ST"
   },
   "LEI:54930036ZLGZG0G19M24": {
+    "exchange": null,
     "isin": null,
     "issuer": "Anoto Group AB",
     "lei": "54930036ZLGZG0G19M24",
@@ -2420,25 +3089,108 @@
     "ticker": null,
     "yahoo_symbol": "INQ.ST"
   },
+  "LEI:54930037JP1GWORMFS83": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Bio-Works Technologies AB",
+    "lei": "54930037JP1GWORMFS83",
+    "map_key": "LEI:54930037JP1GWORMFS83",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "1BD.F"
+  },
+  "LEI:5493003NP2HNQDEKB804": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Diamyd Medical Aktiebolag",
+    "lei": "5493003NP2HNQDEKB804",
+    "map_key": "LEI:5493003NP2HNQDEKB804",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "DMYD-B.ST"
+  },
+  "LEI:5493003TZPR4B7QO9L49": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Vivesto AB",
+    "lei": "5493003TZPR4B7QO9L49",
+    "map_key": "LEI:5493003TZPR4B7QO9L49",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "OMA.F"
+  },
   "LEI:5493003YS3NSPZJ5WU39": {
+    "exchange": null,
     "isin": null,
     "issuer": "Stendörren Fastigheter AB",
     "lei": "5493003YS3NSPZJ5WU39",
     "map_key": "LEI:5493003YS3NSPZJ5WU39",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "STEFB.ST"
+  },
+  "LEI:54930047Z8TEBJTKYX74": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Precise Biometrics AB",
+    "lei": "54930047Z8TEBJTKYX74",
+    "map_key": "LEI:54930047Z8TEBJTKYX74",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "PREC.ST"
+  },
+  "LEI:5493004CJOCT273MU397": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "PROBI Aktiebolag",
+    "lei": "5493004CJOCT273MU397",
+    "map_key": "LEI:5493004CJOCT273MU397",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:5493004EULJHCCPCWD24": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Awardit AB (publ)",
+    "lei": "5493004EULJHCCPCWD24",
+    "map_key": "LEI:5493004EULJHCCPCWD24",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "LEI:5493004Q73OEYW1SPE91": {
+    "exchange": null,
     "isin": null,
     "issuer": "Epiroc Aktiebolag",
     "lei": "5493004Q73OEYW1SPE91",
     "map_key": "LEI:5493004Q73OEYW1SPE91",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "EPRO-B.ST"
+  },
+  "LEI:5493004RX6XHM63PCR80": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "BINERO GROUP",
+    "lei": "5493004RX6XHM63PCR80",
+    "map_key": "LEI:5493004RX6XHM63PCR80",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BINERO.ST"
+  },
+  "LEI:549300529C5P12YHX909": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "RLS Global AB",
+    "lei": "549300529C5P12YHX909",
+    "map_key": "LEI:549300529C5P12YHX909",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "LEI:5493005LXSKPJXQXI542": {
+    "exchange": null,
     "isin": null,
     "issuer": "Strax AB",
     "lei": "5493005LXSKPJXQXI542",
@@ -2448,6 +3200,7 @@
     "yahoo_symbol": null
   },
   "LEI:5493005T3M7CD7XWE013": {
+    "exchange": null,
     "isin": null,
     "issuer": "AddLife AB",
     "lei": "5493005T3M7CD7XWE013",
@@ -2456,7 +3209,28 @@
     "ticker": null,
     "yahoo_symbol": "ALIF-B.ST"
   },
+  "LEI:5493005TADJBZHXP0U27": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Ziccum AB",
+    "lei": "5493005TADJBZHXP0U27",
+    "map_key": "LEI:5493005TADJBZHXP0U27",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:5493005YV22OTMUHZ183": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Abliva AB",
+    "lei": "5493005YV22OTMUHZ183",
+    "map_key": "LEI:5493005YV22OTMUHZ183",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:54930067DYL82EKQR937": {
+    "exchange": null,
     "isin": null,
     "issuer": "Humble Group AB",
     "lei": "54930067DYL82EKQR937",
@@ -2465,7 +3239,18 @@
     "ticker": null,
     "yahoo_symbol": "HUMBLE.ST"
   },
+  "LEI:5493006ED74WIIQOKC56": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Sprint Bioscience AB",
+    "lei": "5493006ED74WIIQOKC56",
+    "map_key": "LEI:5493006ED74WIIQOKC56",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SPRINT.ST"
+  },
   "LEI:5493006F7ZGT71653W96": {
+    "exchange": null,
     "isin": null,
     "issuer": "CDON AB",
     "lei": "5493006F7ZGT71653W96",
@@ -2474,7 +3259,28 @@
     "ticker": null,
     "yahoo_symbol": "CDON.ST"
   },
+  "LEI:5493006IXI2WQFYF2052": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Spectrumone AB (publ)",
+    "lei": "5493006IXI2WQFYF2052",
+    "map_key": "LEI:5493006IXI2WQFYF2052",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SPEONE.ST"
+  },
+  "LEI:5493006L8302F0JKRN75": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "I-Tech AB",
+    "lei": "5493006L8302F0JKRN75",
+    "map_key": "LEI:5493006L8302F0JKRN75",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ITECH.ST"
+  },
   "LEI:5493006VHH78UQJVF844": {
+    "exchange": null,
     "isin": null,
     "issuer": "Scandi Standard AB (publ)",
     "lei": "5493006VHH78UQJVF844",
@@ -2484,6 +3290,7 @@
     "yahoo_symbol": "SCST.ST"
   },
   "LEI:54930070F55O6PDFDF97": {
+    "exchange": null,
     "isin": null,
     "issuer": "Green Landscaping Group AB (publ)",
     "lei": "54930070F55O6PDFDF97",
@@ -2493,6 +3300,7 @@
     "yahoo_symbol": "GREEN.ST"
   },
   "LEI:54930074JF89HQZ5DW64": {
+    "exchange": null,
     "isin": null,
     "issuer": "PolyPlank Aktiebolag (publ)",
     "lei": "54930074JF89HQZ5DW64",
@@ -2502,15 +3310,57 @@
     "yahoo_symbol": null
   },
   "LEI:5493007FF9DNP5DUJQ78": {
+    "exchange": null,
     "isin": null,
     "issuer": "Prevas Aktiebolag",
     "lei": "5493007FF9DNP5DUJQ78",
     "map_key": "LEI:5493007FF9DNP5DUJQ78",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "PREV-B.ST"
+  },
+  "LEI:5493007I1HS4U2HMQH48": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Gaming Corps AB",
+    "lei": "5493007I1HS4U2HMQH48",
+    "map_key": "LEI:5493007I1HS4U2HMQH48",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "5WF.F"
+  },
+  "LEI:5493007JJTJFKGX2N830": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Goodbye Kansas Group AB",
+    "lei": "5493007JJTJFKGX2N830",
+    "map_key": "LEI:5493007JJTJFKGX2N830",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "GBK.ST"
+  },
+  "LEI:5493007JXLLMFL3T8L95": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "CTEK AB (publ)",
+    "lei": "5493007JXLLMFL3T8L95",
+    "map_key": "LEI:5493007JXLLMFL3T8L95",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "CTEK.ST"
+  },
+  "LEI:5493007OXLTOLCXTBM48": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Goobit Group AB (publ)",
+    "lei": "5493007OXLTOLCXTBM48",
+    "map_key": "LEI:5493007OXLTOLCXTBM48",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "9AI.F"
   },
   "LEI:5493007QQ16K1NL2PW55": {
+    "exchange": null,
     "isin": null,
     "issuer": "ISR Immune System Regulation Holding AB (publ)",
     "lei": "5493007QQ16K1NL2PW55",
@@ -2520,6 +3370,7 @@
     "yahoo_symbol": null
   },
   "LEI:5493007VLX358PSHF006": {
+    "exchange": null,
     "isin": null,
     "issuer": "IMPLANTICA AG",
     "lei": "5493007VLX358PSHF006",
@@ -2529,15 +3380,17 @@
     "yahoo_symbol": "IMP-A-SDB.ST"
   },
   "LEI:54930082R4LTC7PERT23": {
+    "exchange": null,
     "isin": null,
     "issuer": "VEONEER, INC.",
     "lei": "54930082R4LTC7PERT23",
     "map_key": "LEI:54930082R4LTC7PERT23",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "VNE-SDB.ST"
   },
   "LEI:54930082SM8KO7LCER77": {
+    "exchange": null,
     "isin": null,
     "issuer": "Pierce Group AB (publ)",
     "lei": "54930082SM8KO7LCER77",
@@ -2546,7 +3399,28 @@
     "ticker": null,
     "yahoo_symbol": "PIERCE.ST"
   },
+  "LEI:5493008BTAMUWWFS1B23": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "ArcAroma AB",
+    "lei": "5493008BTAMUWWFS1B23",
+    "map_key": "LEI:5493008BTAMUWWFS1B23",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:5493008DKD05APTKQO39": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Xbrane Biopharma AB",
+    "lei": "5493008DKD05APTKQO39",
+    "map_key": "LEI:5493008DKD05APTKQO39",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "XBRANE.ST"
+  },
   "LEI:5493008GYHJL9PWTC395": {
+    "exchange": null,
     "isin": null,
     "issuer": "Sensys Gatso Group AB",
     "lei": "5493008GYHJL9PWTC395",
@@ -2555,7 +3429,28 @@
     "ticker": null,
     "yahoo_symbol": "SGG.ST"
   },
+  "LEI:5493008ICNN7HHKZWL40": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Enorama Pharma AB",
+    "lei": "5493008ICNN7HHKZWL40",
+    "map_key": "LEI:5493008ICNN7HHKZWL40",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ERMA.ST"
+  },
+  "LEI:5493008X1XZR4R5R0P66": {
+    "exchange": null,
+    "isin": "SE0017105620",
+    "issuer": "Tobii Dynavox AB",
+    "lei": "5493008X1XZR4R5R0P66",
+    "map_key": "LEI:5493008X1XZR4R5R0P66",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "DYVOX.ST"
+  },
   "LEI:5493009KPII4BZE70820": {
+    "exchange": null,
     "isin": null,
     "issuer": "Platzer Fastigheter Holding AB (publ)",
     "lei": "5493009KPII4BZE70820",
@@ -2564,7 +3459,28 @@
     "ticker": null,
     "yahoo_symbol": "PLAZ-B.ST"
   },
+  "LEI:549300A5X3MXUDS67N81": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Humana AB",
+    "lei": "549300A5X3MXUDS67N81",
+    "map_key": "LEI:549300A5X3MXUDS67N81",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "HUM.ST"
+  },
+  "LEI:549300ABSBGOXEWEVB52": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Papilly AB (publ)",
+    "lei": "549300ABSBGOXEWEVB52",
+    "map_key": "LEI:549300ABSBGOXEWEVB52",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300AG5CO2JWUJQ994": {
+    "exchange": null,
     "isin": null,
     "issuer": "CTT Systems AB",
     "lei": "549300AG5CO2JWUJQ994",
@@ -2573,7 +3489,28 @@
     "ticker": null,
     "yahoo_symbol": "CTT.ST"
   },
+  "LEI:549300AJ172TXRYCYX42": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Clemondo Group AB (publ)",
+    "lei": "549300AJ172TXRYCYX42",
+    "map_key": "LEI:549300AJ172TXRYCYX42",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "N170.F"
+  },
+  "LEI:549300AVDV7UC14MTH79": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Ortivus Aktiebolag",
+    "lei": "549300AVDV7UC14MTH79",
+    "map_key": "LEI:549300AVDV7UC14MTH79",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "ORTI-B.ST"
+  },
   "LEI:549300AZCIZU2QRKEZ19": {
+    "exchange": null,
     "isin": null,
     "issuer": "Realfiction Holding AB",
     "lei": "549300AZCIZU2QRKEZ19",
@@ -2582,7 +3519,18 @@
     "ticker": null,
     "yahoo_symbol": "REALFI.ST"
   },
+  "LEI:549300BFHBYZ3X96EP25": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Glycorex Transplantation AB (publ)",
+    "lei": "549300BFHBYZ3X96EP25",
+    "map_key": "LEI:549300BFHBYZ3X96EP25",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "O33.F"
+  },
   "LEI:549300BG6SL5QQ7LQW56": {
+    "exchange": null,
     "isin": null,
     "issuer": "Fastpartner AB",
     "lei": "549300BG6SL5QQ7LQW56",
@@ -2591,7 +3539,28 @@
     "ticker": null,
     "yahoo_symbol": "FPAR-D.ST"
   },
+  "LEI:549300BOC6GHWDSJ6X83": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Waystream Holding AB (publ)",
+    "lei": "549300BOC6GHWDSJ6X83",
+    "map_key": "LEI:549300BOC6GHWDSJ6X83",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "WAYS.ST"
+  },
+  "LEI:549300BVH5NT4MN90561": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Micro Systemation AB (publ)",
+    "lei": "549300BVH5NT4MN90561",
+    "map_key": "LEI:549300BVH5NT4MN90561",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "MSAB-B.ST"
+  },
   "LEI:549300BWNI7ZPOHOHV76": {
+    "exchange": null,
     "isin": null,
     "issuer": "WeSports Scandinavia AB",
     "lei": "549300BWNI7ZPOHOHV76",
@@ -2600,7 +3569,58 @@
     "ticker": null,
     "yahoo_symbol": "SIVE.ST"
   },
+  "LEI:549300C17TZXE1IEOA66": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "ADDvise Group AB (publ)",
+    "lei": "549300C17TZXE1IEOA66",
+    "map_key": "LEI:549300C17TZXE1IEOA66",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300C17W4NO12E4Q14": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Polygiene Group AB",
+    "lei": "549300C17W4NO12E4Q14",
+    "map_key": "LEI:549300C17W4NO12E4Q14",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "POLYG.ST"
+  },
+  "LEI:549300C84CYU5XE6YG89": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Candles Scandinavia AB",
+    "lei": "549300C84CYU5XE6YG89",
+    "map_key": "LEI:549300C84CYU5XE6YG89",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "CANDLE-B.ST"
+  },
+  "LEI:549300CH7SEE52V2WD15": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Iconovo AB",
+    "lei": "549300CH7SEE52V2WD15",
+    "map_key": "LEI:549300CH7SEE52V2WD15",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ICO.ST"
+  },
+  "LEI:549300CKKC15TESVL798": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Divio Technologies AB",
+    "lei": "549300CKKC15TESVL798",
+    "map_key": "LEI:549300CKKC15TESVL798",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "DIVIO-B.ST"
+  },
   "LEI:549300CN568MD1JD3E40": {
+    "exchange": null,
     "isin": null,
     "issuer": "AQ Group AB",
     "lei": "549300CN568MD1JD3E40",
@@ -2609,16 +3629,58 @@
     "ticker": null,
     "yahoo_symbol": "AQ.ST"
   },
+  "LEI:549300COFKF5IYO65Z50": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Qiiwi Games AB (publ)",
+    "lei": "549300COFKF5IYO65Z50",
+    "map_key": "LEI:549300COFKF5IYO65Z50",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "QIIWI.ST"
+  },
+  "LEI:549300CUQ0FYU2MBDD17": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Mantex Aktiebolag",
+    "lei": "549300CUQ0FYU2MBDD17",
+    "map_key": "LEI:549300CUQ0FYU2MBDD17",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "MANTEX.ST"
+  },
   "LEI:549300D4GJAZR1EMIA07": {
+    "exchange": null,
     "isin": null,
     "issuer": "Klövern AB",
     "lei": "549300D4GJAZR1EMIA07",
     "map_key": "LEI:549300D4GJAZR1EMIA07",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "KLOV-B.ST"
+  },
+  "LEI:549300DSDIWP6USPXU21": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "OX2 AB (publ)",
+    "lei": "549300DSDIWP6USPXU21",
+    "map_key": "LEI:549300DSDIWP6USPXU21",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300DW54NOXRJXTR48": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Offentliga Hus i Norden AB (publ)",
+    "lei": "549300DW54NOXRJXTR48",
+    "map_key": "LEI:549300DW54NOXRJXTR48",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "LEI:549300DY2G2PN6NAI688": {
+    "exchange": null,
     "isin": null,
     "issuer": "B3 Consulting Group AB (publ)",
     "lei": "549300DY2G2PN6NAI688",
@@ -2628,33 +3690,117 @@
     "yahoo_symbol": "B3.ST"
   },
   "LEI:549300E7QRHEF2IJUY10": {
+    "exchange": null,
     "isin": null,
     "issuer": "BioInvent International Aktiebolag",
     "lei": "549300E7QRHEF2IJUY10",
     "map_key": "LEI:549300E7QRHEF2IJUY10",
-    "mapping_source": null,
+    "mapping_source": "normalized_name_search",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "BINV.ST"
   },
   "LEI:549300E8DQ5IX5LJ5I21": {
+    "exchange": null,
     "isin": null,
     "issuer": "ProstaLund AB",
     "lei": "549300E8DQ5IX5LJ5I21",
     "map_key": "LEI:549300E8DQ5IX5LJ5I21",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "PLUN.ST"
+  },
+  "LEI:549300EE66H3WO5AYK71": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Viking Supply Ships AB",
+    "lei": "549300EE66H3WO5AYK71",
+    "map_key": "LEI:549300EE66H3WO5AYK71",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "VSSAB-B.ST"
+  },
+  "LEI:549300EJEXC4KOSUI651": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Nordic Waterproofing Holding A/S",
+    "lei": "549300EJEXC4KOSUI651",
+    "map_key": "LEI:549300EJEXC4KOSUI651",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300EZJZK1ZXOU9I27": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Thunderful Group AB",
+    "lei": "549300EZJZK1ZXOU9I27",
+    "map_key": "LEI:549300EZJZK1ZXOU9I27",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300FDPLRPU2MXCJ73": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Sportamore AB (publ)",
+    "lei": "549300FDPLRPU2MXCJ73",
+    "map_key": "LEI:549300FDPLRPU2MXCJ73",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "LEI:549300FHCTIFJOZ9D484": {
+    "exchange": null,
     "isin": null,
     "issuer": "Recipharm AB",
     "lei": "549300FHCTIFJOZ9D484",
     "map_key": "LEI:549300FHCTIFJOZ9D484",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "RECI-B.ST"
+  },
+  "LEI:549300FJK50P1ORYJC45": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Expres2ion Biotech Holding AB",
+    "lei": "549300FJK50P1ORYJC45",
+    "map_key": "LEI:549300FJK50P1ORYJC45",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "EXPRS2.ST"
+  },
+  "LEI:549300FOT7EE85QYB655": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Arise AB",
+    "lei": "549300FOT7EE85QYB655",
+    "map_key": "LEI:549300FOT7EE85QYB655",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:549300FQDIM6C8HTN269": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Lundin Mining Corporation",
+    "lei": "549300FQDIM6C8HTN269",
+    "map_key": "LEI:549300FQDIM6C8HTN269",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "LUN.TO"
+  },
+  "LEI:549300FVH6QE042L3J12": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "ALM EQUITY AB",
+    "lei": "549300FVH6QE042L3J12",
+    "map_key": "LEI:549300FVH6QE042L3J12",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ALM.ST"
+  },
   "LEI:549300FYU5MJQU32ZU47": {
+    "exchange": null,
     "isin": null,
     "issuer": "Impact Coatings AB (publ)",
     "lei": "549300FYU5MJQU32ZU47",
@@ -2664,6 +3810,7 @@
     "yahoo_symbol": "IMPC.ST"
   },
   "LEI:549300GBTPZH31MU7R34": {
+    "exchange": null,
     "isin": null,
     "issuer": "BTS Group AB",
     "lei": "549300GBTPZH31MU7R34",
@@ -2673,6 +3820,7 @@
     "yahoo_symbol": "BTS-B.ST"
   },
   "LEI:549300GLLHHE80RQ2Y24": {
+    "exchange": null,
     "isin": null,
     "issuer": "VEF AB (publ)",
     "lei": "549300GLLHHE80RQ2Y24",
@@ -2681,7 +3829,38 @@
     "ticker": null,
     "yahoo_symbol": "VEFAB.ST"
   },
+  "LEI:549300GORBCSMHZB2J75": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Episurf Medical AB",
+    "lei": "549300GORBCSMHZB2J75",
+    "map_key": "LEI:549300GORBCSMHZB2J75",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "EPIS-B.ST"
+  },
+  "LEI:549300H8BEEY6RNQH874": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "BIMobject AB",
+    "lei": "549300H8BEEY6RNQH874",
+    "map_key": "LEI:549300H8BEEY6RNQH874",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BIM.ST"
+  },
+  "LEI:549300HBZGNQOTYZPJ54": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Beijer Electronics Group AB",
+    "lei": "549300HBZGNQOTYZPJ54",
+    "map_key": "LEI:549300HBZGNQOTYZPJ54",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300HGV012CNC8JD22": {
+    "exchange": null,
     "isin": null,
     "issuer": "Aktiebolaget Volvo",
     "lei": "549300HGV012CNC8JD22",
@@ -2691,6 +3870,7 @@
     "yahoo_symbol": "SCA-B.ST"
   },
   "LEI:549300HI1JEY110HXM08": {
+    "exchange": null,
     "isin": null,
     "issuer": "Actic Group AB",
     "lei": "549300HI1JEY110HXM08",
@@ -2700,6 +3880,7 @@
     "yahoo_symbol": "ATIC.ST"
   },
   "LEI:549300HUR75YN61F4108": {
+    "exchange": null,
     "isin": null,
     "issuer": "Bulten AB",
     "lei": "549300HUR75YN61F4108",
@@ -2708,7 +3889,58 @@
     "ticker": null,
     "yahoo_symbol": "BULTEN.ST"
   },
+  "LEI:549300I5OMH3T4UPBN04": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Quickbit eu AB (publ)",
+    "lei": "549300I5OMH3T4UPBN04",
+    "map_key": "LEI:549300I5OMH3T4UPBN04",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "QBT.MU"
+  },
+  "LEI:549300IA1EP1W7DZP567": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Nordic Paper Holding AB",
+    "lei": "549300IA1EP1W7DZP567",
+    "map_key": "LEI:549300IA1EP1W7DZP567",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300IJN2UMU7OXOC45": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Inzile AB (publ)",
+    "lei": "549300IJN2UMU7OXOC45",
+    "map_key": "LEI:549300IJN2UMU7OXOC45",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300IY6ZWVN0V2P455": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "SciBase Holding AB (publ)",
+    "lei": "549300IY6ZWVN0V2P455",
+    "map_key": "LEI:549300IY6ZWVN0V2P455",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SCIB.ST"
+  },
+  "LEI:549300J2ACNHXHTXTR51": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Sileon AB (publ)",
+    "lei": "549300J2ACNHXHTXTR51",
+    "map_key": "LEI:549300J2ACNHXHTXTR51",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300J5L2ECZTLID491": {
+    "exchange": null,
     "isin": null,
     "issuer": "Nanexa AB",
     "lei": "549300J5L2ECZTLID491",
@@ -2717,7 +3949,18 @@
     "ticker": null,
     "yahoo_symbol": "NANEXA.ST"
   },
+  "LEI:549300J7NGO4XVT18T89": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Mavshack AB (publ)",
+    "lei": "549300J7NGO4XVT18T89",
+    "map_key": "LEI:549300J7NGO4XVT18T89",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300JCZZZMWU9O6B20": {
+    "exchange": null,
     "isin": null,
     "issuer": "AVTECH Sweden AB (publ)",
     "lei": "549300JCZZZMWU9O6B20",
@@ -2726,7 +3969,18 @@
     "ticker": null,
     "yahoo_symbol": "AVT-B.ST"
   },
+  "LEI:549300JILS52HE40MQ24": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Climeon AB (publ)",
+    "lei": "549300JILS52HE40MQ24",
+    "map_key": "LEI:549300JILS52HE40MQ24",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "DCL0.F"
+  },
   "LEI:549300JKE3X3UFP08232": {
+    "exchange": null,
     "isin": null,
     "issuer": "W5 Solutions AB (publ)",
     "lei": "549300JKE3X3UFP08232",
@@ -2735,7 +3989,18 @@
     "ticker": null,
     "yahoo_symbol": "W5.ST"
   },
+  "LEI:549300JMSSEV6LPTPI81": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Hitech & Development Wireless Sweden Holding AB (publ)",
+    "lei": "549300JMSSEV6LPTPI81",
+    "map_key": "LEI:549300JMSSEV6LPTPI81",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300JO6MPCGPVHVU91": {
+    "exchange": null,
     "isin": null,
     "issuer": "Prostatype Genomics AB",
     "lei": "549300JO6MPCGPVHVU91",
@@ -2745,6 +4010,7 @@
     "yahoo_symbol": "PROGEN.ST"
   },
   "LEI:549300JQF174JP0MM382": {
+    "exchange": null,
     "isin": null,
     "issuer": "Senzime AB (publ.)",
     "lei": "549300JQF174JP0MM382",
@@ -2754,6 +4020,7 @@
     "yahoo_symbol": "SEZI.ST"
   },
   "LEI:549300KD3XGX3754UW61": {
+    "exchange": null,
     "isin": null,
     "issuer": "Intea Fastigheter AB (publ)",
     "lei": "549300KD3XGX3754UW61",
@@ -2762,16 +4029,58 @@
     "ticker": null,
     "yahoo_symbol": "INTEA-D.ST"
   },
+  "LEI:549300KP2XS4513DEI67": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Acarix AB",
+    "lei": "549300KP2XS4513DEI67",
+    "map_key": "LEI:549300KP2XS4513DEI67",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ACARIX.ST"
+  },
+  "LEI:549300KSY3P5G8XC0A34": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Cint Group AB (publ)",
+    "lei": "549300KSY3P5G8XC0A34",
+    "map_key": "LEI:549300KSY3P5G8XC0A34",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "SE0015483276.SG"
+  },
+  "LEI:549300L5CG5PX4514U49": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Integrum AB",
+    "lei": "549300L5CG5PX4514U49",
+    "map_key": "LEI:549300L5CG5PX4514U49",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "INTEG-B.ST"
+  },
   "LEI:549300MBXCR8ZQJIFP95": {
+    "exchange": null,
     "isin": null,
     "issuer": "Nobina AB",
     "lei": "549300MBXCR8ZQJIFP95",
     "map_key": "LEI:549300MBXCR8ZQJIFP95",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "NOBINA.ST"
+  },
+  "LEI:549300MCXYAHG7VBHX75": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Isofol Medical AB (publ)",
+    "lei": "549300MCXYAHG7VBHX75",
+    "map_key": "LEI:549300MCXYAHG7VBHX75",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ISOFOL.ST"
   },
   "LEI:549300MGVITW8GYJHZ50": {
+    "exchange": null,
     "isin": null,
     "issuer": "NP3 Fastigheter AB",
     "lei": "549300MGVITW8GYJHZ50",
@@ -2780,7 +4089,28 @@
     "ticker": null,
     "yahoo_symbol": "NP3.ST"
   },
+  "LEI:549300MM3NFTH3M7CP61": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "OXE Marine AB",
+    "lei": "549300MM3NFTH3M7CP61",
+    "map_key": "LEI:549300MM3NFTH3M7CP61",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "CMMCF"
+  },
+  "LEI:549300MRR0OJ090U6631": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "I.A.R. Systems Group AB",
+    "lei": "549300MRR0OJ090U6631",
+    "map_key": "LEI:549300MRR0OJ090U6631",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300MUNUSWBKJ6Y928": {
+    "exchange": null,
     "isin": null,
     "issuer": "Acuvi AB",
     "lei": "549300MUNUSWBKJ6Y928",
@@ -2789,7 +4119,18 @@
     "ticker": null,
     "yahoo_symbol": "ACUVI.ST"
   },
+  "LEI:549300MWGS283WZLYI10": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "AegirBio AB",
+    "lei": "549300MWGS283WZLYI10",
+    "map_key": "LEI:549300MWGS283WZLYI10",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
   "LEI:549300MWQEN1427O5L53": {
+    "exchange": null,
     "isin": null,
     "issuer": "Duni AB",
     "lei": "549300MWQEN1427O5L53",
@@ -2799,15 +4140,27 @@
     "yahoo_symbol": "DUNI.ST"
   },
   "LEI:549300MYLGD0VKNGTJ47": {
+    "exchange": null,
     "isin": null,
     "issuer": "Creades AB (publ)",
     "lei": "549300MYLGD0VKNGTJ47",
     "map_key": "LEI:549300MYLGD0VKNGTJ47",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "CRED-A.ST"
+  },
+  "LEI:549300N0YFGUA3NVL475": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Spintso International",
+    "lei": "549300N0YFGUA3NVL475",
+    "map_key": "LEI:549300N0YFGUA3NVL475",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
   "LEI:549300NGO5XAJ6TL8719": {
+    "exchange": null,
     "isin": null,
     "issuer": "MedCap AB (publ)",
     "lei": "549300NGO5XAJ6TL8719",
@@ -2817,6 +4170,7 @@
     "yahoo_symbol": "MCAP.ST"
   },
   "LEI:549300NGRQCNZ3X4L157": {
+    "exchange": null,
     "isin": null,
     "issuer": "Xspray Pharma AB (publ)",
     "lei": "549300NGRQCNZ3X4L157",
@@ -2825,16 +4179,38 @@
     "ticker": null,
     "yahoo_symbol": "XSPRAY.ST"
   },
-  "LEI:549300NZI620CFL1TR88": {
+  "LEI:549300NHBYBBRLVRVL38": {
+    "exchange": null,
     "isin": null,
-    "issuer": "Oscar Properties Holding AB",
-    "lei": "549300NZI620CFL1TR88",
-    "map_key": "LEI:549300NZI620CFL1TR88",
+    "issuer": "ZignSec AB",
+    "lei": "549300NHBYBBRLVRVL38",
+    "map_key": "LEI:549300NHBYBBRLVRVL38",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:549300NRD3YRN5X6RL95": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "OptiCept Technologies AB",
+    "lei": "549300NRD3YRN5X6RL95",
+    "map_key": "LEI:549300NRD3YRN5X6RL95",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "OPTI.ST"
+  },
+  "LEI:549300NZI620CFL1TR88": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Oscar Properties Holding AB",
+    "lei": "549300NZI620CFL1TR88",
+    "map_key": "LEI:549300NZI620CFL1TR88",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "OP.ST"
+  },
   "LEI:549300O1V2ZWY6W9GZ14": {
+    "exchange": null,
     "isin": null,
     "issuer": "VBG GROUP AB (publ)",
     "lei": "549300O1V2ZWY6W9GZ14",
@@ -2843,7 +4219,28 @@
     "ticker": null,
     "yahoo_symbol": "VBG-B.ST"
   },
+  "LEI:549300O6QU5L05C44U49": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "HiQ International AB",
+    "lei": "549300O6QU5L05C44U49",
+    "map_key": "LEI:549300O6QU5L05C44U49",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300O9UB56DF0JPH61": {
+    "exchange": null,
+    "isin": "SE0007614722",
+    "issuer": "Arcane Crypto AB",
+    "lei": "549300O9UB56DF0JPH61",
+    "map_key": "LEI:549300O9UB56DF0JPH61",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "K33.ST"
+  },
   "LEI:549300OBCTAOBEEVN513": {
+    "exchange": null,
     "isin": null,
     "issuer": "Enad Global 7 AB (publ)",
     "lei": "549300OBCTAOBEEVN513",
@@ -2852,7 +4249,28 @@
     "ticker": null,
     "yahoo_symbol": "EG7.ST"
   },
+  "LEI:549300OICIVZBBZRNZ64": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Intervacc AB",
+    "lei": "549300OICIVZBBZRNZ64",
+    "map_key": "LEI:549300OICIVZBBZRNZ64",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "IVACC.ST"
+  },
+  "LEI:549300OJ44CLMRU8YE43": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Active Biotech AB (publ)",
+    "lei": "549300OJ44CLMRU8YE43",
+    "map_key": "LEI:549300OJ44CLMRU8YE43",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ACTI.ST"
+  },
   "LEI:549300OQ8R5TCAP0BS18": {
+    "exchange": null,
     "isin": null,
     "issuer": "Vimian Group AB",
     "lei": "549300OQ8R5TCAP0BS18",
@@ -2861,7 +4279,58 @@
     "ticker": null,
     "yahoo_symbol": "VIMIAN.ST"
   },
+  "LEI:549300OU61IFMGWX1G87": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Saxlund Group AB",
+    "lei": "549300OU61IFMGWX1G87",
+    "map_key": "LEI:549300OU61IFMGWX1G87",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "6WZ0.F"
+  },
+  "LEI:549300PAEBW7IAMOSO21": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Bactiguard Holding AB",
+    "lei": "549300PAEBW7IAMOSO21",
+    "map_key": "LEI:549300PAEBW7IAMOSO21",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "5JE.DU"
+  },
+  "LEI:549300PBFGB5JYKXGA45": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "NextCell Pharma AB",
+    "lei": "549300PBFGB5JYKXGA45",
+    "map_key": "LEI:549300PBFGB5JYKXGA45",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "NXTCL.ST"
+  },
+  "LEI:549300PDEX0KMLMDNZ32": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Adapteo Oyj",
+    "lei": "549300PDEX0KMLMDNZ32",
+    "map_key": "LEI:549300PDEX0KMLMDNZ32",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300PLK6HDBY7WQP24": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "ETRION CORPORATION",
+    "lei": "549300PLK6HDBY7WQP24",
+    "map_key": "LEI:549300PLK6HDBY7WQP24",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ETRXF"
+  },
   "LEI:549300PP3RLB9ZEF2K25": {
+    "exchange": null,
     "isin": null,
     "issuer": "Unibap Space Solutions AB (publ)",
     "lei": "549300PP3RLB9ZEF2K25",
@@ -2870,7 +4339,38 @@
     "ticker": null,
     "yahoo_symbol": "UNIBAP.ST"
   },
+  "LEI:549300PR6RPXWVYEDE05": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "SERNEKE Group AB (publ)",
+    "lei": "549300PR6RPXWVYEDE05",
+    "map_key": "LEI:549300PR6RPXWVYEDE05",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300PVPZO8TNT76B58": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Calliditas Therapeutics AB",
+    "lei": "549300PVPZO8TNT76B58",
+    "map_key": "LEI:549300PVPZO8TNT76B58",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300PW36MFK96GCR23": {
+    "exchange": null,
+    "isin": "SE0010832204",
+    "issuer": "Cibus Nordic Real Estate AB (publ)",
+    "lei": "549300PW36MFK96GCR23",
+    "map_key": "LEI:549300PW36MFK96GCR23",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "CIBUS.ST"
+  },
   "LEI:549300Q4Y55VICYV6U90": {
+    "exchange": null,
     "isin": null,
     "issuer": "SWECO AB (publ)",
     "lei": "549300Q4Y55VICYV6U90",
@@ -2879,16 +4379,48 @@
     "ticker": null,
     "yahoo_symbol": "SWEC-B.ST"
   },
-  "LEI:549300QTR46SOJY7TE73": {
+  "LEI:549300QAYR6579JL5X46": {
+    "exchange": null,
     "isin": null,
-    "issuer": "Swedol AB (publ)",
-    "lei": "549300QTR46SOJY7TE73",
-    "map_key": "LEI:549300QTR46SOJY7TE73",
+    "issuer": "Veg of Lund AB (publ)",
+    "lei": "549300QAYR6579JL5X46",
+    "map_key": "LEI:549300QAYR6579JL5X46",
     "mapping_source": null,
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:549300QO8NAGX31DFK53": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Rizzo Group AB",
+    "lei": "549300QO8NAGX31DFK53",
+    "map_key": "LEI:549300QO8NAGX31DFK53",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300QTR46SOJY7TE73": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Swedol AB (publ)",
+    "lei": "549300QTR46SOJY7TE73",
+    "map_key": "LEI:549300QTR46SOJY7TE73",
+    "mapping_source": "known_name",
+    "ticker": null,
+    "yahoo_symbol": "SWDL.ST"
+  },
+  "LEI:549300R9LVFVFDTW5Y96": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Fluicell AB",
+    "lei": "549300R9LVFVFDTW5Y96",
+    "map_key": "LEI:549300R9LVFVFDTW5Y96",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "5J90.F"
+  },
   "LEI:549300RC0HUZSJYJO751": {
+    "exchange": null,
     "isin": null,
     "issuer": "Bergman & Beving Aktiebolag",
     "lei": "549300RC0HUZSJYJO751",
@@ -2897,7 +4429,38 @@
     "ticker": null,
     "yahoo_symbol": "BERG-B.ST"
   },
+  "LEI:549300RFE1X384DWQW10": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Soltech Energy Sweden AB (publ)",
+    "lei": "549300RFE1X384DWQW10",
+    "map_key": "LEI:549300RFE1X384DWQW10",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SOLT.ST"
+  },
+  "LEI:549300RQJ5YP5SU5BB17": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Lumito AB (publ)",
+    "lei": "549300RQJ5YP5SU5BB17",
+    "map_key": "LEI:549300RQJ5YP5SU5BB17",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300RS7OQHGNOP2H55": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Ferroamp AB (publ)",
+    "lei": "549300RS7OQHGNOP2H55",
+    "map_key": "LEI:549300RS7OQHGNOP2H55",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "FERRO.ST"
+  },
   "LEI:549300RZCKGWRUBPMY22": {
+    "exchange": null,
     "isin": null,
     "issuer": "Egetis Therapeutics AB (publ)",
     "lei": "549300RZCKGWRUBPMY22",
@@ -2906,7 +4469,68 @@
     "ticker": null,
     "yahoo_symbol": "EGTX.ST"
   },
+  "LEI:549300SCGCKME2FXVY03": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Crunchfish AB",
+    "lei": "549300SCGCKME2FXVY03",
+    "map_key": "LEI:549300SCGCKME2FXVY03",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "CFISH.ST"
+  },
+  "LEI:549300SFOL75WIYF2O80": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "2cureX AB",
+    "lei": "549300SFOL75WIYF2O80",
+    "map_key": "LEI:549300SFOL75WIYF2O80",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "2QE.MU"
+  },
+  "LEI:549300SJ2OCBQN1HH364": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Azelio AB",
+    "lei": "549300SJ2OCBQN1HH364",
+    "map_key": "LEI:549300SJ2OCBQN1HH364",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300SMDH1EOLCBQU68": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Xintela AB",
+    "lei": "549300SMDH1EOLCBQU68",
+    "map_key": "LEI:549300SMDH1EOLCBQU68",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "XINT.ST"
+  },
+  "LEI:549300SUB58CZD2F8N84": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Northern CapSek Ventures AB",
+    "lei": "549300SUB58CZD2F8N84",
+    "map_key": "LEI:549300SUB58CZD2F8N84",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:549300T5KGFRYR7ZST20": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Genovis Aktiebolag",
+    "lei": "549300T5KGFRYR7ZST20",
+    "map_key": "LEI:549300T5KGFRYR7ZST20",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "GENO.ST"
+  },
   "LEI:549300TBIFK8VYIJEM39": {
+    "exchange": null,
     "isin": null,
     "issuer": "White Pearl Technology Group AB",
     "lei": "549300TBIFK8VYIJEM39",
@@ -2915,16 +4539,58 @@
     "ticker": null,
     "yahoo_symbol": "WPTG-B.ST"
   },
+  "LEI:549300TD8XXBS8J3TF85": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "BE Group AB (publ)",
+    "lei": "549300TD8XXBS8J3TF85",
+    "map_key": "LEI:549300TD8XXBS8J3TF85",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BEGR.ST"
+  },
+  "LEI:549300TS1MVR250KBU26": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "BrainCool AB (publ)",
+    "lei": "549300TS1MVR250KBU26",
+    "map_key": "LEI:549300TS1MVR250KBU26",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BRAIN.ST"
+  },
+  "LEI:549300U3BMSZ5VGYC283": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "SpectraCure AB (publ)",
+    "lei": "549300U3BMSZ5VGYC283",
+    "map_key": "LEI:549300U3BMSZ5VGYC283",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SPEC.ST"
+  },
   "LEI:549300UIPGM58Z67Z634": {
+    "exchange": null,
     "isin": null,
     "issuer": "Björn Borg AB",
     "lei": "549300UIPGM58Z67Z634",
     "map_key": "LEI:549300UIPGM58Z67Z634",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "BORG.ST"
+  },
+  "LEI:549300UWE2XN3O7TXX74": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "KebNi AB (publ)",
+    "lei": "549300UWE2XN3O7TXX74",
+    "map_key": "LEI:549300UWE2XN3O7TXX74",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "KEBNI-B.ST"
   },
   "LEI:549300V2QS9QL4C1KQ31": {
+    "exchange": null,
     "isin": null,
     "issuer": "Cynca Nordic AB (publ)",
     "lei": "549300V2QS9QL4C1KQ31",
@@ -2934,6 +4600,7 @@
     "yahoo_symbol": "CYNCA.ST"
   },
   "LEI:549300V74XQ05PK42789": {
+    "exchange": null,
     "isin": null,
     "issuer": "Serstech AB",
     "lei": "549300V74XQ05PK42789",
@@ -2942,16 +4609,38 @@
     "ticker": null,
     "yahoo_symbol": "SERT.ST"
   },
+  "LEI:549300VADE1VRR555N78": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Biovica International AB",
+    "lei": "549300VADE1VRR555N78",
+    "map_key": "LEI:549300VADE1VRR555N78",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BIOVIC-B.ST"
+  },
   "LEI:549300VEBQPHRZBKUX38": {
+    "exchange": null,
     "isin": null,
     "issuer": "Investor Aktiebolag",
     "lei": "549300VEBQPHRZBKUX38",
     "map_key": "LEI:549300VEBQPHRZBKUX38",
-    "mapping_source": null,
+    "mapping_source": "known_name",
     "ticker": null,
-    "yahoo_symbol": null
+    "yahoo_symbol": "INVE-B.ST"
+  },
+  "LEI:549300VNTTR22XK8DM54": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "MOMENT GROUP AB",
+    "lei": "549300VNTTR22XK8DM54",
+    "map_key": "LEI:549300VNTTR22XK8DM54",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "MOMENT.ST"
   },
   "LEI:549300VQ2FN8R6PVMS43": {
+    "exchange": null,
     "isin": null,
     "issuer": "Botnia Gold AB",
     "lei": "549300VQ2FN8R6PVMS43",
@@ -2961,6 +4650,7 @@
     "yahoo_symbol": "BOTX.ST"
   },
   "LEI:549300VT0UXKWES37P59": {
+    "exchange": null,
     "isin": null,
     "issuer": "K-Fast Holding AB",
     "lei": "549300VT0UXKWES37P59",
@@ -2970,6 +4660,7 @@
     "yahoo_symbol": "KFAST-B.ST"
   },
   "LEI:549300VX8KTMYDS6NM84": {
+    "exchange": null,
     "isin": null,
     "issuer": "Cereno Scientific AB",
     "lei": "549300VX8KTMYDS6NM84",
@@ -2979,6 +4670,7 @@
     "yahoo_symbol": "CRNO-B.ST"
   },
   "LEI:549300W31010S0FY9U64": {
+    "exchange": null,
     "isin": null,
     "issuer": "SaltX Technology Holding AB (publ)",
     "lei": "549300W31010S0FY9U64",
@@ -2987,7 +4679,18 @@
     "ticker": null,
     "yahoo_symbol": "SALT-B.ST"
   },
+  "LEI:549300W7BBMEX4JO8495": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Lyko Group AB (publ)",
+    "lei": "549300W7BBMEX4JO8495",
+    "map_key": "LEI:549300W7BBMEX4JO8495",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "LYKO-A.ST"
+  },
   "LEI:549300WF2ILKHMGV9I45": {
+    "exchange": null,
     "isin": null,
     "issuer": "Ework Group AB",
     "lei": "549300WF2ILKHMGV9I45",
@@ -2997,6 +4700,7 @@
     "yahoo_symbol": "EWRK.ST"
   },
   "LEI:549300WNKQRREHXMT018": {
+    "exchange": null,
     "isin": null,
     "issuer": "Nordrest Holding AB",
     "lei": "549300WNKQRREHXMT018",
@@ -3005,7 +4709,28 @@
     "ticker": null,
     "yahoo_symbol": "NREST.ST"
   },
+  "LEI:549300XFN5TB930OXX79": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Nilörngruppen Aktiebolag",
+    "lei": "549300XFN5TB930OXX79",
+    "map_key": "LEI:549300XFN5TB930OXX79",
+    "mapping_source": "normalized_name_search",
+    "ticker": null,
+    "yahoo_symbol": "NILBS.XD"
+  },
+  "LEI:549300XR2VLTQY3P8M69": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Transtema Group AB",
+    "lei": "549300XR2VLTQY3P8M69",
+    "map_key": "LEI:549300XR2VLTQY3P8M69",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "TRANS.ST"
+  },
   "LEI:549300Y2GKW0KQ2I5O12": {
+    "exchange": null,
     "isin": null,
     "issuer": "Silex Microsystems AB",
     "lei": "549300Y2GKW0KQ2I5O12",
@@ -3014,7 +4739,28 @@
     "ticker": null,
     "yahoo_symbol": "SILEX.ST"
   },
+  "LEI:549300Y61O5J9OHX6M22": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Scandinavian Enviro Systems AB",
+    "lei": "549300Y61O5J9OHX6M22",
+    "map_key": "LEI:549300Y61O5J9OHX6M22",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SES.ST"
+  },
+  "LEI:549300Z8JUDQ3BN8QB79": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Balco Group AB",
+    "lei": "549300Z8JUDQ3BN8QB79",
+    "map_key": "LEI:549300Z8JUDQ3BN8QB79",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "BALCO.ST"
+  },
   "LEI:63670040DI2BH2FUHG07": {
+    "exchange": null,
     "isin": null,
     "issuer": "Qben Infra AB",
     "lei": "63670040DI2BH2FUHG07",
@@ -3024,6 +4770,7 @@
     "yahoo_symbol": "QBEN.ST"
   },
   "LEI:636700M0RW88QPM7RG19": {
+    "exchange": null,
     "isin": null,
     "issuer": "PPI Public Property Invest AB (publ)",
     "lei": "636700M0RW88QPM7RG19",
@@ -3033,6 +4780,7 @@
     "yahoo_symbol": "PUBLI.ST"
   },
   "LEI:636700S7UMLTDQ0BKU55": {
+    "exchange": null,
     "isin": null,
     "issuer": "Enity Holding AB (publ)",
     "lei": "636700S7UMLTDQ0BKU55",
@@ -3041,7 +4789,18 @@
     "ticker": null,
     "yahoo_symbol": "ENITY.ST"
   },
+  "LEI:64884XU1OA337HY7A137": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Desenio Group AB (publ)",
+    "lei": "64884XU1OA337HY7A137",
+    "map_key": "LEI:64884XU1OA337HY7A137",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "DSNO.ST"
+  },
   "LEI:7437000ZP669LKUTZ738": {
+    "exchange": null,
     "isin": null,
     "issuer": "Stora Enso ser. R",
     "lei": "7437000ZP669LKUTZ738",
@@ -3050,7 +4809,48 @@
     "ticker": null,
     "yahoo_symbol": null
   },
+  "LEI:743700J1YZ8IEJAPDL21": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Savosolar Oyj",
+    "lei": "743700J1YZ8IEJAPDL21",
+    "map_key": "LEI:743700J1YZ8IEJAPDL21",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:894500464CPRG49EGI94": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Hästkällaren Rid Trav & Western AB",
+    "lei": "894500464CPRG49EGI94",
+    "map_key": "LEI:894500464CPRG49EGI94",
+    "mapping_source": null,
+    "ticker": null,
+    "yahoo_symbol": null
+  },
+  "LEI:8945004IFHG6OZ3P8239": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Qlife Holding AB",
+    "lei": "8945004IFHG6OZ3P8239",
+    "map_key": "LEI:8945004IFHG6OZ3P8239",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "QLIFE.ST"
+  },
+  "LEI:98450060010AABBAA974": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "Artificial Solutions International AB",
+    "lei": "98450060010AABBAA974",
+    "map_key": "LEI:98450060010AABBAA974",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "5JG.MU"
+  },
   "LEI:9845007784687FEF7569": {
+    "exchange": null,
     "isin": null,
     "issuer": "HEXICON AB",
     "lei": "9845007784687FEF7569",
@@ -3060,6 +4860,7 @@
     "yahoo_symbol": "HEXI.ST"
   },
   "LEI:PY6ZZQWO2IZFZC3IOL08": {
+    "exchange": null,
     "isin": null,
     "issuer": "ASTRAZENECA PLC",
     "lei": "PY6ZZQWO2IZFZC3IOL08",
