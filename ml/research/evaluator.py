@@ -1,320 +1,253 @@
-"""Fast NumPy-based evaluation of Blankdiss research experiments."""
-
 from __future__ import annotations
 
 import hashlib
-from dataclasses import asdict
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-from ml.config import RANDOM_STATE, TEST_MIN_ROWS
-
-from .bootstrap import bootstrap_mean_difference
-from .cache import ResearchCache
-from .experiments import Experiment
+from ml.research.bootstrap import bootstrap_mean_ci
+from ml.research.cache import ResearchCache, get_tail_mask_key
+from ml.research.experiments import Experiment
 
 
-def evaluate_experiment(
-    frame: pd.DataFrame,
-    experiment: Experiment,
-    cache: ResearchCache,
-    *,
-    train_end: str,
-    validation_end: str,
-    test_end: str,
-) -> dict[str, Any]:
+def _stable_seed(*parts: object) -> int:
     """
-    Evaluate one experiment on one OOS test window.
+    Stable seed across Python processes/runs.
 
-    Heavy pandas operations have already been performed by the cache.
+    Python's built-in hash() is intentionally randomized between processes,
+    so it must not be used for reproducible bootstrap seeds.
     """
+    payload = "|".join(str(part) for part in parts).encode("utf-8")
 
-    signal = cache.get_signal(
-        experiment.signal_name
-    )
-
-    target = cache.get_target(
-        experiment.target_name
-    )
-
-    tail_mask = cache.get_tail_mask(
-        experiment.signal_name,
-        experiment.tail_direction,
-        experiment.tail_fraction,
-    )
-
-    test_mask = cache.get_window_mask(
-        train_end,
-        validation_end,
-        test_end,
-    )
-
-    # ------------------------------------------------------------
-    # Valid observations
-    # ------------------------------------------------------------
-
-    valid = (
-        test_mask
-        & np.isfinite(signal)
-        & np.isfinite(target)
-    )
-
-    n_total = int(valid.sum())
-
-    base_result = {
-        **asdict(experiment),
-        "train_end": train_end,
-        "validation_end": validation_end,
-        "test_end": test_end,
-    }
-
-    if n_total < TEST_MIN_ROWS:
-        return {
-            **base_result,
-            "status": "INSUFFICIENT_DATA",
-            "n": n_total,
-        }
-
-    signal_values = signal[valid]
-    target_values = target[valid]
-    selected = tail_mask[valid]
-
-    n_tail = int(selected.sum())
-
-    if n_tail == 0 or n_tail == n_total:
-        return {
-            **base_result,
-            "status": "INSUFFICIENT_TAIL",
-            "n": n_total,
-            "n_tail": n_tail,
-        }
-
-    # ------------------------------------------------------------
-    # AUC
-    #
-    # For lower-tail experiments, invert the signal so that
-    # increasing score always means "more of the tested tail".
-    # ------------------------------------------------------------
-
-    auc = _calculate_auc(
-        signal_values,
-        target_values,
-        experiment.tail_direction,
-    )
-
-    baseline = float(
-        np.mean(target_values)
-    )
-
-    tail_target = target_values[selected]
-
-    hit_rate = float(
-        np.mean(tail_target)
-    )
-
-    lift = (
-        hit_rate / baseline
-        if baseline != 0
-        else None
-    )
-
-    # ------------------------------------------------------------
-    # Returns
-    # ------------------------------------------------------------
-
-    target_config = cache.get_target_config(
-        experiment.target_name
-    )
-
-    mean_return = None
-    median_return = None
-    return_difference = None
-    ci_lower = None
-    ci_upper = None
-
-    return_column = target_config.return_column
-
-    if return_column in frame.columns:
-        returns = pd.to_numeric(
-            frame[return_column],
-            errors="coerce",
-        ).to_numpy(
-            dtype=np.float64,
-            copy=False,
-        )
-
-        returns = returns[valid]
-
-        return_valid = np.isfinite(
-            returns
-        )
-
-        returns = returns[return_valid]
-        return_selected = selected[
-            return_valid
-        ]
-
-        tail_returns = returns[
-            return_selected
-        ]
-
-        rest_returns = returns[
-            ~return_selected
-        ]
-
-        if len(tail_returns):
-            mean_return = float(
-                np.mean(tail_returns)
-            )
-
-            median_return = float(
-                np.median(tail_returns)
-            )
-
-        if (
-            len(tail_returns)
-            and len(rest_returns)
-        ):
-            return_difference = float(
-                np.mean(tail_returns)
-                - np.mean(rest_returns)
-            )
-
-            ci_lower, ci_upper = (
-                bootstrap_mean_difference(
-                    tail_returns,
-                    rest_returns,
-                    seed=_experiment_seed(
-                        experiment.experiment_id,
-                        train_end,
-                    ),
-                )
-            )
-
-    status = classify_result(
-        auc=auc,
-        baseline=baseline,
-        hit_rate=hit_rate,
-        return_difference=return_difference,
-        ci_lower=ci_lower,
-        ci_upper=ci_upper,
-        n_tail=n_tail,
-    )
-
-    return {
-        **base_result,
-        "status": status,
-        "n": n_total,
-        "n_tail": n_tail,
-        "auc": auc,
-        "baseline": baseline,
-        "hit_rate": hit_rate,
-        "lift": lift,
-        "mean_return": mean_return,
-        "median_return": median_return,
-        "return_difference": return_difference,
-        "bootstrap_ci_lower": ci_lower,
-        "bootstrap_ci_upper": ci_upper,
-    }
-
-
-def _calculate_auc(
-    signal: np.ndarray,
-    target: np.ndarray,
-    direction: str,
-) -> float | None:
-    if np.unique(target).size < 2:
-        return None
-
-    score = (
-        signal
-        if direction == "upper"
-        else -signal
-    )
-
-    try:
-        return float(
-            roc_auc_score(
-                target.astype(np.int8),
-                score,
-            )
-        )
-    except ValueError:
-        return None
-
-
-def classify_result(
-    *,
-    auc: float | None,
-    baseline: float,
-    hit_rate: float,
-    return_difference: float | None,
-    ci_lower: float | None,
-    ci_upper: float | None,
-    n_tail: int,
-) -> str:
-    """
-    Descriptive research status.
-
-    These labels are not investment recommendations.
-    """
-
-    if n_tail < 20:
-        return "INSUFFICIENT_DATA"
-
-    if auc is None:
-        return "NO_SIGNAL"
-
-    meaningful_return = (
-        return_difference is not None
-        and ci_lower is not None
-        and ci_upper is not None
-        and ci_lower > 0
-    )
-
-    meaningful_hit_rate = (
-        baseline > 0
-        and hit_rate > baseline
-    )
-
-    if auc >= 0.65 and (
-        meaningful_return
-        or meaningful_hit_rate
-    ):
-        return "STRONG RESEARCH CANDIDATE"
-
-    if auc >= 0.60:
-        return "INTERESTING"
-
-    return "NO_SIGNAL"
-
-
-def _experiment_seed(
-    experiment_id: str,
-    train_end: str,
-) -> int:
-    """
-    Stable seed across Python processes and CI runs.
-
-    Do not use Python's built-in hash() here because hash randomization
-    can produce different values between processes.
-    """
-
-    value = (
-        f"{RANDOM_STATE}:"
-        f"{experiment_id}:"
-        f"{train_end}"
-    ).encode("utf-8")
-
-    digest = hashlib.sha256(
-        value
-    ).digest()
+    digest = hashlib.sha256(payload).digest()
 
     return int.from_bytes(
         digest[:8],
         byteorder="little",
         signed=False,
-    ) % (2**32)
+    ) % (2**32 - 1)
+
+
+def _safe_auc(
+    y_true: np.ndarray,
+    scores: np.ndarray,
+) -> float | None:
+    """
+    Calculate ROC AUC if both classes are present.
+    """
+    valid = np.isfinite(y_true) & np.isfinite(scores)
+
+    if not np.any(valid):
+        return None
+
+    y = y_true[valid]
+    s = scores[valid]
+
+    if np.unique(y).size < 2:
+        return None
+
+    try:
+        return float(roc_auc_score(y, s))
+    except ValueError:
+        return None
+
+
+def _binary_metrics(
+    target: np.ndarray,
+    selected: np.ndarray,
+) -> dict[str, Any]:
+    """
+    Calculate event rate and lift for a selected signal tail.
+    """
+    valid = np.isfinite(target)
+
+    if not np.any(valid):
+        return {
+            "n": 0,
+            "events": 0,
+            "event_rate": None,
+            "baseline_event_rate": None,
+            "lift": None,
+        }
+
+    y = target[valid].astype(float)
+    selection = selected[valid]
+
+    events = y > 0
+
+    n = int(selection.sum())
+    selected_events = int(events[selection].sum())
+
+    baseline_rate = float(events.mean())
+
+    if n == 0:
+        return {
+            "n": 0,
+            "events": 0,
+            "event_rate": None,
+            "baseline_event_rate": baseline_rate,
+            "lift": None,
+        }
+
+    event_rate = selected_events / n
+
+    lift = (
+        event_rate / baseline_rate
+        if baseline_rate > 0
+        else None
+    )
+
+    return {
+        "n": n,
+        "events": selected_events,
+        "event_rate": float(event_rate),
+        "baseline_event_rate": baseline_rate,
+        "lift": float(lift) if lift is not None else None,
+    }
+
+
+def _return_metrics(
+    returns: np.ndarray | None,
+    selected: np.ndarray,
+    *,
+    seed: int,
+) -> dict[str, Any]:
+    """
+    Calculate return statistics for selected observations.
+    """
+    if returns is None:
+        return {
+            "return_n": 0,
+            "mean_return": None,
+            "median_return": None,
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
+        }
+
+    valid = np.isfinite(returns) & selected
+
+    values = returns[valid]
+
+    if values.size == 0:
+        return {
+            "return_n": 0,
+            "mean_return": None,
+            "median_return": None,
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
+        }
+
+    mean_return = float(np.mean(values))
+    median_return = float(np.median(values))
+
+    ci_low, ci_high = bootstrap_mean_ci(
+        values,
+        seed=seed,
+    )
+
+    return {
+        "return_n": int(values.size),
+        "mean_return": mean_return,
+        "median_return": median_return,
+        "bootstrap_ci_low": float(ci_low),
+        "bootstrap_ci_high": float(ci_high),
+    }
+
+
+def evaluate_experiment(
+    frame: pd.DataFrame,
+    cache: ResearchCache,
+    experiment: Experiment,
+    window_name: str,
+    split_name: str,
+) -> dict[str, Any]:
+    """
+    Evaluate one experiment on one walk-forward split.
+
+    The DataFrame is kept in the signature for API compatibility and
+    metadata access, but the hot path operates on cached NumPy arrays.
+    """
+    signal = cache.signals[experiment.signal_name]
+    target = cache.targets[experiment.target_name]
+
+    window_mask = cache.window_masks[window_name][split_name]
+
+    tail_key = get_tail_mask_key(experiment)
+    selected = cache.tail_masks[tail_key]
+
+    mask = (
+        window_mask
+        & selected
+        & np.isfinite(signal)
+        & np.isfinite(target)
+    )
+
+    n = int(mask.sum())
+
+    target_config = cache.target_configs[experiment.target_name]
+
+    return_column = getattr(
+        target_config,
+        "return_column",
+        None,
+    )
+
+    returns = (
+        cache.returns.get(return_column)
+        if return_column
+        else None
+    )
+
+    # AUC is evaluated using the signal itself, not the binary tail.
+    auc_mask = (
+        window_mask
+        & np.isfinite(signal)
+        & np.isfinite(target)
+    )
+
+    auc = _safe_auc(
+        target[auc_mask],
+        signal[auc_mask],
+    )
+
+    binary = _binary_metrics(
+        target[window_mask],
+        selected[window_mask],
+    )
+
+    seed = _stable_seed(
+        experiment.experiment_id,
+        window_name,
+        split_name,
+    )
+
+    returns_metrics = _return_metrics(
+        returns,
+        window_mask & selected,
+        seed=seed,
+    )
+
+    result: dict[str, Any] = {
+        "experiment_id": experiment.experiment_id,
+        "signal_name": experiment.signal_name,
+        "target_name": experiment.target_name,
+        "tail_fraction": experiment.tail_fraction,
+        "tail_direction": experiment.tail_direction,
+        "window": window_name,
+        "split": split_name,
+        "auc": auc,
+        **binary,
+        **returns_metrics,
+    }
+
+    result["n_valid_auc"] = int(auc_mask.sum())
+    result["n_valid_target"] = int(np.isfinite(target[window_mask]).sum())
+    result["selected_fraction"] = (
+        float(selected[window_mask].mean())
+        if window_mask.any()
+        else None
+    )
+
+    return result
