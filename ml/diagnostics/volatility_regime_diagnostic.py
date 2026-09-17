@@ -223,8 +223,6 @@ def attach_source_features(
     """
     Attach raw source features to OOS predictions.
     Only columns actually present in source_features are requested.
-    This keeps the function robust when a feature set intentionally
-    excludes a price feature.
     """
     desired_columns = [
         "snapshot_date",
@@ -239,6 +237,19 @@ def attach_source_features(
         for column in desired_columns
         if column in source_features.columns
     ]
+    required_columns = {
+        "snapshot_date",
+        "security_key",
+    }
+    missing_required = (
+        required_columns
+        - set(available_columns)
+    )
+    if missing_required:
+        raise KeyError(
+            "Source feature frame is missing required "
+            f"columns: {sorted(missing_required)}"
+        )
     source = source_features[
         available_columns
     ].copy()
@@ -329,17 +340,30 @@ def calculate_top_metrics(
             "mean_return": np.nan,
             "median_return": np.nan,
         }
+    valid = frame[
+        frame[score_column].notna()
+        & frame["target"].notna()
+        & frame["target_return"].notna()
+    ].copy()
+    if valid.empty:
+        return {
+            "n": 0,
+            "event_rate": np.nan,
+            "lift": np.nan,
+            "mean_return": np.nan,
+            "median_return": np.nan,
+        }
     n = max(
         1,
         int(
             np.ceil(
-                len(frame)
+                len(valid)
                 * fraction
             )
         ),
     )
     ranked = (
-        frame
+        valid
         .sort_values(
             score_column,
             ascending=False,
@@ -349,7 +373,7 @@ def calculate_top_metrics(
     event_rate = ranked[
         "target"
     ].mean()
-    baseline_event_rate = frame[
+    baseline_event_rate = valid[
         "target"
     ].mean()
     if baseline_event_rate > 0:
@@ -402,12 +426,9 @@ def build_comparison_frame(
 ):
     """
     Match FI-only and FI+volatility predictions on identical OOS rows.
-    Important:
-        FI-only intentionally does not contain price_volatility_20d.
+    FI-only intentionally does not contain price_volatility_20d.
     Therefore raw volatility and FI source features are taken from
     volatility_oos, while the FI-only prediction remains separate.
-    The target return is checked to ensure both model runs refer to
-    the same economic target.
     """
     fi = fi_oos[
         [
@@ -426,18 +447,29 @@ def build_comparison_frame(
             "selected_model": "fi_selected_model",
         }
     )
+    required_volatility_columns = [
+        "snapshot_date",
+        "security_key",
+        "target_return",
+        "price_volatility_20d",
+        "short_interest_pct",
+        "prediction",
+        "score",
+        "window_index",
+        "selected_model",
+    ]
+    missing = [
+        column
+        for column in required_volatility_columns
+        if column not in volatility_oos.columns
+    ]
+    if missing:
+        raise KeyError(
+            "FI+volatility OOS frame is missing required "
+            f"columns: {missing}"
+        )
     volatility = volatility_oos[
-        [
-            "snapshot_date",
-            "security_key",
-            "target_return",
-            "price_volatility_20d",
-            "short_interest_pct",
-            "prediction",
-            "score",
-            "window_index",
-            "selected_model",
-        ]
+        required_volatility_columns
     ].rename(
         columns={
             "target_return": "vol_target_return",
@@ -473,7 +505,7 @@ def build_comparison_frame(
     ).astype(int)
     return merged
 # ============================================================================
-# Volatility quintile analysis
+# Volatility quintiles
 # ============================================================================
 def add_volatility_quintiles(
     frame: pd.DataFrame,
@@ -495,6 +527,9 @@ def add_volatility_quintiles(
         duplicates="drop",
     )
     return result
+# ============================================================================
+# Quintile regime analysis
+# ============================================================================
 def print_regime_analysis(
     comparison: pd.DataFrame,
 ):
@@ -690,11 +725,9 @@ def print_fi_signal_strength(
 ):
     """
     Measure FI signal strength inside each broad volatility regime.
-    Two measures are shown:
+    Measures:
         1. FI model AUC.
         2. Raw short_interest_pct AUC.
-    This separates the predictive information in the trained FI model
-    from the raw short-interest level.
     """
     data = comparison.dropna(
         subset=[
@@ -816,9 +849,7 @@ def print_year_analysis(
 ):
     """
     Repeat the volatility-quintile analysis separately for each OOS year.
-    Quintiles are calculated within each year to show whether the
-    regime relationship survives independently of changes in the
-    overall volatility distribution.
+    Quintiles are calculated within each year.
     """
     data = comparison.dropna(
         subset=[
@@ -903,8 +934,8 @@ def print_regime_economic_comparison(
     comparison: pd.DataFrame,
 ):
     """
-    Compare the economic ranking performance of FI-only and FI+volatility
-    within LOW/MID/HIGH volatility regimes.
+    Compare economic ranking performance within LOW/MID/HIGH
+    volatility regimes.
     """
     data = comparison.dropna(
         subset=[
@@ -1066,7 +1097,7 @@ def main():
         if target.name == ECONOMIC_TARGET
     )
     # ------------------------------------------------------------------
-    # Temporarily force benchmark RF configuration into the normal
+    # Force benchmark RF configuration into the normal
     # walk-forward engine.
     # ------------------------------------------------------------------
     original_walk_forward_build_models = (
@@ -1156,7 +1187,7 @@ def main():
                 f"{window['seconds']:.2f}s"
             )
     # ------------------------------------------------------------------
-    # Verify OOS data exists
+    # Verify OOS data
     # ------------------------------------------------------------------
     if fi_result["oos"].empty:
         raise RuntimeError(
@@ -1169,10 +1200,9 @@ def main():
     # ------------------------------------------------------------------
     # Attach raw source features.
     #
-    # IMPORTANT:
-    # fi_data intentionally does not contain price_volatility_20d.
-    # vol_data does, so build_comparison_frame() takes volatility
-    # from the FI+volatility source frame.
+    # FI-only intentionally does not contain price_volatility_20d.
+    # The volatility source frame is therefore the authoritative source
+    # for price_volatility_20d and short_interest_pct.
     # ------------------------------------------------------------------
     fi_oos = attach_source_features(
         fi_result["oos"],
@@ -1243,7 +1273,3 @@ def main():
     print("=" * 100)
 if __name__ == "__main__":
     main()
-
-Den viktiga skillnaden mot förra versionen är att build_comparison_frame() aldrig längre försöker hämta price_volatility_20d från fi_oos. Den tas från volatility_oos, där den faktiskt finns.
-
-Kör den här. Nu bör vi komma hela vägen till regime-resultaten.
