@@ -1,32 +1,28 @@
 name: ML Benchmark
-
 on:
   workflow_dispatch:
-
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Run ML benchmark
-        run: python -u -m ml.diagnostics.benchmark
-
-      - name: Run volatility diagnostics
-        run: python -u -m ml.diagnostics.volatility_diagnostics
-
+      # Paused while we focus on the volatility interaction hypothesis.
+      # - name: Run ML benchmark
+      #   run: python -u -m ml.diagnostics.benchmark
+      # Already established that volatility is a strong regime/risk signal.
+      # No need to rerun this diagnostic for every experiment.
+      # - name: Run volatility diagnostics
+      #   run: python -u -m ml.diagnostics.volatility_diagnostics
       - name: Run volatility interaction screening
         run: python -u -m ml.diagnostics.volatility_interaction_screening
-
-      - name: Run volatility regime diagnostic
-        run: python -u -m ml.diagnostics.volatility_regime_diagnostic
+      # Regime gating did not add enough over FI + volatility
+      # to justify keeping this in the regular workflow.
+      # - name: Run volatility regime diagnostic
+      #   run: python -u -m ml.diagnostics.volatility_regime_diagnostic
