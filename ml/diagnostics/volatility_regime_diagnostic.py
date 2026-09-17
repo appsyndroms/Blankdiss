@@ -920,9 +920,11 @@ def main():
         f"{len(feature_df):,}"
     )
 
-    target_definition = TARGETS[
-        ECONOMIC_TARGET
-    ]
+    target_definition = next(
+        target
+        for target in TARGETS
+        if target.name == ECONOMIC_TARGET
+    )
 
     print()
     print("Building feature sets...")
