@@ -1,39 +1,30 @@
 """
-Conditional FI short-interest dynamics diagnostic.
+Conditional FI short-interest continuous-change diagnostic.
 Question:
-    Within an already identified event-risk tail, does short interest
-    distinguish DOWN from UP?
-FI variables:
-    1. short_interest_pct
-    2. short_interest_pct_change
-    3. short_interest_pct_change_pct
-The diagnostic deliberately separates:
-1. Event risk:
-       Which observations are likely to experience a large absolute
-       5-day move?
-2. Event direction:
-       Among those high-risk observations, is short interest associated
-       with DOWN versus UP?
-The event-risk population is defined by an event-score tail.
-All thresholds are calculated ONLY from the training period and then
-applied unchanged to the OOS test period.
-For short_interest_pct:
-    - LOW / HIGH split at the training median.
-For short_interest_pct_change and short_interest_pct_change_pct:
-    A. Change direction:
-        DECREASE
-        NO_CHANGE
-        INCREASE
-       The primary comparison is:
-           INCREASE_DOWN_RATE - DECREASE_DOWN_RATE
-    B. Change magnitude:
-        Among non-zero changes, split absolute change at the training
-        median.
-       The comparison is:
-           HIGH_MAGNITUDE_DOWN_RATE - LOW_MAGNITUDE_DOWN_RATE
-This avoids the previous problem where a median of zero effectively
-turned the change variables into "any increase vs everything else".
-The absolute and relative change variables are evaluated separately.
+    Within an already identified 5% event-risk tail, does the
+    continuous change in short interest distinguish DOWN from UP?
+The diagnostic focuses on the strongest result from the previous
+conditional analysis: the 5% event-risk tail.
+For each walk-forward window:
+1. Select the event-risk model using validation AUC.
+2. Define the 5% event-score tail using TRAINING data only.
+3. Restrict OOS observations to that tail.
+4. Evaluate short-interest change as a continuous variable:
+       - absolute change
+       - relative change
+5. Test:
+       - continuous FI-only AUC
+       - Spearman rank correlation with DOWN
+       - logistic regression using continuous change
+       - training-defined quantile bins
+       - increase/decrease comparison
+       - positive-change magnitude
+The quantile boundaries are learned from TRAINING data only.
+The purpose is to determine whether the previous result was:
+    A. a genuinely monotonic relationship,
+    B. mainly an increase-vs-decrease effect,
+    C. driven by a few extreme changes,
+    D. or just unstable small-sample noise.
 No repository files are modified by this script.
 """
 from __future__ import annotations
@@ -41,6 +32,7 @@ from dataclasses import dataclass
 from typing import Iterable
 import numpy as np
 import pandas as pd
+from scipy.stats import spearmanr
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import Pipeline
@@ -56,23 +48,13 @@ BOOTSTRAP_ITERATIONS = 2_000
 RANDOM_STATE = 42
 EVENT_THRESHOLD = 0.10
 EVENT_HORIZON_DAYS = 5
-TOP_FRACTIONS = (
-    0.01,
-    0.02,
-    0.05,
-    0.10,
-    0.20,
-)
-FI_COLUMNS = (
-    "short_interest_pct",
+# Main hypothesis from the previous diagnostic.
+EVENT_TAIL = 0.05
+BASE_FI_COLUMN = "short_interest_pct"
+CHANGE_COLUMNS = (
     "short_interest_pct_change",
     "short_interest_pct_change_pct",
 )
-BASE_FI_COLUMN = "short_interest_pct"
-OUTPUT_FILE = (
-    "ml/diagnostics/fi_direction_short_dynamics_results.csv"
-)
-# Candidate features for the event model.
 EVENT_FEATURE_SETS = {
     "volatility_20d": (
         "price_volatility_20d",
@@ -91,67 +73,12 @@ EVENT_FEATURE_SETS = {
     ),
 }
 # ---------------------------------------------------------------------------
-# Result objects
-# ---------------------------------------------------------------------------
-@dataclass(frozen=True)
-class DiagnosticResult:
-    window: str
-    fi_variable: str
-    analysis: str
-    tail: float
-    training_tail_events: int
-    test_tail_events: int
-    usable_test_events: int
-    fi_threshold: float
-    low_events: int
-    high_events: int
-    low_down_events: int
-    low_up_events: int
-    high_down_events: int
-    high_up_events: int
-    low_down_rate: float
-    high_down_rate: float
-    observed_delta_down_rate: float
-    bootstrap_mean_delta_down_rate: float
-    bootstrap_ci_low: float
-    bootstrap_ci_high: float
-    bootstrap_probability_positive: float
-    bootstrap_probability_non_positive: float
-    auc_fi: float
-@dataclass(frozen=True)
-class ChangeDirectionResult:
-    window: str
-    fi_variable: str
-    tail: float
-    training_tail_events: int
-    test_tail_events: int
-    decrease_events: int
-    decrease_down_events: int
-    decrease_up_events: int
-    decrease_down_rate: float
-    no_change_events: int
-    no_change_down_events: int
-    no_change_up_events: int
-    no_change_down_rate: float
-    increase_events: int
-    increase_down_events: int
-    increase_up_events: int
-    increase_down_rate: float
-    observed_increase_minus_decrease: float
-    bootstrap_mean_delta: float
-    bootstrap_ci_low: float
-    bootstrap_ci_high: float
-    bootstrap_probability_positive: float
-    bootstrap_probability_non_positive: float
-    auc_fi: float
-# ---------------------------------------------------------------------------
-# Generic helpers
+# Helpers
 # ---------------------------------------------------------------------------
 def first_existing_column(
     data: pd.DataFrame,
     candidates: Iterable[str],
 ) -> str | None:
-    """Return the first candidate column present in data."""
     for column in candidates:
         if column in data.columns:
             return column
@@ -160,7 +87,6 @@ def normalize_date_column(
     data: pd.DataFrame,
     column: str,
 ) -> pd.Series:
-    """Normalize dates to YYYY-MM-DD strings."""
     return pd.to_datetime(
         data[column],
         errors="coerce",
@@ -168,25 +94,14 @@ def normalize_date_column(
 def deduplicate_columns(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Keep the first occurrence of duplicate column names.
-    Duplicate names are dangerous because:
-        data[column]
-    returns a DataFrame instead of a Series.
-    """
     duplicated = data.columns.duplicated(
         keep="first"
     )
     if duplicated.any():
-        duplicate_names = (
-            data.columns[duplicated].tolist()
-        )
-        print()
+        names = data.columns[duplicated].tolist()
         print(
-            "Duplicate feature columns detected; "
-            "keeping first occurrence:"
+            f"Duplicate columns removed: {names}"
         )
-        print(f"  {duplicate_names}")
         data = data.loc[
             :,
             ~duplicated,
@@ -196,10 +111,6 @@ def numeric_series(
     data: pd.DataFrame,
     column: str,
 ) -> pd.Series:
-    """
-    Convert one column to numeric safely.
-    Boolean columns are explicitly converted to float.
-    """
     values = data[column]
     if isinstance(values, pd.DataFrame):
         values = values.iloc[:, 0]
@@ -217,7 +128,6 @@ def safe_auc(
     y_true: pd.Series,
     scores: pd.Series,
 ) -> float:
-    """Calculate AUC or return NaN when undefined."""
     frame = pd.DataFrame(
         {
             "y": y_true,
@@ -236,18 +146,94 @@ def safe_auc(
             frame["score"],
         )
     )
+def safe_spearman(
+    x: pd.Series,
+    y: pd.Series,
+) -> tuple[float, float]:
+    frame = pd.DataFrame(
+        {
+            "x": x,
+            "y": y,
+        }
+    ).dropna()
+    if len(frame) < 3:
+        return float("nan"), float("nan")
+    if frame["x"].nunique() < 2:
+        return float("nan"), float("nan")
+    if frame["y"].nunique() < 2:
+        return float("nan"), float("nan")
+    correlation, p_value = spearmanr(
+        frame["x"],
+        frame["y"],
+    )
+    return float(correlation), float(p_value)
+def bootstrap_mean_difference(
+    first: pd.Series,
+    second: pd.Series,
+    iterations: int = BOOTSTRAP_ITERATIONS,
+    random_state: int = RANDOM_STATE,
+) -> tuple[float, float, float, float]:
+    """
+    Bootstrap mean(first) - mean(second).
+    Returns:
+        mean bootstrap delta,
+        CI low,
+        CI high,
+        P(delta > 0)
+    """
+    first = pd.to_numeric(
+        first,
+        errors="coerce",
+    ).dropna().to_numpy()
+    second = pd.to_numeric(
+        second,
+        errors="coerce",
+    ).dropna().to_numpy()
+    if len(first) == 0 or len(second) == 0:
+        return (
+            float("nan"),
+            float("nan"),
+            float("nan"),
+            float("nan"),
+        )
+    rng = np.random.default_rng(
+        random_state
+    )
+    deltas = np.empty(
+        iterations,
+        dtype=float,
+    )
+    for index in range(iterations):
+        first_sample = rng.choice(
+            first,
+            size=len(first),
+            replace=True,
+        )
+        second_sample = rng.choice(
+            second,
+            size=len(second),
+            replace=True,
+        )
+        deltas[index] = (
+            first_sample.mean()
+            - second_sample.mean()
+        )
+    return (
+        float(deltas.mean()),
+        float(np.quantile(deltas, 0.025)),
+        float(np.quantile(deltas, 0.975)),
+        float((deltas > 0).mean()),
+    )
 # ---------------------------------------------------------------------------
-# Price data
+# Prices
 # ---------------------------------------------------------------------------
 def load_price_data() -> pd.DataFrame:
-    """Load raw price data."""
     price_files = find_price_files(
         PRICE_DIR
     )
     if not price_files:
         raise RuntimeError(
-            "No price files found by "
-            "analysis.feature_prices.find_price_files()."
+            "No price files found."
         )
     frames: list[pd.DataFrame] = []
     for path in price_files:
@@ -279,8 +265,7 @@ def load_price_data() -> pd.DataFrame:
         frames.append(prices)
     if not frames:
         raise RuntimeError(
-            "Price files were found, but no usable "
-            "price data could be loaded."
+            "No usable price data."
         )
     prices = pd.concat(
         frames,
@@ -302,13 +287,12 @@ def load_price_data() -> pd.DataFrame:
         subset=[
             "yahoo_symbol",
             "price_date",
-        ],
+        ]
     )
     return prices
 def find_close_column(
     prices: pd.DataFrame,
 ) -> str:
-    """Find the project's close-price column."""
     column = first_existing_column(
         prices,
         (
@@ -321,14 +305,12 @@ def find_close_column(
     )
     if column is None:
         raise RuntimeError(
-            "Could not find a close-price column "
-            "in price data."
+            "Could not find close-price column."
         )
     return column
 def build_volatility_60d(
     prices: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Calculate 60-day realized volatility per instrument."""
     close_column = find_close_column(
         prices
     )
@@ -342,13 +324,13 @@ def build_volatility_60d(
             "yahoo_symbol",
             "price_date",
             close_column,
-        ],
+        ]
     )
     prices = prices.sort_values(
         [
             "yahoo_symbol",
             "price_date",
-        ],
+        ]
     )
     prices["daily_return"] = (
         prices
@@ -380,21 +362,11 @@ def build_volatility_60d(
         ]
     ].copy()
 # ---------------------------------------------------------------------------
-# FI dynamics
+# Short-interest dynamics
 # ---------------------------------------------------------------------------
 def add_short_interest_dynamics(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Add absolute and relative changes in short interest.
-    The change is calculated per instrument after sorting chronologically.
-    Repeated FI values naturally produce zero change.
-    Absolute change:
-        current - previous
-    Relative change:
-        (current - previous) / abs(previous)
-    The relative and absolute changes are deliberately kept separate.
-    """
     data = data.copy()
     data = data.sort_values(
         [
@@ -414,9 +386,9 @@ def add_short_interest_dynamics(
         ]
         .shift(1)
     )
-    data["short_interest_pct_change"] = (
-        base - previous
-    )
+    data[
+        "short_interest_pct_change"
+    ] = base - previous
     denominator = previous.abs()
     data[
         "short_interest_pct_change_pct"
@@ -435,27 +407,16 @@ def add_short_interest_dynamics(
     )
     return data
 # ---------------------------------------------------------------------------
-# Feature preparation
+# Preparation
 # ---------------------------------------------------------------------------
 def prepare_data() -> pd.DataFrame:
-    """
-    Load features and attach 60-day volatility
-    and short-interest dynamics.
-    """
-    print(
-        "Loading feature data..."
-    )
     data = load_features()
     if data is None or data.empty:
         raise RuntimeError(
-            "load_features() returned no feature data."
+            "load_features() returned no data."
         )
-    data = data.copy()
     data = deduplicate_columns(
-        data
-    )
-    print(
-        f"Loaded {len(data):,} feature rows."
+        data.copy()
     )
     required = [
         "yahoo_symbol",
@@ -469,8 +430,7 @@ def prepare_data() -> pd.DataFrame:
     ]
     if missing:
         raise RuntimeError(
-            "Missing required feature columns: "
-            f"{missing}"
+            f"Missing required columns: {missing}"
         )
     date_column = first_existing_column(
         data,
@@ -482,8 +442,7 @@ def prepare_data() -> pd.DataFrame:
     )
     if date_column is None:
         raise RuntimeError(
-            "Could not find a date column "
-            "in feature data."
+            "No date column found."
         )
     if date_column != "price_date":
         data["price_date"] = data[
@@ -517,26 +476,10 @@ def prepare_data() -> pd.DataFrame:
             "yahoo_symbol",
             "price_date",
             "forward_return_5d",
-        ],
-    )
-    print(
-        f"{BASE_FI_COLUMN} usable values: "
-        f"{data[BASE_FI_COLUMN].notna().sum():,}"
+        ]
     )
     data = add_short_interest_dynamics(
         data
-    )
-    print(
-        "Short-interest dynamics calculated."
-    )
-    for column in FI_COLUMNS:
-        print(
-            f"  {column}: "
-            f"{data[column].notna().sum():,} "
-            f"usable values"
-        )
-    print(
-        "Loading prices for volatility_60d..."
     )
     prices = load_price_data()
     volatility = build_volatility_60d(
@@ -568,11 +511,6 @@ def prepare_data() -> pd.DataFrame:
         .abs()
         >= EVENT_THRESHOLD
     ).astype(int)
-    # Direction:
-    #   1 = DOWN
-    #   0 = UP
-    #
-    # Non-events remain NaN.
     data["direction"] = np.where(
         data["forward_return_5d"]
         <= -EVENT_THRESHOLD,
@@ -586,10 +524,9 @@ def prepare_data() -> pd.DataFrame:
     )
     return data
 # ---------------------------------------------------------------------------
-# Models
+# Event model
 # ---------------------------------------------------------------------------
-def build_logistic_model() -> Pipeline:
-    """Create the regularized logistic model."""
+def build_event_model() -> Pipeline:
     return Pipeline(
         [
             (
@@ -607,54 +544,49 @@ def build_logistic_model() -> Pipeline:
             ),
         ]
     )
-def fit_model(
-    data: pd.DataFrame,
-    feature_columns: list[str],
-    target_column: str,
+def fit_event_model(
+    train: pd.DataFrame,
+    features: list[str],
 ) -> Pipeline | None:
-    """Fit a logistic model after cleaning numeric inputs."""
-    if not feature_columns:
-        return None
-    frame = data[
-        feature_columns + [target_column]
+    frame = train[
+        features + ["event"]
     ].copy()
-    for column in feature_columns:
+    for column in features:
         frame[column] = numeric_series(
             frame,
             column,
         )
-    frame[target_column] = pd.to_numeric(
-        frame[target_column],
+    frame["event"] = pd.to_numeric(
+        frame["event"],
         errors="coerce",
     )
     frame = frame.dropna()
-    if len(frame) < 30:
+    if len(frame) < 100:
         return None
-    if frame[target_column].nunique() < 2:
+    if frame["event"].nunique() < 2:
         return None
-    model = build_logistic_model()
+    model = build_event_model()
     model.fit(
-        frame[feature_columns],
-        frame[target_column],
+        frame[features],
+        frame["event"],
     )
     return model
-def predict_probability(
+def predict_event_score(
     model: Pipeline | None,
     data: pd.DataFrame,
-    feature_columns: list[str],
+    features: list[str],
 ) -> pd.Series:
-    """Predict class-1 probability while preserving the index."""
     result = pd.Series(
         np.nan,
         index=data.index,
         dtype=float,
     )
-    if model is None or not feature_columns:
+    if model is None:
         return result
     frame = data[
-        feature_columns
+        features
     ].copy()
-    for column in feature_columns:
+    for column in features:
         frame[column] = numeric_series(
             frame,
             column,
@@ -668,1685 +600,869 @@ def predict_probability(
         model.predict_proba(
             frame.loc[
                 valid,
-                feature_columns,
+                features,
             ]
         )[:, 1]
     )
     return result
-# ---------------------------------------------------------------------------
-# Event model
-# ---------------------------------------------------------------------------
-def available_feature_set(
-    data: pd.DataFrame,
-    columns: Iterable[str],
-) -> list[str]:
-    """Return candidate columns that exist and contain data."""
-    result: list[str] = []
-    for column in columns:
-        if column not in data.columns:
-            continue
-        values = numeric_series(
-            data,
-            column,
-        )
-        if values.notna().sum() == 0:
-            continue
-        result.append(column)
-    return result
-def select_event_feature_set(
+def select_event_model(
     train: pd.DataFrame,
     validation: pd.DataFrame,
 ) -> tuple[str, list[str], float]:
-    """Select the event model using validation AUC."""
-    best_name: str | None = None
-    best_columns: list[str] = []
+    best_name = ""
+    best_features: list[str] = []
     best_auc = -np.inf
     for name, candidates in (
         EVENT_FEATURE_SETS.items()
     ):
-        columns = available_feature_set(
-            train,
-            candidates,
-        )
-        if not columns:
+        features = [
+            column
+            for column in candidates
+            if column in train.columns
+            and column in validation.columns
+        ]
+        if not features:
             continue
-        model = fit_model(
+        model = fit_event_model(
             train,
-            columns,
-            "event",
+            features,
         )
         if model is None:
             continue
-        probabilities = predict_probability(
+        validation_score = predict_event_score(
             model,
             validation,
-            columns,
+            features,
         )
-        valid = probabilities.notna()
-        if valid.sum() < 30:
-            continue
-        y_true = validation.loc[
-            valid,
-            "event",
-        ]
         auc = safe_auc(
-            y_true,
-            probabilities.loc[valid],
+            validation["event"],
+            validation_score,
         )
-        if np.isnan(auc):
-            continue
-        print(
-            f"    event feature set "
-            f"{name}: validation AUC={auc:.6f}"
-        )
-        if auc > best_auc:
-            best_auc = auc
+        if (
+            not np.isnan(auc)
+            and auc > best_auc
+        ):
             best_name = name
-            best_columns = columns
-    if best_name is None:
+            best_features = features
+            best_auc = auc
+    if not best_features:
         raise RuntimeError(
-            "Could not select an event feature set."
+            "Could not select event model."
         )
     return (
         best_name,
-        best_columns,
-        best_auc,
-    )
-def build_event_score(
-    train: pd.DataFrame,
-    validation: pd.DataFrame,
-    test: pd.DataFrame,
-) -> tuple[
-    str,
-    list[str],
-    pd.Series,
-    pd.Series,
-    pd.Series,
-]:
-    """
-    Fit event model using train + validation selection
-    and generate scores for train, validation and test.
-    """
-    (
-        name,
-        columns,
-        validation_auc,
-    ) = select_event_feature_set(
-        train,
-        validation,
-    )
-    print()
-    print(
-        f"Selected event feature set: {name}"
-    )
-    print(
-        f"Validation AUC: {validation_auc:.6f}"
-    )
-    model = fit_model(
-        train,
-        columns,
-        "event",
-    )
-    train_score = predict_probability(
-        model,
-        train,
-        columns,
-    )
-    validation_score = predict_probability(
-        model,
-        validation,
-        columns,
-    )
-    test_score = predict_probability(
-        model,
-        test,
-        columns,
-    )
-    return (
-        name,
-        columns,
-        train_score,
-        validation_score,
-        test_score,
+        best_features,
+        float(best_auc),
     )
 # ---------------------------------------------------------------------------
-# Event-risk tails
+# Tail
 # ---------------------------------------------------------------------------
-def select_tail(
-    data: pd.DataFrame,
-    score: pd.Series,
+def training_tail_threshold(
+    train_scores: pd.Series,
     fraction: float,
-) -> tuple[pd.DataFrame, float]:
-    """
-    Select the highest-risk fraction.
-    The threshold is learned from the supplied training data.
-    """
-    frame = data.copy()
-    frame["_event_score"] = score
-    frame = frame.dropna(
-        subset=[
-            "_event_score",
-        ]
-    )
-    if frame.empty:
-        return (
-            frame,
-            float("nan"),
-        )
-    threshold = (
-        frame["_event_score"]
-        .quantile(
+) -> float:
+    scores = pd.to_numeric(
+        train_scores,
+        errors="coerce",
+    ).dropna()
+    if len(scores) == 0:
+        return float("nan")
+    return float(
+        scores.quantile(
             1.0 - fraction
         )
     )
-    tail = frame[
-        frame["_event_score"]
-        >= threshold
-    ].copy()
-    return (
-        tail,
-        float(threshold),
-    )
 # ---------------------------------------------------------------------------
-# Bootstrap helpers
+# Continuous analysis
 # ---------------------------------------------------------------------------
-def bootstrap_delta_down_rate(
-    low_group: pd.DataFrame,
-    high_group: pd.DataFrame,
-) -> tuple[
-    float,
-    float,
-    float,
-    float,
-    float,
-]:
-    """
-    Bootstrap:
-        HIGH_DOWN_RATE - LOW_DOWN_RATE
-    Resampling is performed independently inside LOW and HIGH groups.
-    Returns:
-        mean,
-        CI low,
-        CI high,
-        P(delta > 0),
-        P(delta <= 0)
-    """
-    low = (
-        pd.to_numeric(
-            low_group["direction"],
-            errors="coerce",
-        )
-        .dropna()
-        .to_numpy(dtype=float)
-    )
-    high = (
-        pd.to_numeric(
-            high_group["direction"],
-            errors="coerce",
-        )
-        .dropna()
-        .to_numpy(dtype=float)
-    )
-    if len(low) == 0 or len(high) == 0:
-        return (
-            float("nan"),
-            float("nan"),
-            float("nan"),
-            float("nan"),
-            float("nan"),
-        )
-    observed = float(
-        high.mean() - low.mean()
-    )
-    # If either group contains no outcome variation,
-    # the observed difference is exact for that group.
-    if (
-        np.all(low == low[0])
-        and np.all(high == high[0])
-    ):
-        return (
-            observed,
-            observed,
-            observed,
-            1.0 if observed > 0 else 0.0,
-            1.0 if observed <= 0 else 0.0,
-        )
-    rng = np.random.default_rng(
-        RANDOM_STATE
-    )
-    bootstrap_values = np.empty(
-        BOOTSTRAP_ITERATIONS,
-        dtype=float,
-    )
-    for index in range(
-        BOOTSTRAP_ITERATIONS
-    ):
-        low_sample = rng.choice(
-            low,
-            size=len(low),
-            replace=True,
-        )
-        high_sample = rng.choice(
-            high,
-            size=len(high),
-            replace=True,
-        )
-        bootstrap_values[index] = (
-            high_sample.mean()
-            - low_sample.mean()
-        )
-    return (
-        float(
-            bootstrap_values.mean()
-        ),
-        float(
-            np.quantile(
-                bootstrap_values,
-                0.025,
-            )
-        ),
-        float(
-            np.quantile(
-                bootstrap_values,
-                0.975,
-            )
-        ),
-        float(
-            np.mean(
-                bootstrap_values > 0
-            )
-        ),
-        float(
-            np.mean(
-                bootstrap_values <= 0
-            )
-        ),
-    )
-# ---------------------------------------------------------------------------
-# FI conditional level / magnitude test
-# ---------------------------------------------------------------------------
-def run_low_high_test(
-    train_tail: pd.DataFrame,
+@dataclass(frozen=True)
+class ContinuousResult:
+    window: str
+    variable: str
+    training_tail_events: int
+    test_tail_events: int
+    usable_events: int
+    positive_events: int
+    negative_events: int
+    zero_events: int
+    auc: float
+    spearman_rho: float
+    spearman_p: float
+    logistic_auc: float
+def continuous_analysis(
     test_tail: pd.DataFrame,
-    fi_variable: str,
-    threshold: float,
-    analysis_name: str,
-    transform: str = "raw",
-) -> DiagnosticResult | None:
-    """
-    Run a LOW/HIGH test.
-    transform:
-        raw
-            Use the FI value directly.
-        abs
-            Use absolute FI value.
-    The threshold is calculated from training data before calling this
-    function and is then applied unchanged to the test period.
-    """
-    train_values = numeric_series(
-        train_tail,
-        fi_variable,
-    )
-    test_values = numeric_series(
-        test_tail,
-        fi_variable,
-    )
-    if transform == "abs":
-        train_values = train_values.abs()
-        test_values = test_values.abs()
-    train_valid = train_tail[
-        train_values.notna()
-        & train_tail["direction"].notna()
-    ].copy()
-    test_valid = test_tail[
-        test_values.notna()
-        & test_tail["direction"].notna()
-    ].copy()
-    if train_valid.empty or test_valid.empty:
-        return None
-    # Recalculate values after filtering so indices line up exactly.
-    train_values = numeric_series(
-        train_valid,
-        fi_variable,
-    )
-    test_values = numeric_series(
-        test_valid,
-        fi_variable,
-    )
-    if transform == "abs":
-        train_values = train_values.abs()
-        test_values = test_values.abs()
-    low_mask = (
-        test_values <= threshold
-    )
-    high_mask = (
-        test_values > threshold
-    )
-    low = test_valid.loc[
-        low_mask
-    ].copy()
-    high = test_valid.loc[
-        high_mask
-    ].copy()
-    if low.empty or high.empty:
-        return None
-    low_down_rate = float(
-        low["direction"].mean()
-    )
-    high_down_rate = float(
-        high["direction"].mean()
-    )
-    observed_delta = (
-        high_down_rate
-        - low_down_rate
-    )
-    (
-        bootstrap_mean,
-        ci_low,
-        ci_high,
-        probability_positive,
-        probability_non_positive,
-    ) = bootstrap_delta_down_rate(
-        low,
-        high,
-    )
-    auc = safe_auc(
-        test_valid["direction"],
-        test_values,
-    )
-    return DiagnosticResult(
-        window="",
-        fi_variable=fi_variable,
-        analysis=analysis_name,
-        tail=0.0,
-        training_tail_events=len(
-            train_tail
-        ),
-        test_tail_events=len(
-            test_tail
-        ),
-        usable_test_events=len(
-            test_valid
-        ),
-        fi_threshold=float(
-            threshold
-        ),
-        low_events=len(low),
-        high_events=len(high),
-        low_down_events=int(
-            low["direction"].sum()
-        ),
-        low_up_events=int(
-            len(low)
-            - low["direction"].sum()
-        ),
-        high_down_events=int(
-            high["direction"].sum()
-        ),
-        high_up_events=int(
-            len(high)
-            - high["direction"].sum()
-        ),
-        low_down_rate=low_down_rate,
-        high_down_rate=high_down_rate,
-        observed_delta_down_rate=observed_delta,
-        bootstrap_mean_delta_down_rate=(
-            bootstrap_mean
-        ),
-        bootstrap_ci_low=ci_low,
-        bootstrap_ci_high=ci_high,
-        bootstrap_probability_positive=(
-            probability_positive
-        ),
-        bootstrap_probability_non_positive=(
-            probability_non_positive
-        ),
-        auc_fi=auc,
-    )
-# ---------------------------------------------------------------------------
-# Change direction test
-# ---------------------------------------------------------------------------
-def run_change_direction_test(
-    train_tail: pd.DataFrame,
-    test_tail: pd.DataFrame,
-    fi_variable: str,
-) -> ChangeDirectionResult | None:
-    """
-    Split FI change into:
-        DECREASE
-        NO_CHANGE
-        INCREASE
-    Thresholds are not learned from OOS data.
-    The primary directional comparison is:
-        INCREASE_DOWN_RATE - DECREASE_DOWN_RATE
-    NO_CHANGE is retained as a separate descriptive group.
-    This directly tests whether recent increases in short interest
-    behave differently from decreases, rather than treating every
-    increase as a generic "high" value.
-    """
-    train_values = numeric_series(
-        train_tail,
-        fi_variable,
-    )
-    test_values = numeric_series(
-        test_tail,
-        fi_variable,
-    )
-    train_valid = train_tail[
-        train_values.notna()
-        & train_tail["direction"].notna()
-    ].copy()
-    test_valid = test_tail[
-        test_values.notna()
-        & test_tail["direction"].notna()
-    ].copy()
-    if train_valid.empty or test_valid.empty:
-        return None
-    # We deliberately do not derive a median threshold here.
-    # Zero is the economically meaningful boundary between
-    # decrease / unchanged / increase.
-    test_values = numeric_series(
-        test_valid,
-        fi_variable,
-    )
-    decrease = test_valid.loc[
-        test_values < 0
-    ].copy()
-    no_change = test_valid.loc[
-        test_values == 0
-    ].copy()
-    increase = test_valid.loc[
-        test_values > 0
-    ].copy()
-    # Primary comparison requires both directions to exist.
-    if decrease.empty or increase.empty:
-        return None
-    decrease_down_rate = float(
-        decrease["direction"].mean()
-    )
-    increase_down_rate = float(
-        increase["direction"].mean()
-    )
-    no_change_down_rate = (
-        float(
-            no_change["direction"].mean()
-        )
-        if not no_change.empty
-        else float("nan")
-    )
-    observed_delta = (
-        increase_down_rate
-        - decrease_down_rate
-    )
-    (
-        bootstrap_mean,
-        ci_low,
-        ci_high,
-        probability_positive,
-        probability_non_positive,
-    ) = bootstrap_delta_down_rate(
-        decrease,
-        increase,
-    )
-    auc = safe_auc(
-        test_valid["direction"],
-        test_values,
-    )
-    return ChangeDirectionResult(
-        window="",
-        fi_variable=fi_variable,
-        tail=0.0,
-        training_tail_events=len(
-            train_tail
-        ),
-        test_tail_events=len(
-            test_tail
-        ),
-        decrease_events=len(
-            decrease
-        ),
-        decrease_down_events=int(
-            decrease["direction"].sum()
-        ),
-        decrease_up_events=int(
-            len(decrease)
-            - decrease["direction"].sum()
-        ),
-        decrease_down_rate=(
-            decrease_down_rate
-        ),
-        no_change_events=len(
-            no_change
-        ),
-        no_change_down_events=(
-            int(
-                no_change["direction"].sum()
-            )
-            if not no_change.empty
-            else 0
-        ),
-        no_change_up_events=(
-            int(
-                len(no_change)
-                - no_change["direction"].sum()
-            )
-            if not no_change.empty
-            else 0
-        ),
-        no_change_down_rate=(
-            no_change_down_rate
-        ),
-        increase_events=len(
-            increase
-        ),
-        increase_down_events=int(
-            increase["direction"].sum()
-        ),
-        increase_up_events=int(
-            len(increase)
-            - increase["direction"].sum()
-        ),
-        increase_down_rate=(
-            increase_down_rate
-        ),
-        observed_increase_minus_decrease=(
-            observed_delta
-        ),
-        bootstrap_mean_delta=(
-            bootstrap_mean
-        ),
-        bootstrap_ci_low=ci_low,
-        bootstrap_ci_high=ci_high,
-        bootstrap_probability_positive=(
-            probability_positive
-        ),
-        bootstrap_probability_non_positive=(
-            probability_non_positive
-        ),
-        auc_fi=auc,
-    )
-# ---------------------------------------------------------------------------
-# Change magnitude test
-# ---------------------------------------------------------------------------
-def run_change_magnitude_test(
-    train_tail: pd.DataFrame,
-    test_tail: pd.DataFrame,
-    fi_variable: str,
-) -> DiagnosticResult | None:
-    """
-    Test whether the magnitude of a non-zero FI change matters.
-    The threshold is the median of the absolute non-zero changes
-    in the TRAINING tail only.
-    OOS observations are classified as:
-        LOW magnitude
-        HIGH magnitude
-    Only non-zero changes participate in this test.
-    """
-    train_values = numeric_series(
-        train_tail,
-        fi_variable,
-    )
-    test_values = numeric_series(
-        test_tail,
-        fi_variable,
-    )
-    train_valid = train_tail[
-        train_values.notna()
-        & train_tail["direction"].notna()
-    ].copy()
-    test_valid = test_tail[
-        test_values.notna()
-        & test_tail["direction"].notna()
-    ].copy()
-    if train_valid.empty or test_valid.empty:
-        return None
-    train_values = numeric_series(
-        train_valid,
-        fi_variable,
-    )
-    test_values = numeric_series(
-        test_valid,
-        fi_variable,
-    )
-    train_non_zero = (
-        train_values[
-            train_values != 0
+    variable: str,
+    window: str,
+) -> ContinuousResult:
+    frame = test_tail[
+        [
+            variable,
+            "direction",
         ]
-        .abs()
-        .dropna()
-    )
-    if train_non_zero.empty:
-        return None
-    threshold = float(
-        train_non_zero.median()
-    )
-    test_non_zero_mask = (
-        test_values != 0
-    )
-    test_valid = test_valid.loc[
-        test_non_zero_mask
     ].copy()
-    test_values = numeric_series(
-        test_valid,
-        fi_variable,
-    ).abs()
-    if test_valid.empty:
-        return None
-    low_mask = (
-        test_values <= threshold
+    frame[variable] = numeric_series(
+        frame,
+        variable,
     )
-    high_mask = (
-        test_values > threshold
-    )
-    low = test_valid.loc[
-        low_mask
-    ].copy()
-    high = test_valid.loc[
-        high_mask
-    ].copy()
-    if low.empty or high.empty:
-        return None
-    low_down_rate = float(
-        low["direction"].mean()
-    )
-    high_down_rate = float(
-        high["direction"].mean()
-    )
-    observed_delta = (
-        high_down_rate
-        - low_down_rate
-    )
-    (
-        bootstrap_mean,
-        ci_low,
-        ci_high,
-        probability_positive,
-        probability_non_positive,
-    ) = bootstrap_delta_down_rate(
-        low,
-        high,
-    )
-    # AUC is based on the signed original change,
-    # because sign itself may contain directional information.
-    original_test_values = numeric_series(
-        test_valid,
-        fi_variable,
-    )
-    auc = safe_auc(
-        test_valid["direction"],
-        original_test_values,
-    )
-    return DiagnosticResult(
-        window="",
-        fi_variable=fi_variable,
-        analysis="change_magnitude",
-        tail=0.0,
-        training_tail_events=len(
-            train_tail
-        ),
-        test_tail_events=len(
-            test_tail
-        ),
-        usable_test_events=len(
-            test_valid
-        ),
-        fi_threshold=threshold,
-        low_events=len(low),
-        high_events=len(high),
-        low_down_events=int(
-            low["direction"].sum()
-        ),
-        low_up_events=int(
-            len(low)
-            - low["direction"].sum()
-        ),
-        high_down_events=int(
-            high["direction"].sum()
-        ),
-        high_up_events=int(
-            len(high)
-            - high["direction"].sum()
-        ),
-        low_down_rate=low_down_rate,
-        high_down_rate=high_down_rate,
-        observed_delta_down_rate=observed_delta,
-        bootstrap_mean_delta_down_rate=(
-            bootstrap_mean
-        ),
-        bootstrap_ci_low=ci_low,
-        bootstrap_ci_high=ci_high,
-        bootstrap_probability_positive=(
-            probability_positive
-        ),
-        bootstrap_probability_non_positive=(
-            probability_non_positive
-        ),
-        auc_fi=auc,
-    )
-# ---------------------------------------------------------------------------
-# Window handling
-# ---------------------------------------------------------------------------
-def normalize_window_value(
-    value: object,
-) -> str:
-    """Convert window boundaries to comparable date strings."""
-    return pd.Timestamp(value).strftime(
-        "%Y-%m-%d"
-    )
-def split_window(
-    data: pd.DataFrame,
-    train_end: object,
-    validation_end: object,
-    test_end: object,
-) -> tuple[
-    pd.DataFrame,
-    pd.DataFrame,
-    pd.DataFrame,
-]:
-    """Split data into train, validation and test periods."""
-    train_end_string = (
-        normalize_window_value(
-            train_end
-        )
-    )
-    validation_end_string = (
-        normalize_window_value(
-            validation_end
-        )
-    )
-    test_end_string = (
-        normalize_window_value(
-            test_end
-        )
-    )
-    dates = pd.to_datetime(
-        data["price_date"],
+    frame["direction"] = pd.to_numeric(
+        frame["direction"],
         errors="coerce",
     )
-    train = data[
-        dates <= pd.Timestamp(
-            train_end_string
+    frame = frame.dropna()
+    values = frame[variable]
+    positive = values > 0
+    negative = values < 0
+    zero = values == 0
+    auc = safe_auc(
+        frame["direction"],
+        values,
+    )
+    rho, p_value = safe_spearman(
+        values,
+        frame["direction"],
+    )
+    logistic_auc = float("nan")
+    if (
+        len(frame) >= 10
+        and frame["direction"].nunique() >= 2
+        and values.nunique() >= 2
+    ):
+        model = Pipeline(
+            [
+                (
+                    "scaler",
+                    StandardScaler(),
+                ),
+                (
+                    "model",
+                    LogisticRegression(
+                        max_iter=2_000,
+                        class_weight="balanced",
+                        random_state=RANDOM_STATE,
+                    ),
+                ),
+            ]
         )
+        x = values.to_numpy().reshape(
+            -1,
+            1,
+        )
+        y = frame[
+            "direction"
+        ].to_numpy()
+        model.fit(
+            x,
+            y,
+        )
+        scores = model.predict_proba(
+            x
+        )[:, 1]
+        logistic_auc = safe_auc(
+            frame["direction"],
+            pd.Series(
+                scores,
+                index=frame.index,
+            ),
+        )
+    return ContinuousResult(
+        window=window,
+        variable=variable,
+        training_tail_events=0,
+        test_tail_events=len(test_tail),
+        usable_events=len(frame),
+        positive_events=int(
+            positive.sum()
+        ),
+        negative_events=int(
+            negative.sum()
+        ),
+        zero_events=int(
+            zero.sum()
+        ),
+        auc=auc,
+        spearman_rho=rho,
+        spearman_p=p_value,
+        logistic_auc=logistic_auc,
+    )
+# ---------------------------------------------------------------------------
+# Quantile analysis
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class QuantileResult:
+    window: str
+    variable: str
+    bin_name: str
+    test_events: int
+    down_events: int
+    up_events: int
+    down_rate: float
+QUANTILES = (
+    0.00,
+    0.20,
+    0.40,
+    0.60,
+    0.80,
+    1.00,
+)
+def training_quantile_edges(
+    train_tail: pd.DataFrame,
+    variable: str,
+) -> np.ndarray:
+    values = numeric_series(
+        train_tail,
+        variable,
+    ).dropna()
+    if len(values) < 10:
+        return np.array([])
+    edges = np.quantile(
+        values,
+        QUANTILES,
+    )
+    edges = np.unique(
+        edges
+    )
+    if len(edges) < 2:
+        return np.array([])
+    return edges
+def assign_quantile_bins(
+    values: pd.Series,
+    edges: np.ndarray,
+) -> pd.Series:
+    if len(edges) < 2:
+        return pd.Series(
+            pd.NA,
+            index=values.index,
+            dtype="string",
+        )
+    result = pd.cut(
+        values,
+        bins=edges,
+        include_lowest=True,
+        duplicates="drop",
+    )
+    return result.astype("string")
+def quantile_analysis(
+    train_tail: pd.DataFrame,
+    test_tail: pd.DataFrame,
+    variable: str,
+    window: str,
+) -> tuple[
+    list[QuantileResult],
+    np.ndarray,
+]:
+    edges = training_quantile_edges(
+        train_tail,
+        variable,
+    )
+    if len(edges) < 2:
+        return [], edges
+    frame = test_tail[
+        [
+            variable,
+            "direction",
+        ]
+    ].copy()
+    frame[variable] = numeric_series(
+        frame,
+        variable,
+    )
+    frame["direction"] = pd.to_numeric(
+        frame["direction"],
+        errors="coerce",
+    )
+    frame["bin"] = assign_quantile_bins(
+        frame[variable],
+        edges,
+    )
+    frame = frame.dropna(
+        subset=[
+            variable,
+            "direction",
+            "bin",
+        ]
+    )
+    results: list[QuantileResult] = []
+    for bin_name, group in frame.groupby(
+        "bin",
+        observed=True,
+    ):
+        down = int(
+            (group["direction"] == 1)
+            .sum()
+        )
+        up = int(
+            (group["direction"] == 0)
+            .sum()
+        )
+        total = down + up
+        results.append(
+            QuantileResult(
+                window=window,
+                variable=variable,
+                bin_name=str(bin_name),
+                test_events=total,
+                down_events=down,
+                up_events=up,
+                down_rate=(
+                    down / total
+                    if total
+                    else float("nan")
+                ),
+            )
+        )
+    return results, edges
+# ---------------------------------------------------------------------------
+# Positive-change analysis
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class PositiveChangeResult:
+    window: str
+    variable: str
+    threshold: float
+    low_positive_events: int
+    low_positive_down: int
+    low_positive_down_rate: float
+    high_positive_events: int
+    high_positive_down: int
+    high_positive_down_rate: float
+    delta_high_minus_low: float
+    bootstrap_mean: float
+    ci_low: float
+    ci_high: float
+    probability_positive: float
+def positive_change_analysis(
+    train_tail: pd.DataFrame,
+    test_tail: pd.DataFrame,
+    variable: str,
+    window: str,
+) -> PositiveChangeResult:
+    train_values = numeric_series(
+        train_tail,
+        variable,
+    )
+    positive_train = train_values[
+        train_values > 0
+    ].dropna()
+    if len(positive_train) == 0:
+        threshold = float("nan")
+    else:
+        threshold = float(
+            positive_train.quantile(
+                0.50
+            )
+        )
+    frame = test_tail[
+        [
+            variable,
+            "direction",
+        ]
+    ].copy()
+    frame[variable] = numeric_series(
+        frame,
+        variable,
+    )
+    frame["direction"] = pd.to_numeric(
+        frame["direction"],
+        errors="coerce",
+    )
+    frame = frame.dropna()
+    positive = frame[
+        frame[variable] > 0
+    ].copy()
+    if positive.empty or np.isnan(
+        threshold
+    ):
+        return PositiveChangeResult(
+            window=window,
+            variable=variable,
+            threshold=threshold,
+            low_positive_events=0,
+            low_positive_down=0,
+            low_positive_down_rate=float("nan"),
+            high_positive_events=0,
+            high_positive_down=0,
+            high_positive_down_rate=float("nan"),
+            delta_high_minus_low=float("nan"),
+            bootstrap_mean=float("nan"),
+            ci_low=float("nan"),
+            ci_high=float("nan"),
+            probability_positive=float("nan"),
+        )
+    low = positive[
+        positive[variable] <= threshold
+    ]
+    high = positive[
+        positive[variable] > threshold
+    ]
+    low_down = int(
+        (low["direction"] == 1).sum()
+    )
+    high_down = int(
+        (high["direction"] == 1).sum()
+    )
+    low_rate = (
+        low_down / len(low)
+        if len(low)
+        else float("nan")
+    )
+    high_rate = (
+        high_down / len(high)
+        if len(high)
+        else float("nan")
+    )
+    if (
+        len(low) > 0
+        and len(high) > 0
+    ):
+        (
+            bootstrap_mean,
+            ci_low,
+            ci_high,
+            probability_positive,
+        ) = bootstrap_mean_difference(
+            high["direction"],
+            low["direction"],
+        )
+        delta = (
+            high_rate - low_rate
+        )
+    else:
+        bootstrap_mean = float("nan")
+        ci_low = float("nan")
+        ci_high = float("nan")
+        probability_positive = float("nan")
+        delta = float("nan")
+    return PositiveChangeResult(
+        window=window,
+        variable=variable,
+        threshold=threshold,
+        low_positive_events=len(low),
+        low_positive_down=low_down,
+        low_positive_down_rate=low_rate,
+        high_positive_events=len(high),
+        high_positive_down=high_down,
+        high_positive_down_rate=high_rate,
+        delta_high_minus_low=delta,
+        bootstrap_mean=bootstrap_mean,
+        ci_low=ci_low,
+        ci_high=ci_high,
+        probability_positive=probability_positive,
+    )
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+def print_continuous_result(
+    result: ContinuousResult,
+) -> None:
+    print(
+        f"  {result.variable}: "
+        f"n={result.usable_events}, "
+        f"+={result.positive_events}, "
+        f"-={result.negative_events}, "
+        f"0={result.zero_events}, "
+        f"AUC={result.auc:.4f}, "
+        f"Spearman={result.spearman_rho:+.4f} "
+        f"(p={result.spearman_p:.4f}), "
+        f"logistic AUC={result.logistic_auc:.4f}"
+    )
+def print_quantile_results(
+    results: list[QuantileResult],
+) -> None:
+    for result in results:
+        print(
+            f"    {result.bin_name}: "
+            f"n={result.test_events}, "
+            f"DOWN={result.down_events}, "
+            f"UP={result.up_events}, "
+            f"DOWN rate={result.down_rate:.4f}"
+        )
+def print_positive_result(
+    result: PositiveChangeResult,
+) -> None:
+    print(
+        f"  positive changes: "
+        f"threshold={result.threshold:.6f}, "
+        f"LOW n={result.low_positive_events} "
+        f"DOWN={result.low_positive_down} "
+        f"rate={result.low_positive_down_rate:.4f}, "
+        f"HIGH n={result.high_positive_events} "
+        f"DOWN={result.high_positive_down} "
+        f"rate={result.high_positive_down_rate:.4f}, "
+        f"delta={result.delta_high_minus_low:+.4f}, "
+        f"CI=[{result.ci_low:+.4f}, "
+        f"{result.ci_high:+.4f}]"
+    )
+# ---------------------------------------------------------------------------
+# Walk-forward
+# ---------------------------------------------------------------------------
+def run_window(
+    data: pd.DataFrame,
+    window,
+) -> tuple[
+    list[ContinuousResult],
+    list[QuantileResult],
+    list[PositiveChangeResult],
+]:
+    train = data[
+        data["price_date"]
+        <= window.train_end
     ].copy()
     validation = data[
         (
-            dates
-            > pd.Timestamp(
-                train_end_string
-            )
+            data["price_date"]
+            > window.train_end
         )
         & (
-            dates
-            <= pd.Timestamp(
-                validation_end_string
-            )
+            data["price_date"]
+            <= window.validation_end
         )
     ].copy()
     test = data[
         (
-            dates
-            > pd.Timestamp(
-                validation_end_string
-            )
+            data["price_date"]
+            > window.validation_end
         )
         & (
-            dates
-            <= pd.Timestamp(
-                test_end_string
-            )
+            data["price_date"]
+            <= window.test_end
         )
     ].copy()
-    return (
+    (
+        feature_name,
+        event_features,
+        validation_auc,
+    ) = select_event_model(
         train,
         validation,
+    )
+    event_model = fit_event_model(
+        train,
+        event_features,
+    )
+    train["event_score"] = predict_event_score(
+        event_model,
+        train,
+        event_features,
+    )
+    validation["event_score"] = predict_event_score(
+        event_model,
+        validation,
+        event_features,
+    )
+    test["event_score"] = predict_event_score(
+        event_model,
         test,
+        event_features,
     )
-# ---------------------------------------------------------------------------
-# Reporting
-# ---------------------------------------------------------------------------
-def print_low_high_result(
-    result: DiagnosticResult,
-) -> None:
-    """Print one LOW/HIGH diagnostic result."""
-    print()
-    print(
-        f"  {result.fi_variable}"
+    threshold = training_tail_threshold(
+        train["event_score"],
+        EVENT_TAIL,
     )
-    print(
-        f"    Analysis:             "
-        f"{result.analysis}"
-    )
-    print(
-        f"    Training tail events: "
-        f"{result.training_tail_events:,}"
-    )
-    print(
-        f"    Test tail events:     "
-        f"{result.test_tail_events:,}"
-    )
-    print(
-        f"    Usable test events:   "
-        f"{result.usable_test_events:,}"
-    )
-    print(
-        f"    Training threshold:   "
-        f"{result.fi_threshold:.6f}"
-    )
-    print()
-    print("    LOW:")
-    print(
-        f"      events: "
-        f"{result.low_events:,}"
-    )
-    print(
-        f"      DOWN:   "
-        f"{result.low_down_events:,}"
-    )
-    print(
-        f"      UP:     "
-        f"{result.low_up_events:,}"
-    )
-    print(
-        f"      DOWN rate: "
-        f"{result.low_down_rate:.4f}"
-    )
-    print()
-    print("    HIGH:")
-    print(
-        f"      events: "
-        f"{result.high_events:,}"
-    )
-    print(
-        f"      DOWN:   "
-        f"{result.high_down_events:,}"
-    )
-    print(
-        f"      UP:     "
-        f"{result.high_up_events:,}"
-    )
-    print(
-        f"      DOWN rate: "
-        f"{result.high_down_rate:.4f}"
+    train_tail = train[
+        train["event_score"]
+        >= threshold
+    ].copy()
+    test_tail = test[
+        test["event_score"]
+        >= threshold
+    ].copy()
+    window_name = (
+        f"{window.train_end} -> "
+        f"{window.validation_end} -> "
+        f"{window.test_end}"
     )
     print()
     print(
-        f"    Observed delta:     "
-        f"{result.observed_delta_down_rate:+.4f}"
+        f"WINDOW {window_name}"
     )
     print(
-        f"    FI-only AUC:        "
-        f"{result.auc_fi:.6f}"
+        f"event={feature_name}, "
+        f"validation AUC={validation_auc:.4f}, "
+        f"tail threshold={threshold:.6f}, "
+        f"train tail={len(train_tail)}, "
+        f"test tail={len(test_tail)}"
     )
-    if np.isnan(
-        result.bootstrap_mean_delta_down_rate
-    ):
-        print(
-            "    Bootstrap:          "
-            "not estimable"
+    continuous_results: list[
+        ContinuousResult
+    ] = []
+    quantile_results: list[
+        QuantileResult
+    ] = []
+    positive_results: list[
+        PositiveChangeResult
+    ] = []
+    for variable in CHANGE_COLUMNS:
+        result = continuous_analysis(
+            test_tail,
+            variable,
+            window_name,
         )
-        return
-    print(
-        f"    Bootstrap mean:     "
-        f"{result.bootstrap_mean_delta_down_rate:+.4f}"
-    )
-    print(
-        f"    Bootstrap 95% CI:   "
-        f"["
-        f"{result.bootstrap_ci_low:+.4f}, "
-        f"{result.bootstrap_ci_high:+.4f}"
-        f"]"
-    )
-    print(
-        f"    P(delta > 0):       "
-        f"{result.bootstrap_probability_positive:.4f}"
-    )
-    print(
-        f"    P(delta <= 0):      "
-        f"{result.bootstrap_probability_non_positive:.4f}"
-    )
-def print_change_direction_result(
-    result: ChangeDirectionResult,
-) -> None:
-    """Print the three-state change-direction result."""
-    print()
-    print(
-        f"  {result.fi_variable}"
-    )
-    print(
-        "    Analysis: change_direction"
-    )
-    print()
-    print("    DECREASE:")
-    print(
-        f"      events: "
-        f"{result.decrease_events:,}"
-    )
-    print(
-        f"      DOWN:   "
-        f"{result.decrease_down_events:,}"
-    )
-    print(
-        f"      UP:     "
-        f"{result.decrease_up_events:,}"
-    )
-    print(
-        f"      DOWN rate: "
-        f"{result.decrease_down_rate:.4f}"
-    )
-    print()
-    print("    NO_CHANGE:")
-    print(
-        f"      events: "
-        f"{result.no_change_events:,}"
-    )
-    print(
-        f"      DOWN:   "
-        f"{result.no_change_down_events:,}"
-    )
-    print(
-        f"      UP:     "
-        f"{result.no_change_up_events:,}"
-    )
-    if np.isnan(
-        result.no_change_down_rate
-    ):
-        print(
-            "      DOWN rate: n/a"
+        result = ContinuousResult(
+            window=result.window,
+            variable=result.variable,
+            training_tail_events=len(
+                train_tail
+            ),
+            test_tail_events=result.test_tail_events,
+            usable_events=result.usable_events,
+            positive_events=result.positive_events,
+            negative_events=result.negative_events,
+            zero_events=result.zero_events,
+            auc=result.auc,
+            spearman_rho=result.spearman_rho,
+            spearman_p=result.spearman_p,
+            logistic_auc=result.logistic_auc,
         )
-    else:
-        print(
-            f"      DOWN rate: "
-            f"{result.no_change_down_rate:.4f}"
+        continuous_results.append(
+            result
         )
-    print()
-    print("    INCREASE:")
-    print(
-        f"      events: "
-        f"{result.increase_events:,}"
-    )
-    print(
-        f"      DOWN:   "
-        f"{result.increase_down_events:,}"
-    )
-    print(
-        f"      UP:     "
-        f"{result.increase_up_events:,}"
-    )
-    print(
-        f"      DOWN rate: "
-        f"{result.increase_down_rate:.4f}"
-    )
-    print()
-    print(
-        "    INCREASE - DECREASE:"
-    )
-    print(
-        f"      observed delta: "
-        f"{result.observed_increase_minus_decrease:+.4f}"
-    )
-    print(
-        f"      FI-only AUC: "
-        f"{result.auc_fi:.6f}"
-    )
-    print(
-        f"      Bootstrap mean: "
-        f"{result.bootstrap_mean_delta:+.4f}"
-    )
-    print(
-        f"      Bootstrap 95% CI: "
-        f"["
-        f"{result.bootstrap_ci_low:+.4f}, "
-        f"{result.bootstrap_ci_high:+.4f}"
-        f"]"
-    )
-    print(
-        f"      P(delta > 0): "
-        f"{result.bootstrap_probability_positive:.4f}"
-    )
-    print(
-        f"      P(delta <= 0): "
-        f"{result.bootstrap_probability_non_positive:.4f}"
+        print_continuous_result(
+            result
+        )
+        bins, _ = quantile_analysis(
+            train_tail,
+            test_tail,
+            variable,
+            window_name,
+        )
+        quantile_results.extend(
+            bins
+        )
+        print("  training-defined quintiles:")
+        print_quantile_results(
+            bins
+        )
+        positive_result = (
+            positive_change_analysis(
+                train_tail,
+                test_tail,
+                variable,
+                window_name,
+            )
+        )
+        positive_results.append(
+            positive_result
+        )
+        print_positive_result(
+            positive_result
+        )
+    return (
+        continuous_results,
+        quantile_results,
+        positive_results,
     )
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main() -> None:
-    print("=" * 80)
     print(
-        "Blankdiss Short-Interest Dynamics "
-        "Conditional FI Direction Diagnostic"
-    )
-    print("=" * 80)
-    print()
-    print(
-        "Question:"
+        "Blankdiss Short-Interest Continuous "
+        "Change Diagnostic"
     )
     print(
-        "Within an already identified event-risk tail, "
-        "does short-interest level or change distinguish "
-        "DOWN from UP?"
+        f"Event tail: {EVENT_TAIL:.0%} | "
+        f"Event threshold: {EVENT_THRESHOLD:.0%} | "
+        f"Bootstrap: {BOOTSTRAP_ITERATIONS:,}"
     )
-    print()
-    print(
-        f"Event threshold: "
-        f"{EVENT_THRESHOLD:.0%}"
-    )
-    print(
-        f"Bootstrap iterations: "
-        f"{BOOTSTRAP_ITERATIONS:,}"
-    )
-    print(
-        f"Random state: "
-        f"{RANDOM_STATE}"
-    )
-    print()
-    print(
-        "Change analysis:"
-    )
-    print(
-        "  - DECREASE / NO_CHANGE / INCREASE"
-    )
-    print(
-        "  - non-zero change magnitude split"
-    )
-    print(
-        "  - absolute and relative change evaluated separately"
-    )
-    print()
-    print(
-        "FI variables:"
-    )
-    for column in FI_COLUMNS:
-        print(
-            f"  - {column}"
-        )
-    print(
-        f"Tails: "
-        f"{', '.join(f'{fraction:.0%}' for fraction in TOP_FRACTIONS)}"
-    )
-    print()
     data = prepare_data()
-    print()
     print(
-        f"Prepared {len(data):,} rows."
+        f"Prepared {len(data):,} rows | "
+        f"events={int(data['event'].sum()):,}"
     )
-    print(
-        f"Date range: "
-        f"{data['price_date'].min()} -> "
-        f"{data['price_date'].max()}"
-    )
-    print(
-        f"10% absolute-return events: "
-        f"{data['event'].sum():,}"
-    )
-    low_high_results: list[
-        DiagnosticResult
+    all_continuous: list[
+        ContinuousResult
     ] = []
-    magnitude_results: list[
-        DiagnosticResult
+    all_quantiles: list[
+        QuantileResult
     ] = []
-    direction_results: list[
-        ChangeDirectionResult
+    all_positive: list[
+        PositiveChangeResult
     ] = []
     for window in WALK_FORWARD_WINDOWS:
-        train_end = window.train_end
-        validation_end = (
-            window.validation_end
-        )
-        test_end = window.test_end
-        window_label = (
-            f"{normalize_window_value(train_end)}"
-            f" -> "
-            f"{normalize_window_value(validation_end)}"
-            f" -> "
-            f"{normalize_window_value(test_end)}"
-        )
-        print()
-        print("=" * 80)
-        print(
-            f"WINDOW {window_label}"
-        )
-        print("=" * 80)
-        train, validation, test = (
-            split_window(
-                data,
-                train_end,
-                validation_end,
-                test_end,
-            )
-        )
-        print(
-            f"Train:      {len(train):,}"
-        )
-        print(
-            f"Validation: {len(validation):,}"
-        )
-        print(
-            f"Test:       {len(test):,}"
-        )
         (
-            event_feature_name,
-            event_feature_columns,
-            train_score,
-            validation_score,
-            test_score,
-        ) = build_event_score(
+            continuous,
+            quantiles,
+            positive,
+        ) = run_window(
+            data,
+            window,
+        )
+        all_continuous.extend(
+            continuous
+        )
+        all_quantiles.extend(
+            quantiles
+        )
+        all_positive.extend(
+            positive
+        )
+    print()
+    print("=" * 80)
+    print("SUMMARY")
+    print("=" * 80)
+    for variable in CHANGE_COLUMNS:
+        print()
+        print(variable)
+        matching = [
+            result
+            for result in all_continuous
+            if result.variable == variable
+        ]
+        for result in matching:
+            print(
+                f"  {result.window}: "
+                f"AUC={result.auc:.4f}, "
+                f"Spearman={result.spearman_rho:+.4f}, "
+                f"p={result.spearman_p:.4f}, "
+                f"n={result.usable_events}"
+            )
+        positive_matching = [
+            result
+            for result in all_positive
+            if result.variable == variable
+        ]
+        for result in positive_matching:
+            print(
+                f"  {result.window}: "
+                f"positive HIGH-LOW="
+                f"{result.delta_high_minus_low:+.4f}, "
+                f"CI=["
+                f"{result.ci_low:+.4f}, "
+                f"{result.ci_high:+.4f}"
+                f"]"
+            )
+    # ------------------------------------------------------------------
+    # Pooled 5% tail analysis.
+    #
+    # Important:
+    # The pooled result is descriptive only. Thresholds remain
+    # window-specific and are learned from each training period.
+    # ------------------------------------------------------------------
+    print()
+    print("POOLED WALK-FORWARD RESULT")
+    print(
+        "The pooled result combines OOS observations from both "
+        "walk-forward windows after each window's own training-only "
+        "tail threshold was applied."
+    )
+    pooled_frames: list[pd.DataFrame] = []
+    for window in WALK_FORWARD_WINDOWS:
+        train = data[
+            data["price_date"]
+            <= window.train_end
+        ].copy()
+        validation = data[
+            (
+                data["price_date"]
+                > window.train_end
+            )
+            & (
+                data["price_date"]
+                <= window.validation_end
+            )
+        ].copy()
+        test = data[
+            (
+                data["price_date"]
+                > window.validation_end
+            )
+            & (
+                data["price_date"]
+                <= window.test_end
+            )
+        ].copy()
+        (
+            _,
+            features,
+            _,
+        ) = select_event_model(
             train,
             validation,
+        )
+        model = fit_event_model(
+            train,
+            features,
+        )
+        train_score = predict_event_score(
+            model,
+            train,
+            features,
+        )
+        test_score = predict_event_score(
+            model,
             test,
+            features,
         )
-        _ = (
-            event_feature_name,
-            event_feature_columns,
-            validation_score,
+        threshold = training_tail_threshold(
+            train_score,
+            EVENT_TAIL,
         )
-        print()
-        for fraction in TOP_FRACTIONS:
-            print("-" * 80)
-            print(
-                f"TAIL {fraction:.0%}"
-            )
-            print("-" * 80)
-            train_events = train[
-                train["event"] == 1
-            ].copy()
-            test_events = test[
-                test["event"] == 1
-            ].copy()
-            train_event_score = (
-                train_score.loc[
-                    train_events.index
-                ]
-            )
-            test_event_score = (
-                test_score.loc[
-                    test_events.index
-                ]
-            )
-            train_tail, train_threshold = (
-                select_tail(
-                    train_events,
-                    train_event_score,
-                    fraction,
-                )
-            )
-            print(
-                f"Training tail events: "
-                f"{len(train_tail):,}"
-            )
-            # IMPORTANT:
-            # The OOS threshold comes exclusively from training.
-            test_tail = test_events.copy()
-            test_tail["_event_score"] = (
-                test_event_score
-            )
-            test_tail = test_tail[
-                test_tail["_event_score"]
-                >= train_threshold
-            ].copy()
-            print(
-                f"Test tail events:     "
-                f"{len(test_tail):,}"
-            )
-            # ---------------------------------------------------------------
-            # Level
-            # ---------------------------------------------------------------
-            level_train_values = (
-                numeric_series(
-                    train_tail,
-                    BASE_FI_COLUMN,
-                )
-            )
-            level_train_values = (
-                level_train_values.dropna()
-            )
-            if not level_train_values.empty:
-                level_threshold = float(
-                    level_train_values.median()
-                )
-                result = run_low_high_test(
-                    train_tail=train_tail,
-                    test_tail=test_tail,
-                    fi_variable=BASE_FI_COLUMN,
-                    threshold=level_threshold,
-                    analysis_name="level",
-                )
-                if result is not None:
-                    result = DiagnosticResult(
-                        window=window_label,
-                        fi_variable=(
-                            result.fi_variable
-                        ),
-                        analysis=result.analysis,
-                        tail=fraction,
-                        training_tail_events=(
-                            result.training_tail_events
-                        ),
-                        test_tail_events=(
-                            result.test_tail_events
-                        ),
-                        usable_test_events=(
-                            result.usable_test_events
-                        ),
-                        fi_threshold=(
-                            result.fi_threshold
-                        ),
-                        low_events=(
-                            result.low_events
-                        ),
-                        high_events=(
-                            result.high_events
-                        ),
-                        low_down_events=(
-                            result.low_down_events
-                        ),
-                        low_up_events=(
-                            result.low_up_events
-                        ),
-                        high_down_events=(
-                            result.high_down_events
-                        ),
-                        high_up_events=(
-                            result.high_up_events
-                        ),
-                        low_down_rate=(
-                            result.low_down_rate
-                        ),
-                        high_down_rate=(
-                            result.high_down_rate
-                        ),
-                        observed_delta_down_rate=(
-                            result.observed_delta_down_rate
-                        ),
-                        bootstrap_mean_delta_down_rate=(
-                            result.bootstrap_mean_delta_down_rate
-                        ),
-                        bootstrap_ci_low=(
-                            result.bootstrap_ci_low
-                        ),
-                        bootstrap_ci_high=(
-                            result.bootstrap_ci_high
-                        ),
-                        bootstrap_probability_positive=(
-                            result.bootstrap_probability_positive
-                        ),
-                        bootstrap_probability_non_positive=(
-                            result.bootstrap_probability_non_positive
-                        ),
-                        auc_fi=result.auc_fi,
-                    )
-                    print(
-                        "\n  SHORT-INTEREST LEVEL"
-                    )
-                    print_low_high_result(
-                        result
-                    )
-                    low_high_results.append(
-                        result
-                    )
-            # ---------------------------------------------------------------
-            # Change variables
-            # ---------------------------------------------------------------
-            for fi_variable in (
-                "short_interest_pct_change",
-                "short_interest_pct_change_pct",
-            ):
-                # -----------------------------------------------------------
-                # A. Change direction:
-                #    decrease / unchanged / increase
-                # -----------------------------------------------------------
-                direction_result = (
-                    run_change_direction_test(
-                        train_tail=train_tail,
-                        test_tail=test_tail,
-                        fi_variable=fi_variable,
-                    )
-                )
-                if direction_result is not None:
-                    direction_result = (
-                        ChangeDirectionResult(
-                            window=window_label,
-                            fi_variable=(
-                                direction_result.fi_variable
-                            ),
-                            tail=fraction,
-                            training_tail_events=(
-                                direction_result.training_tail_events
-                            ),
-                            test_tail_events=(
-                                direction_result.test_tail_events
-                            ),
-                            decrease_events=(
-                                direction_result.decrease_events
-                            ),
-                            decrease_down_events=(
-                                direction_result.decrease_down_events
-                            ),
-                            decrease_up_events=(
-                                direction_result.decrease_up_events
-                            ),
-                            decrease_down_rate=(
-                                direction_result.decrease_down_rate
-                            ),
-                            no_change_events=(
-                                direction_result.no_change_events
-                            ),
-                            no_change_down_events=(
-                                direction_result.no_change_down_events
-                            ),
-                            no_change_up_events=(
-                                direction_result.no_change_up_events
-                            ),
-                            no_change_down_rate=(
-                                direction_result.no_change_down_rate
-                            ),
-                            increase_events=(
-                                direction_result.increase_events
-                            ),
-                            increase_down_events=(
-                                direction_result.increase_down_events
-                            ),
-                            increase_up_events=(
-                                direction_result.increase_up_events
-                            ),
-                            increase_down_rate=(
-                                direction_result.increase_down_rate
-                            ),
-                            observed_increase_minus_decrease=(
-                                direction_result.observed_increase_minus_decrease
-                            ),
-                            bootstrap_mean_delta=(
-                                direction_result.bootstrap_mean_delta
-                            ),
-                            bootstrap_ci_low=(
-                                direction_result.bootstrap_ci_low
-                            ),
-                            bootstrap_ci_high=(
-                                direction_result.bootstrap_ci_high
-                            ),
-                            bootstrap_probability_positive=(
-                                direction_result.bootstrap_probability_positive
-                            ),
-                            bootstrap_probability_non_positive=(
-                                direction_result.bootstrap_probability_non_positive
-                            ),
-                            auc_fi=(
-                                direction_result.auc_fi
-                            ),
-                        )
-                    )
-                    print(
-                        f"\n  {fi_variable.upper()} "
-                        f"CHANGE DIRECTION"
-                    )
-                    print_change_direction_result(
-                        direction_result
-                    )
-                    direction_results.append(
-                        direction_result
-                    )
-                else:
-                    print()
-                    print(
-                        f"  {fi_variable}: "
-                        "change-direction test "
-                        "not estimable"
-                    )
-                # -----------------------------------------------------------
-                # B. Change magnitude
-                # -----------------------------------------------------------
-                magnitude_result = (
-                    run_change_magnitude_test(
-                        train_tail=train_tail,
-                        test_tail=test_tail,
-                        fi_variable=fi_variable,
-                    )
-                )
-                if magnitude_result is not None:
-                    magnitude_result = (
-                        DiagnosticResult(
-                            window=window_label,
-                            fi_variable=(
-                                magnitude_result.fi_variable
-                            ),
-                            analysis=(
-                                magnitude_result.analysis
-                            ),
-                            tail=fraction,
-                            training_tail_events=(
-                                magnitude_result.training_tail_events
-                            ),
-                            test_tail_events=(
-                                magnitude_result.test_tail_events
-                            ),
-                            usable_test_events=(
-                                magnitude_result.usable_test_events
-                            ),
-                            fi_threshold=(
-                                magnitude_result.fi_threshold
-                            ),
-                            low_events=(
-                                magnitude_result.low_events
-                            ),
-                            high_events=(
-                                magnitude_result.high_events
-                            ),
-                            low_down_events=(
-                                magnitude_result.low_down_events
-                            ),
-                            low_up_events=(
-                                magnitude_result.low_up_events
-                            ),
-                            high_down_events=(
-                                magnitude_result.high_down_events
-                            ),
-                            high_up_events=(
-                                magnitude_result.high_up_events
-                            ),
-                            low_down_rate=(
-                                magnitude_result.low_down_rate
-                            ),
-                            high_down_rate=(
-                                magnitude_result.high_down_rate
-                            ),
-                            observed_delta_down_rate=(
-                                magnitude_result.observed_delta_down_rate
-                            ),
-                            bootstrap_mean_delta_down_rate=(
-                                magnitude_result.bootstrap_mean_delta_down_rate
-                            ),
-                            bootstrap_ci_low=(
-                                magnitude_result.bootstrap_ci_low
-                            ),
-                            bootstrap_ci_high=(
-                                magnitude_result.bootstrap_ci_high
-                            ),
-                            bootstrap_probability_positive=(
-                                magnitude_result.bootstrap_probability_positive
-                            ),
-                            bootstrap_probability_non_positive=(
-                                magnitude_result.bootstrap_probability_non_positive
-                            ),
-                            auc_fi=(
-                                magnitude_result.auc_fi
-                            ),
-                        )
-                    )
-                    print(
-                        f"\n  {fi_variable.upper()} "
-                        f"CHANGE MAGNITUDE"
-                    )
-                    print_low_high_result(
-                        magnitude_result
-                    )
-                    magnitude_results.append(
-                        magnitude_result
-                    )
-                else:
-                    print()
-                    print(
-                        f"  {fi_variable}: "
-                        "change-magnitude test "
-                        "not estimable"
-                    )
-    # -----------------------------------------------------------------------
-    # Summary
-    # -----------------------------------------------------------------------
-    print()
-    print("=" * 80)
-    print(
-        "SHORT-INTEREST DYNAMICS SUMMARY"
-    )
-    print("=" * 80)
-    if direction_results:
-        print()
-        print(
-            "CHANGE DIRECTION SUMMARY"
+        tail = test[
+            test_score >= threshold
+        ].copy()
+        tail["window"] = (
+            f"{window.train_end} -> "
+            f"{window.validation_end} -> "
+            f"{window.test_end}"
         )
-        direction_summary = pd.DataFrame(
-            [
-                result.__dict__
-                for result in direction_results
-            ]
+        pooled_frames.append(
+            tail
         )
-        print(
-            direction_summary.to_string(
-                index=False
-            )
-        )
-    else:
-        direction_summary = pd.DataFrame()
-    if low_high_results:
-        print()
-        print(
-            "LEVEL SUMMARY"
-        )
-        level_summary = pd.DataFrame(
-            [
-                result.__dict__
-                for result in low_high_results
-            ]
-        )
-        print(
-            level_summary.to_string(
-                index=False
-            )
-        )
-    else:
-        level_summary = pd.DataFrame()
-    if magnitude_results:
-        print()
-        print(
-            "CHANGE MAGNITUDE SUMMARY"
-        )
-        magnitude_summary = pd.DataFrame(
-            [
-                result.__dict__
-                for result in magnitude_results
-            ]
-        )
-        print(
-            magnitude_summary.to_string(
-                index=False
-            )
-        )
-    else:
-        magnitude_summary = pd.DataFrame()
-    # Store all result types in one CSV.
-    output_frames: list[
-        pd.DataFrame
-    ] = []
-    if not direction_summary.empty:
-        output_frames.append(
-            direction_summary.assign(
-                result_type="change_direction"
-            )
-        )
-    if not level_summary.empty:
-        output_frames.append(
-            level_summary.assign(
-                result_type="level"
-            )
-        )
-    if not magnitude_summary.empty:
-        output_frames.append(
-            magnitude_summary.assign(
-                result_type="change_magnitude"
-            )
-        )
-    if not output_frames:
-        print()
-        print(
-            "No diagnostic results were produced."
-        )
-        return
-    summary = pd.concat(
-        output_frames,
+    pooled = pd.concat(
+        pooled_frames,
         ignore_index=True,
-        sort=False,
     )
-    summary.to_csv(
-        OUTPUT_FILE,
-        index=False,
-    )
-    print()
-    print(
-        "Interpretation:"
-    )
-    print(
-        "  LEVEL:"
-    )
-    print(
-        "    positive delta means HIGH short-interest "
-        "level had a higher DOWN rate."
-    )
-    print(
-        "  CHANGE DIRECTION:"
-    )
-    print(
-        "    positive INCREASE-DECREASE delta means "
-        "increasing short interest had a higher DOWN rate "
-        "than decreasing short interest."
-    )
-    print(
-        "    NO_CHANGE is reported separately."
-    )
-    print(
-        "  CHANGE MAGNITUDE:"
-    )
-    print(
-        "    positive delta means larger absolute changes "
-        "in short interest had a higher DOWN rate."
-    )
-    print(
-        "    The magnitude threshold is learned only "
-        "from non-zero training changes."
-    )
-    print(
-        "  FI-only AUC:"
-    )
-    print(
-        "    > 0.5 means higher FI values are associated "
-        "with DOWN within the OOS event tail."
-    )
-    print(
-        "  Bootstrap:"
-    )
-    print(
-        "    all thresholds are learned from training data."
-    )
-    print(
-        "    OOS observations are never used to determine "
-        "the threshold."
-    )
-    print()
-    print(
-        f"Results saved to: "
-        f"{OUTPUT_FILE}"
-    )
-    print()
-    print(
-        "Done."
-    )
+    for variable in CHANGE_COLUMNS:
+        frame = pooled[
+            [
+                variable,
+                "direction",
+            ]
+        ].copy()
+        frame[variable] = numeric_series(
+            frame,
+            variable,
+        )
+        frame["direction"] = pd.to_numeric(
+            frame["direction"],
+            errors="coerce",
+        )
+        frame = frame.dropna()
+        print()
+        print(
+            f"{variable}: "
+            f"pooled n={len(frame)}"
+        )
+        continuous_auc = safe_auc(
+            frame["direction"],
+            frame[variable],
+        )
+        rho, p_value = safe_spearman(
+            frame[variable],
+            frame["direction"],
+        )
+        print(
+            f"  continuous AUC={continuous_auc:.4f}, "
+            f"Spearman={rho:+.4f}, "
+            f"p={p_value:.4f}"
+        )
+        positive = frame[
+            frame[variable] > 0
+        ]
+        negative = frame[
+            frame[variable] < 0
+        ]
+        zero = frame[
+            frame[variable] == 0
+        ]
+        print(
+            f"  direction: "
+            f"DECREASE n={len(negative)} "
+            f"DOWN={int((negative['direction'] == 1).sum())}, "
+            f"NO_CHANGE n={len(zero)}, "
+            f"DOWN={int((zero['direction'] == 1).sum())}, "
+            f"INCREASE n={len(positive)} "
+            f"DOWN={int((positive['direction'] == 1).sum())}"
+        )
 if __name__ == "__main__":
     main()
