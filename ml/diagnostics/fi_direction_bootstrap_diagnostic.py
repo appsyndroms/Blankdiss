@@ -411,8 +411,17 @@ def prepare_data() -> pd.DataFrame:
         >= EVENT_THRESHOLD
     ).astype(int)
     # Direction target is:
+    #
     #   1 = DOWN
     #   0 = UP
+    #
+    # Non-events intentionally remain NaN here.
+    #
+    # IMPORTANT:
+    # We must NOT drop these rows at this stage.
+    # The event model needs both event=0 and event=1 observations.
+    # Direction is only required later when fitting the directional
+    # model on the already identified event-risk population.
     data["direction"] = np.where(
         data["forward_return_5d"] <= -EVENT_THRESHOLD,
         1,
@@ -422,12 +431,6 @@ def prepare_data() -> pd.DataFrame:
             np.nan,
         ),
     )
-    data = data.dropna(
-        subset=[
-            "direction",
-        ],
-    ).copy()
-    data["direction"] = data["direction"].astype(int)
     return data
 # ---------------------------------------------------------------------------
 # Models
