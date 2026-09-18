@@ -16,25 +16,32 @@
       "priority": 2
     },
     {
-      "id": "volatility_si_level_interaction",
-      "status": "inactive",
-      "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
-      "module": "ml.diagnostics.experiments.volatility_si_level_interaction_diagnostic",
-      "priority": 10
+      "id": "si_price_dynamics",
+      "status": "active",
+      "question": "Hur utvecklas priset före och efter förändring i rekonstruerad short interest, och kvarstår sambandet efter kontroll för tidigare prisrörelse och event-risk?",
+      "module": "ml.diagnostics.experiments.si_price_dynamics_diagnostic",
+      "priority": 3
     },
     {
       "id": "report_proximity",
       "status": "planned",
       "question": "Förstärks sambandet nära rapportdatum?",
       "module": "ml.diagnostics.experiments.report_proximity_diagnostic",
-      "priority": 3
+      "priority": 4
     },
     {
       "id": "sector_relative_return",
       "status": "planned",
       "question": "Är effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
-      "priority": 4
+      "priority": 5
+    },
+    {
+      "id": "volatility_si_level_interaction",
+      "status": "inactive",
+      "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
+      "module": "ml.diagnostics.experiments.volatility_si_level_interaction_diagnostic",
+      "priority": 10
     }
   ]
 }
