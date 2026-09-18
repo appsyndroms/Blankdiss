@@ -472,6 +472,16 @@ Verify results
         ↓
 Upload artifacts
 
+Inför varje research-körning rensas filerna i:
+
+data/processed/ml/research/latest/
+
+Själva katalogstrukturen bevaras, inklusive:
+
+data/processed/ml/research/latest/diagnostic/
+
+Därefter skrivs den nya körningens resultat dit.
+
 Registry-baserade diagnostics startas genom:
 
 python -u -m ml.experiment_registry_runner
@@ -482,15 +492,30 @@ Det innebär att nya aktiva diagnostics kan köras utan att workflow-filen behö
 
 Resultat
 
-Research-resultat skrivs under:
+Research-resultat skrivs till data-katalogen efter varje körning:
 
 data/processed/ml/research/
 
-Senaste körningen finns under:
+Den aktuella körningens resultat finns alltid under:
 
 data/processed/ml/research/latest/
 
-Viktiga filer är:
+`latest/` är den stabila sökvägen till den senaste research-körningen.
+
+Inför varje ny körning tas befintliga filer i `latest/` bort. Katalogstrukturen behålls och fylls sedan med resultaten från den nya körningen.
+
+Den aktuella resultatstrukturen är:
+
+data/processed/ml/research/latest/
+├── results.jsonl
+├── pooled.json
+├── metadata.json
+├── report.md
+├── diagnostics.json
+└── diagnostic/
+    └── <experiment_id>.json
+
+Viktiga filer för generisk research är:
 
 results.jsonl
 pooled.json
@@ -500,13 +525,38 @@ report.md
 Registry-baserade diagnostics producerar dessutom:
 
 diagnostics.json
-diagnostics/<experiment_id>.json
+diagnostic/<experiment_id>.json
 
-En timestampad körning innehåller samma resultatstruktur under:
+`diagnostics.json` är manifestet för diagnostic-körningen.
+
+De individuella diagnostic-resultaten ligger i:
+
+diagnostic/<experiment_id>.json
+
+En timestampad körning sparas dessutom historiskt under:
 
 data/processed/ml/research/<run_timestamp>/
 
-GitHub Actions laddar upp dessa filer som artifacts.
+Den historiska körningen innehåller samma resultatstruktur:
+
+data/processed/ml/research/<run_timestamp>/
+├── results.jsonl
+├── pooled.json
+├── metadata.json
+├── report.md
+├── diagnostics.json
+└── diagnostic/
+    └── <experiment_id>.json
+
+Det innebär att:
+
+* `latest/` alltid representerar den senaste körningen.
+* Filerna i `latest/` ersätts vid varje ny körning.
+* Katalogstrukturen i `latest/` bevaras.
+* Timestampade körningar sparas separat som historik.
+* Resultaten skrivs till `data/` som en del av varje research-körning.
+* Diagnostic-resultat är maskinläsbara JSON-filer.
+* GitHub Actions laddar upp resultatfilerna som artifacts.
 
 Resultatfilerna är den primära outputen från research-körningen.
 
@@ -514,7 +564,7 @@ AI ska läsa resultat-artifacts direkt efter en genomförd körning när de är 
 
 Prioriterad läsordning är:
 
-1. diagnostics/<experiment_id>.json
+1. diagnostic/<experiment_id>.json
 2. diagnostics.json
 3. pooled.json
 4. results.jsonl
@@ -535,7 +585,7 @@ GitHub Actions
       ↓
 Research
       ↓
-Result artifacts
+Result artifacts i data/
       ↓
 AI reads result files
       ↓
@@ -558,7 +608,7 @@ metadata.json
 För registry-baserade diagnostics är:
 
 diagnostics.json
-diagnostics/<experiment_id>.json
+diagnostic/<experiment_id>.json
 
 den primära resultatvägen.
 
@@ -566,7 +616,7 @@ En diagnostic-resultatfil ska identifieras med experimentets stabila registry-id
 
 Exempel:
 
-data/processed/ml/research/latest/diagnostics/si_event_risk_interaction.json
+data/processed/ml/research/latest/diagnostic/si_event_risk_interaction.json
 
 Resultatfilen ska innehålla experimentets strukturerade resultat när diagnosticen stödjer detta.
 
