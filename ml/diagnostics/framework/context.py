@@ -9,19 +9,16 @@ import pandas as pd
 @dataclass
 class ExperimentContext:
     """
-    Gemensam kontext för diagnostics.
+    Gemensam kontext för ett diagnostiskt experiment.
 
     data:
         Hela feature-datasetet.
 
     date_column:
-        Datumkolumn som används för temporal split.
+        Datumkolumn för temporal split.
 
-    test_start:
-        Första datum som räknas som OOS/test.
-
-    test_end:
-        Valfritt sista testdatum.
+    test_start/test_end:
+        Testperiodens gränser.
     """
 
     data: pd.DataFrame
@@ -45,7 +42,9 @@ class ExperimentContext:
                 "test_start måste anges för att använda pretest-data."
             )
 
-        start = pd.Timestamp(self.test_start)
+        start = pd.Timestamp(
+            self.test_start
+        )
 
         return self.data.loc[
             self.data[self.date_column] < start
@@ -58,13 +57,24 @@ class ExperimentContext:
                 "test_start måste anges för att använda test-data."
             )
 
-        start = pd.Timestamp(self.test_start)
+        start = pd.Timestamp(
+            self.test_start
+        )
 
-        mask = self.data[self.date_column] >= start
+        mask = (
+            self.data[self.date_column]
+            >= start
+        )
 
         if self.test_end is not None:
-            end = pd.Timestamp(self.test_end)
-            mask &= self.data[self.date_column] <= end
+            end = pd.Timestamp(
+                self.test_end
+            )
+
+            mask &= (
+                self.data[self.date_column]
+                <= end
+            )
 
         return self.data.loc[mask].copy()
 
@@ -73,15 +83,23 @@ class ExperimentContext:
         column: str,
         q: float,
     ) -> float:
-        """
-        Beräkna threshold ENBART på pre-test-data.
-        """
+        values = pd.to_numeric(
+            self.pretest[column],
+            errors="coerce",
+        ).dropna()
 
-        value = self.pretest[column].quantile(q)
+        if values.empty:
+            raise ValueError(
+                f"Kunde inte beräkna quantile för "
+                f"'{column}', q={q}."
+            )
+
+        value = values.quantile(q)
 
         if pd.isna(value):
             raise ValueError(
-                f"Kunde inte beräkna quantile för '{column}', q={q}."
+                f"Kunde inte beräkna quantile för "
+                f"'{column}', q={q}."
             )
 
         return float(value)
@@ -92,19 +110,26 @@ class ExperimentContext:
         quantiles: Iterable[float],
     ) -> dict[float, float]:
         return {
-            q: self.quantile(column, q)
+            q: self.quantile(
+                column,
+                q,
+            )
             for q in quantiles
         }
 
     def metadata(self) -> dict[str, Any]:
         return {
             "rows": len(self.data),
-            "pretest_rows": len(self.pretest)
-            if self.test_start is not None
-            else None,
-            "test_rows": len(self.test)
-            if self.test_start is not None
-            else None,
+            "pretest_rows": (
+                len(self.pretest)
+                if self.test_start is not None
+                else None
+            ),
+            "test_rows": (
+                len(self.test)
+                if self.test_start is not None
+                else None
+            ),
             "date_column": self.date_column,
             "test_start": (
                 str(self.test_start)
