@@ -23,7 +23,7 @@ Målet är inte att bygga en samling enskilda analyser, utan en återanvändbar 
                             │
               ┌─────────────┴─────────────┐
               │                           │
-         Data collection              Research
+        Data collection                Research
               │                           │
        ┌──────┴──────┐             ┌──────┴──────┐
        │             │             │             │
@@ -45,91 +45,9 @@ Målet är inte att bygga en samling enskilda analyser, utan en återanvändbar 
 
 ⸻
 
-Projektets grundidé
-
-Blankdiss försöker gå från:
-
-"Det här verkar intressant"
-
-till:
-
-hypotes
-   ↓
-mätbar definition
-   ↓
-historisk analys
-   ↓
-train / validation / test
-   ↓
-OOS-resultat
-   ↓
-robusthetstest
-   ↓
-eventuell vidare forskning
-
-Det är viktigt att skilja mellan:
-
-* ett observerat samband
-* en statistiskt intressant effekt
-* en robust OOS-effekt
-* en ekonomiskt användbar signal
-
-Ett positivt resultat i en enskild analys är därför början på fortsatt forskning, inte automatiskt ett färdigt trading-case.
-
-⸻
-
-Repository-struktur
-
-De viktigaste delarna är:
-
-.
-├── analysis/
-│   └── ...
-│
-├── data/
-│   ├── raw/
-│   └── processed/
-│
-├── ml/
-│   ├── README.md
-│   ├── config.py
-│   ├── dataset.py
-│   ├── experiment_registry.json
-│   ├── experiment_registry_runner.py
-│   │
-│   ├── research/
-│   │   ├── README.md
-│   │   ├── runner.py
-│   │   ├── experiments.py
-│   │   ├── evaluator.py
-│   │   └── cache.py
-│   │
-│   └── diagnostics/
-│       └── *_diagnostic.py
-│
-├── prices/
-│   └── ...
-│
-├── fi/
-│   └── ...
-│
-└── .github/
-    └── workflows/
-        └── ml-research.yml
-
-ML-systemet dokumenteras mer detaljerat i:
-
-ml/README.md
-
-Research- och experimentarkitekturen dokumenteras i:
-
-ml/research/README.md
-
-⸻
-
 Data → Features → ML → Research
 
-Den övergripande pipeline är:
+Den övergripande pipelinen är:
 
 FI data
    │
@@ -163,174 +81,291 @@ FI aggregation   Prices
 
 ⸻
 
-ML
+ML-systemet
 
 ML-delen finns under:
 
 ml/
 
-Den centrala dokumentationen finns i:
+Viktiga komponenter:
 
-ml/README.md
+ml/
+├── config.py
+├── dataset.py
+├── walk_forward.py
+│
+├── research/
+│   └── ...
+│
+└── diagnostics/
+    ├── framework/
+    │   ├── base.py
+    │   ├── context.py
+    │   ├── metrics.py
+    │   ├── reporting.py
+    │   ├── runner.py
+    │   └── stratification.py
+    │
+    └── experiments/
+        └── *_diagnostic.py
 
-ML-systemet består huvudsakligen av:
+config.py innehåller gemensamma targets och walk-forward-windows.
 
-ml/config.py
-ml/dataset.py
-ml/research/
-ml/diagnostics/
-ml/experiment_registry.json
-ml/experiment_registry_runner.py
+dataset.py ansvarar för att läsa och förbereda feature-datasetet.
 
-config.py
+walk_forward.py innehåller den generella walk-forward-logiken.
 
-Gemensam ML-konfiguration, bland annat:
+research/ används för bred generell screening.
 
-* targets
-* thresholds
-* target directions
-* walk-forward windows
-* random state
-
-dataset.py
-
-Förbereder feature-data för ML.
-
-research/
-
-Generell research och bred screening.
-
-diagnostics/
-
-Specifika hypotesdrivna experiment.
-
-experiment_registry.json
-
-Register över forskningsfrågor och aktiva experiment.
-
-experiment_registry_runner.py
-
-Kör de diagnostics som är markerade som active.
+diagnostics/ används för specifika hypotesdrivna experiment.
 
 ⸻
 
-Research
+Generic Research vs Diagnostics
 
 Blankdiss har två kompletterande forskningslägen.
 
 Generic Research
 
-Den generella research-motorn testar många kombinationer systematiskt.
+Generic Research används för bred screening.
 
 Exempel:
 
 signal
-   ×
+  ×
 target
-   ×
+  ×
 tail fraction
-   ×
-tail direction
+  ×
+walk-forward window
 
-Detta används för bred screening.
+Detta passar frågor där analysen kan uttryckas generellt som:
+
+feature → target
 
 ⸻
 
 Diagnostics
 
-Diagnostics används när forskningsfrågan kräver en mer specifik experimentdesign.
+Diagnostics används när forskningsfrågan kräver en specifik experimentdesign.
 
 Exempel:
 
-volatility × short-interest level
+volatility × short interest
 short-interest change × event risk
 report-date proximity
 sector-relative return
 
-En diagnostic kan exempelvis innehålla:
+En diagnostic kan innehålla:
 
 * explicit interaktion
+* event-riskmodell
 * specialiserad modell
-* event-risk
 * bootstrap
+* pre-test thresholds
 * relativa jämförelser
-* särskilda populationsdefinitioner
+* flera targets
+* flera analysdimensioner
 
-Detaljer finns i:
+Diagnostics ligger under:
 
-ml/research/README.md
+ml/diagnostics/experiments/
+
+⸻
+
+Diagnostic-arkitekturen
+
+Den nya diagnostics-arkitekturen är klassbaserad.
+
+En diagnostic är en liten klass som ärver från:
+
+DiagnosticExperiment
+
+Exempel:
+
+from ml.diagnostics.framework import DiagnosticExperiment
+class VolatilitySIInteractionExperiment(
+    DiagnosticExperiment
+):
+    name = "volatility_si_interaction"
+    targets = (
+        "down_5pct_5d",
+        "down_7pct_5d",
+        "down_10pct_5d",
+    )
+    def analyze_window(self, context):
+        volatility_bins = self.make_pretest_bins(
+            context.test,
+            "price_volatility_20d",
+        )
+        si_bins = self.make_pretest_bins(
+            context.test,
+            "short_interest_pct",
+        )
+        return self.build_2d_analysis(
+            context.test,
+            volatility_bins,
+            si_bins,
+            self.targets,
+        )
+
+Experimentfilen ska framför allt beskriva:
+
+1. vilken hypotes som testas
+2. vilka features/targets som används
+3. vilken analysmetod som ska köras
+
+Gemensam ML- och analyslogik ska ligga i frameworket, inte dupliceras i varje experiment.
+
+⸻
+
+ExperimentContext
+
+Varje diagnostics-körning får ett:
+
+ExperimentContext
+
+Context representerar en walk-forward-window och innehåller:
+
+data
+train
+validation
+pretest
+test
+
+Det gör att experimenten inte behöver implementera egna datumfilter.
+
+Exempel:
+
+def analyze_window(self, context):
+    train = context.train
+    validation = context.validation
+    test = context.test
+
+Context ansvarar även för gemensamma operationer som quantiles och thresholds.
+
+⸻
+
+DiagnosticExperiment
+
+Bas-klassen:
+
+DiagnosticExperiment
+        │
+        ├── context
+        ├── targets
+        ├── execute()
+        ├── analyze_window()
+        ├── make_pretest_bins()
+        └── build_2d_analysis()
+
+Det viktiga gränssnittet är:
+
+def analyze_window(self, context):
+    ...
+
+Experimentet behöver alltså inte själv:
+
+* läsa dataset
+* skapa walk-forward masks
+* hantera runnern
+* skriva resultatfiler
+* implementera standardiserad rapportering
+
+Det hanteras av frameworket.
+
+⸻
+
+ExperimentResult
+
+Diagnostics returnerar ett standardiserat:
+
+ExperimentResult
+
+Resultatet kan innehålla:
+
+tables
+metrics
+metadata
+
+Exempel:
+
+return {
+    "analysis": analysis_table,
+    "bootstrap": bootstrap_table,
+}
+
+Frameworket konverterar resultatet till ett standardiserat ExperimentResult.
+
+Det gör att olika experiment kan använda olika analysmetoder men ändå producerar samma typ av output.
+
+⸻
+
+Runner
+
+Runnern ansvarar för orchestration.
+
+Förenklat:
+
+experiment
+     │
+     ▼
+runner
+     │
+     ├── window 1
+     │     └── ExperimentContext
+     │             └── analyze_window()
+     │
+     ├── window 2
+     │     └── ExperimentContext
+     │             └── analyze_window()
+     │
+     └── ...
+
+Det innebär att experimentklasserna inte behöver känna till hela forskningskörningen.
+
+Runnern ansvarar för:
+
+* walk-forward windows
+* context creation
+* experiment execution
+* result collection
+* reporting
+* felhantering
 
 ⸻
 
 Experiment Registry
 
-Forskningsfrågor som ska kunna köras automatiskt registreras i:
+Registry kan användas som katalog över vilka experiment som ska köras, men registryt ska inte innehålla själva forskningslogiken.
 
-ml/experiment_registry.json
+Registryt beskriver exempelvis:
 
-Exempel:
+experiment id
+status
+question
+experiment
+priority
 
-{
-  "id": "volatility_si_level_interaction",
-  "status": "active",
-  "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
-  "module": "ml.diagnostics.volatility_si_level_interaction_diagnostic",
-  "priority": 1
-}
+Den tidigare modellen där registryt pekade direkt på en modul med:
 
-Kopplingen är:
-
-experiment_registry.json
-        │
-        ▼
-experiment_registry_runner.py
-        │
-        ▼
-ml.diagnostics.volatility_si_level_interaction_diagnostic
-        │
-        ▼
 main()
 
-Status
+är inte längre den centrala experimentmodellen.
 
-active
+Den nya kedjan är:
 
-innebär att experimentet körs.
-
-planned
-
-innebär att forskningsfrågan är registrerad men inte körs ännu.
-
-Priority
-
-Lägre nummer körs först.
-
-⸻
-
-Nya experiment
-
-Ett nytt experiment ska normalt skapas enligt:
-
-1. Definiera forskningsfrågan
-2. Avgör generic research eller diagnostic
-3. Implementera diagnostic vid behov
-4. Säkerställ korrekt OOS/walk-forward-design
-5. Lägg till experimentet i experiment_registry.json
-6. Sätt status = active
-7. Kör research-workflowen
-
-En diagnostic ska normalt ligga här:
-
-ml/diagnostics/<experiment_name>_diagnostic.py
-
-och exponera:
-
-def main():
-    ...
-
-Registryt pekar sedan på modulen.
-
-Workflowen behöver normalt inte ändras för varje nytt experiment.
+Registry
+    ↓
+Experiment class
+    ↓
+DiagnosticExperiment
+    ↓
+ExperimentContext
+    ↓
+analyze_window()
+    ↓
+ExperimentResult
 
 ⸻
 
@@ -338,7 +373,7 @@ OOS och walk-forward
 
 ML-forskningen använder walk-forward evaluation.
 
-Grundprincip:
+Grundprincipen är:
 
 TRAIN
    ↓
@@ -350,32 +385,59 @@ REFIT
    ↓
 OOS TEST
 
-Testdata ska inte användas för:
+Testdata får inte användas för:
 
 * modellval
-* threshold selection
 * feature selection
+* threshold selection
 * optimering av experimentet
 
-Thresholds som definierar testpopulationer ska också vara baserade på information som är tillgänglig före testperioden.
+Det gäller även diagnostics.
 
-Detta är särskilt viktigt i diagnostics som använder exempelvis:
+Om en diagnostic exempelvis använder:
 
 top 20 % volatility
 top 20 % short interest
 top 5 % event risk
 
+ska trösklarna definieras utifrån information som finns före testperioden.
+
 ⸻
 
-Exempel på aktuell forskning
+Event-risk
 
-Volatility × SI level
+Event-risk är ett centralt forskningsspår i Blankdiss.
 
-Fråga:
+Ett exempel på event-definition är:
 
-Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?
+abs(forward_return_5d) >= 10 %
 
-2×2-design:
+Event-risk kan modelleras med bland annat:
+
+volatility_20d
+volatility_60d
+volatility_20d + volatility_60d
+volatility_20d + volatility_60d + term structure
+
+Modellval sker på train/validation.
+
+Modellen refittas därefter före OOS-testet.
+
+Detta gör event-risk till en separat dimension som kan användas av flera diagnostics.
+
+⸻
+
+Interaktionsexperiment
+
+När forskningsfrågan gäller två faktorer ska Blankdiss skilja mellan:
+
+hög nivå
+
+och:
+
+interaktion
+
+Exempel:
 
                     LOW SI       HIGH SI
 LOW VOL                A             B
@@ -385,199 +447,43 @@ Direkt interaktion:
 
 (D - C) - (B - A)
 
-Det testar om effekten av hög blankning förändras beroende på volatiliteten.
+Det testar om effekten av SI förändras beroende på volatilitet.
 
-⸻
-
-SI change × event risk
-
-Fråga:
-
-Är effekten av förändrad blankning starkare vid extrem event-risk?
-
-Event-risk definieras bland annat utifrån extrema femdagarsrörelser.
-
-Detta experiment använder OOS event-risk för att undersöka om short-interest-effekten skiljer sig mellan olika risknivåer.
-
-⸻
-
-Report proximity
-
-Fråga:
-
-Förstärks sambandet nära rapportdatum?
-
-Detta är ett framtida diagnostic-spår där rapportdatum används som tidsdimension.
-
-⸻
-
-Sector relative return
-
-Fråga:
-
-Är effekten specifik för aktien relativt sektor och marknad?
-
-Detta ska skilja aktiespecifika effekter från bredare marknads- och sektorrörelser.
-
-⸻
-
-Event-risk
-
-Event-risk är ett separat viktigt forskningsspår.
-
-En event definieras i den befintliga analysen som:
-
-abs(forward_return_5d) >= 10 %
-
-Event-riskmodellen använder bland annat volatilitet som feature.
-
-Exempel på feature sets:
-
-volatility_20d
-volatility_60d
-volatility_20d + volatility_60d
-volatility_20d + volatility_60d + term structure
-
-Modellval sker på train/validation.
-
-Modellen refittas därefter innan OOS-testet.
-
-⸻
-
-GitHub Actions
-
-Den automatiserade ML-pipelinen körs via:
-
-.github/workflows/ml-research.yml
-
-Workflowen ansvarar bland annat för:
-
-Fetch FI aggregate
-        ↓
-Fetch prices
-        ↓
-Build features
-        ↓
-Inspect features
-        ↓
-Verify features
-        ↓
-Feature QC
-        ↓
-Generic Research Matrix
-        ↓
-Registered Experiments
-        ↓
-Verify results
-        ↓
-Upload artifacts
-
-Inför varje research-körning rensas filerna i:
-
-data/processed/ml/research/latest/
-
-Själva katalogstrukturen bevaras, inklusive:
-
-data/processed/ml/research/latest/diagnostic/
-
-Därefter skrivs den nya körningens resultat dit.
-
-Registry-baserade diagnostics startas genom:
-
-python -u -m ml.experiment_registry_runner
-
-Det innebär att nya aktiva diagnostics kan köras utan att workflow-filen behöver byggas om.
+Samma princip kan användas för andra forskningsdimensioner.
 
 ⸻
 
 Resultat
 
-Research-resultat skrivs till data-katalogen efter varje körning:
+Research-resultat skrivs till:
 
 data/processed/ml/research/
 
-Den aktuella körningens resultat finns alltid under:
+Den aktuella körningen finns under:
 
 data/processed/ml/research/latest/
 
-`latest/` är den stabila sökvägen till den senaste research-körningen.
+Timestampade körningar sparas separat.
 
-Inför varje ny körning tas befintliga filer i `latest/` bort. Katalogstrukturen behålls och fylls sedan med resultaten från den nya körningen.
+Resultaten ska vara maskinläsbara.
 
-Den aktuella resultatstrukturen är:
+Exempel:
 
-data/processed/ml/research/latest/
+latest/
 ├── results.jsonl
 ├── pooled.json
 ├── metadata.json
 ├── report.md
-├── diagnostics.json
-└── diagnostic/
+└── diagnostics/
     └── <experiment_id>.json
 
-Viktiga filer för generisk research är:
+Den exakta resultatstrukturen styrs av research-runnern och diagnostics-frameworket.
 
-results.jsonl
-pooled.json
-metadata.json
-report.md
+⸻
 
-Registry-baserade diagnostics producerar dessutom:
+AI-readable research
 
-diagnostics.json
-diagnostic/<experiment_id>.json
-
-`diagnostics.json` är manifestet för diagnostic-körningen.
-
-De individuella diagnostic-resultaten ligger i:
-
-diagnostic/<experiment_id>.json
-
-En timestampad körning sparas dessutom historiskt under:
-
-data/processed/ml/research/<run_timestamp>/
-
-Den historiska körningen innehåller samma resultatstruktur:
-
-data/processed/ml/research/<run_timestamp>/
-├── results.jsonl
-├── pooled.json
-├── metadata.json
-├── report.md
-├── diagnostics.json
-└── diagnostic/
-    └── <experiment_id>.json
-
-Det innebär att:
-
-* `latest/` alltid representerar den senaste körningen.
-* Filerna i `latest/` ersätts vid varje ny körning.
-* Katalogstrukturen i `latest/` bevaras.
-* Timestampade körningar sparas separat som historik.
-* Resultaten skrivs till `data/` som en del av varje research-körning.
-* Diagnostic-resultat är maskinläsbara JSON-filer.
-* GitHub Actions laddar upp resultatfilerna som artifacts.
-
-Resultatfilerna är den primära outputen från research-körningen.
-
-AI ska läsa resultat-artifacts direkt efter en genomförd körning när de är tillgängliga. Actions-loggen är inte den primära källan för statistisk analys.
-
-Prioriterad läsordning är:
-
-1. diagnostic/<experiment_id>.json
-2. diagnostics.json
-3. pooled.json
-4. results.jsonl
-5. report.md
-
-Actions-loggen används främst för:
-
-* pipeline-status
-* fel
-* verifiering
-* korta körningssammanfattningar
-
-Användaren ska normalt inte behöva kopiera forskningsresultat från Actions-loggen till chatten.
+Result-artifacts är den primära kommunikationskanalen mellan forskningskörningen och efterföljande analys.
 
 Den avsedda kedjan är:
 
@@ -585,114 +491,111 @@ GitHub Actions
       ↓
 Research
       ↓
-Result artifacts i data/
+Machine-readable artifacts
       ↓
-AI reads result files
-      ↓
-Research analysis
+AI analysis
       ↓
 Nästa forskningsfråga
 
-⸻
+Actions-loggen används främst för:
 
-AI-readable research contract
+* pipeline-status
+* fel
+* verifiering
+* körningssammanfattning
 
-Resultat från Blankdiss research ska vara maskinläsbara och möjliga att konsumera utan att terminaloutput behöver tolkas manuellt.
-
-För generisk research är huvudresultaten:
-
-results.jsonl
-pooled.json
-metadata.json
-
-För registry-baserade diagnostics är:
-
-diagnostics.json
-diagnostic/<experiment_id>.json
-
-den primära resultatvägen.
-
-En diagnostic-resultatfil ska identifieras med experimentets stabila registry-id.
-
-Exempel:
-
-data/processed/ml/research/latest/diagnostic/si_event_risk_interaction.json
-
-Resultatfilen ska innehålla experimentets strukturerade resultat när diagnosticen stödjer detta.
-
-Fri terminaloutput får användas som kompletterande information, men ska inte vara den enda representationen av forskningsresultatet.
-
-Det innebär att Blankdiss researcharkitektur ska gå mot:
-
-research
-   ↓
-machine-readable artifact
-   ↓
-AI-readable result
-   ↓
-analysis
-
-och inte:
-
-research
-   ↓
-terminal log
-   ↓
-manual copy/paste
-   ↓
-analysis
+Den ska inte vara den primära källan för statistisk analys.
 
 ⸻
 
-Lokal körning
+GitHub Actions
 
-För att köra den generella research-motorn:
-
-python -u -m ml.research.runner
-
-För att köra alla aktiva registrerade diagnostics:
-
-python -u -m ml.experiment_registry_runner
-
-Normalt ska hela kedjan köras genom:
+Den automatiserade forskningspipelinen körs via:
 
 .github/workflows/ml-research.yml
 
-så att data, features, QC och research använder samma pipeline.
+Övergripande:
+
+Fetch FI
+   ↓
+Fetch prices
+   ↓
+Build features
+   ↓
+Feature QC
+   ↓
+Generic Research
+   ↓
+Diagnostics
+   ↓
+Verify results
+   ↓
+Upload artifacts
+
+Nya diagnostics ska normalt inte kräva ändringar i workflow-filen.
+
+⸻
+
+Nya experiment
+
+När en ny forskningsfråga uppstår:
+
+1. Definiera hypotesen
+
+Exempel:
+
+Förstärks effekten av förändrad blankning
+när volatiliteten ökar?
+
+2. Avgör om det är generic research eller diagnostic
+
+Om frågan är en vanlig:
+
+feature → target
+
+kan generic research räcka.
+
+Om den kräver exempelvis interaktion, event-risk eller specialiserad analys används diagnostic.
+
+3. Skapa experimentklassen
+
+Skapa:
+
+ml/diagnostics/experiments/<name>_diagnostic.py
+
+med:
+
+class MyExperiment(DiagnosticExperiment):
+    name = "my_experiment"
+    def analyze_window(self, context):
+        ...
+
+4. Lägg gemensam logik i frameworket
+
+Om flera experiment behöver samma analyslogik ska den normalt flyttas till frameworket i stället för att kopieras.
+
+5. Registrera experimentet
+
+Lägg till experimentet i den mekanism som används för att starta diagnostics.
+
+6. Kör walk-forward/OOS
+
+Verifiera att testperioden inte används för modellval eller threshold selection.
 
 ⸻
 
 Forskningsprinciper
 
-Blankdiss research ska följa några grundprinciper.
+Blankdiss research följer några centrala principer:
 
 1. Hypotes före resultat
-
-Forskningsfrågan ska definieras innan resultatet analyseras.
-
 2. OOS före slutsats
-
-Ett samband ska helst verifieras out-of-sample.
-
-3. Walk-forward
-
-Historiska modeller ska testas på efterföljande perioder.
-
-4. Undvik leakage
-
-Information från framtiden får inte påverka modell eller populationströsklar.
-
-5. Interaktion framför bara korrelation
-
-När frågan gäller en kombination av faktorer ska interaktionen testas direkt.
-
-6. Robusthet
-
-Intressanta resultat ska följas av relevanta robusthetstester.
-
-7. Separera screening från hypotesprövning
-
-Bred screening och specifika diagnostics har olika roller.
+3. Walk-forward evaluation
+4. Ingen test leakage
+5. Interaktion ska testas som interaktion
+6. Screening ska skiljas från hypotesdriven analys
+7. Intressanta resultat ska följas av robusthetstester
+8. Statistiskt intressanta resultat är inte automatiskt ekonomiskt användbara
 
 ⸻
 
@@ -701,71 +604,35 @@ Automatiseringsmål
 Blankdiss ska kunna gå från:
 
 Ny forskningsidé
-
-till:
-
-Automatisk historisk analys
+        ↓
+Generic Research eller Diagnostic
+        ↓
+Automatisk walk-forward-körning
         ↓
 OOS-resultat
         ↓
-Maskinläsbara artifacts
+Machine-readable artifacts
         ↓
-AI-analys
-        ↓
-Rapport
+AI analysis
         ↓
 Nästa forskningsfråga
 
-utan att varje experiment kräver en ny specialbyggd pipeline eller manuell överföring av loggar.
-
-Den önskade arkitekturen är:
-
-                 RESEARCH IDEA
-                       │
-                       ▼
-              ┌─────────────────┐
-              │ Generic Research│
-              │       eller     │
-              │    Diagnostic   │
-              └────────┬────────┘
-                       │
-                       ▼
-                Experiment Registry
-                       │
-                       ▼
-                Registry Runner
-                       │
-                       ▼
-                 GitHub Actions
-                       │
-                       ▼
-                  OOS Results
-                       │
-                       ▼
-                   Artifacts
-                       │
-                       ▼
-                  AI Analysis
-                       │
-                       ▼
-              Nästa forskningsfråga
-
-Detta gör ML-delen till ett växande forskningssystem snarare än en samling fristående scripts.
+Målet är att nya experiment ska kunna läggas till utan att varje experiment kräver en ny specialbyggd pipeline.
 
 ⸻
 
 Dokumentation
 
-För ML-översikten:
+ML-översikt:
 
 ml/README.md
 
-För detaljer om research, registry, runner och diagnostics:
+Research-system:
 
 ml/research/README.md
 
-För specifika experiment:
+Diagnostics-framework och experiment:
 
-ml/diagnostics/
+ml/diagnostics/README.md
 
-Rot-README:n beskriver projektets övergripande struktur; ML-README:n beskriver ML-arkitekturen; research-README:n beskriver själva experimentinfrastrukturen.
+Detta README beskriver projektets övergripande arkitektur.
