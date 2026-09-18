@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: research-manual
@@ -86,21 +86,10 @@ jobs:
               "data/processed/ml/research/latest"
           )
 
-          results_path = (
-              base / "results.jsonl"
-          )
-
-          pooled_path = (
-              base / "pooled.json"
-          )
-
-          metadata_path = (
-              base / "metadata.json"
-          )
-
-          report_path = (
-              base / "report.md"
-          )
+          results_path = base / "results.jsonl"
+          pooled_path = base / "pooled.json"
+          metadata_path = base / "metadata.json"
+          report_path = base / "report.md"
 
           result_count = sum(
               1
@@ -121,10 +110,7 @@ jobs:
               )
           )
 
-          if not isinstance(
-              pooled,
-              list,
-          ):
+          if not isinstance(pooled, list):
               raise SystemExit(
                   "Pooled research results är inte en lista."
               )
@@ -140,10 +126,7 @@ jobs:
               )
           )
 
-          if not isinstance(
-              metadata,
-              dict,
-          ):
+          if not isinstance(metadata, dict):
               raise SystemExit(
                   "Research metadata är inte ett objekt."
               )
@@ -203,22 +186,14 @@ jobs:
               )
           )
 
-          if not isinstance(
-              manifest,
-              dict,
-          ):
+          if not isinstance(manifest, dict):
               raise SystemExit(
                   "Diagnostic manifest är inte ett objekt."
               )
 
-          results = manifest.get(
-              "results"
-          )
+          results = manifest.get("results")
 
-          if not isinstance(
-              results,
-              list,
-          ):
+          if not isinstance(results, list):
               raise SystemExit(
                   "Diagnostic manifest saknar results."
               )
@@ -226,6 +201,30 @@ jobs:
           if not results:
               raise SystemExit(
                   "Inga diagnostic results hittades."
+              )
+
+          required_results = {
+              "si_level_event_risk_confirmation",
+              "fi_short_interest_event_risk_interaction",
+              "si_price_dynamics_diagnostic",
+          }
+
+          actual_results = {
+              result["experiment_id"]
+              for result in results
+          }
+
+          missing_results = (
+              required_results
+              - actual_results
+          )
+
+          if missing_results:
+              raise SystemExit(
+                  "Saknar förväntade diagnostic results: "
+                  + ", ".join(
+                      sorted(missing_results)
+                  )
               )
 
           for result in results:
@@ -251,9 +250,7 @@ jobs:
                   )
               )
 
-              if payload.get(
-                  "status"
-              ) != "completed":
+              if payload.get("status") != "completed":
                   raise SystemExit(
                       "Diagnostic failed: "
                       f"{experiment_id}"
@@ -286,6 +283,12 @@ jobs:
           )
           PY
 
+      - name: Verify latest diagnostic JSON files
+        run: |
+          test -f data/processed/ml/research/latest/diagnostic/si_level_event_risk_confirmation.json
+          test -f data/processed/ml/research/latest/diagnostic/fi_short_interest_event_risk_interaction.json
+          test -f data/processed/ml/research/latest/diagnostic/si_price_dynamics_diagnostic.json
+
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -304,3 +307,19 @@ jobs:
             data/processed/ml/research/*/diagnostics.json
             data/processed/ml/research/*/diagnostic/*.json
           if-no-files-found: error
+
+      - name: Persist latest diagnostic results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            data/processed/ml/research/latest/diagnostics.json \
+            data/processed/ml/research/latest/diagnostic/*.json
+
+          if git diff --cached --quiet; then
+            echo "Inga diagnostikresultat ändrades."
+          else
+            git commit -m "Persist latest diagnostic results"
+            git push
+          fi
