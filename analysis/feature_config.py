@@ -31,7 +31,9 @@ METADATA_PATH = (
 )
 RETURN_HORIZONS = (
     1,
+    3,
     5,
+    10,
     20,
     60,
 )
