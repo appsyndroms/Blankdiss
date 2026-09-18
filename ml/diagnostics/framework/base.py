@@ -6,12 +6,12 @@ from typing import Any
 
 import pandas as pd
 
-from .context import ExperimentContext
 from .stratification import (
     PretestBins,
     make_pretest_bins,
     two_dimensional_stratification,
 )
+from .context import ExperimentContext
 
 
 @dataclass
@@ -230,4 +230,61 @@ class DiagnosticExperiment(ABC):
             si_change_cutoffs=si_change_cutoffs,
             event_risk_cutoffs=event_risk_cutoffs,
             prior_return_columns=prior_return_columns,
+        )
+
+    def run_si_level_change_joint(
+        self,
+        context: ExperimentContext,
+        *,
+        horizons: tuple[int, ...],
+        level_quantiles: tuple[float, ...],
+        change_cutoffs: tuple[float, ...],
+    ) -> ExperimentResult:
+        from .si_additional import (
+            run_si_level_change_joint,
+        )
+
+        return run_si_level_change_joint(
+            context,
+            horizons=horizons,
+            level_quantiles=level_quantiles,
+            change_cutoffs=change_cutoffs,
+        )
+
+    def run_si_change_persistence(
+        self,
+        context: ExperimentContext,
+        *,
+        change_cutoffs: tuple[float, ...],
+        horizons: tuple[int, ...],
+    ) -> ExperimentResult:
+        from .si_additional import (
+            run_si_change_persistence,
+        )
+
+        return run_si_change_persistence(
+            context,
+            change_cutoffs=change_cutoffs,
+            horizons=horizons,
+        )
+
+    def run_si_concentration(
+        self,
+        context: ExperimentContext,
+        *,
+        concentration_columns: tuple[str, ...],
+        concentration_quantile: float,
+        horizons: tuple[int, ...],
+        change_cutoff: float,
+    ) -> ExperimentResult:
+        from .si_additional import (
+            run_si_concentration,
+        )
+
+        return run_si_concentration(
+            context,
+            concentration_columns=concentration_columns,
+            concentration_quantile=concentration_quantile,
+            horizons=horizons,
+            change_cutoff=change_cutoff,
         )
