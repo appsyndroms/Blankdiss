@@ -1,121 +1,143 @@
 name: Blankdiss Research
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: research-manual
   cancel-in-progress: false
-
 jobs:
   research:
     name: Kör Blankdiss Research Matrix
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
-
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
-
       - name: Build features
         run: |
           python -u -m analysis.build_features
-
       - name: Inspect feature dataset
         run: |
           python -m analysis.ci inspect-features
-
       - name: Verify feature dataset
         run: |
           python -m analysis.ci verify-features
-
       - name: Run Feature QC
         run: |
           python -u -m analysis.features_qc
-
       - name: Verify Feature QC
         run: |
           python -m analysis.ci verify-feature-qc
-
       - name: Run Research Matrix
         run: |
           python -u -m ml.research.runner
-
       - name: Verify research results
         run: |
-          test -f data/processed/research/latest/experiment_results.jsonl
-          test -f data/processed/research/latest/pooled_results.jsonl
-          test -f data/processed/research/latest/research_summary.json
-          test -f data/processed/research/latest/research_report.md
-
+          test -f data/processed/ml/research/latest/results.jsonl
+          test -f data/processed/ml/research/latest/pooled.json
+          test -f data/processed/ml/research/latest/metadata.json
+          test -f data/processed/ml/research/latest/report.md
           python - <<'PY'
           import json
           from pathlib import Path
-
-          path = Path(
-              "data/processed/research/latest/research_summary.json"
+          results_path = Path(
+              "data/processed/ml/research/latest/results.jsonl"
           )
-
-          data = json.loads(
-              path.read_text(encoding="utf-8")
+          pooled_path = Path(
+              "data/processed/ml/research/latest/pooled.json"
           )
-
-          result_count = data.get(
-              "result_count",
-              0,
+          metadata_path = Path(
+              "data/processed/ml/research/latest/metadata.json"
           )
-
+          report_path = Path(
+              "data/processed/ml/research/latest/report.md"
+          )
+          result_count = sum(
+              1
+              for line in results_path.open(
+                  encoding="utf-8"
+              )
+              if line.strip()
+          )
           if result_count == 0:
               raise SystemExit(
-                  "Research summary innehåller inga resultat."
+                  "Research results innehåller inga resultat."
               )
-
+          pooled = json.loads(
+              pooled_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(pooled, list):
+              raise SystemExit(
+                  "Pooled research results är inte en lista."
+              )
+          if len(pooled) == 0:
+              raise SystemExit(
+                  "Pooled research results innehåller inga experiment."
+              )
+          metadata = json.loads(
+              metadata_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(metadata, dict):
+              raise SystemExit(
+                  "Research metadata är inte ett objekt."
+              )
+          report = report_path.read_text(
+              encoding="utf-8"
+          )
+          if not report.strip():
+              raise SystemExit(
+                  "Research report är tom."
+              )
           print(
               "Research results:",
               result_count,
           )
-
           print(
-              "Status counts:",
-              data.get(
-                  "status_counts",
-                  {},
+              "Pooled experiments:",
+              len(pooled),
+          )
+          print(
+              "Feature rows:",
+              metadata.get(
+                  "feature_rows",
+                  "unknown",
               ),
           )
+          print(
+              "Report:",
+              report_path,
+          )
           PY
-
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
           name: blankdiss-research
           path: |
-            data/processed/research/latest/experiment_results.jsonl
-            data/processed/research/latest/pooled_results.jsonl
-            data/processed/research/latest/research_summary.json
-            data/processed/research/latest/research_report.md
-            data/processed/research/runs/*/experiment_results.jsonl
-            data/processed/research/runs/*/pooled_results.jsonl
-            data/processed/research/runs/*/research_summary.json
-            data/processed/research/runs/*/research_report.md
+            data/processed/ml/research/latest/results.jsonl
+            data/processed/ml/research/latest/pooled.json
+            data/processed/ml/research/latest/metadata.json
+            data/processed/ml/research/latest/report.md
+            data/processed/ml/research/*/results.jsonl
+            data/processed/ml/research/*/pooled.json
+            data/processed/ml/research/*/metadata.json
+            data/processed/ml/research/*/report.md
           if-no-files-found: error
