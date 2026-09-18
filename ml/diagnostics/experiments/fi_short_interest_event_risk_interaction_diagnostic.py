@@ -3,7 +3,7 @@ from __future__ import annotations
 from ml.diagnostics.framework import DiagnosticExperiment
 
 
-classFIShortInterestEventRiskInteractionExperiment(
+class FIShortInterestEventRiskInteractionExperiment(
     DiagnosticExperiment
 ):
     name = "fi_short_interest_event_risk_interaction"
@@ -27,7 +27,5 @@ classFIShortInterestEventRiskInteractionExperiment(
         return self.run_event_risk_interaction(
             context,
             risk_cutoffs=self.event_risk_cutoffs,
-            positive_change_cutoff=(
-                self.positive_change_cutoff
-            ),
+            positive_change_cutoff=self.positive_change_cutoff,
         )
