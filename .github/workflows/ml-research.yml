@@ -509,5 +509,20 @@ jobs:
             echo "Inga forsknings- eller featureresultat ändrades."
           else
             git commit -m "Update research results"
-            git push
+
+            for attempt in 1 2 3; do
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+
+              if [ "$attempt" -eq 3 ]; then
+                echo "Kunde inte pusha forskningsresultaten efter 3 försök."
+                exit 1
+              fi
+
+              echo "Push misslyckades. Hämtar senaste main och försöker igen."
+
+              git fetch origin main
+              git rebase origin/main
+            done
           fi
