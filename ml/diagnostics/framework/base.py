@@ -288,3 +288,20 @@ class DiagnosticExperiment(ABC):
             horizons=horizons,
             change_cutoff=change_cutoff,
         )
+
+    def run_sector_relative_return(
+        self,
+        context: ExperimentContext,
+        *,
+        horizons: tuple[int, ...],
+        si_change_cutoffs: tuple[float, ...],
+    ) -> ExperimentResult:
+        from .sector_relative import (
+            run_sector_relative_return,
+        )
+
+        return run_sector_relative_return(
+            context,
+            horizons=horizons,
+            si_change_cutoffs=si_change_cutoffs,
+        )
