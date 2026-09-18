@@ -1,17 +1,28 @@
 from __future__ import annotations
 
-import contextlib
 import importlib
-import io
 import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+
+from ml.config import WALK_FORWARD_WINDOWS
+from ml.dataset import load_features
+from ml.diagnostics.framework import (
+    DiagnosticExperiment,
+    ExperimentContext,
+    save_result_json,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
-REGISTRY_PATH = ROOT / "ml" / "experiment_registry.json"
+REGISTRY_PATH = (
+    ROOT
+    / "ml"
+    / "experiment_registry.json"
+)
 
 RESEARCH_DIR = (
     ROOT
@@ -40,7 +51,8 @@ def load_registry() -> list[dict]:
 
     if not isinstance(experiments, list):
         raise ValueError(
-            "Experiment registry saknar en lista 'experiments'."
+            "Experiment registry saknar en lista "
+            "'experiments'."
         )
 
     return experiments
@@ -48,11 +60,13 @@ def load_registry() -> list[dict]:
 
 def _run_timestamp() -> str:
     """
-    Use the timestamp already created by the main research runner
-    when available. This keeps generic research and diagnostics
-    belonging to the same workflow run together.
+    Använd samma timestamp som research-runnern när
+    den finns.
     """
-    metadata_path = LATEST_DIR / "metadata.json"
+    metadata_path = (
+        LATEST_DIR
+        / "metadata.json"
+    )
 
     if metadata_path.exists():
         try:
@@ -68,6 +82,7 @@ def _run_timestamp() -> str:
 
             if created_at:
                 return str(created_at)
+
         except Exception:
             pass
 
@@ -78,58 +93,50 @@ def _run_timestamp() -> str:
     )
 
 
-def _diagnostic_payload(
-    experiment: dict,
-    status: str,
-    output: str,
-    started_at: str,
-    finished_at: str,
-) -> dict:
-    """
-    Store the complete diagnostic stdout as machine-readable JSON.
-
-    The diagnostic itself remains responsible for its statistical
-    calculations. We deliberately do not parse/recalculate its
-    statistics here.
-    """
-    return {
-        "experiment_id": experiment["id"],
-        "question": experiment.get(
-            "question",
-            "",
-        ),
-        "module": experiment["module"],
-        "status": status,
-        "started_at_utc": started_at,
-        "finished_at_utc": finished_at,
-        "output": output,
-    }
-
-
-def _write_json(
-    path: Path,
-    value: object,
-) -> None:
-    path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
+def _load_experiment(
+    module_name: str,
+) -> DiagnosticExperiment:
+    module = importlib.import_module(
+        module_name
     )
 
-    path.write_text(
-        json.dumps(
+    experiment_classes = [
+        value
+        for value in vars(module).values()
+        if isinstance(value, type)
+        and issubclass(
             value,
-            ensure_ascii=False,
-            indent=2,
+            DiagnosticExperiment,
         )
-        + "\n",
-        encoding="utf-8",
-    )
+        and value is not DiagnosticExperiment
+    ]
+
+    if not experiment_classes:
+        raise RuntimeError(
+            f"Modulen {module_name} saknar en "
+            "DiagnosticExperiment-klass."
+        )
+
+    if len(experiment_classes) > 1:
+        names = ", ".join(
+            cls.__name__
+            for cls in experiment_classes
+        )
+
+        raise RuntimeError(
+            f"Modulen {module_name} innehåller flera "
+            "DiagnosticExperiment-klasser: "
+            f"{names}"
+        )
+
+    return experiment_classes[0]()
 
 
-def run_experiment(
+def _run_experiment(
     experiment: dict,
+    features,
     output_dir: Path,
-) -> tuple[bool, dict]:
+) -> tuple[bool, dict[str, Any]]:
     experiment_id = experiment["id"]
     module_name = experiment["module"]
 
@@ -137,70 +144,195 @@ def run_experiment(
         timezone.utc
     ).isoformat()
 
-    buffer = io.StringIO()
+    results = []
 
     try:
-        module = importlib.import_module(
+        instance = _load_experiment(
             module_name
         )
 
-        run = getattr(
-            module,
-            "main",
-            None
-        )
-
-        if not callable(run):
-            raise RuntimeError(
-                f"Experiment module {module_name} "
-                "saknar main()."
+        for window_index, window in enumerate(
+            WALK_FORWARD_WINDOWS,
+            start=1,
+        ):
+            context = ExperimentContext(
+                data=features,
+                train_end=window.train_end,
+                validation_end=window.validation_end,
+                test_end=window.test_end,
             )
 
-        # Diagnostics can remain verbose internally.
-        # Their output is captured and written to a result file
-        # instead of flooding the Actions log.
-        with contextlib.redirect_stdout(
-            buffer
-        ):
-            with contextlib.redirect_stderr(
-                buffer
-            ):
-                run()
+            result = instance.execute(
+                context
+            )
 
-        status = "completed"
-        success = True
+            window_result = {
+                "window": (
+                    f"window_{window_index}"
+                ),
+                "train_end": window.train_end,
+                "validation_end": (
+                    window.validation_end
+                ),
+                "test_end": window.test_end,
+                "result": result,
+            }
 
-    except Exception as exc:
-        buffer.write(
-            f"\nERROR: {type(exc).__name__}: {exc}\n"
+            results.append(
+                window_result
+            )
+
+        finished_at = datetime.now(
+            timezone.utc
+        ).isoformat()
+
+        payload = {
+            "experiment_id": experiment_id,
+            "question": experiment.get(
+                "question",
+                "",
+            ),
+            "module": module_name,
+            "status": "completed",
+            "started_at_utc": started_at,
+            "finished_at_utc": finished_at,
+            "windows": results,
+        }
+
+        _write_result(
+            payload,
+            output_dir
+            / f"{experiment_id}.json",
         )
 
-        status = "failed"
-        success = False
+        return True, payload
 
-    finished_at = datetime.now(
-        timezone.utc
-    ).isoformat()
+    except Exception as exc:
+        finished_at = datetime.now(
+            timezone.utc
+        ).isoformat()
 
-    payload = _diagnostic_payload(
-        experiment=experiment,
-        status=status,
-        output=buffer.getvalue(),
-        started_at=started_at,
-        finished_at=finished_at,
+        payload = {
+            "experiment_id": experiment_id,
+            "question": experiment.get(
+                "question",
+                "",
+            ),
+            "module": module_name,
+            "status": "failed",
+            "started_at_utc": started_at,
+            "finished_at_utc": finished_at,
+            "error": {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            },
+        }
+
+        _write_result(
+            payload,
+            output_dir
+            / f"{experiment_id}.json",
+        )
+
+        return False, payload
+
+
+def _serialise_result(
+    result,
+) -> dict[str, Any]:
+    """
+    Konverterar ExperimentResult till JSON-kompatibelt
+    format.
+    """
+    return {
+        "name": result.name,
+        "description": result.description,
+        "metrics": result.metrics,
+        "metadata": result.metadata,
+        "tables": {
+            name: table.to_dict(
+                orient="records"
+            )
+            for name, table in result.tables.items()
+        },
+    }
+
+
+def _write_result(
+    payload: dict[str, Any],
+    path: Path,
+) -> None:
+    """
+    Serialiserar ExperimentResult-objekt i payload.
+    """
+    def convert(value):
+        if isinstance(
+            value,
+            dict,
+        ):
+            return {
+                key: convert(item)
+                for key, item in value.items()
+            }
+
+        if isinstance(
+            value,
+            list,
+        ):
+            return [
+                convert(item)
+                for item in value
+            ]
+
+        if isinstance(
+            value,
+            tuple,
+        ):
+            return [
+                convert(item)
+                for item in value
+            ]
+
+        if hasattr(
+            value,
+            "to_pydatetime",
+        ):
+            return value.isoformat()
+
+        if hasattr(
+            value,
+            "item",
+        ):
+            try:
+                return value.item()
+            except Exception:
+                pass
+
+        if isinstance(
+            value,
+            ExperimentResult,
+        ):
+            return _serialise_result(
+                value
+            )
+
+        return value
+
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    result_path = (
-        output_dir
-        / f"{experiment_id}.json"
+    path.write_text(
+        json.dumps(
+            convert(payload),
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+        + "\n",
+        encoding="utf-8",
     )
-
-    _write_json(
-        result_path,
-        payload,
-    )
-
-    return success, payload
 
 
 def _copy_directory(
@@ -224,7 +356,8 @@ def main() -> None:
     active = [
         experiment
         for experiment in experiments
-        if experiment.get("status") == "active"
+        if experiment.get("status")
+        == "active"
     ]
 
     active.sort(
@@ -241,12 +374,14 @@ def main() -> None:
     )
 
     print(
-        f"Registered experiments: {len(experiments):,}",
+        f"Registered experiments: "
+        f"{len(experiments):,}",
         flush=True,
     )
 
     print(
-        f"Active experiments: {len(active):,}",
+        f"Active experiments: "
+        f"{len(active):,}",
         flush=True,
     )
 
@@ -256,6 +391,18 @@ def main() -> None:
             flush=True,
         )
         return
+
+    print(
+        "Loading features...",
+        flush=True,
+    )
+
+    features = load_features()
+
+    print(
+        f"Loaded {len(features):,} feature rows",
+        flush=True,
+    )
 
     run_timestamp = _run_timestamp()
 
@@ -292,8 +439,9 @@ def main() -> None:
             flush=True,
         )
 
-        success, payload = run_experiment(
+        success, payload = _run_experiment(
             experiment=experiment,
+            features=features,
             output_dir=timestamp_dir,
         )
 
@@ -302,31 +450,48 @@ def main() -> None:
                 "experiment_id": experiment_id,
                 "status": payload["status"],
                 "result_file": (
-                    f"diagnostic/{experiment_id}.json"
+                    f"diagnostic/"
+                    f"{experiment_id}.json"
                 ),
             }
         )
 
         if success:
             completed += 1
+
             print(
                 f"Completed: {experiment_id}",
                 flush=True,
             )
+
         else:
             failed.append(
                 experiment_id
             )
+
             print(
                 f"Failed: {experiment_id}",
                 flush=True,
             )
 
+            error = payload.get(
+                "error"
+            )
+
+            if error:
+                print(
+                    f"  {error['type']}: "
+                    f"{error['message']}",
+                    flush=True,
+                )
+
     manifest = {
         "created_at_utc": datetime.now(
             timezone.utc
         ).isoformat(),
-        "research_run_timestamp": run_timestamp,
+        "research_run_timestamp": (
+            run_timestamp
+        ),
         "registered_experiments": len(
             experiments
         ),
@@ -338,27 +503,27 @@ def main() -> None:
         "results": results,
     }
 
-    _write_json(
+    _write_result(
+        manifest,
         timestamp_dir.parent
         / "diagnostics.json",
-        manifest,
     )
 
-    # Mirror diagnostics into latest/, exactly like the main
-    # research runner does for its result files.
     _copy_directory(
         timestamp_dir,
         latest_dir,
     )
 
-    _write_json(
-        LATEST_DIR / "diagnostics.json",
+    _write_result(
         manifest,
+        LATEST_DIR
+        / "diagnostics.json",
     )
 
     print()
     print(
-        f"Diagnostic results: {len(results):,}",
+        f"Diagnostic results: "
+        f"{len(results):,}",
         flush=True,
     )
 
@@ -373,7 +538,8 @@ def main() -> None:
     )
 
     print(
-        f"Results: {LATEST_DIR / 'diagnostics.json'}",
+        f"Results: "
+        f"{LATEST_DIR / 'diagnostics.json'}",
         flush=True,
     )
 
