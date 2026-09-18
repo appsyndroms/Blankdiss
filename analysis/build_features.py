@@ -1,354 +1,57 @@
-"""Bygger den kanoniska analys-/ML-dataseten för Blankdiss."""
-
 from __future__ import annotations
-
+import hashlib
 import json
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
-from analysis.feature_config import (
-    FEATURE_GLOB,
-    FI_PATH,
-    METADATA_PATH,
-    OUTPUT_DIR,
-    PRICE_DIR,
-    RETURN_HORIZONS,
-)
-from analysis.feature_fi import (
-    add_fi_features,
-    load_fi,
-)
-from analysis.feature_prices import (
-    SEVERITY_HORIZON,
-    attach_prices,
-    find_price_files,
-    load_prices,
-)
-from analysis.feature_returns import (
-    add_forward_returns,
-)
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-OUTPUT_PATH = (
-    OUTPUT_DIR
-    / "fi_price_features.jsonl"
-)
-
-OUTPUT_METADATA_PATH = (
-    OUTPUT_DIR
-    / "fi_price_features_metadata.json"
-)
-
-# Håll varje JSONL-fil tydligt under CI-gränsen på 20 MB.
-CHUNK_SIZE = 10_000
-
-JSON_DATE_COLUMNS = {
-    "snapshot_date",
-    "previous_snapshot_date",
-    "price_date",
-    "min_return_5d_date",
-    "max_return_5d_date",
-}
-
-
-def clean_for_json(
-    frame: pd.DataFrame,
-) -> pd.DataFrame:
-    """Gör DataFrame säker för JSONL."""
-
-    result = frame.copy()
-
-    for column in JSON_DATE_COLUMNS:
-        if column not in result.columns:
-            continue
-
-        result[column] = (
-            pd.to_datetime(
-                result[column],
-                errors="coerce",
-            ).dt.strftime(
-                "%Y-%m-%d"
-            )
-        )
-
-    result = result.replace(
-        {
-            np.nan: None,
-            np.inf: None,
-            -np.inf: None,
-        }
-    )
-
-    return result
-
-
-def remove_old_feature_chunks() -> None:
-    """Tar bort gamla genererade featurefiler."""
-
-    OUTPUT_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    for path in OUTPUT_DIR.glob(
-        FEATURE_GLOB
-    ):
-        path.unlink()
-
-    if METADATA_PATH.exists():
-        METADATA_PATH.unlink()
-
-
-def write_jsonl(
-    frame: pd.DataFrame,
-    path: Path,
-) -> None:
-    """Skriver DataFrame som JSONL."""
-
-    path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    with path.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        for record in frame.to_dict(
-            orient="records"
+def file_sha256(path: Path) -> str:
+    """Beräknar SHA-256 för en fil."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(
+            lambda: handle.read(1024 * 1024),
+            b"",
         ):
-            handle.write(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                    allow_nan=False,
-                )
-                + "\n"
-            )
-
-
-def write_feature_chunks(
-    frame: pd.DataFrame,
-) -> list[dict[str, object]]:
-    """Skriver feature-datasetet i mindre JSONL-chunks."""
-
-    remove_old_feature_chunks()
-
-    chunks: list[
-        dict[str, object]
-    ] = []
-
-    total_rows = len(frame)
-
-    for start in range(
-        0,
-        total_rows,
-        CHUNK_SIZE,
-    ):
-        end = min(
-            start + CHUNK_SIZE,
-            total_rows,
-        )
-
-        chunk_number = (
-            start // CHUNK_SIZE
-            + 1
-        )
-
-        path = (
-            OUTPUT_DIR
-            / (
-                f"features_"
-                f"{chunk_number:04d}.jsonl"
-            )
-        )
-
-        chunk = frame.iloc[
-            start:end
-        ].copy()
-
-        write_jsonl(
-            chunk,
-            path,
-        )
-
-        size_bytes = path.stat().st_size
-
-        chunks.append(
+            digest.update(chunk)
+    return digest.hexdigest()
+def build_source_fingerprint(
+    *,
+    fi_path: Path,
+    price_files: list[Path],
+) -> dict[str, object]:
+    """
+    Skapar ett deterministiskt fingerprint av det underlag
+    som används för att bygga feature-datasetet.
+    """
+    files = [
+        fi_path,
+        *sorted(price_files),
+    ]
+    entries = []
+    for path in files:
+        entries.append(
             {
-                "path": str(
-                    path.relative_to(ROOT)
-                ),
-                "rows": int(
-                    len(chunk)
-                ),
-                "size_bytes": int(
-                    size_bytes
-                ),
+                "path": str(path.relative_to(ROOT)),
+                "sha256": file_sha256(path),
+                "size_bytes": path.stat().st_size,
             }
         )
-
-        if size_bytes >= 20 * 1024 * 1024:
-            raise ValueError(
-                f"{path.name} blev "
-                f"{size_bytes / 1024 / 1024:.2f} MB. "
-                "Minska CHUNK_SIZE."
-            )
-
-    return chunks
-
-
-def validate_feature_dataset(
-    frame: pd.DataFrame,
-    chunks: list[dict[str, object]],
-) -> None:
-    """Validerar det kanoniska feature-schemat."""
-
-    required = {
-        # Identitet / FI
-        "snapshot_date",
-        "issuer",
-        "isin",
-        "security_key",
-        "short_interest_pct",
-        "active_holders",
-        "max_individual_position_pct",
-        "max_position_share_pct",
-
-        # FI-historik
-        "previous_snapshot_date",
-        "previous_short_interest_pct",
-        "previous_active_holders",
-        "previous_max_individual_position_pct",
-        "previous_max_position_share_pct",
-        "fi_observation_gap_days",
-        "short_interest_delta_pp",
-        "holder_delta",
-        "max_position_delta_pp",
-        "concentration_delta_pp",
-        "short_interest_relative_change",
-        "short_interest_acceleration_pp",
-        "new_visible_observation",
-
-        # Threshold-features.
-        "above_1_0pct",
-        "entered_above_1_0pct",
-        "exited_below_1_0pct",
-        "above_2_0pct",
-        "entered_above_2_0pct",
-        "exited_below_2_0pct",
-        "above_3_0pct",
-        "entered_above_3_0pct",
-        "exited_below_3_0pct",
-        "above_5_0pct",
-        "entered_above_5_0pct",
-        "exited_below_5_0pct",
-
-        # Prisidentitet
-        "price_date",
-        "close",
-        "close_on_signal_date",
-        "days_from_fi_to_price",
-        "price_match_available",
-        "yahoo_symbol",
-        "price_mapping_source",
-
-        # Prisfeatures.
-        "price_return_5d",
-        "price_return_20d",
-        "price_return_60d",
-        "price_volatility_20d",
-        "price_distance_from_20d_high",
-        "price_distance_from_60d_high",
-
-        # Forward returns / targets.
-        "forward_return_1d",
-        "forward_return_5d",
-        "forward_return_20d",
-        "forward_return_60d",
-
-        # Severity targets.
-        "min_return_5d",
-        "max_return_5d",
-        "min_return_5d_date",
-        "max_return_5d_date",
+    canonical = json.dumps(
+        entries,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    fingerprint = hashlib.sha256(
+        canonical
+    ).hexdigest()
+    return {
+        "algorithm": "sha256",
+        "fingerprint": fingerprint,
+        "files": entries,
     }
 
-    missing = sorted(
-        required.difference(
-            frame.columns
-        )
-    )
-
-    if missing:
-        raise ValueError(
-            "Feature-dataset saknar "
-            "kolumner:\n"
-            + "\n".join(
-                f"- {column}"
-                for column in missing
-            )
-        )
-
-    if frame.empty:
-        raise ValueError(
-            "Feature-datasetet är tomt."
-        )
-
-    if not chunks:
-        raise ValueError(
-            "Feature-dataset skapade inga chunks."
-        )
-
-    chunk_rows = sum(
-        int(chunk["rows"])
-        for chunk in chunks
-    )
-
-    if chunk_rows != len(frame):
-        raise ValueError(
-            "Chunk-rader stämmer inte "
-            "med feature-rader: "
-            f"{chunk_rows} != {len(frame)}"
-        )
-
-    duplicates = frame.duplicated(
-        subset=[
-            "security_key",
-            "snapshot_date",
-        ],
-        keep=False,
-    )
-
-    if duplicates.any():
-        raise ValueError(
-            "Feature-datasetet innehåller "
-            "dubbletter på "
-            "security_key + snapshot_date: "
-            f"{int(duplicates.sum())} rader."
-        )
-
-    severity_available = (
-        pd.to_numeric(
-            frame["min_return_5d"],
-            errors="coerce",
-        ).notna()
-        & pd.to_numeric(
-            frame["max_return_5d"],
-            errors="coerce",
-        ).notna()
-    )
-
-    if not severity_available.any():
-        raise ValueError(
-            "Severity-targets saknar helt "
-            "giltiga observationer."
-        )
-
+Sedan ändrar du write_metadata() så att den tar emot fingerprintet:
 
 def write_metadata(
     *,
@@ -358,340 +61,477 @@ def write_metadata(
     stats: dict[str, int],
     price_files: list[Path],
     chunks: list[dict[str, object]],
+    source_fingerprint: dict[str, object],
 ) -> None:
-    """Skriver metadata för feature-datasetet."""
 
-    metadata = {
-        "dataset": (
-            "Blankdiss canonical "
-            "FI + price feature dataset"
-        ),
-        "source": {
-            "fi_file": str(
-                FI_PATH.relative_to(ROOT)
-            ),
-            "price_files": [
-                str(
-                    path.relative_to(ROOT)
-                )
-                for path in price_files
-            ],
-        },
-        "fi_rows": int(
-            len(fi)
-        ),
-        "price_rows": int(
-            len(prices)
-        ),
-        "feature_rows": int(
-            len(result)
-        ),
-        "matched_fi_rows": int(
-            stats.get(
-                "matched_rows",
-                0,
-            )
-        ),
-        "unmatched_fi_rows": int(
-            stats.get(
-                "unmatched_rows",
-                0,
-            )
-        ),
-        "matched_by_isin": int(
-            stats.get(
-                "matched_by_isin",
-                0,
-            )
-        ),
-        "matched_by_issuer": int(
-            stats.get(
-                "matched_by_issuer",
-                0,
-            )
-        ),
-        "security_keys_fi": int(
-            fi["security_key"].nunique()
-        ),
-        "security_keys_prices": int(
-            prices["security_key"].nunique()
-        ),
-        "feature_columns": [
-            str(column)
-            for column in result.columns
-        ],
-        "return_horizons_trading_days": [
-            int(value)
-            for value in RETURN_HORIZONS
-        ],
-        "severity_horizon_trading_days": int(
-            SEVERITY_HORIZON
-        ),
-        "severity_window": (
-            "trading_days_1_to_5_after_entry"
-        ),
-        "entry_rule": (
-            "first available trading-day "
-            "close on or after FI snapshot date"
-        ),
-        "severity_columns": [
-            "min_return_5d",
-            "max_return_5d",
-            "min_return_5d_date",
-            "max_return_5d_date",
-        ],
-        "price_feature_columns": [
-            "price_return_5d",
-            "price_return_20d",
-            "price_return_60d",
-            "price_volatility_20d",
-            "price_distance_from_20d_high",
-            "price_distance_from_60d_high",
-        ],
-        "chunk_size": int(
-            CHUNK_SIZE
-        ),
-        "chunks": chunks,
+och lägger in detta i metadata:
+
+"source_fingerprint": source_fingerprint,
+
+Slutligen, i main(), direkt efter att price_files har hittats:
+
+source_fingerprint = build_source_fingerprint(
+    fi_path=FI_PATH,
+    price_files=price_files,
+)
+
+och skicka sedan med det till write_metadata():
+
+write_metadata(
+    fi=fi,
+    prices=prices,
+    result=result,
+    stats=stats,
+    price_files=price_files,
+    chunks=chunks,
+    source_fingerprint=source_fingerprint,
+)
+
+Det gör att metadata exempelvis kommer innehålla:
+
+"source_fingerprint": {
+  "algorithm": "sha256",
+  "fingerprint": "...",
+  "files": [
+    {
+      "path": "data/processed/fi/aggregate/reconstructed.jsonl",
+      "sha256": "...",
+      "size_bytes": 12345678
+    },
+    {
+      "path": "data/raw/prices/prices_2022-01-01_latest.jsonl",
+      "sha256": "...",
+      "size_bytes": 12345678
     }
+  ]
+}
 
-    with METADATA_PATH.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(
-            metadata,
-            handle,
-            ensure_ascii=False,
-            indent=2,
-        )
+2. Research-workflowet
 
-    legacy_metadata = dict(
-        metadata
-    )
+Här är den viktiga delen. Efter Fetch FI aggregate och Fetch prices beräknar vi aktuellt fingerprint och jämför med det sparade.
 
-    legacy_metadata[
-        "feature_dataset"
-    ] = "fi_price_features.jsonl"
+Om samma → ingen feature build.
 
-    with OUTPUT_METADATA_PATH.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(
-            legacy_metadata,
-            handle,
-            ensure_ascii=False,
-            indent=2,
-        )
+Om olika → Build features + QC.
 
+:::writing{variant=“document” id=“92754” title=“Blankdiss Research workflow”}
 
-def main() -> None:
-    """Bygg hela det kanoniska feature-datasetet."""
+name: Blankdiss Research
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: research-manual
+  cancel-in-progress: false
+jobs:
+  research:
+    name: Kör Blankdiss Research Matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Clean latest research results
+        run: |
+          mkdir -p data/processed/ml/research/latest/diagnostic
+          find data/processed/ml/research/latest -type f -delete
+      - name: Fetch FI aggregate
+        run: |
+          python -u -m fi
+      - name: Fetch prices
+        run: |
+          python -m prices --start 2022-01-01
+      - name: Check whether features need rebuilding
+        id: feature_check
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          ROOT = Path(".").resolve()
+          fi_path = (
+              ROOT
+              / "data"
+              / "processed"
+              / "fi"
+              / "aggregate"
+              / "reconstructed.jsonl"
+          )
+          price_dir = (
+              ROOT
+              / "data"
+              / "raw"
+              / "prices"
+          )
+          metadata_path = (
+              ROOT
+              / "data"
+              / "processed"
+              / "analysis"
+              / "features_metadata.json"
+          )
+          def file_sha256(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(
+                      lambda: handle.read(1024 * 1024),
+                      b"",
+                  ):
+                      digest.update(chunk)
+              return digest.hexdigest()
+          price_files = sorted(
+              price_dir.glob("prices_*.jsonl")
+          )
+          source_files = [
+              fi_path,
+              *price_files,
+          ]
+          if not fi_path.exists():
+              raise SystemExit(
+                  f"Saknar FI-data: {fi_path}"
+              )
+          entries = []
+          for path in source_files:
+              if not path.exists():
+                  raise SystemExit(
+                      f"Saknar datafil: {path}"
+                  )
+              entries.append(
+                  {
+                      "path": str(
+                          path.relative_to(ROOT)
+                      ),
+                      "sha256": file_sha256(path),
+                      "size_bytes": path.stat().st_size,
+                  }
+              )
+          canonical = json.dumps(
+              entries,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode("utf-8")
+          current_fingerprint = hashlib.sha256(
+              canonical
+          ).hexdigest()
+          old_fingerprint = None
+          if metadata_path.exists():
+              metadata = json.loads(
+                  metadata_path.read_text(
+                      encoding="utf-8"
+                  )
+              )
+              old_fingerprint = (
+                  metadata
+                  .get("source_fingerprint", {})
+                  .get("fingerprint")
+              )
+          changed = (
+              old_fingerprint
+              != current_fingerprint
+          )
+          print(
+              "Feature source fingerprint:"
+          )
+          print(
+              f"  Previous: {old_fingerprint}"
+          )
+          print(
+              f"  Current:  {current_fingerprint}"
+          )
+          print(
+              f"  Changed:  {changed}"
+          )
+          with open(
+              "feature_check.env",
+              "w",
+              encoding="utf-8",
+          ) as handle:
+              handle.write(
+                  f"FEATURES_CHANGED={'true' if changed else 'false'}\n"
+              )
+              handle.write(
+                  f"FEATURE_SOURCE_FINGERPRINT={current_fingerprint}\n"
+              )
+          print(
+              "FEATURES_CHANGED="
+              + (
+                  "true"
+                  if changed
+                  else "false"
+              )
+          )
+          PY
+          cat feature_check.env >> "$GITHUB_ENV"
+      - name: Build features
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -u -m analysis.build_features
+      - name: Inspect feature dataset
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -m analysis.ci inspect-features
+      - name: Verify feature dataset
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -m analysis.ci verify-features
+      - name: Run Feature QC
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -u -m analysis.features_qc
+      - name: Verify Feature QC
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -m analysis.ci verify-feature-qc
+      - name: Verify feature dataset exists
+        run: |
+          test -f data/processed/analysis/features_0001.jsonl
+          test -f data/processed/analysis/features_metadata.json
+      - name: Run Research Matrix
+        run: |
+          python -u -m ml.research.runner
+      - name: Run Registered Experiments
+        run: |
+          python -u -m ml.experiment_registry_runner
+      - name: Verify research results
+        run: |
+          test -f data/processed/ml/research/latest/results.jsonl
+          test -f data/processed/ml/research/latest/pooled.json
+          test -f data/processed/ml/research/latest/metadata.json
+          test -f data/processed/ml/research/latest/report.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base = Path(
+              "data/processed/ml/research/latest"
+          )
+          results_path = base / "results.jsonl"
+          pooled_path = base / "pooled.json"
+          metadata_path = base / "metadata.json"
+          report_path = base / "report.md"
+          result_count = sum(
+              1
+              for line in results_path.open(
+                  encoding="utf-8"
+              )
+              if line.strip()
+          )
+          if result_count == 0:
+              raise SystemExit(
+                  "Research results innehåller inga resultat."
+              )
+          pooled = json.loads(
+              pooled_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(pooled, list):
+              raise SystemExit(
+                  "Pooled research results är inte en lista."
+              )
+          if len(pooled) == 0:
+              raise SystemExit(
+                  "Pooled research results innehåller inga experiment."
+              )
+          metadata = json.loads(
+              metadata_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(metadata, dict):
+              raise SystemExit(
+                  "Research metadata är inte ett objekt."
+              )
+          report = report_path.read_text(
+              encoding="utf-8"
+          )
+          if not report.strip():
+              raise SystemExit(
+                  "Research report är tom."
+              )
+          print(
+              "Research results:",
+              result_count,
+          )
+          print(
+              "Pooled experiments:",
+              len(pooled),
+          )
+          print(
+              "Report:",
+              report_path,
+          )
+          PY
+      - name: Verify diagnostic results
+        run: |
+          test -f data/processed/ml/research/latest/diagnostics.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base = Path(
+              "data/processed/ml/research/latest"
+          )
+          manifest_path = (
+              base / "diagnostics.json"
+          )
+          manifest = json.loads(
+              manifest_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(manifest, dict):
+              raise SystemExit(
+                  "Diagnostic manifest är inte ett objekt."
+              )
+          results = manifest.get("results")
+          if not isinstance(results, list):
+              raise SystemExit(
+                  "Diagnostic manifest saknar results."
+              )
+          if not results:
+              raise SystemExit(
+                  "Inga diagnostic results hittades."
+              )
+          required_results = {
+              "si_level_event_risk_confirmation",
+              "si_event_risk_interaction",
+              "si_price_dynamics",
+          }
+          actual_results = {
+              result["experiment_id"]
+              for result in results
+          }
+          missing_results = (
+              required_results
+              - actual_results
+          )
+          if missing_results:
+              raise SystemExit(
+                  "Saknar förväntade diagnostic results: "
+                  + ", ".join(
+                      sorted(missing_results)
+                  )
+              )
+          for result in results:
+              experiment_id = result[
+                  "experiment_id"
+              ]
+              result_path = (
+                  base
+                  / "diagnostic"
+                  / f"{experiment_id}.json"
+              )
+              if not result_path.exists():
+                  raise SystemExit(
+                      "Saknar diagnostic result: "
+                      f"{result_path}"
+                  )
+              payload = json.loads(
+                  result_path.read_text(
+                      encoding="utf-8"
+                  )
+              )
+              if payload.get("status") != "completed":
+                  raise SystemExit(
+                      "Diagnostic failed: "
+                      f"{experiment_id}"
+                  )
+          print(
+              "Diagnostic results:",
+              len(results),
+          )
+          print(
+              "Completed:",
+              manifest.get(
+                  "completed",
+                  0,
+              ),
+          )
+          print(
+              "Failed:",
+              manifest.get(
+                  "failed",
+                  0,
+              ),
+          )
+          print(
+              "Manifest:",
+              manifest_path,
+          )
+          PY
+      - name: Verify latest diagnostic JSON files
+        run: |
+          test -f data/processed/ml/research/latest/diagnostic/si_level_event_risk_confirmation.json
+          test -f data/processed/ml/research/latest/diagnostic/si_event_risk_interaction.json
+          test -f data/processed/ml/research/latest/diagnostic/si_price_dynamics.json
+      - name: Upload research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: blankdiss-research
+          path: |
+            data/processed/ml/research/latest/results.jsonl
+            data/processed/ml/research/latest/pooled.json
+            data/processed/ml/research/latest/metadata.json
+            data/processed/ml/research/latest/report.md
+            data/processed/ml/research/latest/diagnostics.json
+            data/processed/ml/research/latest/diagnostic/*.json
+            data/processed/ml/research/*/results.jsonl
+            data/processed/ml/research/*/pooled.json
+            data/processed/ml/research/*/metadata.json
+            data/processed/ml/research/*/report.md
+            data/processed/ml/research/*/diagnostics.json
+            data/processed/ml/research/*/diagnostic/*.json
+          if-no-files-found: error
+      - name: Persist latest diagnostic results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            data/processed/ml/research/latest/diagnostics.json \
+            data/processed/ml/research/latest/diagnostic/*.json \
+            data/processed/analysis/features_*.jsonl \
+            data/processed/analysis/features_metadata.json
+          if git diff --cached --quiet; then
+            echo "Inga forsknings- eller featureresultat ändrades."
+          else
+            git commit -m "Update research results"
+            git push
+          fi
 
-    print(
-        "Featurejobb: startar."
-    )
+En viktig detalj
 
-    OUTPUT_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+Jag lade medvetet till featurefilerna i sista git add.
 
-    # ---------------------------------------------------------
-    # 1. FI
-    # ---------------------------------------------------------
+Det behövs eftersom om vi får nya priser/FI-data:
 
-    fi = load_fi(
-        FI_PATH
-    )
+fingerprint ändrat
+→ Build features
+→ nya features
+→ nya features_metadata.json
+→ dessa måste sparas
 
-    print(
-        f"Featurejobb: "
-        f"{len(fi):,} FI-observationer lästa."
-    )
+Nästa körning läser sedan det nya fingerprintet och kan konstatera:
 
-    fi = add_fi_features(
-        fi
-    )
+Previous == Current
+→ Build features: SKIP
 
-    # ---------------------------------------------------------
-    # 2. Prisdata
-    # ---------------------------------------------------------
+Så vi får exakt beteendet vi ville ha:
 
-    price_files = find_price_files(
-        PRICE_DIR
-    )
+Vanlig ny researchkörning:
 
-    print(
-        "Featurejobb: hittade "
-        f"{len(price_files)} prisfiler."
-    )
+fetch → fingerprint oförändrat → ingen feature build → research
 
-    for price_file in price_files:
-        print(
-            f"  - {price_file.name}"
-        )
+Ny data:
 
-    prices = load_prices(
-        price_files
-    )
+fetch → fingerprint ändrat → bygg features → QC → research → spara nya features
 
-    print(
-        f"Featurejobb: "
-        f"{len(prices):,} prisobservationer lästa."
-    )
-
-    # ---------------------------------------------------------
-    # 3. Matcha FI → pris
-    #
-    # feature_prices.py äger:
-    # - price_date
-    # - close
-    # - prisfeatures
-    # - severity targets
-    # - mapping source
-    # ---------------------------------------------------------
-
-    result, stats = attach_prices(
-        fi,
-        prices,
-    )
-
-    if result.empty:
-        raise RuntimeError(
-            "Featurejobb gav 0 "
-            "matchade FI-observationer."
-        )
-
-    print(
-        "Featurejobb: "
-        f"{stats.get('matched_rows', 0):,} "
-        "matchade FI-observationer."
-    )
-
-    print(
-        "Featurejobb: "
-        f"{stats.get('unmatched_rows', 0):,} "
-        "FI-observationer utan pris."
-    )
-
-    # ---------------------------------------------------------
-    # 4. Forward returns
-    #
-    # Dessa är targets och beräknas separat från
-    # samtidiga prisfeatures.
-    # ---------------------------------------------------------
-
-    result = add_forward_returns(
-        result,
-        prices,
-    )
-
-    # ---------------------------------------------------------
-    # 5. JSON-normalisering
-    # ---------------------------------------------------------
-
-    result = clean_for_json(
-        result
-    )
-
-    # ---------------------------------------------------------
-    # 6. Skriv legacy-dataset
-    # ---------------------------------------------------------
-
-    write_jsonl(
-        result,
-        OUTPUT_PATH,
-    )
-
-    # ---------------------------------------------------------
-    # 7. Skriv kanoniska chunks
-    # ---------------------------------------------------------
-
-    chunks = write_feature_chunks(
-        result
-    )
-
-    # ---------------------------------------------------------
-    # 8. Validera innan metadata skrivs
-    # ---------------------------------------------------------
-
-    validate_feature_dataset(
-        result,
-        chunks,
-    )
-
-    # ---------------------------------------------------------
-    # 9. Metadata
-    # ---------------------------------------------------------
-
-    write_metadata(
-        fi=fi,
-        prices=prices,
-        result=result,
-        stats=stats,
-        price_files=price_files,
-        chunks=chunks,
-    )
-
-    # ---------------------------------------------------------
-    # 10. Sammanfattning
-    # ---------------------------------------------------------
-
-    print(
-        "Featurejobb: klart."
-    )
-
-    print(
-        f"Feature-rader: "
-        f"{len(result):,}"
-    )
-
-    print(
-        f"Feature-kolumner: "
-        f"{len(result.columns)}"
-    )
-
-    print(
-        f"Chunks: "
-        f"{len(chunks)}"
-    )
-
-    print(
-        "Severity: "
-        "min_return_5d, "
-        "max_return_5d, "
-        "min_return_5d_date, "
-        "max_return_5d_date"
-    )
-
-    print(
-        "Skrivet:"
-    )
-
-    print(
-        f"  {OUTPUT_PATH.relative_to(ROOT)}"
-    )
-
-    print(
-        f"  {METADATA_PATH.relative_to(ROOT)}"
-    )
-
-    for chunk in chunks:
-        size_mb = (
-            Path(
-                ROOT / chunk["path"]
-            ).stat().st_size
-            / 1024
-            / 1024
-        )
-
-        print(
-            f"  {chunk['path']} "
-            f"({chunk['rows']:,} rader, "
-            f"{size_mb:.2f} MB)"
-        )
-
-
-if __name__ == "__main__":
-    main()
+Och gamla features_metadata.json saknar fingerprint, så första körningen efter denna ändring bygger om features en gång. Därefter är systemet självgående.
