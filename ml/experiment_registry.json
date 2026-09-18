@@ -2,10 +2,10 @@
   "version": 1,
   "experiments": [
     {
-      "id": "volatility_si_level_interaction",
+      "id": "si_level_event_risk_confirmation",
       "status": "active",
-      "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
-      "module": "ml.diagnostics.volatility_si_level_interaction_diagnostic",
+      "question": "Ger hög blankningsnivå ytterligare information om extrem nedgång när event-risken redan är hög?",
+      "module": "ml.diagnostics.si_level_event_risk_confirmation_diagnostic",
       "priority": 1
     },
     {
@@ -14,6 +14,13 @@
       "question": "Är effekten av förändrad blankning starkare vid extrem event-risk?",
       "module": "ml.diagnostics.fi_short_interest_event_risk_interaction_diagnostic",
       "priority": 2
+    },
+    {
+      "id": "volatility_si_level_interaction",
+      "status": "inactive",
+      "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
+      "module": "ml.diagnostics.volatility_si_level_interaction_diagnostic",
+      "priority": 10
     },
     {
       "id": "report_proximity",
