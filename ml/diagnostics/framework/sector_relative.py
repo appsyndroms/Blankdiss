@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-import json
 import numpy as np
 import pandas as pd
 
 from .base import ExperimentResult
-from .si_additional import _add_si_change, _numeric
+from .si_additional import (
+    _add_si_change,
+    _numeric,
+)
 
 
 SECTOR_MAP_PATH = Path(
@@ -20,27 +23,67 @@ def _load_sector_map() -> dict[str, str]:
         raise FileNotFoundError(
             "Sektormappning saknas: "
             f"{SECTOR_MAP_PATH}. "
-            "Skapa sektormappningen innan "
+            "Skapa och frys sektormappningen innan "
             "sector_relative_return aktiveras."
         )
 
-    with SECTOR_MAP_PATH.open(
-        "r",
-        encoding="utf-8",
-    ) as handle:
-        mapping = json.load(handle)
+    payload = json.loads(
+        SECTOR_MAP_PATH.read_text(
+            encoding="utf-8"
+        )
+    )
 
-    if not isinstance(mapping, dict):
+    if not isinstance(payload, dict):
         raise ValueError(
             "sector_map.json måste innehålla "
             "ett JSON-objekt."
         )
 
-    return {
-        str(key): str(value)
-        for key, value in mapping.items()
-        if value is not None
-    }
+    instruments = payload.get(
+        "instruments"
+    )
+
+    if not isinstance(
+        instruments,
+        dict,
+    ):
+        raise ValueError(
+            "sector_map.json saknar "
+            "'instruments'."
+        )
+
+    mapping: dict[str, str] = {}
+
+    for symbol, item in instruments.items():
+        if not isinstance(
+            item,
+            dict,
+        ):
+            continue
+
+        sector = item.get(
+            "sector"
+        )
+
+        if sector is None:
+            continue
+
+        sector = str(
+            sector
+        ).strip()
+
+        if sector:
+            mapping[
+                str(symbol)
+            ] = sector
+
+    if not mapping:
+        raise ValueError(
+            "sector_map.json innehåller "
+            "ingen giltig sektormappning."
+        )
+
+    return mapping
 
 
 def _prepare_frame(
@@ -49,7 +92,7 @@ def _prepare_frame(
 ) -> pd.DataFrame:
     result = _add_si_change(
         frame
-    )
+    ).copy()
 
     symbol_column = (
         "yahoo_symbol"
@@ -78,10 +121,13 @@ def _prepare_frame(
 
     result["sector"] = (
         result[symbol_column]
+        .astype(str)
         .map(sector_map)
     )
 
-    result["short_interest_pct_change"] = _numeric(
+    result[
+        "short_interest_pct_change"
+    ] = _numeric(
         result,
         "short_interest_pct_change",
     )
@@ -94,117 +140,125 @@ def _prepare_frame(
     return result
 
 
-def _sector_relative_return(
+def _relative_returns(
     frame: pd.DataFrame,
     *,
     return_column: str,
-) -> pd.Series:
-    values = pd.to_numeric(
-        frame[return_column],
+) -> pd.DataFrame:
+    required = {
+        "snapshot_date",
+        "sector",
+        return_column,
+    }
+
+    if not required.issubset(
+        frame.columns
+    ):
+        return pd.DataFrame(
+            columns=[
+                "sector_relative_return",
+                "market_relative_return",
+            ]
+        )
+
+    result = frame[
+        [
+            "snapshot_date",
+            "sector",
+            return_column,
+        ]
+    ].copy()
+
+    result["_return"] = pd.to_numeric(
+        result[return_column],
         errors="coerce",
     )
 
-    valid = frame.copy()
-    valid["_return"] = values
-
-    valid = valid.dropna(
+    result = result.dropna(
         subset=[
+            "snapshot_date",
             "sector",
             "_return",
         ]
     )
 
-    if valid.empty:
-        return pd.Series(
-            dtype=float
-        )
+    if result.empty:
+        result[
+            "sector_relative_return"
+        ] = np.nan
+
+        result[
+            "market_relative_return"
+        ] = np.nan
+
+        return result
 
     sector_mean = (
-        valid.groupby(
-            ["snapshot_date", "sector"]
+        result.groupby(
+            [
+                "snapshot_date",
+                "sector",
+            ]
         )["_return"]
         .transform("mean")
     )
 
-    return (
-        valid["_return"]
-        - sector_mean
-    )
-
-
-def _market_relative_return(
-    frame: pd.DataFrame,
-    *,
-    return_column: str,
-) -> pd.Series:
-    values = pd.to_numeric(
-        frame[return_column],
-        errors="coerce",
-    )
-
-    valid = frame.copy()
-    valid["_return"] = values
-
-    valid = valid.dropna(
-        subset=["_return"]
-    )
-
-    if valid.empty:
-        return pd.Series(
-            dtype=float
-        )
-
     market_mean = (
-        valid.groupby(
+        result.groupby(
             "snapshot_date"
         )["_return"]
         .transform("mean")
     )
 
-    return (
-        valid["_return"]
+    result[
+        "sector_relative_return"
+    ] = (
+        result["_return"]
+        - sector_mean
+    )
+
+    result[
+        "market_relative_return"
+    ] = (
+        result["_return"]
         - market_mean
     )
 
+    return result
 
-def _quantile(
+
+def _mean(
     frame: pd.DataFrame,
     column: str,
-    q: float,
 ) -> float:
-    values = _numeric(
-        frame,
-        column,
+    values = pd.to_numeric(
+        frame[column],
+        errors="coerce",
     ).dropna()
 
     if values.empty:
         return float("nan")
 
     return float(
-        values.quantile(q)
+        values.mean()
     )
 
 
-def _summary(
-    values: pd.Series,
-) -> dict[str, float | int]:
+def _median(
+    frame: pd.DataFrame,
+    column: str,
+) -> float:
     values = pd.to_numeric(
-        values,
+        frame[column],
         errors="coerce",
     ).dropna()
 
     if values.empty:
-        return {
-            "n": 0,
-            "mean": float("nan"),
-            "median": float("nan"),
-        }
+        return float("nan")
 
-    return {
-        "n": int(len(values)),
-        "mean": float(values.mean()),
-        "median": float(values.median()),
-    }
+    return float(
+        values.median()
+    )
 
 
 def run_sector_relative_return(
@@ -225,7 +279,11 @@ def run_sector_relative_return(
         sector_map,
     )
 
-    if test["sector"].notna().sum() == 0:
+    mapped_test = test[
+        test["sector"].notna()
+    ].copy()
+
+    if mapped_test.empty:
         raise ValueError(
             "Ingen testobservation kunde kopplas "
             "till en sektor."
@@ -248,7 +306,9 @@ def run_sector_relative_return(
 
     rows: list[dict] = []
 
-    for change_cutoff in si_change_cutoffs:
+    for change_cutoff in (
+        si_change_cutoffs
+    ):
         threshold = float(
             positive_changes.quantile(
                 1.0 - change_cutoff
@@ -257,85 +317,80 @@ def run_sector_relative_return(
 
         signal = (
             _numeric(
-                test,
+                mapped_test,
                 "short_interest_pct_change",
             )
             >= threshold
         )
 
-        signal_frame = test[
+        signal_frame = mapped_test[
             signal
         ].copy()
 
-        control_frame = test[
+        control_frame = mapped_test[
             ~signal
         ].copy()
-
-        signal_frame = signal_frame[
-            signal_frame["sector"].notna()
-        ]
-
-        control_frame = control_frame[
-            control_frame["sector"].notna()
-        ]
 
         for horizon in horizons:
             return_column = (
                 f"forward_return_{horizon}d"
             )
 
-            if return_column not in test.columns:
+            if return_column not in mapped_test.columns:
                 continue
 
-            signal_sector = (
-                _sector_relative_return(
-                    signal_frame,
-                    return_column=return_column,
+            # IMPORTANT:
+            # Benchmarkerna beräknas på hela testuniversumet.
+            relative = _relative_returns(
+                mapped_test,
+                return_column=return_column,
+            )
+
+            if relative.empty:
+                continue
+
+            benchmark_index = relative.index
+
+            signal_index = (
+                signal_frame.index
+                .intersection(
+                    benchmark_index
                 )
             )
 
-            control_sector = (
-                _sector_relative_return(
-                    control_frame,
-                    return_column=return_column,
+            control_index = (
+                control_frame.index
+                .intersection(
+                    benchmark_index
                 )
             )
 
-            signal_market = (
-                _market_relative_return(
-                    signal_frame,
-                    return_column=return_column,
-                )
+            signal_relative = relative.loc[
+                signal_index
+            ]
+
+            control_relative = relative.loc[
+                control_index
+            ]
+
+            signal_sector_mean = _mean(
+                signal_relative,
+                "sector_relative_return",
             )
 
-            control_market = (
-                _market_relative_return(
-                    control_frame,
-                    return_column=return_column,
-                )
+            control_sector_mean = _mean(
+                control_relative,
+                "sector_relative_return",
             )
 
-            signal_sector_summary = _summary(
-                signal_sector
-            )
-            control_sector_summary = _summary(
-                control_sector
-            )
-            signal_market_summary = _summary(
-                signal_market
-            )
-            control_market_summary = _summary(
-                control_market
+            signal_market_mean = _mean(
+                signal_relative,
+                "market_relative_return",
             )
 
-            sector_delta = (
-                signal_sector_summary["mean"]
-                - control_sector_summary["mean"]
-            )
-
-            market_delta = (
-                signal_market_summary["mean"]
-                - control_market_summary["mean"]
+            control_market_mean = _mean(
+                control_relative,
+                "market_relative_return",
             )
 
             rows.append(
@@ -347,23 +402,52 @@ def run_sector_relative_return(
                     "horizon_days":
                         horizon,
                     "signal_n":
-                        signal_sector_summary["n"],
+                        len(signal_relative),
                     "control_n":
-                        control_sector_summary["n"],
+                        len(control_relative),
                     "signal_sector_relative_mean":
-                        signal_sector_summary["mean"],
+                        signal_sector_mean,
                     "control_sector_relative_mean":
-                        control_sector_summary["mean"],
+                        control_sector_mean,
                     "sector_relative_delta":
-                        sector_delta,
+                        (
+                            signal_sector_mean
+                            - control_sector_mean
+                        ),
+                    "signal_sector_relative_median":
+                        _median(
+                            signal_relative,
+                            "sector_relative_return",
+                        ),
+                    "control_sector_relative_median":
+                        _median(
+                            control_relative,
+                            "sector_relative_return",
+                        ),
                     "signal_market_relative_mean":
-                        signal_market_summary["mean"],
+                        signal_market_mean,
                     "control_market_relative_mean":
-                        control_market_summary["mean"],
+                        control_market_mean,
                     "market_relative_delta":
-                        market_delta,
+                        (
+                            signal_market_mean
+                            - control_market_mean
+                        ),
+                    "mapped_test_fraction":
+                        (
+                            len(mapped_test)
+                            / len(test)
+                            if len(test)
+                            else 0.0
+                        ),
                 }
             )
+
+    if not rows:
+        raise ValueError(
+            "Sector-relative analysis producerade "
+            "inga resultat."
+        )
 
     result = ExperimentResult(
         name="sector_relative_return",
@@ -383,6 +467,28 @@ def run_sector_relative_return(
     result.add_metric(
         "sector_map_size",
         len(sector_map),
+    )
+
+    result.add_metric(
+        "mapped_test_rows",
+        int(len(mapped_test)),
+    )
+
+    result.add_metric(
+        "test_rows",
+        int(len(test)),
+    )
+
+    result.add_metric(
+        "mapped_test_fraction",
+        (
+            float(
+                len(mapped_test)
+                / len(test)
+            )
+            if len(test)
+            else 0.0
+        ),
     )
 
     return result
