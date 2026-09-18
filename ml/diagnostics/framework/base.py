@@ -210,3 +210,24 @@ class DiagnosticExperiment(ABC):
             risk_cutoffs=risk_cutoffs,
             positive_change_cutoff=positive_change_cutoff,
         )
+
+    def run_si_price_dynamics(
+        self,
+        context: ExperimentContext,
+        *,
+        horizons: tuple[int, ...],
+        si_change_cutoffs: tuple[float, ...],
+        event_risk_cutoffs: tuple[float, ...],
+        prior_return_columns: tuple[str, ...],
+    ) -> ExperimentResult:
+        from .price_dynamics import (
+            run_si_price_dynamics,
+        )
+
+        return run_si_price_dynamics(
+            context,
+            horizons=horizons,
+            si_change_cutoffs=si_change_cutoffs,
+            event_risk_cutoffs=event_risk_cutoffs,
+            prior_return_columns=prior_return_columns,
+        )
