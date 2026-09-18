@@ -2,25 +2,32 @@
   "version": 1,
   "experiments": [
     {
+      "id": "volatility_si_level_interaction",
+      "status": "active",
+      "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
+      "module": "ml.diagnostics.volatility_si_level_interaction_diagnostic",
+      "priority": 1
+    },
+    {
       "id": "si_event_risk_interaction",
       "status": "active",
       "question": "Är effekten av förändrad blankning starkare vid extrem event-risk?",
       "module": "ml.diagnostics.fi_short_interest_event_risk_interaction_diagnostic",
-      "priority": 1
+      "priority": 2
     },
     {
       "id": "report_proximity",
       "status": "planned",
       "question": "Förstärks sambandet nära rapportdatum?",
       "module": "ml.diagnostics.report_proximity_diagnostic",
-      "priority": 2
+      "priority": 3
     },
     {
       "id": "sector_relative_return",
       "status": "planned",
       "question": "Är effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.sector_relative_diagnostic",
-      "priority": 3
+      "priority": 4
     }
   ]
 }
