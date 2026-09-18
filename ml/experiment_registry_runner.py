@@ -147,7 +147,7 @@ def run_experiment(
         run = getattr(
             module,
             "main",
-            None,
+            None
         )
 
         if not callable(run):
@@ -262,12 +262,12 @@ def main() -> None:
     timestamp_dir = (
         RESEARCH_DIR
         / run_timestamp
-        / "diagnostics"
+        / "diagnostic"
     )
 
     latest_dir = (
         LATEST_DIR
-        / "diagnostics"
+        / "diagnostic"
     )
 
     timestamp_dir.mkdir(
@@ -302,7 +302,7 @@ def main() -> None:
                 "experiment_id": experiment_id,
                 "status": payload["status"],
                 "result_file": (
-                    f"diagnostics/{experiment_id}.json"
+                    f"diagnostic/{experiment_id}.json"
                 ),
             }
         )
