@@ -30,6 +30,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Clean latest research results
+        run: |
+          find data/processed/ml/research/latest -mindepth 1 -delete
+
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
@@ -77,31 +81,16 @@ jobs:
           import json
           from pathlib import Path
 
-          base = Path(
-              "data/processed/ml/research/latest"
-          )
+          base = Path("data/processed/ml/research/latest")
 
-          results_path = (
-              base / "results.jsonl"
-          )
-
-          pooled_path = (
-              base / "pooled.json"
-          )
-
-          metadata_path = (
-              base / "metadata.json"
-          )
-
-          report_path = (
-              base / "report.md"
-          )
+          results_path = base / "results.jsonl"
+          pooled_path = base / "pooled.json"
+          metadata_path = base / "metadata.json"
+          report_path = base / "report.md"
 
           result_count = sum(
               1
-              for line in results_path.open(
-                  encoding="utf-8"
-              )
+              for line in results_path.open(encoding="utf-8")
               if line.strip()
           )
 
@@ -111,15 +100,10 @@ jobs:
               )
 
           pooled = json.loads(
-              pooled_path.read_text(
-                  encoding="utf-8"
-              )
+              pooled_path.read_text(encoding="utf-8")
           )
 
-          if not isinstance(
-              pooled,
-              list,
-          ):
+          if not isinstance(pooled, list):
               raise SystemExit(
                   "Pooled research results är inte en lista."
               )
@@ -130,50 +114,28 @@ jobs:
               )
 
           metadata = json.loads(
-              metadata_path.read_text(
-                  encoding="utf-8"
-              )
+              metadata_path.read_text(encoding="utf-8")
           )
 
-          if not isinstance(
-              metadata,
-              dict,
-          ):
+          if not isinstance(metadata, dict):
               raise SystemExit(
                   "Research metadata är inte ett objekt."
               )
 
-          report = report_path.read_text(
-              encoding="utf-8"
-          )
+          report = report_path.read_text(encoding="utf-8")
 
           if not report.strip():
               raise SystemExit(
                   "Research report är tom."
               )
 
-          print(
-              "Research results:",
-              result_count,
-          )
-
-          print(
-              "Pooled experiments:",
-              len(pooled),
-          )
-
+          print("Research results:", result_count)
+          print("Pooled experiments:", len(pooled))
           print(
               "Feature rows:",
-              metadata.get(
-                  "feature_rows",
-                  "unknown",
-              ),
+              metadata.get("feature_rows", "unknown"),
           )
-
-          print(
-              "Report:",
-              report_path,
-          )
+          print("Report:", report_path)
           PY
 
       - name: Verify diagnostic results
@@ -184,36 +146,21 @@ jobs:
           import json
           from pathlib import Path
 
-          base = Path(
-              "data/processed/ml/research/latest"
-          )
-
-          manifest_path = (
-              base / "diagnostics.json"
-          )
+          base = Path("data/processed/ml/research/latest")
+          manifest_path = base / "diagnostics.json"
 
           manifest = json.loads(
-              manifest_path.read_text(
-                  encoding="utf-8"
-              )
+              manifest_path.read_text(encoding="utf-8")
           )
 
-          if not isinstance(
-              manifest,
-              dict,
-          ):
+          if not isinstance(manifest, dict):
               raise SystemExit(
                   "Diagnostic manifest är inte ett objekt."
               )
 
-          results = manifest.get(
-              "results"
-          )
+          results = manifest.get("results")
 
-          if not isinstance(
-              results,
-              list,
-          ):
+          if not isinstance(results, list):
               raise SystemExit(
                   "Diagnostic manifest saknar results."
               )
@@ -224,13 +171,11 @@ jobs:
               )
 
           for result in results:
-              experiment_id = result[
-                  "experiment_id"
-              ]
+              experiment_id = result["experiment_id"]
 
               result_path = (
                   base
-                  / "diagnostics"
+                  / "diagnostic"
                   / f"{experiment_id}.json"
               )
 
@@ -241,44 +186,25 @@ jobs:
                   )
 
               payload = json.loads(
-                  result_path.read_text(
-                      encoding="utf-8"
-                  )
+                  result_path.read_text(encoding="utf-8")
               )
 
-              if payload.get(
-                  "status"
-              ) != "completed":
+              if payload.get("status") != "completed":
                   raise SystemExit(
                       "Diagnostic failed: "
                       f"{experiment_id}"
                   )
 
-          print(
-              "Diagnostic results:",
-              len(results),
-          )
-
+          print("Diagnostic results:", len(results))
           print(
               "Completed:",
-              manifest.get(
-                  "completed",
-                  0,
-              ),
+              manifest.get("completed", 0),
           )
-
           print(
               "Failed:",
-              manifest.get(
-                  "failed",
-                  0,
-              ),
+              manifest.get("failed", 0),
           )
-
-          print(
-              "Manifest:",
-              manifest_path,
-          )
+          print("Manifest:", manifest_path)
           PY
 
       - name: Upload research artifacts
@@ -291,7 +217,7 @@ jobs:
             data/processed/ml/research/latest/metadata.json
             data/processed/ml/research/latest/report.md
             data/processed/ml/research/latest/diagnostics.json
-            data/processed/ml/research/latest/diagnostics/*.json
+            data/processed/ml/research/latest/diagnostic/*.json
             data/processed/ml/research/*/results.jsonl
             data/processed/ml/research/*/pooled.json
             data/processed/ml/research/*/metadata.json
