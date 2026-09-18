@@ -623,42 +623,6 @@ jobs:
                   "matchar inte antalet aktiva experiment: "
                   f"{completed} != {len(required_results)}"
               )
-
-          print(
-              "Active experiments:",
-              len(required_results),
-          )
-
-          print(
-              "Diagnostic results:",
-              len(results),
-          )
-
-          print(
-              "Completed:",
-              completed,
-          )
-
-          print(
-              "Failed:",
-              failed,
-          )
-
-          print(
-              "Verified experiments:"
-          )
-
-          for experiment_id in sorted(
-              required_results
-          ):
-              print(
-                  f"  - {experiment_id}"
-              )
-
-          print(
-              "Manifest:",
-              manifest_path,
-          )
           PY
 
       - name: Verify latest diagnostic JSON files
