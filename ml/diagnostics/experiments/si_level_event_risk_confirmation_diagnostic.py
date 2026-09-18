@@ -3,7 +3,7 @@ from __future__ import annotations
 from ml.diagnostics.framework import DiagnosticExperiment
 
 
-classSILevelEventRiskConfirmationExperiment(
+class SILevelEventRiskConfirmationExperiment(
     DiagnosticExperiment
 ):
     name = "si_level_event_risk_confirmation"
@@ -25,7 +25,5 @@ classSILevelEventRiskConfirmationExperiment(
         return self.run_si_level_confirmation(
             context,
             risk_cutoffs=self.risk_cutoffs,
-            short_interest_cutoff=(
-                self.short_interest_cutoff
-            ),
+            short_interest_cutoff=self.short_interest_cutoff,
         )
