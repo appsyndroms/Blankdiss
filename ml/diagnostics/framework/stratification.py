@@ -13,7 +13,10 @@ def apply_threshold(
     threshold: float,
     direction: str = "ge",
 ) -> pd.Series:
-    values = df[column]
+    values = pd.to_numeric(
+        df[column],
+        errors="coerce",
+    )
 
     if direction == "ge":
         return values >= threshold
@@ -39,23 +42,64 @@ def quantile_buckets(
     thresholds: dict[float, float],
 ) -> pd.Series:
     """
-    Applicerar thresholds som beräknats på pre-test-data.
+    Applicerar thresholds som beräknats före testperioden.
 
-    Thresholds får alltså inte beräknas på df här.
+    Varje observation placeras i det intervall där den hör hemma.
     """
 
+    values = pd.to_numeric(
+        df[column],
+        errors="coerce",
+    )
+
+    ordered = sorted(
+        thresholds.items()
+    )
+
+    labels = [
+        f"q{int(q * 100):02d}"
+        for q, _ in ordered
+    ]
+
     result = pd.Series(
-        "unknown",
+        pd.NA,
         index=df.index,
         dtype="object",
     )
 
-    ordered = sorted(thresholds.items())
+    if not ordered:
+        return result
 
-    for q, threshold in ordered:
-        result.loc[df[column] >= threshold] = (
-            f"q>={q:.3f}"
+    for index, (_, threshold) in enumerate(
+        ordered
+    ):
+        if index == 0:
+            mask = values < threshold
+
+            result.loc[mask] = (
+                f"<q{int(ordered[index][0] * 100):02d}"
+            )
+
+        next_threshold = (
+            ordered[index + 1][1]
+            if index + 1 < len(ordered)
+            else None
         )
+
+        if next_threshold is not None:
+            mask = (
+                (values >= threshold)
+                & (values < next_threshold)
+            )
+
+            result.loc[mask] = (
+                f"{labels[index]}-"
+                f"{labels[index + 1]}"
+            )
+        else:
+            result.loc[
+                values >= threshold
+            ] = f">={labels[index]}"
 
     return result
 
@@ -72,7 +116,7 @@ def two_dimensional_stratification(
     """
     Skapar en 2D-stratifiering.
 
-    x_thresholds/y_thresholds ska vara beräknade före testperioden.
+    Thresholds måste vara beräknade före testperioden.
     """
 
     work = df.copy()
@@ -81,17 +125,37 @@ def two_dimensional_stratification(
         values: pd.Series,
         thresholds: dict[str, float],
     ) -> pd.Series:
+        numeric = pd.to_numeric(
+            values,
+            errors="coerce",
+        )
+
+        ordered = sorted(
+            thresholds.items(),
+            key=lambda item: item[1],
+        )
+
         result = pd.Series(
-            "below",
+            pd.NA,
             index=values.index,
             dtype="object",
         )
 
-        for label, threshold in sorted(
-            thresholds.items(),
-            key=lambda item: item[1],
-        ):
-            result.loc[values >= threshold] = label
+        if not ordered:
+            return result
+
+        for index, (
+            label,
+            threshold,
+        ) in enumerate(ordered):
+            if index == 0:
+                result.loc[
+                    numeric < threshold
+                ] = "below"
+
+            result.loc[
+                numeric >= threshold
+            ] = label
 
         return result
 
@@ -107,8 +171,14 @@ def two_dimensional_stratification(
 
     rows = []
 
-    for (x_bucket, y_bucket), group in work.groupby(
-        ["_x_bucket", "_y_bucket"],
+    for (
+        x_bucket,
+        y_bucket,
+    ), group in work.groupby(
+        [
+            "_x_bucket",
+            "_y_bucket",
+        ],
         dropna=False,
     ):
         row = {
@@ -123,9 +193,9 @@ def two_dimensional_stratification(
                 event_column,
             )
 
-            row[f"{event_column}_rate"] = summary[
-                "event_rate"
-            ]
+            row[
+                f"{event_column}_rate"
+            ] = summary["event_rate"]
 
         if return_column is not None:
             summary = return_summary(
@@ -133,7 +203,9 @@ def two_dimensional_stratification(
             )
 
             for key, value in summary.items():
-                row[f"return_{key}"] = value
+                row[
+                    f"return_{key}"
+                ] = value
 
         rows.append(row)
 
