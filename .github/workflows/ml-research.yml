@@ -205,8 +205,8 @@ jobs:
 
           required_results = {
               "si_level_event_risk_confirmation",
-              "fi_short_interest_event_risk_interaction",
-              "si_price_dynamics_diagnostic",
+              "si_event_risk_interaction",
+              "si_price_dynamics",
           }
 
           actual_results = {
@@ -286,8 +286,8 @@ jobs:
       - name: Verify latest diagnostic JSON files
         run: |
           test -f data/processed/ml/research/latest/diagnostic/si_level_event_risk_confirmation.json
-          test -f data/processed/ml/research/latest/diagnostic/fi_short_interest_event_risk_interaction.json
-          test -f data/processed/ml/research/latest/diagnostic/si_price_dynamics_diagnostic.json
+          test -f data/processed/ml/research/latest/diagnostic/si_event_risk_interaction.json
+          test -f data/processed/ml/research/latest/diagnostic/si_price_dynamics.json
 
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
