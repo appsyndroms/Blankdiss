@@ -497,7 +497,100 @@ pooled.json
 metadata.json
 report.md
 
-GitHub Actions laddar upp dessa som artifacts.
+Registry-baserade diagnostics producerar dessutom:
+
+diagnostics.json
+diagnostics/<experiment_id>.json
+
+En timestampad körning innehåller samma resultatstruktur under:
+
+data/processed/ml/research/<run_timestamp>/
+
+GitHub Actions laddar upp dessa filer som artifacts.
+
+Resultatfilerna är den primära outputen från research-körningen.
+
+AI ska läsa resultat-artifacts direkt efter en genomförd körning när de är tillgängliga. Actions-loggen är inte den primära källan för statistisk analys.
+
+Prioriterad läsordning är:
+
+1. diagnostics/<experiment_id>.json
+2. diagnostics.json
+3. pooled.json
+4. results.jsonl
+5. report.md
+
+Actions-loggen används främst för:
+
+* pipeline-status
+* fel
+* verifiering
+* korta körningssammanfattningar
+
+Användaren ska normalt inte behöva kopiera forskningsresultat från Actions-loggen till chatten.
+
+Den avsedda kedjan är:
+
+GitHub Actions
+      ↓
+Research
+      ↓
+Result artifacts
+      ↓
+AI reads result files
+      ↓
+Research analysis
+      ↓
+Nästa forskningsfråga
+
+⸻
+
+AI-readable research contract
+
+Resultat från Blankdiss research ska vara maskinläsbara och möjliga att konsumera utan att terminaloutput behöver tolkas manuellt.
+
+För generisk research är huvudresultaten:
+
+results.jsonl
+pooled.json
+metadata.json
+
+För registry-baserade diagnostics är:
+
+diagnostics.json
+diagnostics/<experiment_id>.json
+
+den primära resultatvägen.
+
+En diagnostic-resultatfil ska identifieras med experimentets stabila registry-id.
+
+Exempel:
+
+data/processed/ml/research/latest/diagnostics/si_event_risk_interaction.json
+
+Resultatfilen ska innehålla experimentets strukturerade resultat när diagnosticen stödjer detta.
+
+Fri terminaloutput får användas som kompletterande information, men ska inte vara den enda representationen av forskningsresultatet.
+
+Det innebär att Blankdiss researcharkitektur ska gå mot:
+
+research
+   ↓
+machine-readable artifact
+   ↓
+AI-readable result
+   ↓
+analysis
+
+och inte:
+
+research
+   ↓
+terminal log
+   ↓
+manual copy/paste
+   ↓
+analysis
 
 ⸻
 
@@ -565,11 +658,15 @@ Automatisk historisk analys
         ↓
 OOS-resultat
         ↓
+Maskinläsbara artifacts
+        ↓
+AI-analys
+        ↓
 Rapport
         ↓
 Nästa forskningsfråga
 
-utan att varje experiment kräver en ny specialbyggd pipeline.
+utan att varje experiment kräver en ny specialbyggd pipeline eller manuell överföring av loggar.
 
 Den önskade arkitekturen är:
 
@@ -595,7 +692,13 @@ Den önskade arkitekturen är:
                   OOS Results
                        │
                        ▼
-                    Report
+                   Artifacts
+                       │
+                       ▼
+                  AI Analysis
+                       │
+                       ▼
+              Nästa forskningsfråga
 
 Detta gör ML-delen till ett växande forskningssystem snarare än en samling fristående scripts.
 
