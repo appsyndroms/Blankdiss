@@ -487,8 +487,18 @@ jobs:
               base / "diagnostics.json"
           )
 
+          registry_path = Path(
+              "ml/experiment_registry.json"
+          )
+
           manifest = json.loads(
               manifest_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          registry = json.loads(
+              registry_path.read_text(
                   encoding="utf-8"
               )
           )
@@ -496,6 +506,11 @@ jobs:
           if not isinstance(manifest, dict):
               raise SystemExit(
                   "Diagnostic manifest är inte ett objekt."
+              )
+
+          if not isinstance(registry, dict):
+              raise SystemExit(
+                  "Experiment registry är inte ett objekt."
               )
 
           results = manifest.get("results")
@@ -510,10 +525,19 @@ jobs:
                   "Inga diagnostic results hittades."
               )
 
+          experiments = registry.get(
+              "experiments"
+          )
+
+          if not isinstance(experiments, list):
+              raise SystemExit(
+                  "Experiment registry saknar experiments."
+              )
+
           required_results = {
-              "si_level_event_risk_confirmation",
-              "si_event_risk_interaction",
-              "si_price_dynamics",
+              experiment["id"]
+              for experiment in experiments
+              if experiment.get("status") == "active"
           }
 
           actual_results = {
@@ -526,11 +550,25 @@ jobs:
               - actual_results
           )
 
+          unexpected_results = (
+              actual_results
+              - required_results
+          )
+
           if missing_results:
               raise SystemExit(
-                  "Saknar förväntade diagnostic results: "
+                  "Saknar aktiva diagnostic results: "
                   + ", ".join(
                       sorted(missing_results)
+                  )
+              )
+
+          if unexpected_results:
+              print(
+                  "Varning: diagnostic results innehåller "
+                  "experiment som inte längre är aktiva: "
+                  + ", ".join(
+                      sorted(unexpected_results)
                   )
               )
 
@@ -563,6 +601,34 @@ jobs:
                       f"{experiment_id}"
                   )
 
+          completed = manifest.get(
+              "completed",
+              0,
+          )
+
+          failed = manifest.get(
+              "failed",
+              0,
+          )
+
+          if failed != 0:
+              raise SystemExit(
+                  f"Diagnostic manifest rapporterar "
+                  f"{failed} failed experiments."
+              )
+
+          if completed != len(required_results):
+              raise SystemExit(
+                  "Antalet completed diagnostics "
+                  "matchar inte antalet aktiva experiment: "
+                  f"{completed} != {len(required_results)}"
+              )
+
+          print(
+              "Active experiments:",
+              len(required_results),
+          )
+
           print(
               "Diagnostic results:",
               len(results),
@@ -570,19 +636,24 @@ jobs:
 
           print(
               "Completed:",
-              manifest.get(
-                  "completed",
-                  0,
-              ),
+              completed,
           )
 
           print(
               "Failed:",
-              manifest.get(
-                  "failed",
-                  0,
-              ),
+              failed,
           )
+
+          print(
+              "Verified experiments:"
+          )
+
+          for experiment_id in sorted(
+              required_results
+          ):
+              print(
+                  f"  - {experiment_id}"
+              )
 
           print(
               "Manifest:",
@@ -592,9 +663,60 @@ jobs:
 
       - name: Verify latest diagnostic JSON files
         run: |
-          test -f data/processed/ml/research/latest/diagnostic/si_level_event_risk_confirmation.json
-          test -f data/processed/ml/research/latest/diagnostic/si_event_risk_interaction.json
-          test -f data/processed/ml/research/latest/diagnostic/si_price_dynamics.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry_path = Path(
+              "ml/experiment_registry.json"
+          )
+
+          diagnostic_dir = Path(
+              "data/processed/ml/research/latest/diagnostic"
+          )
+
+          registry = json.loads(
+              registry_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          experiments = registry.get(
+              "experiments"
+          )
+
+          if not isinstance(experiments, list):
+              raise SystemExit(
+                  "Experiment registry saknar experiments."
+              )
+
+          active = [
+              experiment["id"]
+              for experiment in experiments
+              if experiment.get("status") == "active"
+          ]
+
+          for experiment_id in active:
+              result_path = (
+                  diagnostic_dir
+                  / f"{experiment_id}.json"
+              )
+
+              if not result_path.exists():
+                  raise SystemExit(
+                      "Saknar diagnostic JSON: "
+                      f"{result_path}"
+                  )
+
+          print(
+              f"Verified {len(active)} active diagnostic JSON files."
+          )
+
+          for experiment_id in sorted(active):
+              print(
+                  f"  - {experiment_id}"
+              )
+          PY
 
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
