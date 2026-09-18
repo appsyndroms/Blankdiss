@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-18T09:36:34.662843+00:00",
-  "research_run_timestamp": "20260918T093614Z",
-  "registered_experiments": 6,
-  "active_experiments": 3,
-  "completed": 3,
+  "created_at_utc": "2026-09-18T11:47:43.198760+00:00",
+  "research_run_timestamp": "20260918T114720Z",
+  "registered_experiments": 9,
+  "active_experiments": 6,
+  "completed": 6,
   "failed": 0,
   "results": [
     {
@@ -20,6 +20,21 @@
       "experiment_id": "si_price_dynamics",
       "status": "completed",
       "result_file": "diagnostic/si_price_dynamics.json"
+    },
+    {
+      "experiment_id": "si_level_change_joint",
+      "status": "completed",
+      "result_file": "diagnostic/si_level_change_joint.json"
+    },
+    {
+      "experiment_id": "si_change_persistence",
+      "status": "completed",
+      "result_file": "diagnostic/si_change_persistence.json"
+    },
+    {
+      "experiment_id": "si_concentration",
+      "status": "completed",
+      "result_file": "diagnostic/si_concentration.json"
     }
   ]
 }

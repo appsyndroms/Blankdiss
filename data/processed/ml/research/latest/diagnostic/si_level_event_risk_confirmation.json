@@ -3,8 +3,8 @@
   "question": "Ger hög blankningsnivå ytterligare information om extrem nedgång när event-risken redan är hög?",
   "module": "ml.diagnostics.experiments.si_level_event_risk_confirmation_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-18T09:36:21.742156+00:00",
-  "finished_at_utc": "2026-09-18T09:36:27.405704+00:00",
+  "started_at_utc": "2026-09-18T11:47:26.713675+00:00",
+  "finished_at_utc": "2026-09-18T11:47:31.588910+00:00",
   "windows": [
     {
       "window": "window_1",
