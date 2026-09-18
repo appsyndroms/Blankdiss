@@ -55,22 +55,104 @@ def _numeric(
     )
 
 
+def _add_short_interest_dynamics(
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Beräkna förändring i short interest mellan
+    efterföljande observationer för samma aktie.
+
+    Prioriterar yahoo_symbol om den finns, annars
+    security_key.
+
+    short_interest_pct_change:
+        current - previous
+
+    short_interest_pct_change_pct:
+        (current - previous) / abs(previous)
+    """
+
+    frame = frame.copy()
+
+    if "short_interest_pct" not in frame.columns:
+        raise KeyError(
+            "Short-interest dynamics requires "
+            "'short_interest_pct'."
+        )
+
+    if "snapshot_date" not in frame.columns:
+        raise KeyError(
+            "Short-interest dynamics requires "
+            "'snapshot_date'."
+        )
+
+    if "yahoo_symbol" in frame.columns:
+        group_column = "yahoo_symbol"
+    elif "security_key" in frame.columns:
+        group_column = "security_key"
+    else:
+        raise KeyError(
+            "Short-interest dynamics requires either "
+            "'yahoo_symbol' or 'security_key'."
+        )
+
+    frame["short_interest_pct"] = pd.to_numeric(
+        frame["short_interest_pct"],
+        errors="coerce",
+    )
+
+    frame["snapshot_date"] = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+
+    frame = frame.sort_values(
+        [
+            group_column,
+            "snapshot_date",
+        ]
+    ).copy()
+
+    previous = (
+        frame
+        .groupby(
+            group_column,
+            sort=False,
+        )["short_interest_pct"]
+        .shift(1)
+    )
+
+    current = frame[
+        "short_interest_pct"
+    ]
+
+    frame["short_interest_pct_change"] = (
+        current - previous
+    )
+
+    denominator = previous.abs()
+
+    frame["short_interest_pct_change_pct"] = (
+        (current - previous)
+        .div(denominator.where(denominator > 0))
+    )
+
+    return frame
+
+
 def _prepare_event_frame(
     frame: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Prepare event/direction labels.
-
-    event:
-        absolute 5d move >= 10%.
-
-    direction:
-        1 = DOWN <= -10%
-        0 = UP >= +10%
-        NaN = neither.
+    Prepare event/direction labels and short-interest
+    dynamics.
     """
 
     frame = frame.copy()
+
+    frame = _add_short_interest_dynamics(
+        frame
+    )
 
     if "forward_return_5d" not in frame.columns:
         raise KeyError(
@@ -397,68 +479,6 @@ def _risk_label(
     fraction: float,
 ) -> str:
     return f"top_{fraction:g}"
-
-
-def _bootstrap_difference(
-    first: pd.Series,
-    second: pd.Series,
-) -> tuple[float, float, float, float]:
-    first_values = pd.to_numeric(
-        first,
-        errors="coerce",
-    ).dropna().to_numpy()
-
-    second_values = pd.to_numeric(
-        second,
-        errors="coerce",
-    ).dropna().to_numpy()
-
-    if (
-        len(first_values) == 0
-        or len(second_values) == 0
-    ):
-        return (
-            float("nan"),
-            float("nan"),
-            float("nan"),
-            float("nan"),
-        )
-
-    rng = np.random.default_rng(
-        RANDOM_STATE
-    )
-
-    deltas = np.empty(
-        BOOTSTRAP_ITERATIONS,
-        dtype=float,
-    )
-
-    for index in range(
-        BOOTSTRAP_ITERATIONS
-    ):
-        first_sample = rng.choice(
-            first_values,
-            size=len(first_values),
-            replace=True,
-        )
-
-        second_sample = rng.choice(
-            second_values,
-            size=len(second_values),
-            replace=True,
-        )
-
-        deltas[index] = (
-            first_sample.mean()
-            - second_sample.mean()
-        )
-
-    return (
-        float(deltas.mean()),
-        float(np.quantile(deltas, 0.025)),
-        float(np.quantile(deltas, 0.975)),
-        float((deltas > 0).mean()),
-    )
 
 
 def _bootstrap_interaction(
@@ -972,9 +992,6 @@ def run_event_risk_interaction(
             "outside",
         )
 
-        # The original diagnostic asks specifically whether
-        # the magnitude of positive short-interest changes
-        # behaves differently inside the event-risk tail.
         local = test[
             test["positive_change"]
         ].copy()
