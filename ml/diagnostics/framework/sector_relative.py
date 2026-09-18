@@ -144,10 +144,12 @@ def _relative_returns(
     frame: pd.DataFrame,
     *,
     return_column: str,
+    symbol_column: str,
 ) -> pd.DataFrame:
     required = {
         "snapshot_date",
         "sector",
+        symbol_column,
         return_column,
     }
 
@@ -165,6 +167,7 @@ def _relative_returns(
         [
             "snapshot_date",
             "sector",
+            symbol_column,
             return_column,
         ]
     ].copy()
@@ -178,6 +181,7 @@ def _relative_returns(
         subset=[
             "snapshot_date",
             "sector",
+            symbol_column,
             "_return",
         ]
     )
@@ -193,35 +197,121 @@ def _relative_returns(
 
         return result
 
-    sector_mean = (
+    # Om samma aktie förekommer flera gånger på
+    # samma datum använder vi en aktie-observation
+    # för benchmarkberäkningen. Detta hindrar flera
+    # SI-observationer för samma bolag från att väga
+    # benchmarken flera gånger.
+    stock_returns = (
         result.groupby(
+            [
+                "snapshot_date",
+                symbol_column,
+            ],
+            as_index=False,
+        )
+        .agg(
+            sector=(
+                "sector",
+                "first",
+            ),
+            _return=(
+                "_return",
+                "first",
+            ),
+        )
+    )
+
+    sector_sum = (
+        stock_returns.groupby(
             [
                 "snapshot_date",
                 "sector",
             ]
         )["_return"]
-        .transform("mean")
+        .transform("sum")
     )
 
-    market_mean = (
-        result.groupby(
+    sector_count = (
+        stock_returns.groupby(
+            [
+                "snapshot_date",
+                "sector",
+            ]
+        )["_return"]
+        .transform("count")
+    )
+
+    market_sum = (
+        stock_returns.groupby(
             "snapshot_date"
         )["_return"]
-        .transform("mean")
+        .transform("sum")
     )
 
-    result[
+    market_count = (
+        stock_returns.groupby(
+            "snapshot_date"
+        )["_return"]
+        .transform("count")
+    )
+
+    stock_returns[
+        "_sector_mean_ex_self"
+    ] = np.where(
+        sector_count > 1,
+        (
+            sector_sum
+            - stock_returns["_return"]
+        )
+        / (sector_count - 1),
+        np.nan,
+    )
+
+    stock_returns[
+        "_market_mean_ex_self"
+    ] = np.where(
+        market_count > 1,
+        (
+            market_sum
+            - stock_returns["_return"]
+        )
+        / (market_count - 1),
+        np.nan,
+    )
+
+    stock_returns[
         "sector_relative_return"
     ] = (
-        result["_return"]
-        - sector_mean
+        stock_returns["_return"]
+        - stock_returns[
+            "_sector_mean_ex_self"
+        ]
     )
 
-    result[
+    stock_returns[
         "market_relative_return"
     ] = (
-        result["_return"]
-        - market_mean
+        stock_returns["_return"]
+        - stock_returns[
+            "_market_mean_ex_self"
+        ]
+    )
+
+    result = result.merge(
+        stock_returns[
+            [
+                "snapshot_date",
+                symbol_column,
+                "sector_relative_return",
+                "market_relative_return",
+            ]
+        ],
+        on=[
+            "snapshot_date",
+            symbol_column,
+        ],
+        how="left",
     )
 
     return result
@@ -277,6 +367,12 @@ def run_sector_relative_return(
     test = _prepare_frame(
         context.test,
         sector_map,
+    )
+
+    symbol_column = (
+        "yahoo_symbol"
+        if "yahoo_symbol" in test.columns
+        else "security_key"
     )
 
     mapped_test = test[
@@ -339,29 +435,26 @@ def run_sector_relative_return(
             if return_column not in mapped_test.columns:
                 continue
 
-            # IMPORTANT:
-            # Benchmarkerna beräknas på hela testuniversumet.
             relative = _relative_returns(
                 mapped_test,
                 return_column=return_column,
+                symbol_column=symbol_column,
             )
 
             if relative.empty:
                 continue
 
-            benchmark_index = relative.index
-
             signal_index = (
                 signal_frame.index
                 .intersection(
-                    benchmark_index
+                    relative.index
                 )
             )
 
             control_index = (
                 control_frame.index
                 .intersection(
-                    benchmark_index
+                    relative.index
                 )
             )
 
