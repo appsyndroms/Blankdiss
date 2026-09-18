@@ -1,0 +1,222 @@
+{
+  "experiment_id": "si_level_event_risk_confirmation",
+  "question": "Ger hög blankningsnivå ytterligare information om extrem nedgång när event-risken redan är hög?",
+  "module": "ml.diagnostics.experiments.si_level_event_risk_confirmation_diagnostic",
+  "status": "completed",
+  "started_at_utc": "2026-09-18T09:36:21.742156+00:00",
+  "finished_at_utc": "2026-09-18T09:36:27.405704+00:00",
+  "windows": [
+    {
+      "window": "window_1",
+      "train_end": "2023-12-31",
+      "validation_end": "2024-12-31",
+      "test_end": "2025-12-31",
+      "result": {
+        "name": "si_level_event_risk_confirmation",
+        "description": "Bekräftar om short-interest-nivå tillför information inom extrem event-risk.",
+        "metrics": {
+          "event_model": "volatility_20d",
+          "event_features": [
+            "price_volatility_20d"
+          ],
+          "validation_auc": 0.7432388351795538,
+          "event_threshold": 0.1,
+          "short_interest_cutoff": 0.2
+        },
+        "metadata": {
+          "rows": 202240,
+          "train_rows": 68387,
+          "validation_rows": 45497,
+          "pretest_rows": 113884,
+          "test_rows": 49023,
+          "date_column": "snapshot_date",
+          "train_end": "2023-12-31",
+          "validation_end": "2024-12-31",
+          "test_end": "2025-12-31"
+        },
+        "tables": {
+          "risk_tail_results": [
+            {
+              "risk_cutoff": 0.1,
+              "risk_threshold": 0.6345923820981358,
+              "short_interest_cutoff": 0.2,
+              "short_interest_threshold": 2.61,
+              "risk_low_n": 2443,
+              "risk_high_n": 557,
+              "outside_low_n": 38496,
+              "outside_high_n": 7527,
+              "risk_low_down_rate": 0.11584117887842817,
+              "risk_high_down_rate": 0.07719928186714542,
+              "outside_low_down_rate": 0.01914484621778886,
+              "outside_high_down_rate": 0.0249767503653514,
+              "risk_si_effect": -0.03864189701128275,
+              "outside_si_effect": 0.005831904147562541,
+              "si_event_interaction": -0.04447380115884528,
+              "interaction_ci_low": -0.06860914872026413,
+              "interaction_ci_high": -0.01785411799400522,
+              "interaction_p_positive": 0.001,
+              "continuous_si_rho_down": 0.014439809162055534,
+              "continuous_si_p_down": 0.4291701320894366,
+              "continuous_si_rho_return": -0.02852818251329481,
+              "continuous_si_p_return": 0.11823625057976202
+            },
+            {
+              "risk_cutoff": 0.05,
+              "risk_threshold": 0.7326210360213377,
+              "short_interest_cutoff": 0.2,
+              "short_interest_threshold": 2.61,
+              "risk_low_n": 1419,
+              "risk_high_n": 316,
+              "outside_low_n": 39520,
+              "outside_high_n": 7768,
+              "risk_low_down_rate": 0.13742071881606766,
+              "risk_high_down_rate": 0.08544303797468354,
+              "outside_low_down_rate": 0.020875506072874493,
+              "outside_high_down_rate": 0.026261585993820804,
+              "risk_si_effect": -0.051977680841384113,
+              "outside_si_effect": 0.005386079920946311,
+              "si_event_interaction": -0.05736376076233043,
+              "interaction_ci_low": -0.09254720978198142,
+              "interaction_ci_high": -0.01993941181413541,
+              "interaction_p_positive": 0.0015,
+              "continuous_si_rho_down": 0.015449208921166142,
+              "continuous_si_p_down": 0.5201685482172397,
+              "continuous_si_rho_return": -0.03374051270234205,
+              "continuous_si_p_return": 0.16008318661698287
+            },
+            {
+              "risk_cutoff": 0.02,
+              "risk_threshold": 0.8622007208884005,
+              "short_interest_cutoff": 0.2,
+              "short_interest_threshold": 2.61,
+              "risk_low_n": 616,
+              "risk_high_n": 165,
+              "outside_low_n": 40323,
+              "outside_high_n": 7919,
+              "risk_low_down_rate": 0.19480519480519481,
+              "risk_high_down_rate": 0.10303030303030303,
+              "outside_low_down_rate": 0.022319767874414104,
+              "outside_high_down_rate": 0.02702361409268847,
+              "risk_si_effect": -0.09177489177489179,
+              "outside_si_effect": 0.004703846218274365,
+              "si_event_interaction": -0.09647873799316616,
+              "interaction_ci_low": -0.15074159751708818,
+              "interaction_ci_high": -0.03703568669199868,
+              "interaction_p_positive": 0.002,
+              "continuous_si_rho_down": 8.233409849853328e-05,
+              "continuous_si_p_down": 0.998167057808553,
+              "continuous_si_rho_return": -0.0283459508155485,
+              "continuous_si_p_return": 0.4289108563439248
+            }
+          ]
+        }
+      }
+    },
+    {
+      "window": "window_2",
+      "train_end": "2024-12-31",
+      "validation_end": "2025-12-31",
+      "test_end": "2026-12-31",
+      "result": {
+        "name": "si_level_event_risk_confirmation",
+        "description": "Bekräftar om short-interest-nivå tillför information inom extrem event-risk.",
+        "metrics": {
+          "event_model": "volatility_20d",
+          "event_features": [
+            "price_volatility_20d"
+          ],
+          "validation_auc": 0.713908715496803,
+          "event_threshold": 0.1,
+          "short_interest_cutoff": 0.2
+        },
+        "metadata": {
+          "rows": 202240,
+          "train_rows": 113884,
+          "validation_rows": 49023,
+          "pretest_rows": 162907,
+          "test_rows": 39333,
+          "date_column": "snapshot_date",
+          "train_end": "2024-12-31",
+          "validation_end": "2025-12-31",
+          "test_end": "2026-12-31"
+        },
+        "tables": {
+          "risk_tail_results": [
+            {
+              "risk_cutoff": 0.1,
+              "risk_threshold": 0.6321380212584633,
+              "short_interest_cutoff": 0.2,
+              "short_interest_threshold": 2.5300000000000002,
+              "risk_low_n": 1876,
+              "risk_high_n": 881,
+              "outside_low_n": 29291,
+              "outside_high_n": 7285,
+              "risk_low_down_rate": 0.11673773987206823,
+              "risk_high_down_rate": 0.09988649262202043,
+              "outside_low_down_rate": 0.015158239732340992,
+              "outside_high_down_rate": 0.031571722717913524,
+              "risk_si_effect": -0.0168512472500478,
+              "outside_si_effect": 0.016413482985572533,
+              "si_event_interaction": -0.033264730235620335,
+              "interaction_ci_low": -0.05947642673674727,
+              "interaction_ci_high": -0.007429863891935875,
+              "interaction_p_positive": 0.0055,
+              "continuous_si_rho_down": -0.0029259757955000265,
+              "continuous_si_p_down": 0.8779525105800753,
+              "continuous_si_rho_return": 0.03068397952599621,
+              "continuous_si_p_return": 0.10806069768717552
+            },
+            {
+              "risk_cutoff": 0.05,
+              "risk_threshold": 0.7348308489746034,
+              "short_interest_cutoff": 0.2,
+              "short_interest_threshold": 2.5300000000000002,
+              "risk_low_n": 1087,
+              "risk_high_n": 379,
+              "outside_low_n": 30080,
+              "outside_high_n": 7787,
+              "risk_low_down_rate": 0.13707451701931922,
+              "risk_high_down_rate": 0.1266490765171504,
+              "outside_low_down_rate": 0.017087765957446807,
+              "outside_high_down_rate": 0.03467317323744703,
+              "risk_si_effect": -0.010425440502168815,
+              "outside_si_effect": 0.017585407280000222,
+              "si_event_interaction": -0.028010847782169036,
+              "interaction_ci_low": -0.06443670859215883,
+              "interaction_ci_high": 0.0110468937312536,
+              "interaction_p_positive": 0.081,
+              "continuous_si_rho_down": 0.008696076550085042,
+              "continuous_si_p_down": 0.7393751260422139,
+              "continuous_si_rho_return": 0.03322056998116726,
+              "continuous_si_p_return": 0.2047322997598383
+            },
+            {
+              "risk_cutoff": 0.02,
+              "risk_threshold": 0.868846962956963,
+              "short_interest_cutoff": 0.2,
+              "short_interest_threshold": 2.5300000000000002,
+              "risk_low_n": 441,
+              "risk_high_n": 155,
+              "outside_low_n": 30726,
+              "outside_high_n": 8011,
+              "risk_low_down_rate": 0.20861678004535147,
+              "risk_high_down_rate": 0.15483870967741936,
+              "outside_low_down_rate": 0.018583609972010674,
+              "outside_high_down_rate": 0.03669953813506429,
+              "risk_si_effect": -0.05377807036793211,
+              "outside_si_effect": 0.018115928163053616,
+              "si_event_interaction": -0.07189399853098574,
+              "interaction_ci_low": -0.13739443849531213,
+              "interaction_ci_high": -0.000465202667342855,
+              "interaction_p_positive": 0.0245,
+              "continuous_si_rho_down": -0.0006047668476179315,
+              "continuous_si_p_down": 0.9882449953845523,
+              "continuous_si_rho_return": 0.01865205052014611,
+              "continuous_si_p_return": 0.650065041228402
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
