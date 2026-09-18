@@ -3,7 +3,7 @@ from __future__ import annotations
 from ml.diagnostics.framework import DiagnosticExperiment
 
 
-classFIDirectionConditionalExperiment(
+class FIDirectionConditionalExperiment(
     DiagnosticExperiment
 ):
     name = "fi_direction_conditional"
@@ -31,7 +31,5 @@ classFIDirectionConditionalExperiment(
         return self.run_conditional_direction_analysis(
             context,
             fi_column=self.fi_column,
-            event_tail_fractions=(
-                self.event_tail_fractions
-            ),
+            event_tail_fractions=self.event_tail_fractions,
         )
