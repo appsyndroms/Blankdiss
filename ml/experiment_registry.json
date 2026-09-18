@@ -23,18 +23,39 @@
       "priority": 3
     },
     {
+      "id": "si_level_change_joint",
+      "status": "active",
+      "question": "Tillför en stor förändring i short interest information utöver den information som redan finns i själva blankningsnivån?",
+      "module": "ml.diagnostics.experiments.si_level_change_joint_diagnostic",
+      "priority": 4
+    },
+    {
+      "id": "si_change_persistence",
+      "status": "active",
+      "question": "Följs en stor ökning i short interest av fortsatt ökning i blankningen, och är detta kopplat till efterföljande kursutveckling?",
+      "module": "ml.diagnostics.experiments.si_change_persistence_diagnostic",
+      "priority": 5
+    },
+    {
+      "id": "si_concentration",
+      "status": "active",
+      "question": "Varierar signalen från stora förändringar i short interest beroende på hur koncentrerad blankningen är?",
+      "module": "ml.diagnostics.experiments.si_concentration_diagnostic",
+      "priority": 6
+    },
+    {
       "id": "report_proximity",
       "status": "planned",
       "question": "Förstärks sambandet nära rapportdatum?",
       "module": "ml.diagnostics.experiments.report_proximity_diagnostic",
-      "priority": 4
+      "priority": 7
     },
     {
       "id": "sector_relative_return",
       "status": "planned",
       "question": "Är effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
-      "priority": 5
+      "priority": 8
     },
     {
       "id": "volatility_si_level_interaction",
