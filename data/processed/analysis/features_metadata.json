@@ -14,7 +14,7 @@
   },
   "source_fingerprint": {
     "algorithm": "sha256",
-    "fingerprint": "f0d588154d1142f9a1de7ce818ec251b6142574c655fc4eee26e779038f53a40",
+    "fingerprint": "6ea80e319241b8df0780bfea222f50bd185e93a97d24ac7cc3a160b704b4fa8f",
     "files": [
       {
         "path": "data/processed/fi/aggregate/reconstructed.jsonl",
@@ -28,8 +28,8 @@
       },
       {
         "path": "data/raw/prices/prices_2022-01-03_2026-09-16.jsonl",
-        "sha256": "41ccaae0f444ee2aea4217e02e655648a10c590218fa6bdcc658b21055ea57e2",
-        "size_bytes": 24049414
+        "sha256": "468479b144142b6776cf1539b3dccad79aca719a841be15366a44f5f49944d04",
+        "size_bytes": 248614
       },
       {
         "path": "data/raw/prices/prices_2022-01-03_2026-09-17.jsonl",
@@ -59,14 +59,14 @@
     ]
   },
   "fi_rows": 202240,
-  "price_rows": 441671,
+  "price_rows": 327346,
   "feature_rows": 202240,
   "matched_fi_rows": 130695,
   "unmatched_fi_rows": 71545,
   "matched_by_isin": 130695,
   "matched_by_issuer": 0,
   "security_keys_fi": 329,
-  "security_keys_prices": 394,
+  "security_keys_prices": 391,
   "feature_columns": [
     "snapshot_date",
     "issuer",
@@ -157,32 +157,32 @@
     {
       "path": "data/processed/analysis/features_0001.jsonl",
       "rows": 10000,
-      "size_bytes": 20308527
+      "size_bytes": 19551579
     },
     {
       "path": "data/processed/analysis/features_0002.jsonl",
       "rows": 10000,
-      "size_bytes": 19870323
+      "size_bytes": 19616666
     },
     {
       "path": "data/processed/analysis/features_0003.jsonl",
       "rows": 10000,
-      "size_bytes": 20414694
+      "size_bytes": 20164326
     },
     {
       "path": "data/processed/analysis/features_0004.jsonl",
       "rows": 10000,
-      "size_bytes": 19561684
+      "size_bytes": 19306646
     },
     {
       "path": "data/processed/analysis/features_0005.jsonl",
       "rows": 10000,
-      "size_bytes": 19179336
+      "size_bytes": 19155289
     },
     {
       "path": "data/processed/analysis/features_0006.jsonl",
       "rows": 10000,
-      "size_bytes": 19985304
+      "size_bytes": 19744637
     },
     {
       "path": "data/processed/analysis/features_0007.jsonl",
@@ -217,7 +217,7 @@
     {
       "path": "data/processed/analysis/features_0013.jsonl",
       "rows": 10000,
-      "size_bytes": 19330828
+      "size_bytes": 19089712
     },
     {
       "path": "data/processed/analysis/features_0014.jsonl",
