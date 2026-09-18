@@ -2,67 +2,32 @@
   "version": 1,
   "experiments": [
     {
-      "id": "si_level_event_risk_confirmation",
+      "id": "si_price_dynamics",
       "status": "active",
-      "question": "Ger hög blankningsnivå ytterligare information om extrem nedgång när event-risken redan är hög?",
-      "module": "ml.diagnostics.experiments.si_level_event_risk_confirmation_diagnostic",
+      "question": "Hur utvecklas priset före och efter förändring i rekonstruerad short interest, och kvarstår sambandet efter kontroll för tidigare prisrörelse och event-risk?",
+      "module": "ml.diagnostics.experiments.si_price_dynamics_diagnostic",
       "priority": 1
+    },
+    {
+      "id": "si_prior_return_interaction",
+      "status": "active",
+      "question": "Är sambandet mellan stor ökning i short interest och efterföljande kursutveckling starkare när aktien redan har stigit?",
+      "module": "ml.diagnostics.experiments.si_prior_return_interaction_diagnostic",
+      "priority": 2
     },
     {
       "id": "si_event_risk_interaction",
       "status": "active",
       "question": "Är effekten av förändrad blankning starkare vid extrem event-risk?",
       "module": "ml.diagnostics.experiments.fi_short_interest_event_risk_interaction_diagnostic",
-      "priority": 2
-    },
-    {
-      "id": "si_price_dynamics",
-      "status": "active",
-      "question": "Hur utvecklas priset före och efter förändring i rekonstruerad short interest, och kvarstår sambandet efter kontroll för tidigare prisrörelse och event-risk?",
-      "module": "ml.diagnostics.experiments.si_price_dynamics_diagnostic",
       "priority": 3
-    },
-    {
-      "id": "si_level_change_joint",
-      "status": "active",
-      "question": "Tillför en stor förändring i short interest information utöver den information som redan finns i själva blankningsnivån?",
-      "module": "ml.diagnostics.experiments.si_level_change_joint_diagnostic",
-      "priority": 4
-    },
-    {
-      "id": "si_change_persistence",
-      "status": "active",
-      "question": "Följs en stor ökning i short interest av fortsatt ökning i blankningen, och är detta kopplat till efterföljande kursutveckling?",
-      "module": "ml.diagnostics.experiments.si_change_persistence_diagnostic",
-      "priority": 5
-    },
-    {
-      "id": "si_concentration",
-      "status": "active",
-      "question": "Varierar signalen från stora förändringar i short interest beroende på hur koncentrerad blankningen är?",
-      "module": "ml.diagnostics.experiments.si_concentration_diagnostic",
-      "priority": 6
-    },
-    {
-      "id": "report_proximity",
-      "status": "planned",
-      "question": "Förstärks sambandet nära rapportdatum?",
-      "module": "ml.diagnostics.experiments.report_proximity_diagnostic",
-      "priority": 7
     },
     {
       "id": "sector_relative_return",
       "status": "planned",
       "question": "Är effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
-      "priority": 8
-    },
-    {
-      "id": "volatility_si_level_interaction",
-      "status": "inactive",
-      "question": "Är risken för en extrem nedgång särskilt hög när både volatiliteten och blankningsnivån är hög?",
-      "module": "ml.diagnostics.experiments.volatility_si_level_interaction_diagnostic",
-      "priority": 10
+      "priority": 4
     }
   ]
 }
