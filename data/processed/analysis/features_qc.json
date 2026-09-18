@@ -27,13 +27,14 @@
   "price_files": [
     "data/raw/prices/prices_2022-01-01_latest.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-16.jsonl",
+    "data/raw/prices/prices_2022-01-03_2026-09-17.jsonl",
     "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
     "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl"
   ],
   "rows": 202240,
-  "symbols": 223,
+  "symbols": 225,
   "fi_period": {
     "start": "2022-05-25",
     "end": "2026-09-11"
@@ -52,35 +53,35 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 128536,
-      "same_day": 126012,
-      "one_day": 1274,
-      "two_days": 668,
-      "three_days": 366,
+      "matched_rows": 130695,
+      "same_day": 126013,
+      "one_day": 1275,
+      "two_days": 669,
+      "three_days": 367,
       "four_to_five_days": 137,
-      "more_than_five_days": 79,
-      "more_than_ten_days": 79,
-      "max_calendar_days": 181,
+      "more_than_five_days": 2234,
+      "more_than_ten_days": 2224,
+      "max_calendar_days": 1576,
       "median_calendar_days": 0.0
     },
     "first_price_problem": {
       "status": "WARN",
-      "fi_rows_before_first_price": 81,
+      "fi_rows_before_first_price": 2239,
       "symbols_without_price_history": 0,
       "rows_without_price_history": 0
     },
     "mapping_integrity": {
       "status": "PASS",
-      "feature_symbols": 223,
-      "mapping_symbols": 410,
+      "feature_symbols": 225,
+      "mapping_symbols": 411,
       "unknown_yahoo_symbols": [],
       "rows_with_unknown_symbols": 0
     },
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 128536,
-        "unmatched": 73704
+        "isin": 130695,
+        "unmatched": 71545
       },
       "unexpected_sources": []
     },
@@ -110,20 +111,20 @@
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 128190,
-          "null": 74050,
+          "non_null": 128324,
+          "null": 73916,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 125970,
-          "null": 76270,
+          "non_null": 126114,
+          "null": 76126,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 120031,
-          "null": 82209,
+          "non_null": 120177,
+          "null": 82063,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -141,8 +142,8 @@
     "unmatched_rows": {
       "status": "WARN",
       "total_rows": 202240,
-      "rows_with_price": 128536,
-      "rows_without_price": 73704,
+      "rows_with_price": 130695,
+      "rows_without_price": 71545,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {

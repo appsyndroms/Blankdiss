@@ -3399,6 +3399,16 @@
     "ticker": null,
     "yahoo_symbol": "PIERCE.ST"
   },
+  "LEI:54930087FR3VVW5SU676": {
+    "exchange": null,
+    "isin": null,
+    "issuer": "AcuCort AB",
+    "lei": "54930087FR3VVW5SU676",
+    "map_key": "LEI:54930087FR3VVW5SU676",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ACUC.ST"
+  },
   "LEI:5493008BTAMUWWFS1B23": {
     "exchange": null,
     "isin": null,
