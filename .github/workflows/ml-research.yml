@@ -89,6 +89,11 @@ jobs:
 
               return digest.hexdigest()
 
+          if not fi_path.exists():
+              raise SystemExit(
+                  f"Saknar FI-data: {fi_path}"
+              )
+
           price_files = sorted(
               price_dir.glob("prices_*.jsonl")
           )
@@ -98,10 +103,21 @@ jobs:
               *price_files,
           ]
 
-          if not fi_path.exists():
-              raise SystemExit(
-                  f"Saknar FI-data: {fi_path}"
-              )
+          print()
+          print("=== Feature source check ===")
+          print(
+              "Metadata exists:",
+              metadata_path.exists(),
+          )
+          print(
+              "Metadata path:",
+              metadata_path,
+          )
+          print(
+              "Source files:",
+              len(source_files),
+          )
+          print()
 
           entries = []
 
@@ -111,14 +127,26 @@ jobs:
                       f"Saknar datafil: {path}"
                   )
 
-              entries.append(
-                  {
-                      "path": str(
-                          path.relative_to(ROOT)
-                      ),
-                      "sha256": file_sha256(path),
-                      "size_bytes": path.stat().st_size,
-                  }
+              sha256 = file_sha256(path)
+
+              entry = {
+                  "path": str(
+                      path.relative_to(ROOT)
+                  ),
+                  "sha256": sha256,
+                  "size_bytes": path.stat().st_size,
+              }
+
+              entries.append(entry)
+
+              print(
+                  f"{entry['path']}"
+              )
+              print(
+                  f"  SHA256: {sha256}"
+              )
+              print(
+                  f"  Size:   {entry['size_bytes']} bytes"
               )
 
           canonical = json.dumps(
@@ -133,18 +161,135 @@ jobs:
           ).hexdigest()
 
           old_fingerprint = None
+          old_entries = []
 
           if metadata_path.exists():
-              metadata = json.loads(
-                  metadata_path.read_text(
-                      encoding="utf-8"
+              try:
+                  metadata = json.loads(
+                      metadata_path.read_text(
+                          encoding="utf-8"
+                      )
                   )
+              except Exception as exc:
+                  raise SystemExit(
+                      "Kunde inte läsa "
+                      f"{metadata_path}: {exc}"
+                  )
+
+              source_fingerprint = metadata.get(
+                  "source_fingerprint"
               )
 
-              old_fingerprint = (
-                  metadata
-                  .get("source_fingerprint", {})
-                  .get("fingerprint")
+              if isinstance(
+                  source_fingerprint,
+                  dict,
+              ):
+                  old_fingerprint = (
+                      source_fingerprint.get(
+                          "fingerprint"
+                      )
+                  )
+
+                  old_entries = (
+                      source_fingerprint.get(
+                          "files",
+                          [],
+                      )
+                  )
+
+          print()
+          print("=== Fingerprint comparison ===")
+          print(
+              "Previous:",
+              old_fingerprint,
+          )
+          print(
+              "Current: ",
+              current_fingerprint,
+          )
+
+          if old_entries:
+              old_by_path = {
+                  item["path"]: item
+                  for item in old_entries
+              }
+
+              current_by_path = {
+                  item["path"]: item
+                  for item in entries
+              }
+
+              all_paths = sorted(
+                  set(old_by_path)
+                  | set(current_by_path)
+              )
+
+              print()
+              print("=== Source file differences ===")
+
+              differences = 0
+
+              for path in all_paths:
+                  old = old_by_path.get(path)
+                  current = current_by_path.get(path)
+
+                  if old is None:
+                      print(
+                          f"ADDED:   {path}"
+                      )
+                      differences += 1
+                      continue
+
+                  if current is None:
+                      print(
+                          f"REMOVED: {path}"
+                      )
+                      differences += 1
+                      continue
+
+                  if (
+                      old.get("sha256")
+                      != current.get("sha256")
+                  ):
+                      print(
+                          f"CHANGED: {path}"
+                      )
+                      print(
+                          "  Previous SHA256:",
+                          old.get("sha256"),
+                      )
+                      print(
+                          "  Current SHA256: ",
+                          current.get("sha256"),
+                      )
+                      differences += 1
+
+                  elif (
+                      old.get("size_bytes")
+                      != current.get("size_bytes")
+                  ):
+                      print(
+                          f"SIZE CHANGED: {path}"
+                      )
+                      print(
+                          "  Previous size:",
+                          old.get("size_bytes"),
+                      )
+                      print(
+                          "  Current size: ",
+                          current.get("size_bytes"),
+                      )
+                      differences += 1
+
+              if differences == 0:
+                  print(
+                      "No source file differences."
+                  )
+          else:
+              print()
+              print(
+                  "No previous source fingerprint "
+                  "found in metadata."
               )
 
           changed = (
@@ -152,17 +297,10 @@ jobs:
               != current_fingerprint
           )
 
+          print()
           print(
-              "Feature source fingerprint:"
-          )
-          print(
-              f"  Previous: {old_fingerprint}"
-          )
-          print(
-              f"  Current:  {current_fingerprint}"
-          )
-          print(
-              f"  Changed:  {changed}"
+              "Changed:",
+              changed,
           )
 
           with open(
@@ -171,12 +309,22 @@ jobs:
               encoding="utf-8",
           ) as handle:
               handle.write(
-                  f"FEATURES_CHANGED={'true' if changed else 'false'}\n"
-              )
-              handle.write(
-                  f"FEATURE_SOURCE_FINGERPRINT={current_fingerprint}\n"
+                  "FEATURES_CHANGED="
+                  + (
+                      "true"
+                      if changed
+                      else "false"
+                  )
+                  + "\n"
               )
 
+              handle.write(
+                  "FEATURE_SOURCE_FINGERPRINT="
+                  + current_fingerprint
+                  + "\n"
+              )
+
+          print()
           print(
               "FEATURES_CHANGED="
               + (
@@ -184,6 +332,9 @@ jobs:
                   if changed
                   else "false"
               )
+          )
+          print(
+              "=== End feature source check ==="
           )
           PY
 
@@ -216,8 +367,16 @@ jobs:
 
       - name: Verify feature dataset exists
         run: |
-          test -f data/processed/analysis/features_0001.jsonl
           test -f data/processed/analysis/features_metadata.json
+
+          test -n "$(
+            find data/processed/analysis \
+              -maxdepth 1 \
+              -type f \
+              -name 'features_*.jsonl' \
+              -print \
+              -quit
+          )"
 
       - name: Run Research Matrix
         run: |
