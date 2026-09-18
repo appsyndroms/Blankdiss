@@ -9,24 +9,21 @@ import pandas as pd
 @dataclass
 class ExperimentContext:
     """
-    Gemensam kontext för ett diagnostics-experiment.
+    Context för ett enda walk-forward-fönster.
 
-    Context representerar ett enda walk-forward-fönster:
+    TRAIN:
+        <= train_end
 
-        TRAIN
-            <= train_end
+    VALIDATION:
+        > train_end
+        <= validation_end
 
-        VALIDATION
-            > train_end
-            <= validation_end
+    PRETEST:
+        TRAIN + VALIDATION
 
-        TEST / OOS
-            > validation_end
-            <= test_end
-
-    Alla thresholds och modellval som ska användas på TEST
-    måste härledas från TRAIN/VALIDATION enligt experimentets
-    definition.
+    TEST:
+        > validation_end
+        <= test_end
     """
 
     data: pd.DataFrame
@@ -54,92 +51,64 @@ class ExperimentContext:
             self.data[self.date_column].notna()
         ].copy()
 
+        self.data.sort_values(
+            [self.date_column],
+            inplace=True,
+        )
+
+        self.data.reset_index(
+            drop=True,
+            inplace=True,
+        )
+
     @property
     def train(self) -> pd.DataFrame:
-        if self.train_end is None:
-            raise ValueError(
-                "train_end måste anges."
-            )
-
-        end = pd.Timestamp(self.train_end)
+        self._require("train_end")
 
         return self.data.loc[
-            self.data[self.date_column] <= end
+            self.data[self.date_column]
+            <= pd.Timestamp(self.train_end)
         ].copy()
 
     @property
     def validation(self) -> pd.DataFrame:
-        if self.train_end is None:
-            raise ValueError(
-                "train_end måste anges."
-            )
-
-        if self.validation_end is None:
-            raise ValueError(
-                "validation_end måste anges."
-            )
-
-        train_end = pd.Timestamp(
-            self.train_end
+        self._require(
+            "train_end",
+            "validation_end",
         )
-        validation_end = pd.Timestamp(
-            self.validation_end
-        )
+
+        train_end = pd.Timestamp(self.train_end)
+        validation_end = pd.Timestamp(self.validation_end)
 
         mask = (
-            self.data[self.date_column] > train_end
-        ) & (
-            self.data[self.date_column]
-            <= validation_end
+            (self.data[self.date_column] > train_end)
+            & (self.data[self.date_column] <= validation_end)
         )
 
         return self.data.loc[mask].copy()
 
     @property
     def pretest(self) -> pd.DataFrame:
-        """
-        All data som får användas för att definiera
-        information före OOS-testet.
-
-        Detta är TRAIN + VALIDATION.
-        """
-
-        if self.validation_end is None:
-            raise ValueError(
-                "validation_end måste anges."
-            )
-
-        end = pd.Timestamp(
-            self.validation_end
-        )
+        self._require("validation_end")
 
         return self.data.loc[
-            self.data[self.date_column] <= end
+            self.data[self.date_column]
+            <= pd.Timestamp(self.validation_end)
         ].copy()
 
     @property
     def test(self) -> pd.DataFrame:
-        if self.validation_end is None:
-            raise ValueError(
-                "validation_end måste anges."
-            )
-
-        start = pd.Timestamp(
-            self.validation_end
-        )
+        self._require("validation_end")
 
         mask = (
-            self.data[self.date_column] > start
+            self.data[self.date_column]
+            > pd.Timestamp(self.validation_end)
         )
 
         if self.test_end is not None:
-            end = pd.Timestamp(
-                self.test_end
-            )
-
             mask &= (
                 self.data[self.date_column]
-                <= end
+                <= pd.Timestamp(self.test_end)
             )
 
         return self.data.loc[mask].copy()
@@ -149,12 +118,6 @@ class ExperimentContext:
         column: str,
         q: float,
     ) -> float:
-        """
-        Beräknar threshold ENBART på pre-test-data.
-
-        Testdata får aldrig påverka thresholden.
-        """
-
         if column not in self.pretest.columns:
             raise KeyError(
                 f"Saknar kolumn: {column}"
@@ -167,16 +130,14 @@ class ExperimentContext:
 
         if values.empty:
             raise ValueError(
-                f"Kan inte beräkna quantile för "
-                f"'{column}'."
+                f"Kan inte beräkna quantile för '{column}'."
             )
 
         value = values.quantile(q)
 
         if pd.isna(value):
             raise ValueError(
-                f"Quantile blev NaN för "
-                f"'{column}', q={q}."
+                f"Quantile blev NaN för '{column}', q={q}."
             )
 
         return float(value)
@@ -194,39 +155,23 @@ class ExperimentContext:
     def metadata(self) -> dict[str, Any]:
         return {
             "rows": int(len(self.data)),
-            "train_rows": int(len(self.train))
-            if self.train_end is not None
-            else None,
-            "validation_rows": int(
-                len(self.validation)
-            )
-            if (
-                self.train_end is not None
-                and self.validation_end is not None
-            )
-            else None,
-            "pretest_rows": int(
-                len(self.pretest)
-            )
-            if self.validation_end is not None
-            else None,
-            "test_rows": int(len(self.test))
-            if self.validation_end is not None
-            else None,
+            "train_rows": int(len(self.train)),
+            "validation_rows": int(len(self.validation)),
+            "pretest_rows": int(len(self.pretest)),
+            "test_rows": int(len(self.test)),
             "date_column": self.date_column,
-            "train_end": (
-                str(self.train_end)
-                if self.train_end is not None
-                else None
-            ),
-            "validation_end": (
-                str(self.validation_end)
-                if self.validation_end is not None
-                else None
-            ),
+            "train_end": str(self.train_end),
+            "validation_end": str(self.validation_end),
             "test_end": (
                 str(self.test_end)
                 if self.test_end is not None
                 else None
             ),
         }
+
+    def _require(self, *names: str) -> None:
+        for name in names:
+            if getattr(self, name) is None:
+                raise ValueError(
+                    f"{name} måste anges."
+                )
