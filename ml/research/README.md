@@ -10,6 +10,7 @@ Målet är att forskningsarbetet ska vara så automatiserat som möjligt:
 4. Den befintliga GitHub Actions-workflowen .github/workflows/ml-research.yml kör forskningen.
 5. ml/experiment_registry_runner.py hittar aktiva experiment och kör respektive diagnostic.
 6. Resultaten sparas som forskningsartefakter.
+7. Resultat-artifacts kan läsas direkt av efterföljande analys, inklusive AI.
 
 Det ska alltså normalt inte krävas manuella ändringar i workflow-filen för varje nytt experiment.
 
@@ -243,6 +244,8 @@ För varje aktivt experiment:
 4. Fel isoleras till experimentet.
 5. Alla aktiva experiment får möjlighet att köras.
 6. Processen avslutas med exit code 1 om något experiment misslyckades.
+7. Ett resultat sparas för varje experiment.
+8. Ett manifest beskriver hela diagnostic-körningen.
 
 Förenklat:
 
@@ -283,6 +286,8 @@ Registryt pekar sedan på modulen:
 Runnern kör:
 
 module.main()
+
+Resultatet ska därefter göras tillgängligt som en maskinläsbar artifact.
 
 ⸻
 
@@ -584,7 +589,7 @@ Detta gör registryt till en kombination av:
 
 ⸻
 
-11. Resultat
+11. Resultat och artifacts
 
 Den generella research-runnern skriver resultat under:
 
@@ -601,21 +606,167 @@ pooled.json
 metadata.json
 report.md
 
-GitHub Actions verifierar att dessa artefakter finns och laddar upp dem som workflow artifacts.
+Registry-baserade diagnostics producerar dessutom:
 
-Specifika diagnostics kan dessutom ha egna resultatformatskrav beroende på experimentets karaktär.
+diagnostics.json
+diagnostics/<experiment_id>.json
 
-När en diagnostic byggs ut bör den helst följa samma princip:
+Exempel:
 
-machine-readable result
-        +
-human-readable summary
+data/processed/ml/research/latest/
+├── results.jsonl
+├── pooled.json
+├── metadata.json
+├── report.md
+├── diagnostics.json
+└── diagnostics/
+    ├── volatility_si_level_interaction.json
+    └── si_event_risk_interaction.json
 
-så att resultaten senare kan konsumeras automatiskt.
+Timestampade körningar sparas på motsvarande sätt under:
+
+data/processed/ml/research/<run_timestamp>/
+
+GitHub Actions verifierar att resultatfilerna finns och laddar upp dem som workflow artifacts.
 
 ⸻
 
-12. Viktig metodprincip
+12. AI consumption
+
+Result-artifacts är den primära kommunikationskanalen mellan Blankdiss research-körningen och efterföljande analys.
+
+När en research-körning har genomförts ska AI i första hand läsa artifacts/resultatfilerna från körningen.
+
+Användaren ska normalt inte behöva kopiera Actions-loggar till chatten.
+
+Prioriterad läsordning:
+
+1. diagnostics/<experiment_id>.json
+2. diagnostics.json
+3. pooled.json
+4. results.jsonl
+5. report.md
+
+Actions-loggen används främst för:
+
+* pipeline-status
+* fel
+* verifiering
+* korta körningssammanfattningar
+
+Den är inte den primära källan för statistisk analys.
+
+Den avsedda kedjan är:
+
+GitHub Actions
+      ↓
+Research
+      ↓
+Result artifacts
+      ↓
+AI reads artifacts
+      ↓
+Research analysis
+      ↓
+Nästa forskningsfråga
+
+Detta är en central del av Blankdiss automatiseringsarkitektur.
+
+⸻
+
+13. AI-readable result contract
+
+Varje registry-baserad diagnostic ska producera en maskinläsbar resultatfil:
+
+data/processed/ml/research/latest/diagnostics/<experiment_id>.json
+
+Experimentets `id` från registryt används som stabil identifierare.
+
+Resultatfilen ska minst kunna identifiera:
+
+* experiment_id
+* question
+* module
+* status
+* started_at_utc
+* finished_at_utc
+* experimentets resultat
+
+Övergripande exempel:
+
+{
+  "experiment_id": "example_experiment",
+  "question": "Forskningsfråga",
+  "module": "ml.diagnostics.example_experiment_diagnostic",
+  "status": "completed",
+  "started_at_utc": "...",
+  "finished_at_utc": "...",
+  "results": {}
+}
+
+`results` ska vara den strukturerade representationen av experimentets statistiska resultat när diagnosticen stödjer detta.
+
+Terminaloutput kan sparas som kompletterande information, men ska inte vara den enda representationen av resultatet.
+
+Målet är:
+
+machine-readable result
+        ↓
+AI-readable result
+        ↓
+analysis
+
+och inte:
+
+terminal output
+        ↓
+manual copy/paste
+        ↓
+analysis
+
+Om ett experiment behöver analyseras efter en körning ska informationen därför finnas i artifact-resultatet.
+
+⸻
+
+14. Diagnostic manifest
+
+Filen:
+
+data/processed/ml/research/latest/diagnostics.json
+
+är manifestet för diagnostic-körningen.
+
+Manifestet beskriver:
+
+* research run
+* antal registrerade experiment
+* antal aktiva experiment
+* completed
+* failed
+* vilka resultatfiler som producerades
+
+Exempel:
+
+{
+  "research_run_timestamp": "20260918T035522Z",
+  "registered_experiments": 4,
+  "active_experiments": 2,
+  "completed": 2,
+  "failed": 0,
+  "results": [
+    {
+      "experiment_id": "example_experiment",
+      "status": "completed",
+      "result_file": "diagnostics/example_experiment.json"
+    }
+  ]
+}
+
+Manifestet används för att snabbt hitta vilka diagnostics som producerades i körningen.
+
+⸻
+
+15. Viktig metodprincip
 
 Blankdiss ska skilja mellan:
 
@@ -651,7 +802,7 @@ När en screening ger en intressant signal ska nästa steg därför ofta vara en
 
 ⸻
 
-13. Planerade experiment
+16. Planerade experiment
 
 Registryt innehåller för närvarande bland annat följande forskningsspår:
 
@@ -692,7 +843,7 @@ Dessa ska ses som forskningsfrågor, inte som förutbestämda resultat.
 
 ⸻
 
-14. När ett nytt experiment ska läggas till
+17. När ett nytt experiment ska läggas till
 
 Använd följande checklista:
 
@@ -704,6 +855,7 @@ Använd följande checklista:
 [ ] Ingen test leakage
 [ ] Thresholds definieras före test
 [ ] OOS-resultat rapporteras
+[ ] Resultatet kan sparas maskinläsbart
 [ ] Experimentet finns i experiment_registry.json
 [ ] id är unikt
 [ ] module pekar på rätt Python-modul
@@ -713,16 +865,40 @@ Använd följande checklista:
 
 ⸻
 
-15. Grundprincip
+18. Grundprincip
 
 Det viktigaste arkitekturbeslutet är:
 
 Registry = VAD ska köras?
 Runner = HUR hittar och startar vi det?
 Diagnostic = HUR genomförs forskningen?
+Result artifact = VAD blev resultatet?
 Workflow = NÄR/var körs hela pipelinen?
+AI = LÄSER resultat-artifacten och analyserar den
 
 Det gör att forskningssystemet kan växa utan att själva GitHub Actions-workflowen behöver byggas om för varje ny hypotes.
+
+Den kompletta avsedda kedjan är:
+
+Research idea
+      ↓
+Diagnostic
+      ↓
+Registry
+      ↓
+GitHub Actions
+      ↓
+Data / Features / QC
+      ↓
+Research
+      ↓
+Diagnostics
+      ↓
+Machine-readable artifacts
+      ↓
+AI analysis
+      ↓
+Nästa forskningsfråga
 
 När en ny forskningsfråga är färdigimplementerad ska den i normalfallet kunna aktiveras genom:
 
