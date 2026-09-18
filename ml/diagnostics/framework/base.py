@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from .context import ExperimentContext
 from .stratification import (
     PretestBins,
     make_pretest_bins,
@@ -15,12 +16,7 @@ from .stratification import (
 
 @dataclass
 class ExperimentResult:
-    """
-    Standardiserat resultat från ett diagnostiskt experiment.
-
-    Experiment ska returnera data här i stället för att skriva ut
-    resultat direkt till stdout.
-    """
+    """Standardiserat resultat från ett diagnostics-experiment."""
 
     name: str
     description: str = ""
@@ -53,94 +49,39 @@ class ExperimentResult:
 
 class DiagnosticExperiment(ABC):
     """
-    Basinterface för alla diagnostics-experiment.
+    Basinterface för diagnostics-experiment.
 
-    Ett experiment ska huvudsakligen definiera:
+    Experimentfilerna ska normalt bara definiera:
 
         name
         description
-        targets
+        targets / parametrar
         analyze_window()
 
-    Exempel:
-
-        class MyExperiment(DiagnosticExperiment):
-            name = "my_experiment"
-
-            targets = (
-                "down_5pct_5d",
-                "down_10pct_5d",
-            )
-
-            def analyze_window(self, context):
-                volatility_bins = self.make_pretest_bins(
-                    context.test,
-                    "price_volatility_20d",
-                )
-
-                si_bins = self.make_pretest_bins(
-                    context.test,
-                    "short_interest_level",
-                )
-
-                return self.build_2d_analysis(
-                    context.test,
-                    volatility_bins,
-                    si_bins,
-                    self.targets,
-                )
-
-    Experimentfilerna ska vara små och deklarativa.
-    Gemensam logik ska ligga i framework-klasserna.
+    Gemensam logik ska ligga i frameworket.
     """
 
     name: str = ""
     description: str = ""
-
     targets: tuple[str, ...] = ()
 
-    def __init__(
-        self,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         self.options = kwargs
-        self._context = None
+        self._context: ExperimentContext | None = None
 
-    def run(
+    def execute(
         self,
-        context,
+        context: ExperimentContext,
     ) -> ExperimentResult:
-        """
-        Kör experimentet mot en ExperimentContext.
-
-        Experimentfiler ska normalt inte implementera run().
-        De implementerar i stället analyze_window().
-
-        analyze_window() får returnera:
-
-            ExperimentResult
-            pandas.DataFrame
-            dict
-
-        DataFrame och dict konverteras automatiskt till
-        ExperimentResult.
-        """
-
         self._context = context
 
         try:
             analysis = self.analyze_window(context)
 
-            if isinstance(
-                analysis,
-                ExperimentResult,
-            ):
-                return analysis
+            if isinstance(analysis, ExperimentResult):
+                result = analysis
 
-            if isinstance(
-                analysis,
-                pd.DataFrame,
-            ):
+            elif isinstance(analysis, pd.DataFrame):
                 result = ExperimentResult(
                     name=self.name,
                     description=self.description,
@@ -151,26 +92,14 @@ class DiagnosticExperiment(ABC):
                     analysis,
                 )
 
-                result.metadata.update(
-                    context.metadata()
-                )
-
-                return result
-
-            if isinstance(
-                analysis,
-                dict,
-            ):
+            elif isinstance(analysis, dict):
                 result = ExperimentResult(
                     name=self.name,
                     description=self.description,
                 )
 
                 for key, value in analysis.items():
-                    if isinstance(
-                        value,
-                        pd.DataFrame,
-                    ):
+                    if isinstance(value, pd.DataFrame):
                         result.add_table(
                             key,
                             value,
@@ -181,18 +110,19 @@ class DiagnosticExperiment(ABC):
                             value,
                         )
 
-                result.metadata.update(
-                    context.metadata()
+            else:
+                raise TypeError(
+                    f"Experiment '{self.name}' måste returnera "
+                    "ExperimentResult, DataFrame eller dict från "
+                    "analyze_window(), men returnerade "
+                    f"{type(analysis).__name__}."
                 )
 
-                return result
-
-            raise TypeError(
-                f"Experiment '{self.name}' måste returnera "
-                "ExperimentResult, DataFrame eller dict från "
-                f"analyze_window(), men returnerade "
-                f"{type(analysis).__name__}."
+            result.metadata.update(
+                context.metadata()
             )
+
+            return result
 
         finally:
             self._context = None
@@ -200,48 +130,27 @@ class DiagnosticExperiment(ABC):
     @abstractmethod
     def analyze_window(
         self,
-        context,
+        context: ExperimentContext,
     ):
         """
-        Utför själva analysen för ett walk-forward-fönster.
+        Kör analysen för ett walk-forward-fönster.
 
-        context innehåller bland annat:
-
-            context.train
-            context.validation
-            context.pretest
-            context.test
-
-        Experimentet ska inte själv hantera datumgränser,
-        walk-forward-split eller presentation.
+        Experimentet ska inte själv hantera datumgränser.
         """
         raise NotImplementedError
 
-    def execute(
-        self,
-        context,
-    ) -> ExperimentResult:
-        """
-        Publikt körinterface som säkerställer ett standardiserat
-        ExperimentResult.
-        """
-
-        result = self.run(context)
-
-        if not isinstance(
-            result,
-            ExperimentResult,
-        ):
-            raise TypeError(
-                f"Experiment '{self.name}' måste returnera "
-                f"ExperimentResult, men returnerade "
-                f"{type(result).__name__}."
+    @property
+    def context(self) -> ExperimentContext:
+        if self._context is None:
+            raise RuntimeError(
+                "ExperimentContext är endast tillgänglig "
+                "under analyze_window()."
             )
 
-        return result
+        return self._context
 
     # ------------------------------------------------------------------
-    # Gemensamma stratifieringshelpers
+    # Stratifiering
     # ------------------------------------------------------------------
 
     def make_pretest_bins(
@@ -251,26 +160,12 @@ class DiagnosticExperiment(ABC):
         quantiles: tuple[float, ...] = (0.80,),
     ) -> PretestBins:
         """
-        Skapar thresholds från pre-test-data.
+        Skapar bins från pretest-data.
 
-        'test' finns kvar i signaturen för att experimentfilerna ska
-        kunna uttrycka analysen naturligt:
-
-            self.make_pretest_bins(
-                context.test,
-                "price_volatility_20d",
-            )
-
-        Men själva thresholds beräknas ALLTID från context.pretest.
-
-        Testdata får alltså aldrig påverka gränsvärdena.
+        Argumentet test finns kvar för att experimenten ska kunna
+        uttrycka analysen naturligt, men thresholds beräknas alltid
+        från context.pretest.
         """
-
-        if self._context is None:
-            raise RuntimeError(
-                "make_pretest_bins() får endast användas "
-                "under analyze_window()."
-            )
 
         if test is None:
             raise ValueError(
@@ -278,7 +173,7 @@ class DiagnosticExperiment(ABC):
             )
 
         return make_pretest_bins(
-            self._context.pretest,
+            self.context.pretest,
             column,
             quantiles=quantiles,
         )
@@ -291,18 +186,7 @@ class DiagnosticExperiment(ABC):
         targets: tuple[str, ...],
         return_column: str | None = None,
     ) -> pd.DataFrame:
-        """
-        Bygger en tvådimensionell OOS-stratifiering.
-
-        x_bins och y_bins måste vara skapade från pre-test-data.
-        Själva analysen appliceras därefter på testdata.
-        """
-
-        if self._context is None:
-            raise RuntimeError(
-                "build_2d_analysis() får endast användas "
-                "under analyze_window()."
-            )
+        """Applicerar pretest-definierade bins på OOS-testdata."""
 
         if test is None:
             raise ValueError(
