@@ -3,7 +3,7 @@ from __future__ import annotations
 from ml.diagnostics.framework import DiagnosticExperiment
 
 
-classFIDirectionBootstrapExperiment(
+class FIDirectionBootstrapExperiment(
     DiagnosticExperiment
 ):
     name = "fi_direction_bootstrap"
@@ -48,7 +48,5 @@ classFIDirectionBootstrapExperiment(
             context,
             fi_columns=self.fi_columns,
             tail_fractions=self.tail_fractions,
-            bootstrap_iterations=(
-                self.bootstrap_iterations
-            ),
+            bootstrap_iterations=self.bootstrap_iterations,
         )
