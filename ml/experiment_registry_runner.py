@@ -12,7 +12,7 @@ from ml.dataset import load_features
 from ml.diagnostics.framework import (
     DiagnosticExperiment,
     ExperimentContext,
-    save_result_json,
+    ExperimentResult,
 )
 
 
@@ -238,7 +238,7 @@ def _run_experiment(
 
 
 def _serialise_result(
-    result,
+    result: ExperimentResult,
 ) -> dict[str, Any]:
     """
     Konverterar ExperimentResult till JSON-kompatibelt
@@ -265,6 +265,7 @@ def _write_result(
     """
     Serialiserar ExperimentResult-objekt i payload.
     """
+
     def convert(value):
         if isinstance(
             value,
