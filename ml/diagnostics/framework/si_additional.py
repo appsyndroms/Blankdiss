@@ -16,6 +16,76 @@ def _numeric(
     )
 
 
+def _add_si_change(
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Lägger till aktuell förändring i short interest.
+
+    Förändringen beräknas inom säkerhet och i kronologisk ordning.
+    Den använder föregående observerade FI-snapshot, inte kalenderdagar.
+    """
+
+    result = frame.copy()
+
+    if "short_interest_pct_change" in result.columns:
+        return result
+
+    if "short_interest_pct" not in result.columns:
+        raise KeyError(
+            "SI-dynamik saknar "
+            "'short_interest_pct'."
+        )
+
+    symbol_column = (
+        "yahoo_symbol"
+        if "yahoo_symbol" in result.columns
+        else "security_key"
+    )
+
+    required = {
+        symbol_column,
+        "snapshot_date",
+        "short_interest_pct",
+    }
+
+    missing = [
+        column
+        for column in required
+        if column not in result.columns
+    ]
+
+    if missing:
+        raise KeyError(
+            "SI-dynamik saknar kolumner: "
+            + ", ".join(missing)
+        )
+
+    result["snapshot_date"] = pd.to_datetime(
+        result["snapshot_date"],
+        errors="coerce",
+    )
+
+    result["short_interest_pct"] = _numeric(
+        result,
+        "short_interest_pct",
+    )
+
+    result = result.sort_values(
+        [symbol_column, "snapshot_date"]
+    ).copy()
+
+    result["short_interest_pct_change"] = (
+        result.groupby(
+            symbol_column,
+            sort=False,
+        )["short_interest_pct"]
+        .diff()
+    )
+
+    return result
+
+
 def _quantile(
     frame: pd.DataFrame,
     column: str,
@@ -32,7 +102,9 @@ def _quantile(
     if values.empty:
         return float("nan")
 
-    return float(values.quantile(q))
+    return float(
+        values.quantile(q)
+    )
 
 
 def _summary(
@@ -98,7 +170,9 @@ def _bootstrap_mean_difference(
         first.mean() - second.mean()
     )
 
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(
+        seed
+    )
 
     first_values = first.to_numpy()
     second_values = second.to_numpy()
@@ -145,8 +219,13 @@ def run_si_level_change_joint(
     level_quantiles: tuple[float, ...],
     change_cutoffs: tuple[float, ...],
 ) -> ExperimentResult:
-    pretest = context.pretest
-    test = context.test
+    pretest = _add_si_change(
+        context.pretest
+    )
+
+    test = _add_si_change(
+        context.test
+    )
 
     required = {
         "short_interest_pct",
@@ -174,22 +253,24 @@ def run_si_level_change_joint(
             level_quantile,
         )
 
-        if not np.isfinite(level_threshold):
+        if not np.isfinite(
+            level_threshold
+        ):
+            continue
+
+        positive_changes = _numeric(
+            pretest,
+            "short_interest_pct_change",
+        )
+
+        positive_changes = positive_changes[
+            positive_changes > 0
+        ].dropna()
+
+        if positive_changes.empty:
             continue
 
         for change_cutoff in change_cutoffs:
-            positive_changes = _numeric(
-                pretest,
-                "short_interest_pct_change",
-            )
-
-            positive_changes = positive_changes[
-                positive_changes > 0
-            ].dropna()
-
-            if positive_changes.empty:
-                continue
-
             change_threshold = float(
                 positive_changes.quantile(
                     1.0 - change_cutoff
@@ -257,35 +338,48 @@ def run_si_level_change_joint(
 
                 rows.append(
                     {
-                        "level_quantile": level_quantile,
-                        "level_threshold": level_threshold,
-                        "change_cutoff": change_cutoff,
-                        "change_threshold": change_threshold,
-                        "horizon_days": horizon,
-                        "low_level_low_change_n": summaries[
-                            "low_level_low_change"
-                        ]["n"],
-                        "high_level_low_change_n": summaries[
-                            "high_level_low_change"
-                        ]["n"],
-                        "low_level_high_change_n": summaries[
-                            "low_level_high_change"
-                        ]["n"],
-                        "high_level_high_change_n": summaries[
-                            "high_level_high_change"
-                        ]["n"],
-                        "low_level_low_change_mean": summaries[
-                            "low_level_low_change"
-                        ]["mean"],
-                        "high_level_low_change_mean": summaries[
-                            "high_level_low_change"
-                        ]["mean"],
-                        "low_level_high_change_mean": summaries[
-                            "low_level_high_change"
-                        ]["mean"],
-                        "high_level_high_change_mean": summaries[
-                            "high_level_high_change"
-                        ]["mean"],
+                        "level_quantile":
+                            level_quantile,
+                        "level_threshold":
+                            level_threshold,
+                        "change_cutoff":
+                            change_cutoff,
+                        "change_threshold":
+                            change_threshold,
+                        "horizon_days":
+                            horizon,
+                        "low_level_low_change_n":
+                            summaries[
+                                "low_level_low_change"
+                            ]["n"],
+                        "high_level_low_change_n":
+                            summaries[
+                                "high_level_low_change"
+                            ]["n"],
+                        "low_level_high_change_n":
+                            summaries[
+                                "low_level_high_change"
+                            ]["n"],
+                        "high_level_high_change_n":
+                            summaries[
+                                "high_level_high_change"
+                            ]["n"],
+                        "low_level_low_change_mean":
+                            summaries[
+                                "low_level_low_change"
+                            ]["mean"],
+                        "high_level_low_change_mean":
+                            summaries[
+                                "high_level_low_change"
+                            ]["mean"],
+                        "low_level_high_change_mean":
+                            summaries[
+                                "low_level_high_change"
+                            ]["mean"],
+                        "high_level_high_change_mean":
+                            summaries[
+                                "high_level_high_change"
+                            ]["mean"],
                     }
                 )
 
@@ -309,7 +403,9 @@ def run_si_level_change_joint(
 def _prepare_future_si(
     context,
 ) -> pd.DataFrame:
-    data = context.data.copy()
+    data = _add_si_change(
+        context.data
+    )
 
     symbol_column = (
         "yahoo_symbol"
@@ -321,6 +417,7 @@ def _prepare_future_si(
         symbol_column,
         "snapshot_date",
         "short_interest_pct",
+        "short_interest_pct_change",
     }
 
     missing = [
@@ -390,7 +487,9 @@ def _prepare_future_si(
             <= test_end
         )
 
-    data = data.loc[mask].copy()
+    data = data.loc[
+        mask
+    ].copy()
 
     if test_end is not None:
         data = data[
@@ -407,91 +506,31 @@ def run_si_change_persistence(
     change_cutoffs: tuple[float, ...],
     horizons: tuple[int, ...],
 ) -> ExperimentResult:
-    pretest = context.pretest
+    pretest = _add_si_change(
+        context.pretest
+    )
 
     test = _prepare_future_si(
         context
     )
 
-    if "short_interest_pct_change" not in test.columns:
-        # Reconstruct current SI change on the full
-        # chronological dataset so that the first
-        # test observation for a security can use
-        # its immediately preceding observation.
-        symbol_column = (
-            "yahoo_symbol"
-            if "yahoo_symbol" in context.data.columns
-            else "security_key"
-        )
+    positive_pretest = _numeric(
+        pretest,
+        "short_interest_pct_change",
+    )
 
-        all_data = context.data.copy()
+    positive_pretest = positive_pretest[
+        positive_pretest > 0
+    ].dropna()
 
-        all_data["snapshot_date"] = pd.to_datetime(
-            all_data["snapshot_date"],
-            errors="coerce",
-        )
-
-        all_data["short_interest_pct"] = _numeric(
-            all_data,
-            "short_interest_pct",
-        )
-
-        all_data = all_data.sort_values(
-            [symbol_column, "snapshot_date"]
-        )
-
-        all_data["short_interest_pct_change"] = (
-            all_data.groupby(
-                symbol_column,
-                sort=False,
-            )["short_interest_pct"]
-            .diff()
-        )
-
-        test_keys = test[
-            [
-                symbol_column,
-                "snapshot_date",
-            ]
-        ].drop_duplicates()
-
-        test = test.drop(
-            columns=[
-                "short_interest_pct_change"
-            ],
-            errors="ignore",
-        )
-
-        test = test.merge(
-            all_data[
-                [
-                    symbol_column,
-                    "snapshot_date",
-                    "short_interest_pct_change",
-                ]
-            ],
-            on=[
-                symbol_column,
-                "snapshot_date",
-            ],
-            how="left",
+    if positive_pretest.empty:
+        raise ValueError(
+            "Ingen positiv SI-förändring i pretest."
         )
 
     rows: list[dict] = []
 
     for cutoff in change_cutoffs:
-        positive_pretest = _numeric(
-            pretest,
-            "short_interest_pct_change",
-        )
-
-        positive_pretest = positive_pretest[
-            positive_pretest > 0
-        ].dropna()
-
-        if positive_pretest.empty:
-            continue
-
         threshold = float(
             positive_pretest.quantile(
                 1.0 - cutoff
@@ -561,40 +600,48 @@ def run_si_change_persistence(
 
             rows.append(
                 {
-                    "change_cutoff": cutoff,
-                    "change_threshold": threshold,
-                    "horizon_days": horizon,
-                    "high_si_n": high_return["n"],
-                    "other_positive_n": other_return["n"],
-                    "high_si_mean_return": high_return[
-                        "mean"
-                    ],
-                    "other_positive_mean_return": other_return[
-                        "mean"
-                    ],
+                    "change_cutoff":
+                        cutoff,
+                    "change_threshold":
+                        threshold,
+                    "horizon_days":
+                        horizon,
+                    "high_si_n":
+                        high_return["n"],
+                    "other_positive_n":
+                        other_return["n"],
+                    "high_si_mean_return":
+                        high_return["mean"],
+                    "other_positive_mean_return":
+                        other_return["mean"],
                     "price_return_delta": (
                         high_return["mean"]
                         - other_return["mean"]
                     ),
-                    "high_si_future_change_n": len(
-                        high_future
-                    ),
-                    "other_positive_future_change_n": len(
-                        other_future
-                    ),
+                    "high_si_future_change_n":
+                        len(high_future),
+                    "other_positive_future_change_n":
+                        len(other_future),
                     "high_si_future_change_mean": (
-                        float(high_future.mean())
+                        float(
+                            high_future.mean()
+                        )
                         if not high_future.empty
                         else float("nan")
                     ),
                     "other_positive_future_change_mean": (
-                        float(other_future.mean())
+                        float(
+                            other_future.mean()
+                        )
                         if not other_future.empty
                         else float("nan")
                     ),
-                    "future_si_change_delta": observed,
-                    "future_si_change_ci_low": ci_low,
-                    "future_si_change_ci_high": ci_high,
+                    "future_si_change_delta":
+                        observed,
+                    "future_si_change_ci_low":
+                        ci_low,
+                    "future_si_change_ci_high":
+                        ci_high,
                 }
             )
 
@@ -624,14 +671,13 @@ def run_si_concentration(
     horizons: tuple[int, ...],
     change_cutoff: float,
 ) -> ExperimentResult:
-    pretest = context.pretest
-    test = context.test.copy()
+    pretest = _add_si_change(
+        context.pretest
+    )
 
-    if "short_interest_pct_change" not in test.columns:
-        raise KeyError(
-            "SI concentration saknar "
-            "'short_interest_pct_change'."
-        )
+    test = _add_si_change(
+        context.test
+    )
 
     positive_pretest = _numeric(
         pretest,
