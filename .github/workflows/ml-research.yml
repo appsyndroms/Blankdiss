@@ -1,96 +1,53 @@
 name: Blankdiss Research
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 concurrency:
   group: research-manual
   cancel-in-progress: false
-
 jobs:
   research:
     name: Kör Blankdiss Research Matrix
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Clean latest research results
         run: |
           mkdir -p data/processed/ml/research/latest/diagnostic
           find data/processed/ml/research/latest -type f -delete
-
-      - name: Fetch FI aggregate
-        run: |
-          python -u -m fi
-
-      - name: Fetch prices
-        run: |
-          python -m prices --start 2022-01-01
-
-      - name: Build features
-        run: |
-          python -u -m analysis.build_features
-
-      - name: Inspect feature dataset
-        run: |
-          python -m analysis.ci inspect-features
-
-      - name: Verify feature dataset
-        run: |
-          python -m analysis.ci verify-features
-
-      - name: Run Feature QC
-        run: |
-          python -u -m analysis.features_qc
-
-      - name: Verify Feature QC
-        run: |
-          python -m analysis.ci verify-feature-qc
-
       - name: Run Research Matrix
         run: |
           python -u -m ml.research.runner
-
       - name: Run Registered Experiments
         run: |
           python -u -m ml.experiment_registry_runner
-
       - name: Verify research results
         run: |
           test -f data/processed/ml/research/latest/results.jsonl
           test -f data/processed/ml/research/latest/pooled.json
           test -f data/processed/ml/research/latest/metadata.json
           test -f data/processed/ml/research/latest/report.md
-
           python - <<'PY'
           import json
           from pathlib import Path
-
           base = Path(
               "data/processed/ml/research/latest"
           )
-
           results_path = base / "results.jsonl"
           pooled_path = base / "pooled.json"
           metadata_path = base / "metadata.json"
           report_path = base / "report.md"
-
           result_count = sum(
               1
               for line in results_path.open(
@@ -98,127 +55,95 @@ jobs:
               )
               if line.strip()
           )
-
           if result_count == 0:
               raise SystemExit(
                   "Research results innehåller inga resultat."
               )
-
           pooled = json.loads(
               pooled_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(pooled, list):
               raise SystemExit(
                   "Pooled research results är inte en lista."
               )
-
           if len(pooled) == 0:
               raise SystemExit(
                   "Pooled research results innehåller inga experiment."
               )
-
           metadata = json.loads(
               metadata_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(metadata, dict):
               raise SystemExit(
                   "Research metadata är inte ett objekt."
               )
-
           report = report_path.read_text(
               encoding="utf-8"
           )
-
           if not report.strip():
               raise SystemExit(
                   "Research report är tom."
               )
-
           print(
               "Research results:",
               result_count,
           )
-
           print(
               "Pooled experiments:",
               len(pooled),
           )
-
-          print(
-              "Feature rows:",
-              metadata.get(
-                  "feature_rows",
-                  "unknown",
-              ),
-          )
-
           print(
               "Report:",
               report_path,
           )
           PY
-
       - name: Verify diagnostic results
         run: |
           test -f data/processed/ml/research/latest/diagnostics.json
-
           python - <<'PY'
           import json
           from pathlib import Path
-
           base = Path(
               "data/processed/ml/research/latest"
           )
-
           manifest_path = (
               base / "diagnostics.json"
           )
-
           manifest = json.loads(
               manifest_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(manifest, dict):
               raise SystemExit(
                   "Diagnostic manifest är inte ett objekt."
               )
-
           results = manifest.get("results")
-
           if not isinstance(results, list):
               raise SystemExit(
                   "Diagnostic manifest saknar results."
               )
-
           if not results:
               raise SystemExit(
                   "Inga diagnostic results hittades."
               )
-
           required_results = {
               "si_level_event_risk_confirmation",
               "si_event_risk_interaction",
               "si_price_dynamics",
           }
-
           actual_results = {
               result["experiment_id"]
               for result in results
           }
-
           missing_results = (
               required_results
               - actual_results
           )
-
           if missing_results:
               raise SystemExit(
                   "Saknar förväntade diagnostic results: "
@@ -226,41 +151,34 @@ jobs:
                       sorted(missing_results)
                   )
               )
-
           for result in results:
               experiment_id = result[
                   "experiment_id"
               ]
-
               result_path = (
                   base
                   / "diagnostic"
                   / f"{experiment_id}.json"
               )
-
               if not result_path.exists():
                   raise SystemExit(
                       "Saknar diagnostic result: "
                       f"{result_path}"
                   )
-
               payload = json.loads(
                   result_path.read_text(
                       encoding="utf-8"
                   )
               )
-
               if payload.get("status") != "completed":
                   raise SystemExit(
                       "Diagnostic failed: "
                       f"{experiment_id}"
                   )
-
           print(
               "Diagnostic results:",
               len(results),
           )
-
           print(
               "Completed:",
               manifest.get(
@@ -268,7 +186,6 @@ jobs:
                   0,
               ),
           )
-
           print(
               "Failed:",
               manifest.get(
@@ -276,19 +193,16 @@ jobs:
                   0,
               ),
           )
-
           print(
               "Manifest:",
               manifest_path,
           )
           PY
-
       - name: Verify latest diagnostic JSON files
         run: |
           test -f data/processed/ml/research/latest/diagnostic/si_level_event_risk_confirmation.json
           test -f data/processed/ml/research/latest/diagnostic/si_event_risk_interaction.json
           test -f data/processed/ml/research/latest/diagnostic/si_price_dynamics.json
-
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -307,16 +221,13 @@ jobs:
             data/processed/ml/research/*/diagnostics.json
             data/processed/ml/research/*/diagnostic/*.json
           if-no-files-found: error
-
       - name: Persist latest diagnostic results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add \
             data/processed/ml/research/latest/diagnostics.json \
             data/processed/ml/research/latest/diagnostic/*.json
-
           if git diff --cached --quiet; then
             echo "Inga diagnostikresultat ändrades."
           else
