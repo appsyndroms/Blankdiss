@@ -16,14 +16,17 @@ from .stratification import (
 
 @dataclass
 class ExperimentResult:
-    """Standardiserat resultat från ett diagnostics-experiment."""
-
     name: str
     description: str = ""
-
-    tables: dict[str, pd.DataFrame] = field(default_factory=dict)
-    metrics: dict[str, Any] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    tables: dict[str, pd.DataFrame] = field(
+        default_factory=dict
+    )
+    metrics: dict[str, Any] = field(
+        default_factory=dict
+    )
+    metadata: dict[str, Any] = field(
+        default_factory=dict
+    )
 
     def add_table(
         self,
@@ -48,24 +51,14 @@ class ExperimentResult:
 
 
 class DiagnosticExperiment(ABC):
-    """
-    Basinterface för diagnostics-experiment.
-
-    Experimentfilerna ska normalt bara definiera:
-
-        name
-        description
-        targets / parametrar
-        analyze_window()
-
-    Gemensam logik ska ligga i frameworket.
-    """
-
     name: str = ""
     description: str = ""
     targets: tuple[str, ...] = ()
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        **kwargs: Any,
+    ) -> None:
         self.options = kwargs
         self._context: ExperimentContext | None = None
 
@@ -76,12 +69,20 @@ class DiagnosticExperiment(ABC):
         self._context = context
 
         try:
-            analysis = self.analyze_window(context)
+            analysis = self.analyze_window(
+                context
+            )
 
-            if isinstance(analysis, ExperimentResult):
+            if isinstance(
+                analysis,
+                ExperimentResult,
+            ):
                 result = analysis
 
-            elif isinstance(analysis, pd.DataFrame):
+            elif isinstance(
+                analysis,
+                pd.DataFrame,
+            ):
                 result = ExperimentResult(
                     name=self.name,
                     description=self.description,
@@ -92,14 +93,20 @@ class DiagnosticExperiment(ABC):
                     analysis,
                 )
 
-            elif isinstance(analysis, dict):
+            elif isinstance(
+                analysis,
+                dict,
+            ):
                 result = ExperimentResult(
                     name=self.name,
                     description=self.description,
                 )
 
                 for key, value in analysis.items():
-                    if isinstance(value, pd.DataFrame):
+                    if isinstance(
+                        value,
+                        pd.DataFrame,
+                    ):
                         result.add_table(
                             key,
                             value,
@@ -112,10 +119,9 @@ class DiagnosticExperiment(ABC):
 
             else:
                 raise TypeError(
-                    f"Experiment '{self.name}' måste returnera "
-                    "ExperimentResult, DataFrame eller dict från "
-                    "analyze_window(), men returnerade "
-                    f"{type(analysis).__name__}."
+                    f"Experiment '{self.name}' returned "
+                    f"unsupported analysis type: "
+                    f"{type(analysis).__name__}"
                 )
 
             result.metadata.update(
@@ -132,46 +138,23 @@ class DiagnosticExperiment(ABC):
         self,
         context: ExperimentContext,
     ):
-        """
-        Kör analysen för ett walk-forward-fönster.
-
-        Experimentet ska inte själv hantera datumgränser.
-        """
         raise NotImplementedError
 
     @property
     def context(self) -> ExperimentContext:
         if self._context is None:
             raise RuntimeError(
-                "ExperimentContext är endast tillgänglig "
-                "under analyze_window()."
+                "Experiment context is only available "
+                "while an experiment is executing."
             )
 
         return self._context
 
-    # ------------------------------------------------------------------
-    # Stratifiering
-    # ------------------------------------------------------------------
-
     def make_pretest_bins(
         self,
-        test: pd.DataFrame,
         column: str,
         quantiles: tuple[float, ...] = (0.80,),
     ) -> PretestBins:
-        """
-        Skapar bins från pretest-data.
-
-        Argumentet test finns kvar för att experimenten ska kunna
-        uttrycka analysen naturligt, men thresholds beräknas alltid
-        från context.pretest.
-        """
-
-        if test is None:
-            raise ValueError(
-                "test får inte vara None."
-            )
-
         return make_pretest_bins(
             self.context.pretest,
             column,
@@ -180,23 +163,50 @@ class DiagnosticExperiment(ABC):
 
     def build_2d_analysis(
         self,
-        test: pd.DataFrame,
+        frame: pd.DataFrame,
         x_bins: PretestBins,
         y_bins: PretestBins,
-        targets: tuple[str, ...],
+        event_columns: tuple[str, ...],
         return_column: str | None = None,
     ) -> pd.DataFrame:
-        """Applicerar pretest-definierade bins på OOS-testdata."""
-
-        if test is None:
-            raise ValueError(
-                "test får inte vara None."
-            )
-
         return two_dimensional_stratification(
-            test,
+            frame,
             x_bins,
             y_bins,
-            event_columns=targets,
+            event_columns,
             return_column=return_column,
+        )
+
+    def run_si_level_confirmation(
+        self,
+        context: ExperimentContext,
+        *,
+        risk_cutoffs: tuple[float, ...],
+        short_interest_cutoff: float,
+    ) -> ExperimentResult:
+        from .event_risk import (
+            run_si_level_confirmation,
+        )
+
+        return run_si_level_confirmation(
+            context,
+            risk_cutoffs=risk_cutoffs,
+            short_interest_cutoff=short_interest_cutoff,
+        )
+
+    def run_event_risk_interaction(
+        self,
+        context: ExperimentContext,
+        *,
+        risk_cutoffs: tuple[float, ...],
+        positive_change_cutoff: float,
+    ) -> ExperimentResult:
+        from .event_risk import (
+            run_event_risk_interaction,
+        )
+
+        return run_event_risk_interaction(
+            context,
+            risk_cutoffs=risk_cutoffs,
+            positive_change_cutoff=positive_change_cutoff,
         )
