@@ -357,6 +357,17 @@ Den:
 5. kör main()
 6. fortsätter med nästa experiment även om ett experiment misslyckas
 7. returnerar felstatus om något experiment misslyckades
+8. skriver diagnostic-resultat som artifacts
+9. skriver ett manifest över diagnostic-körningen
+
+Resultaten från registry-runnern finns under:
+
+data/processed/ml/research/latest/
+
+med:
+
+diagnostics.json
+diagnostics/<experiment_id>.json
 
 Förenklat:
 
@@ -365,17 +376,167 @@ experiment_registry.json
           ▼
 experiment_registry_runner.py
           │
-          ├── diagnostic A → main()
+          ├── diagnostic A → main() → result file
           │
-          ├── diagnostic B → main()
+          ├── diagnostic B → main() → result file
           │
-          └── diagnostic C → main()
+          └── diagnostic C → main() → result file
+                                      │
+                                      ▼
+                                  artifacts
 
 Det gör att nya experiment inte behöver hårdkodas i runnern.
 
 ⸻
 
-9. Hur ett nytt experiment läggs till
+9. Research artifacts
+
+Resultat från ML-systemet ska vara maskinläsbara.
+
+Senaste körningen finns under:
+
+data/processed/ml/research/latest/
+
+Standard research-resultat:
+
+results.jsonl
+pooled.json
+metadata.json
+report.md
+
+Registry-baserade diagnostics producerar:
+
+diagnostics.json
+diagnostics/<experiment_id>.json
+
+Samma struktur sparas även i den timestampade körningen:
+
+data/processed/ml/research/<run_timestamp>/
+
+GitHub Actions laddar upp dessa filer som workflow artifacts.
+
+Artifacts är den primära outputen från en research-körning.
+
+⸻
+
+10. AI consumption
+
+Blankdiss research är byggd så att resultat från GitHub Actions ska kunna analyseras utan manuell copy/paste av Actions-loggar.
+
+När en research-körning är klar ska AI i första hand läsa resultat-artifacts från körningen.
+
+Prioriterad läsordning:
+
+1. diagnostics/<experiment_id>.json
+2. diagnostics.json
+3. pooled.json
+4. results.jsonl
+5. report.md
+
+Actions-loggen används främst för:
+
+* pipeline-status
+* fel
+* antal körda experiment
+* verifiering av att steg genomförts
+
+Den ska inte vara den primära källan för statistisk analys.
+
+Den avsedda kedjan är:
+
+GitHub Actions
+      ↓
+Research
+      ↓
+Machine-readable artifacts
+      ↓
+AI
+      ↓
+Research analysis
+      ↓
+Nästa experiment
+
+Användaren ska normalt inte behöva kopiera resultat från terminalen eller GitHub Actions till chatten.
+
+⸻
+
+11. AI-readable result contract
+
+Varje registry-baserad diagnostic ska producera en maskinläsbar resultatfil:
+
+data/processed/ml/research/latest/diagnostics/<experiment_id>.json
+
+Filen ska identifieras med experimentets stabila registry-id.
+
+Den bör innehålla:
+
+* experiment_id
+* question
+* module
+* status
+* started_at_utc
+* finished_at_utc
+* strukturerade experimentresultat
+
+Övergripande exempel:
+
+{
+  "experiment_id": "example_experiment",
+  "question": "Forskningsfråga",
+  "module": "ml.diagnostics.example_experiment_diagnostic",
+  "status": "completed",
+  "started_at_utc": "...",
+  "finished_at_utc": "...",
+  "results": {}
+}
+
+`results` är den strukturerade representationen av experimentets statistiska resultat.
+
+Terminaloutput får sparas som kompletterande information, men ska inte vara den enda representationen av resultatet.
+
+Om AI ska analysera ett experiment ska resultatet därför finnas i artifacten och inte kräva tolkning av en lång Actions-logg.
+
+⸻
+
+12. Diagnostic manifest
+
+Filen:
+
+data/processed/ml/research/latest/diagnostics.json
+
+är manifestet för diagnostic-körningen.
+
+Manifestet beskriver:
+
+* research run
+* antal registrerade experiment
+* antal aktiva experiment
+* completed
+* failed
+* vilka resultatfiler som producerades
+
+Exempel:
+
+{
+  "research_run_timestamp": "20260918T035522Z",
+  "registered_experiments": 4,
+  "active_experiments": 2,
+  "completed": 2,
+  "failed": 0,
+  "results": [
+    {
+      "experiment_id": "example_experiment",
+      "status": "completed",
+      "result_file": "diagnostics/example_experiment.json"
+    }
+  ]
+}
+
+Manifestet används för att snabbt hitta vilka diagnostics som producerades.
+
+⸻
+
+13. Hur ett nytt experiment läggs till
 
 När en ny forskningsfråga ska testas:
 
@@ -428,13 +589,13 @@ när experimentet är färdigt för körning.
 
 Steg 7
 
-Registry-runnern kör automatiskt experimentet.
+Registry-runnern kör automatiskt experimentet och producerar result-artifacten.
 
 Ingen ny hårdkodning i runnern ska behövas.
 
 ⸻
 
-10. Aktuella registrerade experiment
+14. Aktuella registrerade experiment
 
 Registryt innehåller för närvarande:
 
@@ -494,7 +655,7 @@ planned
 
 ⸻
 
-11. Event-risk
+15. Event-risk
 
 Ett viktigt befintligt forskningsspår är event-risk.
 
@@ -519,7 +680,7 @@ Detta gör event-risk till en separat dimension som sedan kan användas i andra 
 
 ⸻
 
-12. Interaktionsexperiment
+16. Interaktionsexperiment
 
 Blankdiss ska i första hand skilja mellan:
 
@@ -551,7 +712,7 @@ Samma princip kan användas för andra forskningsdimensioner.
 
 ⸻
 
-13. OOS och leakage
+17. OOS och leakage
 
 Detta är en central princip i hela ML-systemet.
 
@@ -590,7 +751,7 @@ ska definieras från information som är tillgänglig före testperioden.
 
 ⸻
 
-14. Statistik
+18. Statistik
 
 Diagnostics kan använda mer detaljerade statistiska analyser än den generella research matrixen.
 
@@ -625,7 +786,7 @@ Potentially useful signal
 
 ⸻
 
-15. Research vs Production ML
+19. Research vs Production ML
 
 Detta ML-system är i första hand ett research-system.
 
@@ -662,7 +823,7 @@ Nästa steg efter en intressant effekt kan därför vara:
 
 ⸻
 
-16. Automatisering
+20. Automatisering
 
 Den avsedda användningen är att Blankdiss själv ska kunna köra stora delar av forskningsprocessen.
 
@@ -684,7 +845,9 @@ Research
      ↓
 Diagnostics
      ↓
-Artifacts
+Result artifacts
+     ↓
+AI analysis
 
 Målet är att minimera behovet av att manuellt:
 
@@ -702,7 +865,7 @@ När infrastrukturen är på plats ska en ny forskningsfråga i huvudsak kräva:
 
 ⸻
 
-17. Relaterad dokumentation
+21. Relaterad dokumentation
 
 Detaljerad dokumentation för research-systemet finns i:
 
@@ -717,12 +880,14 @@ Det dokumentet beskriver särskilt:
 * hur nya experiment skapas
 * GitHub Actions-kopplingen
 * aktuella forskningsfrågor
+* result artifacts
+* AI consumption
 
 Detta dokument (ml/README.md) är den övergripande ML-kartan.
 
 ⸻
 
-18. Designprincip
+22. Designprincip
 
 Den viktigaste uppdelningen är:
 
@@ -737,7 +902,7 @@ ml/diagnostics/
 ml/experiment_registry.json
     = vilka diagnostics som finns och vilka som är aktiva
 ml/experiment_registry_runner.py
-    = startar aktiva diagnostics
+    = startar aktiva diagnostics och producerar result artifacts
 .github/workflows/ml-research.yml
     = kör hela automatiserade research-pipelinen
 
@@ -755,6 +920,8 @@ RUNNER
   ↓
 GITHUB ACTIONS
   ↓
-RESULTS
+RESULT ARTIFACTS
+  ↓
+AI ANALYSIS
 
 Detta är den avsedda arkitekturen för Blankdiss ML.
