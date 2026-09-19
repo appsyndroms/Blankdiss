@@ -543,6 +543,7 @@ def evaluate_candidates(
 
 def pool_results(
     results: list[dict[str, Any]],
+    min_rows_per_window: int = 1,
 ) -> list[dict[str, Any]]:
     grouped: dict[
         str,
@@ -560,23 +561,29 @@ def pool_results(
     for candidate_id, rows in grouped.items():
         first = rows[0]
 
+        valid_rows = [
+            row
+            for row in rows
+            if row["n"] >= min_rows_per_window
+        ]
+
         lift_values = _values(
-            rows,
+            valid_rows,
             "lift",
         )
 
         event_rates = _values(
-            rows,
+            valid_rows,
             "event_rate",
         )
 
         return_differences = _values(
-            rows,
+            valid_rows,
             "return_difference",
         )
 
         mean_returns = _values(
-            rows,
+            valid_rows,
             "mean_return",
         )
 
@@ -597,11 +604,21 @@ def pool_results(
                 ],
                 "windows": len(rows),
                 "valid_windows": len(
-                    [
-                        row
+                    valid_rows
+                ),
+                "min_n": min(
+                    (
+                        row["n"]
                         for row in rows
-                        if row["n"] > 0
-                    ]
+                    ),
+                    default=0,
+                ),
+                "max_n": max(
+                    (
+                        row["n"]
+                        for row in rows
+                    ),
+                    default=0,
                 ),
                 "lift": _mean(
                     lift_values
@@ -617,7 +634,7 @@ def pool_results(
                 ),
                 "stable_lift_windows": sum(
                     1
-                    for row in rows
+                    for row in valid_rows
                     if (
                         row.get("lift")
                         is not None
@@ -626,7 +643,7 @@ def pool_results(
                 ),
                 "negative_return_windows": sum(
                     1
-                    for row in rows
+                    for row in valid_rows
                     if (
                         row.get(
                             "return_difference"
@@ -725,6 +742,7 @@ def run_discovery(
     list[Candidate],
     list[dict[str, Any]],
     list[dict[str, Any]],
+    list[dict[str, Any]],
 ]:
     print(
         "Preparing discovery data...",
@@ -751,7 +769,11 @@ def run_discovery(
     )
 
     pooled = pool_results(
-        results
+        results,
+        min_rows_per_window=(
+            config.validation
+            .min_rows_per_window
+        ),
     )
 
     findings = find_candidates(
@@ -769,6 +791,7 @@ def run_discovery(
         data,
         candidates,
         results,
+        pooled,
         findings,
     )
 
