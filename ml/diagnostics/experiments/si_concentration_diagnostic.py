@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework import (
+    DiagnosticExperiment,
+)
+from ml.diagnostics.framework.si_additional import (
+    run_si_concentration,
+)
 
 
 class SIConcentrationExperiment(
@@ -15,14 +20,10 @@ class SIConcentrationExperiment(
     )
 
     concentration_columns = (
-        "max_individual_position_pct",
-        "max_position_share_pct",
-        "active_holders",
+        "short_interest_pct",
     )
 
     concentration_quantile = 0.80
-
-    change_cutoff = 0.10
 
     horizons = (
         1,
@@ -32,19 +33,13 @@ class SIConcentrationExperiment(
         20,
     )
 
-    def analyze_window(self, context):
-        from ml.diagnostics.framework.si_additional import (
-            run_si_concentration,
-        )
+    change_cutoff = 0.20
 
+    def analyze_window(self, context):
         return run_si_concentration(
             context,
-            concentration_columns=(
-                self.concentration_columns
-            ),
-            concentration_quantile=(
-                self.concentration_quantile
-            ),
+            concentration_columns=self.concentration_columns,
+            concentration_quantile=self.concentration_quantile,
             horizons=self.horizons,
             change_cutoff=self.change_cutoff,
         )
