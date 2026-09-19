@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -300,6 +301,16 @@ def write_results(
     )
 
     latest_dir = root / "latest"
+
+    if latest_dir.exists():
+        shutil.rmtree(
+            latest_dir
+        )
+
+    latest_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     _write_jsonl(
         latest_dir / "results.jsonl",
