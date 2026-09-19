@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.volatility import (
+    run_directional_tail_analysis,
+)
 
 
 class VolatilityDirectionalTailExperiment(
@@ -21,17 +24,11 @@ class VolatilityDirectionalTailExperiment(
         0.20,
     )
 
-    volatility_column = (
-        "price_volatility_20d"
-    )
+    volatility_column = "price_volatility_20d"
 
     def analyze_window(self, context):
-        return self.run_directional_tail_analysis(
+        return run_directional_tail_analysis(
             context,
-            volatility_column=(
-                self.volatility_column
-            ),
-            event_tail_fractions=(
-                self.event_tail_fractions
-            ),
+            volatility_column=self.volatility_column,
+            event_tail_fractions=self.event_tail_fractions,
         )
