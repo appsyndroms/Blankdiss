@@ -4,7 +4,7 @@ import importlib
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .base import DiagnosticExperiment, ExperimentResult
+from .base import DiagnosticExperiment
 from .reporting import print_result
 
 
@@ -42,14 +42,15 @@ def register_legacy(
     description: str = "",
 ) -> None:
     """
-    Registrerar ett befintligt experiment utan att det
-    behöver skrivas om direkt.
+    Registrerar ett befintligt legacy-experiment.
 
     Modulen måste ha en main() eller run()-funktion.
     """
 
     def factory(**kwargs):
-        module = importlib.import_module(module_name)
+        module = importlib.import_module(
+            module_name
+        )
 
         if hasattr(module, "run"):
             return module.run(**kwargs)
@@ -70,6 +71,80 @@ def register_legacy(
     )
 
 
+def _find_experiment_class(
+    module_name: str,
+) -> type[DiagnosticExperiment]:
+    module = importlib.import_module(
+        module_name
+    )
+
+    experiment_classes = [
+        value
+        for value in vars(module).values()
+        if (
+            isinstance(value, type)
+            and issubclass(
+                value,
+                DiagnosticExperiment,
+            )
+            and value is not DiagnosticExperiment
+        )
+    ]
+
+    if not experiment_classes:
+        raise RuntimeError(
+            f"Modulen {module_name} saknar en "
+            "DiagnosticExperiment-klass."
+        )
+
+    if len(experiment_classes) > 1:
+        names = ", ".join(
+            cls.__name__
+            for cls in experiment_classes
+        )
+
+        raise RuntimeError(
+            f"Modulen {module_name} innehåller flera "
+            "DiagnosticExperiment-klasser: "
+            f"{names}"
+        )
+
+    return experiment_classes[0]
+
+
+def load_experiment(
+    module_name: str,
+    **kwargs: Any,
+) -> DiagnosticExperiment:
+    """
+    Laddar det enda DiagnosticExperiment som finns
+    i den angivna modulen.
+
+    Experiment registry behöver därför bara ange
+    modulens import path.
+    """
+
+    experiment_class = _find_experiment_class(
+        module_name
+    )
+
+    instance = experiment_class(
+        **kwargs
+    )
+
+    if not isinstance(
+        instance,
+        DiagnosticExperiment,
+    ):
+        raise TypeError(
+            f"{experiment_class.__name__} i "
+            f"{module_name} är inte ett "
+            "DiagnosticExperiment."
+        )
+
+    return instance
+
+
 def list_experiments() -> list[ExperimentSpec]:
     return sorted(
         _REGISTRY.values(),
@@ -77,7 +152,9 @@ def list_experiments() -> list[ExperimentSpec]:
     )
 
 
-def get_experiment(name: str) -> ExperimentSpec:
+def get_experiment(
+    name: str,
+) -> ExperimentSpec:
     try:
         return _REGISTRY[name]
     except KeyError:
@@ -99,19 +176,28 @@ def run_experiment(
 ):
     spec = get_experiment(name)
 
-    instance = spec.factory(**kwargs)
+    instance = spec.factory(
+        **kwargs
+    )
 
-    if isinstance(instance, DiagnosticExperiment):
-        result = instance.execute(context)
+    if isinstance(
+        instance,
+        DiagnosticExperiment,
+    ):
+        result = instance.execute(
+            context
+        )
 
         if print_output:
             print_result(result)
 
         return result
 
-    # Legacy support.
     if context is not None:
-        kwargs.setdefault("context", context)
+        kwargs.setdefault(
+            "context",
+            context,
+        )
 
     result = instance
 
