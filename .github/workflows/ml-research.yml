@@ -386,6 +386,10 @@ jobs:
         run: |
           python -u -m ml.experiment_registry_runner
 
+      - name: Run Discovery
+        run: |
+          python -u -m ml.research.discovery
+
       - name: Verify research results
         run: |
           test -f data/processed/ml/research/latest/results.jsonl
@@ -471,6 +475,126 @@ jobs:
           )
           PY
 
+      - name: Verify discovery results
+        run: |
+          test -f data/processed/ml/research/discovery/latest/results.jsonl
+          test -f data/processed/ml/research/discovery/latest/pooled.json
+          test -f data/processed/ml/research/discovery/latest/findings.json
+          test -f data/processed/ml/research/discovery/latest/metadata.json
+          test -f data/processed/ml/research/discovery/latest/report.md
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          base = Path(
+              "data/processed/ml/research/discovery/latest"
+          )
+
+          results_path = base / "results.jsonl"
+          pooled_path = base / "pooled.json"
+          findings_path = base / "findings.json"
+          metadata_path = base / "metadata.json"
+          report_path = base / "report.md"
+
+          result_count = sum(
+              1
+              for line in results_path.open(
+                  encoding="utf-8"
+              )
+              if line.strip()
+          )
+
+          if result_count == 0:
+              raise SystemExit(
+                  "Discovery results innehåller inga resultat."
+              )
+
+          pooled = json.loads(
+              pooled_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          if not isinstance(pooled, list):
+              raise SystemExit(
+                  "Discovery pooled results är inte en lista."
+              )
+
+          if len(pooled) == 0:
+              raise SystemExit(
+                  "Discovery pooled results innehåller inga kandidater."
+              )
+
+          findings = json.loads(
+              findings_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          if not isinstance(findings, list):
+              raise SystemExit(
+                  "Discovery findings är inte en lista."
+              )
+
+          metadata = json.loads(
+              metadata_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          if not isinstance(metadata, dict):
+              raise SystemExit(
+                  "Discovery metadata är inte ett objekt."
+              )
+
+          expected_candidates = 900
+          actual_candidates = metadata.get(
+              "candidate_count"
+          )
+
+          if actual_candidates != expected_candidates:
+              raise SystemExit(
+                  "Fel antal discovery-kandidater: "
+                  f"{actual_candidates}; "
+                  f"förväntade {expected_candidates}."
+              )
+
+          report = report_path.read_text(
+              encoding="utf-8"
+          )
+
+          if not report.strip():
+              raise SystemExit(
+                  "Discovery report är tom."
+              )
+
+          print(
+              "Discovery results:",
+              result_count,
+          )
+
+          print(
+              "Discovery pooled candidates:",
+              len(pooled),
+          )
+
+          print(
+              "Discovery findings:",
+              len(findings),
+          )
+
+          print(
+              "Discovery candidates:",
+              actual_candidates,
+          )
+
+          print(
+              "Discovery report:",
+              report_path,
+          )
+          PY
+
       - name: Verify diagnostic results
         run: |
           python -m ml.diagnostics.verify
@@ -492,6 +616,16 @@ jobs:
             data/processed/ml/research/*/report.md
             data/processed/ml/research/*/diagnostics.json
             data/processed/ml/research/*/diagnostic/*.json
+            data/processed/ml/research/discovery/latest/results.jsonl
+            data/processed/ml/research/discovery/latest/pooled.json
+            data/processed/ml/research/discovery/latest/findings.json
+            data/processed/ml/research/discovery/latest/metadata.json
+            data/processed/ml/research/discovery/latest/report.md
+            data/processed/ml/research/discovery/*/results.jsonl
+            data/processed/ml/research/discovery/*/pooled.json
+            data/processed/ml/research/discovery/*/findings.json
+            data/processed/ml/research/discovery/*/metadata.json
+            data/processed/ml/research/discovery/*/report.md
           if-no-files-found: error
 
       - name: Persist latest diagnostic results
