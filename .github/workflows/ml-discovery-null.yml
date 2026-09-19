@@ -12,13 +12,17 @@ env:
 
   DISCOVERY_CONFIG: |
     enabled: true
+    discovery_end_date: "2025-12-19"
+
     targets:
       - down_5pct_5d
       - down_7pct_5d
       - down_10pct_5d
+
     signals:
       - short_interest_change
       - short_interest_level
+
     stress_features:
       - price_volatility_20d
       - price_momentum_5d
@@ -26,12 +30,14 @@ env:
       - price_momentum_60d
       - distance_from_20d_high
       - distance_from_60d_high
+
     tails:
       - 0.20
       - 0.10
       - 0.05
       - 0.025
       - 0.01
+
     stress_directions:
       price_volatility_20d: upper
       price_momentum_5d: lower
@@ -39,6 +45,7 @@ env:
       price_momentum_60d: lower
       distance_from_20d_high: lower
       distance_from_60d_high: lower
+
     validation:
       min_rows_per_window: 20
       min_positive_windows: 2
@@ -117,12 +124,8 @@ jobs:
                   f"FEATURE_SOURCE_FINGERPRINT={fingerprint}\n"
               )
 
-          print(
-              f"Feature fingerprint: {fingerprint}"
-          )
-          print(
-              f"Features changed: {changed}"
-          )
+          print(f"Feature fingerprint: {fingerprint}")
+          print(f"Features changed: {changed}")
           PY
 
       - name: Build features
@@ -276,21 +279,11 @@ jobs:
                   "Null-test report is empty."
               )
 
-          print(
-              "Null-test verification passed."
-          )
-          print(
-              f"Candidates: {actual_candidates}"
-          )
-          print(
-              f"Permutations: {actual_permutations}"
-          )
-          print(
-              f"Valid null scores: {valid_permutations}"
-          )
-          print(
-              f"Empirical p-value: {p_value}"
-          )
+          print("Null-test verification passed.")
+          print(f"Candidates: {actual_candidates}")
+          print(f"Permutations: {actual_permutations}")
+          print(f"Valid null scores: {valid_permutations}")
+          print(f"Empirical p-value: {p_value}")
           PY
 
       - name: Upload null-test artifacts
