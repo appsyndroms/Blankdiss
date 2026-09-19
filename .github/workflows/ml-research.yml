@@ -6,6 +6,49 @@ on:
 permissions:
   contents: write
 
+env:
+  DISCOVERY_CONFIG: |
+    enabled: true
+
+    targets:
+      - down_5pct_5d
+      - down_7pct_5d
+      - down_10pct_5d
+
+    signals:
+      - short_interest_change
+      - short_interest_level
+
+    stress_features:
+      - price_volatility_20d
+      - price_momentum_5d
+      - price_momentum_20d
+      - price_momentum_60d
+      - distance_from_20d_high
+      - distance_from_60d_high
+
+    tails:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+    stress_directions:
+      price_volatility_20d: upper
+      price_momentum_5d: lower
+      price_momentum_20d: lower
+      price_momentum_60d: lower
+      distance_from_20d_high: lower
+      distance_from_60d_high: lower
+
+    validation:
+      min_rows_per_window: 20
+      min_positive_windows: 2
+      min_lift: 1.10
+      max_return_difference: 0.0
+      max_findings: 25
+
 concurrency:
   group: research-manual
   cancel-in-progress: false
@@ -386,67 +429,9 @@ jobs:
         run: |
           python -u -m ml.experiment_registry_runner
 
-      # ------------------------------------------------------------
-      # Discovery configuration
-      #
-      # Discovery.py reads this section directly from this workflow.
-      #
-      # Candidate count:
-      #   3 targets
-      #   x 2 FI signals
-      #   x 6 stress features
-      #   x 5 signal tails
-      #   x 5 stress tails
-      #   = 900 candidates
-      #
-      # Each candidate is evaluated on the OOS/test split of the
-      # configured walk-forward windows.
-      # ------------------------------------------------------------
-
-      discovery:
-        enabled: true
-
-        targets:
-          - down_5pct_5d
-          - down_7pct_5d
-          - down_10pct_5d
-
-        signals:
-          - short_interest_change
-          - short_interest_level
-
-        stress_features:
-          - price_volatility_20d
-          - price_momentum_5d
-          - price_momentum_20d
-          - price_momentum_60d
-          - distance_from_20d_high
-          - distance_from_60d_high
-
-        tails:
-          - 0.20
-          - 0.10
-          - 0.05
-          - 0.025
-          - 0.01
-
-        stress_directions:
-          price_volatility_20d: upper
-          price_momentum_5d: lower
-          price_momentum_20d: lower
-          price_momentum_60d: lower
-          distance_from_20d_high: lower
-          distance_from_60d_high: lower
-
-        validation:
-          min_rows_per_window: 20
-          min_positive_windows: 2
-          max_findings: 25
-
       - name: Run Discovery
-        if: true
         run: |
-          python -u -m ml.research.discovery
+          python -u -m ml.research.discovery.runner
 
       - name: Verify research results
         run: |
@@ -607,6 +592,7 @@ jobs:
               )
 
           expected_candidates = 900
+
           actual_candidates = metadata.get(
               "candidate_count"
           )
