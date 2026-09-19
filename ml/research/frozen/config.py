@@ -45,26 +45,16 @@ class FrozenHypothesisConfig:
     null_test: FrozenNullConfig
 
 
-def _require_string(
-    value: Any,
-    name: str,
-) -> str:
+def _require_string(value: Any, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(
             f"Frozen hypothesis '{name}' måste vara en icke-tom sträng."
         )
-
     return value.strip()
 
 
-def _parse_date(
-    value: Any,
-    name: str,
-) -> date:
-    text = _require_string(
-        value,
-        name,
-    )
+def _parse_date(value: Any, name: str) -> date:
+    text = _require_string(value, name)
 
     try:
         return date.fromisoformat(text)
@@ -74,36 +64,22 @@ def _parse_date(
         ) from exc
 
 
-def _parse_candidate(
-    raw: dict[str, Any],
-) -> FrozenCandidateConfig:
-    signal_tail = float(
-        raw["signal_tail"]
-    )
-
-    stress_tail = float(
-        raw["stress_tail"]
-    )
+def _parse_candidate(raw: dict[str, Any]) -> FrozenCandidateConfig:
+    signal_tail = float(raw["signal_tail"])
+    stress_tail = float(raw["stress_tail"])
 
     if not 0 < signal_tail <= 1:
-        raise ValueError(
-            "signal_tail måste vara > 0 och <= 1."
-        )
+        raise ValueError("signal_tail måste vara > 0 och <= 1.")
 
     if not 0 < stress_tail <= 1:
-        raise ValueError(
-            "stress_tail måste vara > 0 och <= 1."
-        )
+        raise ValueError("stress_tail måste vara > 0 och <= 1.")
 
     stress_direction = _require_string(
         raw["stress_direction"],
         "stress_direction",
     )
 
-    if stress_direction not in {
-        "upper",
-        "lower",
-    }:
+    if stress_direction not in {"upper", "lower"}:
         raise ValueError(
             "stress_direction måste vara 'upper' eller 'lower'."
         )
@@ -139,10 +115,7 @@ def load_config() -> FrozenHypothesisConfig:
         )
     )
 
-    with config_path.open(
-        "r",
-        encoding="utf-8",
-    ) as handle:
+    with config_path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle)
 
     if not isinstance(raw, dict):
@@ -200,10 +173,7 @@ def load_config() -> FrozenHypothesisConfig:
         "null_test.metric",
     )
 
-    if metric not in {
-        "lift",
-        "return_difference",
-    }:
+    if metric not in {"lift", "return_difference"}:
         raise ValueError(
             "null_test.metric måste vara 'lift' "
             "eller 'return_difference'."
@@ -227,9 +197,7 @@ def load_config() -> FrozenHypothesisConfig:
             source["discovery_end_date"],
             "discovery_end_date",
         ),
-        candidate=_parse_candidate(
-            candidate_raw
-        ),
+        candidate=_parse_candidate(candidate_raw),
         evaluation=FrozenEvaluationConfig(
             start_date=_parse_date(
                 evaluation_raw["start_date"],
@@ -243,32 +211,20 @@ def load_config() -> FrozenHypothesisConfig:
         null_test=FrozenNullConfig(
             metric=metric,
             permutations=int(
-                null_raw.get(
-                    "permutations",
-                    1000,
-                )
+                null_raw.get("permutations", 1000)
             ),
             seed=int(
-                null_raw.get(
-                    "seed",
-                    42,
-                )
+                null_raw.get("seed", 42)
             ),
         ),
     )
 
-    if (
-        result.evaluation.start_date
-        <= result.discovery_end_date
-    ):
+    if result.evaluation.start_date <= result.discovery_end_date:
         raise ValueError(
             "OOS-perioden måste börja efter discovery_end_date."
         )
 
-    if (
-        result.evaluation.end_date
-        < result.evaluation.start_date
-    ):
+    if result.evaluation.end_date < result.evaluation.start_date:
         raise ValueError(
             "evaluation.end_date måste vara >= evaluation.start_date."
         )
