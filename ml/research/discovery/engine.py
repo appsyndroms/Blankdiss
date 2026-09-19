@@ -587,6 +587,35 @@ def pool_results(
             "mean_return",
         )
 
+        window_metrics = [
+            {
+                "window": row["window"],
+                "n": row["n"],
+                "events": row["events"],
+                "event_rate": row["event_rate"],
+                "baseline_event_rate": row[
+                    "baseline_event_rate"
+                ],
+                "lift": row["lift"],
+                "mean_return": row[
+                    "mean_return"
+                ],
+                "rest_mean_return": row[
+                    "rest_mean_return"
+                ],
+                "return_difference": row[
+                    "return_difference"
+                ],
+                "bootstrap_ci_low": row[
+                    "bootstrap_ci_low"
+                ],
+                "bootstrap_ci_high": row[
+                    "bootstrap_ci_high"
+                ],
+            }
+            for row in valid_rows
+        ]
+
         pooled.append(
             {
                 "candidate_id": candidate_id,
@@ -632,6 +661,35 @@ def pool_results(
                 "return_difference": _mean(
                     return_differences
                 ),
+                "lift_min": min(
+                    lift_values,
+                    default=None,
+                ),
+                "lift_max": max(
+                    lift_values,
+                    default=None,
+                ),
+                "lift_spread": (
+                    max(lift_values)
+                    - min(lift_values)
+                    if lift_values
+                    else None
+                ),
+                "return_difference_min": min(
+                    return_differences,
+                    default=None,
+                ),
+                "return_difference_max": max(
+                    return_differences,
+                    default=None,
+                ),
+                "return_difference_spread": (
+                    max(return_differences)
+                    - min(return_differences)
+                    if return_differences
+                    else None
+                ),
+                "window_metrics": window_metrics,
                 "stable_lift_windows": sum(
                     1
                     for row in valid_rows
