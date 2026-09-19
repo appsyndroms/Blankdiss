@@ -4,934 +4,1143 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    brier_score_loss,
-    log_loss,
-    roc_auc_score,
-)
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score
+
+from ml.config import RANDOM_STATE
+from ml.dataset import get_feature_columns
+from ml.models import build_models
 
 from .base import ExperimentResult
 
 
-RANDOM_STATE = 42
+BENCHMARK_TREES = 100
+
+ECONOMIC_TARGET = "down_5pct_5d"
+
+VOLATILITY_FEATURE = (
+    "price_volatility_20d"
+)
+
+ECONOMIC_FRACTIONS = (
+    0.001,
+    0.005,
+    0.01,
+    0.02,
+    0.05,
+)
+
+REGIMES = (
+    "LOW",
+    "MID",
+    "HIGH",
+)
+
+STRATEGIES = (
+    "fi_only",
+    "fi_plus_volatility",
+    "gate_validation",
+    "gate_vol_mid_high",
+)
 
 
 def _numeric(
     frame: pd.DataFrame,
     column: str,
 ) -> pd.Series:
+    values = frame[column]
+
+    if isinstance(values, pd.DataFrame):
+        values = values.iloc[:, 0]
+
     return pd.to_numeric(
-        frame[column],
+        values,
         errors="coerce",
     )
 
 
-def _model() -> Pipeline:
-    return Pipeline(
-        [
-            (
-                "scaler",
-                StandardScaler(),
-            ),
-            (
-                "model",
-                LogisticRegression(
-                    max_iter=2_000,
-                    C=1.0,
-                    class_weight="balanced",
-                    random_state=RANDOM_STATE,
-                ),
-            ),
-        ]
-    )
-
-
-def _fit(
-    frame: pd.DataFrame,
-    features: list[str],
-    target: str,
-) -> Pipeline | None:
-    if not features:
-        return None
-
-    data = frame[
-        features + [target]
-    ].copy()
-
-    for column in features:
-        data[column] = _numeric(
-            data,
-            column,
-        )
-
-    data[target] = _numeric(
-        data,
-        target,
-    )
-
-    data = data.dropna()
-
-    if len(data) < 30:
-        return None
-
-    if data[target].nunique() < 2:
-        return None
-
-    model = _model()
-
-    model.fit(
-        data[features],
-        data[target],
-    )
-
-    return model
-
-
-def _predict(
-    model: Pipeline | None,
-    frame: pd.DataFrame,
-    features: list[str],
-) -> pd.Series:
-    result = pd.Series(
-        np.nan,
-        index=frame.index,
+def _safe_auc(
+    y_true,
+    scores,
+) -> float:
+    y = np.asarray(
+        y_true,
         dtype=float,
     )
 
-    if model is None or not features:
-        return result
-
-    data = frame[
-        features
-    ].copy()
-
-    for column in features:
-        data[column] = _numeric(
-            data,
-            column,
-        )
-
-    valid = data.notna().all(axis=1)
-
-    if valid.any():
-        result.loc[valid] = (
-            model.predict_proba(
-                data.loc[
-                    valid,
-                    features,
-                ]
-            )[:, 1]
-        )
-
-    return result
-
-
-def _target(
-    frame: pd.DataFrame,
-    target: str,
-) -> pd.Series:
-    if target in frame.columns:
-        return _numeric(
-            frame,
-            target,
-        ).astype(float)
-
-    if target == "down_5pct_5d":
-        return (
-            _numeric(
-                frame,
-                "forward_return_5d",
-            )
-            <= -0.05
-        ).astype(int)
-
-    if target == "down_3pct_5d":
-        return (
-            _numeric(
-                frame,
-                "forward_return_5d",
-            )
-            <= -0.03
-        ).astype(int)
-
-    if target == "down_7pct_5d":
-        return (
-            _numeric(
-                frame,
-                "forward_return_5d",
-            )
-            <= -0.07
-        ).astype(int)
-
-    if target == "down_10pct_5d":
-        return (
-            _numeric(
-                frame,
-                "forward_return_5d",
-            )
-            <= -0.10
-        ).astype(int)
-
-    raise KeyError(
-        f"Target saknas: {target}"
+    score = np.asarray(
+        scores,
+        dtype=float,
     )
 
-
-def _auc(
-    y: pd.Series,
-    score: pd.Series,
-) -> float:
     valid = (
-        y.notna()
-        & score.notna()
+        np.isfinite(y)
+        & np.isfinite(score)
     )
 
-    if valid.sum() < 20:
+    y = y[valid]
+    score = score[valid]
+
+    if len(y) == 0:
         return np.nan
 
-    y_valid = y.loc[valid]
-
-    if y_valid.nunique() < 2:
+    if len(np.unique(y)) < 2:
         return np.nan
 
     return float(
         roc_auc_score(
-            y_valid,
-            score.loc[valid],
+            y,
+            score,
         )
     )
 
 
-def _evaluate(
-    y: pd.Series,
-    score: pd.Series,
-) -> dict[str, Any]:
-    valid = (
-        y.notna()
-        & score.notna()
+def _make_target(
+    frame: pd.DataFrame,
+) -> pd.Series:
+    return (
+        _numeric(
+            frame,
+            "forward_return_5d",
+        )
+        <= -0.05
+    ).astype(int)
+
+
+def _build_models() -> dict[str, Any]:
+    models = build_models(
+        RANDOM_STATE,
+        task="classification",
     )
 
-    if valid.sum() == 0:
+    random_forest = models.get(
+        "random_forest"
+    )
+
+    if random_forest is not None:
+        random_forest.set_params(
+            model__n_estimators=(
+                BENCHMARK_TREES
+            ),
+            model__n_jobs=1,
+        )
+
+    return models
+
+
+def _available_features(
+    train: pd.DataFrame,
+    requested: list[str],
+) -> list[str]:
+    result = []
+
+    for column in requested:
+        if column not in train.columns:
+            continue
+
+        if train[column].notna().any():
+            result.append(column)
+
+    return result
+
+
+def _train_and_select(
+    train: pd.DataFrame,
+    validation: pd.DataFrame,
+    feature_columns: list[str],
+    y_train: pd.Series,
+    y_validation: pd.Series,
+) -> dict[str, Any]:
+    features = _available_features(
+        train,
+        feature_columns,
+    )
+
+    if not features:
+        raise RuntimeError(
+            "No requested features available "
+            "in training data."
+        )
+
+    train_x = train[
+        features
+    ].copy()
+
+    validation_x = validation[
+        features
+    ].copy()
+
+    models = _build_models()
+
+    trained = []
+
+    for name, model in models.items():
+        model.fit(
+            train_x,
+            y_train,
+        )
+
+        validation_prediction = (
+            model.predict_proba(
+                validation_x
+            )[:, 1]
+        )
+
+        validation_auc = _safe_auc(
+            y_validation,
+            validation_prediction,
+        )
+
+        print(
+            f"    {name}: "
+            f"validation AUC="
+            f"{validation_auc:.6f}"
+        )
+
+        trained.append(
+            {
+                "name": name,
+                "model": model,
+                "validation_auc": (
+                    validation_auc
+                ),
+            }
+        )
+
+    if not trained:
+        raise RuntimeError(
+            "No models were trained."
+        )
+
+    trained.sort(
+        key=lambda item: (
+            item["validation_auc"]
+            if np.isfinite(
+                item["validation_auc"]
+            )
+            else -np.inf
+        ),
+        reverse=True,
+    )
+
+    selected = trained[0]
+
+    return {
+        "selected_model": selected[
+            "name"
+        ],
+        "model": selected[
+            "model"
+        ],
+        "validation_auc": selected[
+            "validation_auc"
+        ],
+        "features": features,
+        "all_models": trained,
+    }
+
+
+def _calculate_training_regime_boundaries(
+    train: pd.DataFrame,
+) -> tuple[float, float]:
+    values = _numeric(
+        train,
+        VOLATILITY_FEATURE,
+    ).dropna()
+
+    if values.empty:
+        raise RuntimeError(
+            "No training volatility values available."
+        )
+
+    q1 = float(
+        values.quantile(
+            1.0 / 3.0
+        )
+    )
+
+    q2 = float(
+        values.quantile(
+            2.0 / 3.0
+        )
+    )
+
+    return q1, q2
+
+
+def _assign_regime(
+    volatility,
+    q1: float,
+    q2: float,
+):
+    if pd.isna(volatility):
+        return None
+
+    if volatility <= q1:
+        return "LOW"
+
+    if volatility <= q2:
+        return "MID"
+
+    return "HIGH"
+
+
+def _calculate_top_metrics(
+    frame: pd.DataFrame,
+    score_column: str,
+    fraction: float,
+) -> dict[str, Any]:
+    valid = frame.loc[
+        frame[score_column].notna()
+        & frame["target"].notna()
+        & frame["target_return"].notna()
+    ].copy()
+
+    if valid.empty:
         return {
             "n": 0,
-            "auc": np.nan,
-            "brier": np.nan,
-            "log_loss": np.nan,
+            "event_rate": np.nan,
+            "lift": np.nan,
+            "mean_return": np.nan,
+            "median_return": np.nan,
         }
 
-    y_valid = y.loc[valid]
-    score_valid = score.loc[valid]
-
-    result = {
-        "n": int(valid.sum()),
-        "auc": _auc(
-            y_valid,
-            score_valid,
-        ),
-        "brier": float(
-            brier_score_loss(
-                y_valid,
-                score_valid,
+    n = max(
+        1,
+        int(
+            np.ceil(
+                len(valid)
+                * fraction
             )
+        ),
+    )
+
+    ranked = (
+        valid
+        .sort_values(
+            score_column,
+            ascending=False,
+        )
+        .head(n)
+    )
+
+    event_rate = float(
+        ranked["target"].mean()
+    )
+
+    baseline = float(
+        valid["target"].mean()
+    )
+
+    lift = (
+        event_rate / baseline
+        if baseline > 0
+        else np.nan
+    )
+
+    return {
+        "n": int(len(ranked)),
+        "event_rate": event_rate,
+        "lift": lift,
+        "mean_return": float(
+            ranked["target_return"].mean()
+        ),
+        "median_return": float(
+            ranked["target_return"].median()
         ),
     }
 
-    if y_valid.nunique() >= 2:
-        result["log_loss"] = float(
-            log_loss(
-                y_valid,
-                score_valid,
-                labels=[0, 1],
-            )
-        )
-    else:
-        result["log_loss"] = np.nan
+
+def _build_output_frame(
+    source: pd.DataFrame,
+    prediction: np.ndarray,
+) -> pd.DataFrame:
+    result = source[
+        [
+            "snapshot_date",
+            "security_key",
+            "forward_return_5d",
+        ]
+    ].copy()
+
+    result = result.rename(
+        columns={
+            "forward_return_5d":
+                "target_return",
+        }
+    )
+
+    result["target"] = _make_target(
+        source
+    )
+
+    result["prediction"] = prediction
 
     return result
 
 
-def _feature_set_results(
-    context,
-    feature_sets: dict[str, tuple[str, ...]],
-    target: str,
-) -> ExperimentResult:
-    train = context.train.copy()
-    validation = context.validation.copy()
-    test = context.test.copy()
-
-    y_train = _target(
-        train,
-        target,
+def _select_regime_gate(
+    fi_validation: pd.DataFrame,
+    vol_validation: pd.DataFrame,
+    q1: float,
+    q2: float,
+) -> dict[str, str]:
+    fi = fi_validation[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            VOLATILITY_FEATURE,
+            "prediction",
+        ]
+    ].rename(
+        columns={
+            "prediction":
+                "fi_prediction",
+        }
     )
 
-    y_validation = _target(
-        validation,
-        target,
+    vol = vol_validation[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "prediction",
+        ]
+    ].rename(
+        columns={
+            "prediction":
+                "vol_prediction",
+        }
     )
 
-    y_test = _target(
-        test,
-        target,
+    merged = fi.merge(
+        vol,
+        on=[
+            "snapshot_date",
+            "security_key",
+        ],
+        how="inner",
+        suffixes=(
+            "_fi",
+            "_vol",
+        ),
+        validate="one_to_one",
     )
 
-    rows = []
+    merged["regime"] = (
+        merged[
+            VOLATILITY_FEATURE
+        ]
+        .apply(
+            lambda value:
+            _assign_regime(
+                value,
+                q1,
+                q2,
+            )
+        )
+    )
 
-    for name, requested in feature_sets.items():
-        features = [
-            column
-            for column in requested
-            if column in train.columns
+    gate: dict[str, str] = {}
+
+    print()
+    print(
+        "Validation regime selection:"
+    )
+
+    for regime in REGIMES:
+        subset = merged.loc[
+            merged["regime"] == regime
         ]
 
-        model = _fit(
-            train.assign(
-                _target=y_train
-            ),
-            features,
-            "_target",
+        fi_auc = _safe_auc(
+            subset["target_fi"],
+            subset["fi_prediction"],
         )
 
-        if model is None:
-            continue
-
-        validation_score = _predict(
-            model,
-            validation,
-            features,
+        vol_auc = _safe_auc(
+            subset["target_vol"],
+            subset["vol_prediction"],
         )
 
-        validation_metrics = _evaluate(
-            y_validation,
-            validation_score,
-        )
-
-        combined = pd.concat(
-            [
-                train,
-                validation,
-            ],
-            ignore_index=True,
-        )
-
-        combined_target = pd.concat(
-            [
-                y_train,
-                y_validation,
-            ],
-            ignore_index=True,
-        )
-
-        final_model = _fit(
-            combined.assign(
-                _target=combined_target
-            ),
-            features,
-            "_target",
-        )
-
-        test_score = _predict(
-            final_model,
-            test,
-            features,
-        )
-
-        test_metrics = _evaluate(
-            y_test,
-            test_score,
-        )
-
-        rows.append(
-            {
-                "feature_set": name,
-                "features": ",".join(features),
-                "validation_n": validation_metrics["n"],
-                "validation_auc": validation_metrics["auc"],
-                "validation_brier": validation_metrics["brier"],
-                "validation_log_loss": validation_metrics["log_loss"],
-                "test_n": test_metrics["n"],
-                "test_auc": test_metrics["auc"],
-                "test_brier": test_metrics["brier"],
-                "test_log_loss": test_metrics["log_loss"],
-            }
-        )
-
-    result = ExperimentResult(
-        name="volatility_screening",
-        description=(
-            "Volatility logistic screening."
-        ),
-    )
-
-    result.add_table(
-        "models",
-        pd.DataFrame(rows),
-    )
-
-    return result
-
-
-def run_logistic_screen(
-    context,
-    *,
-    feature_sets: dict[str, tuple[str, ...]],
-    target: str,
-) -> ExperimentResult:
-    return _feature_set_results(
-        context,
-        feature_sets,
-        target,
-    )
-
-
-def run_feature_set_comparison(
-    context,
-    *,
-    feature_sets: dict[str, str],
-    target: str,
-) -> ExperimentResult:
-    definitions = {
-        "fi": (
-            "short_interest",
-            "short_interest_change",
-            "short_interest_pct",
-            "short_interest_delta",
-            "short_interest_rank",
-            "short_interest_zscore",
-        ),
-        "volatility": (
-            "price_volatility_20d",
-        ),
-        "fi_plus_volatility": (
-            "short_interest",
-            "short_interest_change",
-            "short_interest_pct",
-            "short_interest_delta",
-            "short_interest_rank",
-            "short_interest_zscore",
-            "price_volatility_20d",
-        ),
-    }
-
-    resolved = {}
-
-    for name, definition in feature_sets.items():
-        if isinstance(
-            definition,
-            str,
+        if (
+            np.isfinite(fi_auc)
+            and np.isfinite(vol_auc)
         ):
-            resolved[name] = definitions.get(
-                definition,
-                (),
+            selected = (
+                "fi"
+                if fi_auc >= vol_auc
+                else "vol"
             )
+        elif np.isfinite(fi_auc):
+            selected = "fi"
+        elif np.isfinite(vol_auc):
+            selected = "vol"
         else:
-            resolved[name] = tuple(
-                definition
-            )
+            selected = "fi"
 
-    return _feature_set_results(
-        context,
-        resolved,
-        target,
-    )
+        gate[regime] = selected
 
-
-def run_interaction_screen(
-    context,
-    *,
-    base_features: tuple[str, ...],
-    interactions: dict[str, tuple[str, str]],
-    target: str,
-) -> ExperimentResult:
-    train = context.train.copy()
-    validation = context.validation.copy()
-    test = context.test.copy()
-
-    for name, (left, right) in interactions.items():
-        for frame in (
-            train,
-            validation,
-            test,
-        ):
-            if (
-                left in frame.columns
-                and right in frame.columns
-            ):
-                frame[name] = (
-                    _numeric(frame, left)
-                    * _numeric(frame, right)
-                )
-
-    feature_sets = {}
-
-    base = tuple(
-        column
-        for column in base_features
-        if column in train.columns
-    )
-
-    for name, interaction in interactions.items():
-        features = base + (
-            name,
+        print(
+            f"  {regime}: "
+            f"rows={len(subset):,} "
+            f"FI AUC={fi_auc:.6f} | "
+            f"FI+VOL AUC={vol_auc:.6f} | "
+            f"selected={selected}"
         )
 
-        features = tuple(
-            column
-            for column in features
-            if column in train.columns
-        )
+    return gate
 
-        feature_sets[name] = features
 
-    return _feature_set_results(
-        context,
-        feature_sets,
-        target,
+def _apply_strategy(
+    fi_test: pd.DataFrame,
+    vol_test: pd.DataFrame,
+    strategy: str,
+    gate: dict[str, str],
+    q1: float,
+    q2: float,
+) -> pd.DataFrame:
+    fi = fi_test[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            VOLATILITY_FEATURE,
+            "prediction",
+        ]
+    ].rename(
+        columns={
+            "prediction":
+                "fi_prediction",
+        }
     )
 
+    vol = vol_test[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            "prediction",
+        ]
+    ].rename(
+        columns={
+            "prediction":
+                "vol_prediction",
+        }
+    )
 
-def run_descriptive_volatility_analysis(
-    context,
-    *,
-    volatility_column: str,
-    targets: tuple[str, ...],
-) -> ExperimentResult:
-    pretest = context.pretest.copy()
-    test = context.test.copy()
-
-    if volatility_column not in pretest.columns:
-        raise KeyError(
-            f"Saknar {volatility_column}"
-        )
-
-    thresholds = {
-        "q50": float(
-            _numeric(
-                pretest,
-                volatility_column,
-            ).quantile(0.50)
+    merged = fi.merge(
+        vol,
+        on=[
+            "snapshot_date",
+            "security_key",
+        ],
+        how="inner",
+        suffixes=(
+            "_fi",
+            "_vol",
         ),
-        "q80": float(
-            _numeric(
-                pretest,
-                volatility_column,
-            ).quantile(0.80)
-        ),
-        "q90": float(
-            _numeric(
-                pretest,
-                volatility_column,
-            ).quantile(0.90)
-        ),
-    }
-
-    rows = []
-
-    volatility = _numeric(
-        test,
-        volatility_column,
+        validate="one_to_one",
     )
 
-    for regime, threshold in thresholds.items():
-        if regime == "q50":
-            mask = volatility <= threshold
-        elif regime == "q80":
-            mask = volatility > thresholds["q50"]
-            mask &= volatility <= threshold
-        else:
-            mask = volatility > threshold
-
-        subset = test.loc[
-            mask
-        ].copy()
-
-        for target in targets:
-            y = _target(
-                subset,
-                target,
-            )
-
-            returns = (
-                _numeric(
-                    subset,
-                    "forward_return_5d",
-                )
-                if "forward_return_5d"
-                in subset.columns
-                else pd.Series(
-                    np.nan,
-                    index=subset.index,
-                )
-            )
-
-            rows.append(
-                {
-                    "regime": regime,
-                    "n": len(subset),
-                    "target": target,
-                    "event_rate": float(
-                        y.mean()
-                    )
-                    if len(y)
-                    else np.nan,
-                    "mean_return": float(
-                        returns.mean()
-                    )
-                    if returns.notna().any()
-                    else np.nan,
-                }
-            )
-
-    result = ExperimentResult(
-        name="volatility_diagnostics",
-        description=(
-            "Descriptive volatility diagnostics."
-        ),
-    )
-
-    result.add_table(
-        "regimes",
-        pd.DataFrame(rows),
-    )
-
-    result.add_metadata(
-        "training_thresholds",
-        thresholds,
-    )
-
-    return result
-
-
-def run_directional_tail_analysis(
-    context,
-    *,
-    volatility_column: str,
-    event_tail_fractions: tuple[float, ...],
-) -> ExperimentResult:
-    train = context.train.copy()
-    test = context.test.copy()
-
-    train["event_size"] = _numeric(
-        train,
-        "forward_return_5d",
+    target_difference = (
+        merged["target_return_fi"]
+        - merged["target_return_vol"]
     ).abs()
 
-    test["event_size"] = _numeric(
-        test,
-        "forward_return_5d",
-    ).abs()
+    if (
+        target_difference
+        > 1e-10
+    ).any():
+        raise ValueError(
+            "Target return mismatch between "
+            "FI and FI+VOL test rows."
+        )
 
-    rows = []
+    merged["target"] = (
+        merged["target_fi"]
+    )
 
-    for fraction in event_tail_fractions:
-        threshold = float(
-            train["event_size"].quantile(
-                1.0 - fraction
+    merged["target_return"] = (
+        merged["target_return_fi"]
+    )
+
+    merged["regime"] = (
+        merged[
+            VOLATILITY_FEATURE
+        ]
+        .apply(
+            lambda value:
+            _assign_regime(
+                value,
+                q1,
+                q2,
+            )
+        )
+    )
+
+    if strategy == "fi_only":
+        merged["score"] = (
+            merged["fi_prediction"]
+        )
+
+        merged["chosen_model"] = "FI"
+
+    elif strategy == "fi_plus_volatility":
+        merged["score"] = (
+            merged["vol_prediction"]
+        )
+
+        merged["chosen_model"] = (
+            "FI+VOL"
+        )
+
+    elif strategy == "gate_validation":
+        selected = (
+            merged["regime"]
+            .map(
+                lambda regime:
+                gate.get(
+                    regime,
+                    "fi",
+                )
             )
         )
 
-        subset = test.loc[
-            test["event_size"] >= threshold
-        ].copy()
-
-        if subset.empty:
-            continue
-
-        volatility = _numeric(
-            subset,
-            volatility_column,
+        merged["score"] = np.where(
+            selected == "vol",
+            merged["vol_prediction"],
+            merged["fi_prediction"],
         )
 
-        direction = (
-            _numeric(
-                subset,
-                "forward_return_5d",
-            )
-            <= 0
-        ).astype(int)
-
-        valid = (
-            volatility.notna()
-            & direction.notna()
+        merged["chosen_model"] = np.where(
+            selected == "vol",
+            "FI+VOL",
+            "FI",
         )
 
-        auc = _auc(
-            direction.loc[valid],
-            volatility.loc[valid],
+    elif strategy == "gate_vol_mid_high":
+        selected = np.where(
+            merged["regime"] == "LOW",
+            "fi",
+            "vol",
         )
 
-        rows.append(
-            {
-                "event_tail": fraction,
-                "training_threshold": threshold,
-                "n": int(valid.sum()),
-                "down_rate": float(
-                    direction.loc[valid].mean()
-                )
-                if valid.any()
-                else np.nan,
-                "volatility_auc": auc,
-                "mean_volatility": float(
-                    volatility.loc[valid].mean()
-                )
-                if valid.any()
-                else np.nan,
-            }
+        merged["score"] = np.where(
+            selected == "vol",
+            merged["vol_prediction"],
+            merged["fi_prediction"],
         )
 
-    result = ExperimentResult(
-        name="volatility_directional_tail",
-        description=(
-            "Volatility direction within "
-            "event-risk tails."
-        ),
-    )
+        merged["chosen_model"] = np.where(
+            selected == "vol",
+            "FI+VOL",
+            "FI",
+        )
 
-    result.add_table(
-        "directional_tail",
-        pd.DataFrame(rows),
-    )
+    else:
+        raise ValueError(
+            f"Unknown strategy: "
+            f"{strategy}"
+        )
 
-    return result
+    return merged[
+        [
+            "snapshot_date",
+            "security_key",
+            "target_return",
+            "target",
+            VOLATILITY_FEATURE,
+            "regime",
+            "score",
+            "chosen_model",
+        ]
+    ].copy()
 
 
 def run_volatility_regime(
     context,
     *,
-    volatility_column: str,
-    strategies: tuple[str, ...],
+    volatility_column: str = (
+        VOLATILITY_FEATURE
+    ),
+    strategies: tuple[str, ...] = (
+        STRATEGIES
+    ),
 ) -> ExperimentResult:
-    fi_features = tuple(
-        column
-        for column in (
-            "short_interest",
-            "short_interest_change",
-            "short_interest_pct",
-            "short_interest_delta",
-            "short_interest_rank",
-            "short_interest_zscore",
+    if volatility_column != (
+        VOLATILITY_FEATURE
+    ):
+        raise ValueError(
+            "Historical volatility-regime "
+            "diagnostic uses "
+            f"'{VOLATILITY_FEATURE}'."
         )
-        if column in context.train.columns
-    )
-
-    vol_features = fi_features + (
-        volatility_column,
-    )
 
     train = context.train.copy()
     validation = context.validation.copy()
     test = context.test.copy()
 
-    y_train = (
-        _numeric(
-            train,
-            "forward_return_5d",
-        )
-        <= -0.05
-    ).astype(int)
+    required = [
+        "snapshot_date",
+        "security_key",
+        "forward_return_5d",
+        VOLATILITY_FEATURE,
+    ]
 
-    y_validation = (
-        _numeric(
-            validation,
-            "forward_return_5d",
-        )
-        <= -0.05
-    ).astype(int)
+    missing = [
+        column
+        for column in required
+        if column not in context.data.columns
+    ]
 
-    y_test = (
-        _numeric(
-            test,
-            "forward_return_5d",
+    if missing:
+        raise KeyError(
+            "Missing required columns: "
+            f"{missing}"
         )
-        <= -0.05
-    ).astype(int)
 
-    fi_model = _fit(
-        train.assign(
-            _target=y_train
-        ),
-        list(fi_features),
-        "_target",
+    y_train = _make_target(
+        train
     )
 
-    vol_model = _fit(
-        train.assign(
-            _target=y_train
-        ),
-        list(vol_features),
-        "_target",
+    y_validation = _make_target(
+        validation
     )
 
-    fi_validation = _predict(
-        fi_model,
+    y_test = _make_target(
+        test
+    )
+
+    # ------------------------------------------------------------------
+    # Resolve the same feature families used by the historical
+    # prepare_feature_set() calls.
+    # ------------------------------------------------------------------
+
+    fi_features = get_feature_columns(
+        context.data,
+        include_price_features=False,
+        price_features=None,
+    )
+
+    vol_features = get_feature_columns(
+        context.data,
+        include_price_features=True,
+        price_features={
+            VOLATILITY_FEATURE,
+        },
+    )
+
+    fi_features = _available_features(
+        train,
+        fi_features,
+    )
+
+    vol_features = _available_features(
+        train,
+        vol_features,
+    )
+
+    print()
+    print(
+        f"FI-only features: "
+        f"{len(fi_features)}"
+    )
+
+    print(
+        f"FI+volatility features: "
+        f"{len(vol_features)}"
+    )
+
+    # ------------------------------------------------------------------
+    # Regime boundaries are TRAIN-only.
+    # ------------------------------------------------------------------
+
+    q1, q2 = (
+        _calculate_training_regime_boundaries(
+            train
+        )
+    )
+
+    print()
+    print(
+        "Training volatility boundaries:"
+    )
+
+    print(
+        f"  LOW <= {q1:.6f}"
+    )
+
+    print(
+        f"  MID <= {q2:.6f}"
+    )
+
+    print(
+        f"  HIGH > {q2:.6f}"
+    )
+
+    # ------------------------------------------------------------------
+    # FI model.
+    # ------------------------------------------------------------------
+
+    print()
+    print(
+        "Training FI-only models..."
+    )
+
+    fi_result = _train_and_select(
+        train,
         validation,
-        list(fi_features),
+        fi_features,
+        y_train,
+        y_validation,
     )
 
-    vol_validation = _predict(
-        vol_model,
-        validation,
-        list(vol_features),
+    fi_validation_prediction = (
+        fi_result["model"]
+        .predict_proba(
+            validation[
+                fi_result["features"]
+            ]
+        )[:, 1]
     )
 
-    q1 = float(
-        _numeric(
-            train,
-            volatility_column,
-        ).quantile(
-            1 / 3
-        )
+    fi_test_prediction = (
+        fi_result["model"]
+        .predict_proba(
+            test[
+                fi_result["features"]
+            ]
+        )[:, 1]
     )
 
-    q2 = float(
-        _numeric(
-            train,
-            volatility_column,
-        ).quantile(
-            2 / 3
-        )
-    )
-
-    def regime(values):
-        return pd.Series(
-            np.where(
-                values <= q1,
-                "LOW",
-                np.where(
-                    values <= q2,
-                    "MID",
-                    "HIGH",
-                ),
-            ),
-            index=values.index,
-        )
-
-    validation_regime = regime(
-        _numeric(
+    fi_validation = (
+        _build_output_frame(
             validation,
-            volatility_column,
+            fi_validation_prediction,
         )
     )
 
-    gate = {}
-
-    for name in (
-        "LOW",
-        "MID",
-        "HIGH",
-    ):
-        mask = (
-            validation_regime == name
-        )
-
-        fi_auc = _auc(
-            y_validation.loc[mask],
-            fi_validation.loc[mask],
-        )
-
-        vol_auc = _auc(
-            y_validation.loc[mask],
-            vol_validation.loc[mask],
-        )
-
-        gate[name] = (
-            "vol"
-            if np.isfinite(vol_auc)
-            and (
-                not np.isfinite(fi_auc)
-                or vol_auc > fi_auc
-            )
-            else "fi"
-        )
-
-    fi_test = _predict(
-        fi_model,
-        test,
-        list(fi_features),
-    )
-
-    vol_test = _predict(
-        vol_model,
-        test,
-        list(vol_features),
-    )
-
-    test_regime = regime(
-        _numeric(
+    fi_test = (
+        _build_output_frame(
             test,
-            volatility_column,
+            fi_test_prediction,
         )
     )
 
-    rows = []
+    # Volatility is metadata for the gate.
+    fi_validation[
+        VOLATILITY_FEATURE
+    ] = _numeric(
+        validation,
+        VOLATILITY_FEATURE,
+    ).to_numpy()
+
+    fi_test[
+        VOLATILITY_FEATURE
+    ] = _numeric(
+        test,
+        VOLATILITY_FEATURE,
+    ).to_numpy()
+
+    # ------------------------------------------------------------------
+    # FI + volatility model.
+    # ------------------------------------------------------------------
+
+    print()
+    print(
+        "Training FI+volatility models..."
+    )
+
+    vol_result = _train_and_select(
+        train,
+        validation,
+        vol_features,
+        y_train,
+        y_validation,
+    )
+
+    vol_validation_prediction = (
+        vol_result["model"]
+        .predict_proba(
+            validation[
+                vol_result["features"]
+            ]
+        )[:, 1]
+    )
+
+    vol_test_prediction = (
+        vol_result["model"]
+        .predict_proba(
+            test[
+                vol_result["features"]
+            ]
+        )[:, 1]
+    )
+
+    vol_validation = (
+        _build_output_frame(
+            validation,
+            vol_validation_prediction,
+        )
+    )
+
+    vol_test = (
+        _build_output_frame(
+            test,
+            vol_test_prediction,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # Gate selection is VALIDATION-only.
+    # ------------------------------------------------------------------
+
+    gate = _select_regime_gate(
+        fi_validation,
+        vol_validation,
+        q1,
+        q2,
+    )
+
+    # ------------------------------------------------------------------
+    # Apply frozen strategies to TEST.
+    # ------------------------------------------------------------------
+
+    strategy_rows = []
+    strategy_tables: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
 
     for strategy in strategies:
-        if strategy == "fi_only":
-            score = fi_test
-        elif strategy == "fi_plus_volatility":
-            score = vol_test
-        elif strategy == "gate_validation":
-            score = pd.Series(
-                np.where(
-                    test_regime.map(gate)
-                    == "vol",
-                    vol_test,
-                    fi_test,
-                ),
-                index=test.index,
-            )
-        elif strategy == "gate_vol_mid_high":
-            score = pd.Series(
-                np.where(
-                    test_regime == "LOW",
-                    fi_test,
-                    vol_test,
-                ),
-                index=test.index,
-            )
-        else:
-            raise ValueError(
-                f"Unknown strategy: {strategy}"
-            )
-
-        metrics = _evaluate(
-            y_test,
-            score,
+        frame = _apply_strategy(
+            fi_test,
+            vol_test,
+            strategy,
+            gate,
+            q1,
+            q2,
         )
 
-        rows.append(
+        strategy_tables[strategy] = (
+            frame
+        )
+
+        auc = _safe_auc(
+            frame["target"],
+            frame["score"],
+        )
+
+        top_metrics = {}
+
+        for fraction in (
+            ECONOMIC_FRACTIONS
+        ):
+            metrics = (
+                _calculate_top_metrics(
+                    frame,
+                    "score",
+                    fraction,
+                )
+            )
+
+            key = (
+                f"top_"
+                f"{fraction:g}"
+            )
+
+            top_metrics[
+                key
+            ] = metrics
+
+        row = {
+            "strategy": strategy,
+            "test_rows": int(
+                len(frame)
+            ),
+            "test_auc": auc,
+        }
+
+        for fraction in (
+            ECONOMIC_FRACTIONS
+        ):
+            metrics = top_metrics[
+                f"top_{fraction:g}"
+            ]
+
+            suffix = (
+                str(fraction)
+                .replace(
+                    ".",
+                    "_",
+                )
+            )
+
+            row[
+                f"top_{suffix}_n"
+            ] = metrics["n"]
+
+            row[
+                f"top_{suffix}_event_rate"
+            ] = metrics[
+                "event_rate"
+            ]
+
+            row[
+                f"top_{suffix}_lift"
+            ] = metrics["lift"]
+
+            row[
+                f"top_{suffix}_mean_return"
+            ] = metrics[
+                "mean_return"
+            ]
+
+            row[
+                f"top_{suffix}_median_return"
+            ] = metrics[
+                "median_return"
+            ]
+
+        strategy_rows.append(
+            row
+        )
+
+    # ------------------------------------------------------------------
+    # Regime-level gate information.
+    # ------------------------------------------------------------------
+
+    gate_rows = []
+
+    for regime in REGIMES:
+        subset = fi_validation.loc[
+            fi_validation[
+                VOLATILITY_FEATURE
+            ].apply(
+                lambda value:
+                _assign_regime(
+                    value,
+                    q1,
+                    q2,
+                )
+            )
+            == regime
+        ]
+
+        fi_auc = _safe_auc(
+            subset["target"],
+            subset["prediction"],
+        )
+
+        vol_subset = vol_validation.loc[
+            vol_validation[
+                VOLATILITY_FEATURE
+            ].apply(
+                lambda value:
+                _assign_regime(
+                    value,
+                    q1,
+                    q2,
+                )
+            )
+            == regime
+        ]
+
+        vol_auc = _safe_auc(
+            vol_subset["target"],
+            vol_subset["prediction"],
+        )
+
+        gate_rows.append(
             {
-                "strategy": strategy,
-                **metrics,
+                "regime": regime,
+                "rows": int(
+                    len(subset)
+                ),
+                "fi_validation_auc": fi_auc,
+                "fi_plus_vol_validation_auc": (
+                    vol_auc
+                ),
+                "selected": gate.get(
+                    regime,
+                    "fi",
+                ),
             }
         )
+
+    # ------------------------------------------------------------------
+    # Result.
+    # ------------------------------------------------------------------
 
     result = ExperimentResult(
         name="volatility_regime",
         description=(
-            "Volatility regime gate diagnostic."
+            "Testar om en "
+            "volatility-regime-gate "
+            "förbättrar OOS-rankning "
+            "jämfört med fasta modeller."
         ),
     )
 
     result.add_table(
         "strategies",
-        pd.DataFrame(rows),
+        pd.DataFrame(
+            strategy_rows
+        ),
     )
 
     result.add_table(
         "validation_gate",
         pd.DataFrame(
-            [
-                {
-                    "regime": regime_name,
-                    "selected": selected,
-                }
-                for regime_name, selected
-                in gate.items()
-            ]
+            gate_rows
         ),
+    )
+
+    result.add_metadata(
+        "selected_fi_model",
+        fi_result[
+            "selected_model"
+        ],
+    )
+
+    result.add_metadata(
+        "selected_fi_validation_auc",
+        fi_result[
+            "validation_auc"
+        ],
+    )
+
+    result.add_metadata(
+        "selected_volatility_model",
+        vol_result[
+            "selected_model"
+        ],
+    )
+
+    result.add_metadata(
+        "selected_volatility_validation_auc",
+        vol_result[
+            "validation_auc"
+        ],
+    )
+
+    result.add_metadata(
+        "fi_feature_count",
+        len(fi_result[
+            "features"
+        ]),
+    )
+
+    result.add_metadata(
+        "fi_plus_volatility_feature_count",
+        len(vol_result[
+            "features"
+        ]),
     )
 
     result.add_metadata(
@@ -942,6 +1151,16 @@ def run_volatility_regime(
     result.add_metadata(
         "training_regime_q2",
         q2,
+    )
+
+    result.add_metadata(
+        "validation_gate",
+        gate,
+    )
+
+    result.add_metadata(
+        "strategies",
+        list(strategies),
     )
 
     return result
