@@ -5,7 +5,7 @@ from ml.diagnostics.framework import (
 )
 
 
-classSIConditionalModelComparisonExperiment(
+class SIConditionalModelComparisonExperiment(
     DiagnosticExperiment
 ):
     name = "si_conditional_model_comparison"
