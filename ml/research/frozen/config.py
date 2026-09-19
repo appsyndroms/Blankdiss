@@ -28,6 +28,7 @@ class FrozenEvaluationConfig:
 
 @dataclass(frozen=True)
 class FrozenNullConfig:
+    metric: str
     permutations: int
     seed: int
 
@@ -37,7 +38,6 @@ class FrozenHypothesisConfig:
     version: int
     hypothesis_id: str
     question: str
-
     discovery_run: str
     discovery_end_date: date
     candidate: FrozenCandidateConfig
@@ -155,40 +155,59 @@ def load_config() -> FrozenHypothesisConfig:
             "Okänd frozen hypothesis config-version."
         )
 
-    hypothesis = raw.get(
-        "hypothesis"
-    )
+    hypothesis = raw.get("hypothesis")
 
     if not isinstance(hypothesis, dict):
         raise ValueError(
             "'hypothesis' måste vara ett YAML-objekt."
         )
 
-    status = hypothesis.get(
-        "status"
-    )
-
-    if status != "frozen":
+    if hypothesis.get("status") != "frozen":
         raise ValueError(
             "Hypotesen måste ha status='frozen'."
         )
 
-    source = hypothesis.get(
-        "source"
-    )
+    source = hypothesis.get("source")
 
     if not isinstance(source, dict):
         raise ValueError(
             "'source' måste vara ett YAML-objekt."
         )
 
-    candidate = _parse_candidate(
-        hypothesis["candidate"]
+    candidate_raw = hypothesis.get("candidate")
+
+    if not isinstance(candidate_raw, dict):
+        raise ValueError(
+            "'candidate' måste vara ett YAML-objekt."
+        )
+
+    evaluation_raw = hypothesis.get("evaluation")
+
+    if not isinstance(evaluation_raw, dict):
+        raise ValueError(
+            "'evaluation' måste vara ett YAML-objekt."
+        )
+
+    null_raw = hypothesis.get("null_test")
+
+    if not isinstance(null_raw, dict):
+        raise ValueError(
+            "'null_test' måste vara ett YAML-objekt."
+        )
+
+    metric = _require_string(
+        null_raw.get("metric", "lift"),
+        "null_test.metric",
     )
 
-    evaluation = hypothesis["evaluation"]
-
-    null_test = hypothesis["null_test"]
+    if metric not in {
+        "lift",
+        "return_difference",
+    }:
+        raise ValueError(
+            "null_test.metric måste vara 'lift' "
+            "eller 'return_difference'."
+        )
 
     result = FrozenHypothesisConfig(
         version=1,
@@ -208,26 +227,29 @@ def load_config() -> FrozenHypothesisConfig:
             source["discovery_end_date"],
             "discovery_end_date",
         ),
-        candidate=candidate,
+        candidate=_parse_candidate(
+            candidate_raw
+        ),
         evaluation=FrozenEvaluationConfig(
             start_date=_parse_date(
-                evaluation["start_date"],
+                evaluation_raw["start_date"],
                 "evaluation.start_date",
             ),
             end_date=_parse_date(
-                evaluation["end_date"],
+                evaluation_raw["end_date"],
                 "evaluation.end_date",
             ),
         ),
         null_test=FrozenNullConfig(
+            metric=metric,
             permutations=int(
-                null_test.get(
+                null_raw.get(
                     "permutations",
                     1000,
                 )
             ),
             seed=int(
-                null_test.get(
+                null_raw.get(
                     "seed",
                     42,
                 )
