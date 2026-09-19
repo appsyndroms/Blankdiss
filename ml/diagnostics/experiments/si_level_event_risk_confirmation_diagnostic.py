@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework import (
+    DiagnosticExperiment,
+)
+from ml.diagnostics.framework.event_risk import (
+    run_si_level_confirmation,
+)
 
 
 class SILevelEventRiskConfirmationExperiment(
@@ -9,21 +14,23 @@ class SILevelEventRiskConfirmationExperiment(
     name = "si_level_event_risk_confirmation"
 
     description = (
-        "Bekräftar om short-interest-nivå tillför "
-        "information inom extrem event-risk."
+        "Bekräftar sambandet mellan short-interest-nivå, "
+        "förändring i short interest och event-risk."
     )
 
-    risk_cutoffs = (
+    event_risk_cutoffs = (
+        0.20,
         0.10,
         0.05,
-        0.02,
+        0.025,
+        0.01,
     )
 
-    short_interest_cutoff = 0.20
+    positive_change_cutoff = 0.20
 
     def analyze_window(self, context):
-        return self.run_si_level_confirmation(
+        return run_si_level_confirmation(
             context,
-            risk_cutoffs=self.risk_cutoffs,
-            short_interest_cutoff=self.short_interest_cutoff,
+            risk_cutoffs=self.event_risk_cutoffs,
+            positive_change_cutoff=self.positive_change_cutoff,
         )
