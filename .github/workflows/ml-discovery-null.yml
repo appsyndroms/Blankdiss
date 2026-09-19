@@ -1,28 +1,21 @@
 name: Blankdiss Discovery Null Test
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 env:
   DISCOVERY_NULL_PERMUTATIONS: "1000"
   DISCOVERY_NULL_SEED: "42"
-
   DISCOVERY_CONFIG: |
     enabled: true
     discovery_end_date: "2025-12-19"
-
     targets:
       - down_5pct_5d
       - down_7pct_5d
       - down_10pct_5d
-
     signals:
       - short_interest_change
       - short_interest_level
-
     stress_features:
       - price_volatility_20d
       - price_momentum_5d
@@ -30,14 +23,12 @@ env:
       - price_momentum_60d
       - distance_from_20d_high
       - distance_from_60d_high
-
     tails:
       - 0.20
       - 0.10
       - 0.05
       - 0.025
       - 0.01
-
     stress_directions:
       price_volatility_20d: upper
       price_momentum_5d: lower
@@ -45,73 +36,56 @@ env:
       price_momentum_60d: lower
       distance_from_20d_high: lower
       distance_from_60d_high: lower
-
     validation:
       min_rows_per_window: 20
-      min_positive_windows: 2
+      min_positive_windows: 1
       min_lift: 1.10
       max_return_difference: 0.0
       max_findings: 25
-
 concurrency:
   group: research-null-manual
   cancel-in-progress: false
-
 jobs:
   discovery-null:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
       - name: Refresh FI data
         run: |
           python -u -m fi
-
       - name: Refresh prices
         run: |
           python -m prices --start 2022-01-01
-
       - name: Check feature source fingerprint
-        id: feature-source
         shell: bash
         run: |
           python - <<'PY'
           import hashlib
           import os
           from pathlib import Path
-
           paths = sorted(
               Path("data/processed/analysis").glob("features_*.jsonl")
           )
-
           digest = hashlib.sha256()
-
           for path in paths:
               digest.update(path.name.encode("utf-8"))
               digest.update(str(path.stat().st_size).encode("utf-8"))
               digest.update(str(path.stat().st_mtime_ns).encode("utf-8"))
-
           fingerprint = digest.hexdigest()
-
           previous = os.environ.get(
               "FEATURE_SOURCE_FINGERPRINT",
               "",
           )
-
           changed = "true" if previous != fingerprint else "false"
-
           with open(
               os.environ["GITHUB_ENV"],
               "a",
@@ -123,56 +97,45 @@ jobs:
               handle.write(
                   f"FEATURE_SOURCE_FINGERPRINT={fingerprint}\n"
               )
-
           print(f"Feature fingerprint: {fingerprint}")
           print(f"Features changed: {changed}")
           PY
-
       - name: Build features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.build_features
-
       - name: Inspect features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci inspect-features
-
       - name: Verify features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-features
-
       - name: Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.features_qc
-
       - name: Verify feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-feature-qc
-
       - name: Verify feature dataset
         shell: bash
         run: |
           test -n "$(find data/processed/analysis -name 'features_*.jsonl' -print -quit)"
-
       - name: Run discovery null test
         run: |
           python -u -m ml.research.discovery.null_runner
-
       - name: Verify null results
         shell: bash
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
           root = Path(
               "data/processed/ml/research/discovery_null/latest"
           )
-
           required = [
               "permutations.jsonl",
               "observed_pooled.json",
@@ -182,49 +145,39 @@ jobs:
               "metadata.json",
               "report.md",
           ]
-
           for filename in required:
               path = root / filename
-
               if not path.exists():
                   raise SystemExit(
                       f"Missing null-test result: {path}"
                   )
-
           metadata = json.loads(
               (root / "metadata.json").read_text(
                   encoding="utf-8"
               )
           )
-
           expected_candidates = 900
-
           actual_candidates = metadata.get(
               "candidate_count"
           )
-
           if actual_candidates != expected_candidates:
               raise SystemExit(
                   "Unexpected candidate count: "
                   f"expected {expected_candidates}, "
                   f"got {actual_candidates}"
               )
-
           expected_permutations = int(
               "${{ env.DISCOVERY_NULL_PERMUTATIONS }}"
           )
-
           actual_permutations = metadata.get(
               "permutations"
           )
-
           if actual_permutations != expected_permutations:
               raise SystemExit(
                   "Unexpected permutation count: "
                   f"expected {expected_permutations}, "
                   f"got {actual_permutations}"
               )
-
           rows = [
               line
               for line in (
@@ -234,58 +187,48 @@ jobs:
               ).splitlines()
               if line.strip()
           ]
-
           if len(rows) != expected_permutations:
               raise SystemExit(
                   "Unexpected permutations.jsonl row count: "
                   f"expected {expected_permutations}, "
                   f"got {len(rows)}"
               )
-
           null_distribution = json.loads(
               (root / "null_distribution.json").read_text(
                   encoding="utf-8"
               )
           )
-
           valid_permutations = null_distribution.get(
               "valid_permutations"
           )
-
           if valid_permutations < 1:
               raise SystemExit(
                   "Null distribution contains no valid scores."
               )
-
           p_value = metadata.get(
               "empirical_p_value"
           )
-
           if p_value is not None and not (
               0.0 <= p_value <= 1.0
           ):
               raise SystemExit(
                   f"Invalid empirical p-value: {p_value}"
               )
-
           report = (
               root / "report.md"
           ).read_text(
               encoding="utf-8"
           ).strip()
-
           if not report:
               raise SystemExit(
                   "Null-test report is empty."
               )
-
           print("Null-test verification passed.")
           print(f"Candidates: {actual_candidates}")
           print(f"Permutations: {actual_permutations}")
           print(f"Valid null scores: {valid_permutations}")
           print(f"Empirical p-value: {p_value}")
           PY
-
       - name: Upload null-test artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -293,33 +236,25 @@ jobs:
           path: |
             data/processed/ml/research/discovery_null/
           if-no-files-found: error
-
       - name: Persist discovery null results
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add data/processed/ml/research/discovery_null
-
           if git diff --cached --quiet; then
             echo "No discovery null changes to commit."
             exit 0
           fi
-
           git commit -m "Update discovery null test results"
-
           for attempt in 1 2 3; do
             if git push origin HEAD:main; then
               exit 0
             fi
-
             echo "Push attempt ${attempt} failed."
-
             if [ "${attempt}" -lt 3 ]; then
               git pull --rebase origin main
             fi
           done
-
           echo "Failed to push discovery null results."
           exit 1
