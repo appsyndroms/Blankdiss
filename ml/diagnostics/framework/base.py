@@ -305,3 +305,15 @@ class DiagnosticExperiment(ABC):
             horizons=horizons,
             si_change_cutoffs=si_change_cutoffs,
         )
+
+    def run_conditional_model_comparison(
+        self,
+        context: ExperimentContext,
+    ) -> ExperimentResult:
+        from .conditional_models import (
+            run_conditional_model_comparison,
+        )
+
+        return run_conditional_model_comparison(
+            context
+        )
