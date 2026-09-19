@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework import (
+    DiagnosticExperiment,
+)
 from ml.diagnostics.framework.price_dynamics import (
     run_si_price_dynamics,
 )
@@ -13,8 +15,9 @@ class SIPriceDynamicsExperiment(
 
     description = (
         "Testar hur priset utvecklas före och efter "
-        "förändringar i short interest, inklusive "
-        "event-risk och kontroll för tidigare prisrörelse."
+        "förändring i rekonstruerad short interest, "
+        "inklusive event-risk och kontroll för tidigare "
+        "prisrörelse."
     )
 
     horizons = (
