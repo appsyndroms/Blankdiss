@@ -26,8 +26,15 @@ class SectorRelativeReturnExperiment(
         20,
     )
 
+    si_change_cutoffs = (
+        0.10,
+        0.20,
+        0.30,
+    )
+
     def analyze_window(self, context):
         return run_sector_relative_return(
             context,
             horizons=self.horizons,
+            si_change_cutoffs=self.si_change_cutoffs,
         )
