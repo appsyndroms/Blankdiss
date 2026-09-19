@@ -42,9 +42,9 @@ def register_legacy(
     description: str = "",
 ) -> None:
     """
-    Registrerar ett befintligt legacy-experiment.
+    Registrerar ett legacy-experiment.
 
-    Modulen måste ha en main() eller run()-funktion.
+    Legacy-modulen måste exponera run() eller main().
     """
 
     def factory(**kwargs):
@@ -117,11 +117,8 @@ def load_experiment(
     **kwargs: Any,
 ) -> DiagnosticExperiment:
     """
-    Laddar det enda DiagnosticExperiment som finns
-    i den angivna modulen.
-
-    Experiment registry behöver därför bara ange
-    modulens import path.
+    Laddar den enda DiagnosticExperiment-klassen
+    från registry-modulen.
     """
 
     experiment_class = _find_experiment_class(
