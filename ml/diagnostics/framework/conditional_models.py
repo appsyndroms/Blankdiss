@@ -31,6 +31,9 @@ TARGET_THRESHOLD = -0.05
 SI_COLUMN = "short_interest_pct_change"
 PRIOR_RETURN_COLUMN = "price_return_5d"
 
+HIGH_RISK_QUANTILE = 0.80
+LOW_RISK_QUANTILE = 0.20
+
 
 MODEL_FEATURES = {
     "si_only": (
@@ -113,21 +116,22 @@ def _fit_model(
             column,
         )
 
-    target = (
-        _numeric(
-            frame,
-            TARGET_COLUMN,
-        )
-        <= TARGET_THRESHOLD
-    ).astype(float)
+    target_values = _numeric(
+        frame,
+        TARGET_COLUMN,
+    )
 
     valid = (
-        values.notna().any(axis=1)
-        & target.notna()
+        target_values.notna()
+        & values.notna().any(axis=1)
     )
 
     values = values.loc[valid]
-    target = target.loc[valid]
+
+    target = (
+        target_values.loc[valid]
+        <= TARGET_THRESHOLD
+    ).astype(float)
 
     if len(values) < 100:
         raise RuntimeError(
@@ -193,11 +197,13 @@ def _classification_metrics(
     frame: pd.DataFrame,
     scores: pd.Series,
 ) -> dict[str, float | int]:
+    target_values = _numeric(
+        frame,
+        TARGET_COLUMN,
+    )
+
     target = (
-        _numeric(
-            frame,
-            TARGET_COLUMN,
-        )
+        target_values
         <= TARGET_THRESHOLD
     ).astype(float)
 
@@ -205,12 +211,17 @@ def _classification_metrics(
         {
             "target": target,
             "score": scores,
-            "return": _numeric(
-                frame,
-                TARGET_COLUMN,
-            ),
+            "return": target_values,
         }
-    ).dropna()
+    )
+
+    working = working.dropna(
+        subset=[
+            "target",
+            "score",
+            "return",
+        ]
+    )
 
     if len(working) < 2:
         return {
@@ -259,20 +270,32 @@ def _classification_metrics(
 
 
 def _tail_analysis(
-    frame: pd.DataFrame,
-    scores: pd.Series,
+    pretest_scores: pd.Series,
+    test_frame: pd.DataFrame,
+    test_scores: pd.Series,
 ) -> dict[str, float | int]:
+    pretest_values = pd.to_numeric(
+        pretest_scores,
+        errors="coerce",
+    ).dropna()
+
     working = pd.DataFrame(
         {
-            "score": scores,
+            "score": pd.to_numeric(
+                test_scores,
+                errors="coerce",
+            ),
             "return": _numeric(
-                frame,
+                test_frame,
                 TARGET_COLUMN,
             ),
         }
     ).dropna()
 
-    if len(working) < 10:
+    if (
+        len(working) < 10
+        or pretest_values.empty
+    ):
         return {
             "high_n": 0,
             "low_n": 0,
@@ -282,15 +305,21 @@ def _tail_analysis(
             "high_mean_return": float("nan"),
             "low_mean_return": float("nan"),
             "mean_return_spread": float("nan"),
+            "high_threshold": float("nan"),
+            "low_threshold": float("nan"),
         }
 
-    high_threshold = working[
-        "score"
-    ].quantile(0.80)
+    high_threshold = float(
+        pretest_values.quantile(
+            HIGH_RISK_QUANTILE
+        )
+    )
 
-    low_threshold = working[
-        "score"
-    ].quantile(0.20)
+    low_threshold = float(
+        pretest_values.quantile(
+            LOW_RISK_QUANTILE
+        )
+    )
 
     high = working[
         working["score"] >= high_threshold
@@ -299,6 +328,20 @@ def _tail_analysis(
     low = working[
         working["score"] <= low_threshold
     ]
+
+    if high.empty or low.empty:
+        return {
+            "high_n": int(len(high)),
+            "low_n": int(len(low)),
+            "high_down_rate": float("nan"),
+            "low_down_rate": float("nan"),
+            "down_rate_spread": float("nan"),
+            "high_mean_return": float("nan"),
+            "low_mean_return": float("nan"),
+            "mean_return_spread": float("nan"),
+            "high_threshold": high_threshold,
+            "low_threshold": low_threshold,
+        }
 
     high_down_rate = float(
         (
@@ -337,6 +380,8 @@ def _tail_analysis(
             high_mean_return
             - low_mean_return
         ),
+        "high_threshold": high_threshold,
+        "low_threshold": low_threshold,
     }
 
 
@@ -351,21 +396,71 @@ def _prepare_event_scores(
     tuple[str, ...],
     float,
 ]:
-    train = _prepare_event_frame(
-        context.train
+    # Viktigt:
+    # Förbered hela tidsserien innan splitten så att
+    # short_interest_pct_change använder föregående
+    # observation även över splitgränserna.
+    prepared = _prepare_event_frame(
+        context.data
     )
 
-    validation = _prepare_event_frame(
-        context.validation
+    date_column = context.date_column
+
+    prepared[date_column] = pd.to_datetime(
+        prepared[date_column],
+        errors="coerce",
     )
 
-    pretest = _prepare_event_frame(
-        context.pretest
+    train_end = pd.Timestamp(
+        context.train_end
     )
 
-    test = _prepare_event_frame(
-        context.test
+    validation_end = pd.Timestamp(
+        context.validation_end
     )
+
+    if context.test_end is not None:
+        test_end = pd.Timestamp(
+            context.test_end
+        )
+    else:
+        test_end = None
+
+    train = prepared.loc[
+        prepared[date_column]
+        <= train_end
+    ].copy()
+
+    validation = prepared.loc[
+        (
+            prepared[date_column]
+            > train_end
+        )
+        & (
+            prepared[date_column]
+            <= validation_end
+        )
+    ].copy()
+
+    pretest = prepared.loc[
+        prepared[date_column]
+        <= validation_end
+    ].copy()
+
+    test_mask = (
+        prepared[date_column]
+        > validation_end
+    )
+
+    if test_end is not None:
+        test_mask &= (
+            prepared[date_column]
+            <= test_end
+        )
+
+    test = prepared.loc[
+        test_mask
+    ].copy()
 
     (
         model_name,
@@ -461,10 +556,12 @@ def run_conditional_model_comparison(
     missing = [
         column
         for column in required
-        if column not in train.columns
-        or column not in validation.columns
-        or column not in pretest.columns
-        or column not in test.columns
+        if (
+            column not in train.columns
+            or column not in validation.columns
+            or column not in pretest.columns
+            or column not in test.columns
+        )
     ]
 
     if missing:
@@ -512,16 +609,22 @@ def run_conditional_model_comparison(
         )
 
         tail_metrics = _tail_analysis(
-            test,
-            test_scores,
+            pretest_scores=(
+                _predict(
+                    pretest_model,
+                    pretest,
+                    features,
+                )
+            ),
+            test_frame=test,
+            test_scores=test_scores,
         )
 
         rows.append(
             {
                 "model": model_name,
-                "features": ",".join(
-                    features
-                ),
+                "features": ",".join(features),
+
                 "validation_n": (
                     validation_metrics["n"]
                 ),
@@ -531,6 +634,10 @@ def run_conditional_model_comparison(
                 "validation_brier": (
                     validation_metrics["brier"]
                 ),
+                "validation_log_loss": (
+                    validation_metrics["log_loss"]
+                ),
+
                 "test_n": (
                     test_metrics["n"]
                 ),
@@ -546,6 +653,7 @@ def run_conditional_model_comparison(
                 "test_log_loss": (
                     test_metrics["log_loss"]
                 ),
+
                 "test_high_risk_n": (
                     tail_metrics["high_n"]
                 ),
@@ -580,6 +688,16 @@ def run_conditional_model_comparison(
                 "test_mean_return_spread": (
                     tail_metrics[
                         "mean_return_spread"
+                    ]
+                ),
+                "test_high_risk_threshold": (
+                    tail_metrics[
+                        "high_threshold"
+                    ]
+                ),
+                "test_low_risk_threshold": (
+                    tail_metrics[
+                        "low_threshold"
                     ]
                 ),
             }
@@ -618,6 +736,16 @@ def run_conditional_model_comparison(
     result.add_metric(
         "event_validation_auc",
         event_validation_auc,
+    )
+
+    result.add_metric(
+        "tail_high_quantile",
+        HIGH_RISK_QUANTILE,
+    )
+
+    result.add_metric(
+        "tail_low_quantile",
+        LOW_RISK_QUANTILE,
     )
 
     result.add_table(
