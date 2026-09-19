@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework import (
+    DiagnosticExperiment,
+)
 from ml.diagnostics.framework.event_risk import (
     run_event_risk_interaction,
 )
