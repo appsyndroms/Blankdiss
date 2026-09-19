@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.price_dynamics import (
+    run_si_price_dynamics,
+)
 
 
 class SIPriceDynamicsExperiment(
@@ -41,7 +44,7 @@ class SIPriceDynamicsExperiment(
     )
 
     def analyze_window(self, context):
-        return self.run_si_price_dynamics(
+        return run_si_price_dynamics(
             context,
             horizons=self.horizons,
             si_change_cutoffs=self.si_change_cutoffs,
