@@ -3,34 +3,44 @@ from __future__ import annotations
 from ml.diagnostics.framework import (
     DiagnosticExperiment,
 )
-from ml.diagnostics.framework.event_risk import (
-    run_si_level_confirmation,
+from ml.diagnostics.framework.si_additional import (
+    run_si_level_change_joint,
 )
 
 
-class SILevelEventRiskConfirmationExperiment(
+class SILevelChangeJointExperiment(
     DiagnosticExperiment
 ):
-    name = "si_level_event_risk_confirmation"
+    name = "si_level_change_joint"
 
     description = (
-        "Bekräftar om hög short-interest-nivå "
-        "tillför information inom extrem event-risk."
+        "Separera effekten av hög blankningsnivå "
+        "från effekten av en stor positiv förändring "
+        "i short interest."
     )
 
-    event_risk_cutoffs = (
-        0.20,
+    level_quantiles = (
+        0.80,
+    )
+
+    change_cutoffs = (
         0.10,
-        0.05,
-        0.025,
-        0.01,
+        0.20,
+        0.30,
     )
 
-    short_interest_cutoff = 0.20
+    horizons = (
+        1,
+        3,
+        5,
+        10,
+        20,
+    )
 
     def analyze_window(self, context):
-        return run_si_level_confirmation(
+        return run_si_level_change_joint(
             context,
-            risk_cutoffs=self.event_risk_cutoffs,
-            short_interest_cutoff=self.short_interest_cutoff,
+            horizons=self.horizons,
+            level_quantiles=self.level_quantiles,
+            change_cutoffs=self.change_cutoffs,
         )
