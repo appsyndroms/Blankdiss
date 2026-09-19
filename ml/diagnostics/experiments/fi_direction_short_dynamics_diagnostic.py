@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.fi_direction import (
+    run_short_interest_dynamics,
+)
 
 
-classFIDirectionShortDynamicsExperiment(
+class FIDirectionShortDynamicsExperiment(
     DiagnosticExperiment
 ):
     name = "fi_direction_short_dynamics"
@@ -28,7 +31,7 @@ classFIDirectionShortDynamicsExperiment(
     )
 
     def analyze_window(self, context):
-        return self.run_short_interest_dynamics(
+        return run_short_interest_dynamics(
             context,
             event_tail=self.event_tail,
             change_columns=self.change_columns,
