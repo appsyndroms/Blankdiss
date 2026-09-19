@@ -12,7 +12,52 @@ from sklearn.preprocessing import StandardScaler
 from .base import ExperimentResult
 
 
+BOOTSTRAP_ITERATIONS = 2_000
 RANDOM_STATE = 42
+EVENT_THRESHOLD = 0.10
+
+TOP_FRACTIONS = (
+    0.01,
+    0.02,
+    0.05,
+    0.10,
+    0.20,
+)
+
+FI_COLUMNS = (
+    "short_interest",
+    "short_interest_change",
+    "short_interest_pct",
+    "short_interest_delta",
+    "short_interest_rank",
+    "short_interest_zscore",
+    "short_interest_acceleration",
+    "short_interest_days",
+    "short_interest_ratio",
+    "short_interest_change_5d",
+    "short_interest_change_20d",
+    "short_interest_change_60d",
+    "short_interest_trend",
+    "short_interest_volatility",
+)
+
+EVENT_FEATURE_SETS = {
+    "volatility_20d": (
+        "price_volatility_20d",
+    ),
+    "volatility_60d": (
+        "volatility_60d",
+    ),
+    "volatility_20d_plus_60d": (
+        "price_volatility_20d",
+        "volatility_60d",
+    ),
+    "volatility_20d_plus_60d_plus_term_structure": (
+        "price_volatility_20d",
+        "volatility_60d",
+        "volatility_term_structure",
+    ),
+}
 
 
 def _numeric(
@@ -20,29 +65,44 @@ def _numeric(
     column: str,
 ) -> pd.Series:
     values = frame[column]
+
     if isinstance(values, pd.DataFrame):
         values = values.iloc[:, 0]
 
-    return pd.to_numeric(
+    is_boolean = pd.api.types.is_bool_dtype(
+        values
+    )
+
+    values = pd.to_numeric(
         values,
         errors="coerce",
     )
+
+    if is_boolean:
+        values = values.astype(float)
+
+    return values
 
 
 def _existing_columns(
     frame: pd.DataFrame,
     columns: Iterable[str],
 ) -> list[str]:
-    result = []
+    result: list[str] = []
 
     for column in columns:
         if column not in frame.columns:
             continue
 
-        values = _numeric(frame, column)
+        values = _numeric(
+            frame,
+            column,
+        )
 
-        if values.notna().any():
-            result.append(column)
+        if values.notna().sum() == 0:
+            continue
+
+        result.append(column)
 
     return result
 
@@ -158,9 +218,12 @@ def _auc(
         & score.notna()
     )
 
+    if valid.sum() < 30:
+        return np.nan
+
     y = y_true.loc[valid]
 
-    if len(y) < 20 or y.nunique() < 2:
+    if y.nunique() < 2:
         return np.nan
 
     return float(
@@ -173,18 +236,18 @@ def _auc(
 
 def _tail_threshold(
     frame: pd.DataFrame,
-    column: str,
+    score_column: str,
     fraction: float,
 ) -> float | None:
     values = _numeric(
         frame,
-        column,
+        score_column,
     ).dropna()
 
     if values.empty:
         return None
 
-    n = max(
+    count = max(
         1,
         int(
             np.ceil(
@@ -193,204 +256,306 @@ def _tail_threshold(
         ),
     )
 
+    count = min(
+        count,
+        len(values),
+    )
+
+    values = values.sort_values(
+        ascending=False
+    )
+
     return float(
-        values.sort_values(
-            ascending=False
-        ).iloc[n - 1]
+        values.iloc[count - 1]
     )
 
 
-def _bootstrap_delta(
-    low: np.ndarray,
-    high: np.ndarray,
+def _apply_tail_threshold(
+    frame: pd.DataFrame,
+    score_column: str,
+    threshold: float,
+) -> pd.DataFrame:
+    result = frame.dropna(
+        subset=[
+            score_column,
+        ]
+    ).copy()
+
+    return result.loc[
+        result[score_column] >= threshold
+    ].copy()
+
+
+def _paired_stratified_bootstrap_delta_auc(
+    y_true: np.ndarray,
+    baseline_score: np.ndarray,
+    treatment_score: np.ndarray,
     iterations: int,
-    seed: int,
+    random_state: int,
 ) -> np.ndarray:
-    low = low[
-        np.isfinite(low)
-    ]
+    y_true = np.asarray(
+        y_true,
+        dtype=int,
+    )
 
-    high = high[
-        np.isfinite(high)
-    ]
+    baseline_score = np.asarray(
+        baseline_score,
+        dtype=float,
+    )
 
-    if len(low) < 10 or len(high) < 10:
-        return np.array([])
+    treatment_score = np.asarray(
+        treatment_score,
+        dtype=float,
+    )
 
-    rng = np.random.default_rng(seed)
+    valid = (
+        np.isfinite(baseline_score)
+        & np.isfinite(treatment_score)
+    )
 
-    result = np.empty(
+    y_true = y_true[valid]
+    baseline_score = baseline_score[valid]
+    treatment_score = treatment_score[valid]
+
+    if len(y_true) < 20:
+        return np.array(
+            [],
+            dtype=float,
+        )
+
+    down_indices = np.flatnonzero(
+        y_true == 1
+    )
+
+    up_indices = np.flatnonzero(
+        y_true == 0
+    )
+
+    if (
+        len(down_indices) == 0
+        or len(up_indices) == 0
+    ):
+        return np.array(
+            [],
+            dtype=float,
+        )
+
+    rng = np.random.default_rng(
+        random_state
+    )
+
+    deltas = np.empty(
         iterations,
         dtype=float,
     )
 
-    for i in range(iterations):
-        low_sample = rng.choice(
-            low,
-            size=len(low),
+    for iteration in range(iterations):
+        sampled_down = rng.choice(
+            down_indices,
+            size=len(down_indices),
             replace=True,
         )
 
-        high_sample = rng.choice(
-            high,
-            size=len(high),
+        sampled_up = rng.choice(
+            up_indices,
+            size=len(up_indices),
             replace=True,
         )
 
-        result[i] = (
-            high_sample.mean()
-            - low_sample.mean()
+        sampled = np.concatenate(
+            [
+                sampled_down,
+                sampled_up,
+            ]
         )
 
-    return result
+        y_sample = y_true[
+            sampled
+        ]
+
+        baseline_sample = (
+            baseline_score[sampled]
+        )
+
+        treatment_sample = (
+            treatment_score[sampled]
+        )
+
+        try:
+            baseline_auc = roc_auc_score(
+                y_sample,
+                baseline_sample,
+            )
+
+            treatment_auc = roc_auc_score(
+                y_sample,
+                treatment_sample,
+            )
+
+            deltas[iteration] = (
+                treatment_auc
+                - baseline_auc
+            )
+
+        except ValueError:
+            deltas[iteration] = np.nan
+
+    return deltas[
+        np.isfinite(deltas)
+    ]
 
 
-def run_conditional_direction_analysis(
-    context,
-    *,
-    fi_column: str,
-    event_tail_fractions: tuple[float, ...],
-    bootstrap_iterations: int = 2_000,
-) -> ExperimentResult:
-    data = context.data.copy()
+def _summarize_bootstrap(
+    deltas: np.ndarray,
+) -> dict[str, float]:
+    if deltas.size == 0:
+        return {
+            "bootstrap_mean_delta_auc": np.nan,
+            "bootstrap_ci_low": np.nan,
+            "bootstrap_ci_high": np.nan,
+            "bootstrap_probability_positive": np.nan,
+            "bootstrap_probability_non_positive": np.nan,
+        }
 
-    required = (
-        fi_column,
-        "forward_return_5d",
+    low, high = np.percentile(
+        deltas,
+        [
+            2.5,
+            97.5,
+        ],
     )
 
-    context._require(
-        *required,
-    )
-
-    data[fi_column] = _numeric(
-        data,
-        fi_column,
-    )
-
-    data["forward_return_5d"] = _numeric(
-        data,
-        "forward_return_5d",
-    )
-
-    data["event"] = (
-        data["forward_return_5d"].abs()
-        >= 0.10
-    ).astype(int)
-
-    data["direction"] = np.where(
-        data["forward_return_5d"] <= -0.10,
-        1,
-        np.where(
-            data["forward_return_5d"] >= 0.10,
-            0,
-            np.nan,
+    return {
+        "bootstrap_mean_delta_auc": float(
+            np.mean(deltas)
         ),
-    )
-
-    train = context.train.copy()
-    validation = context.validation.copy()
-    test = context.test.copy()
-
-    feature_candidates = (
-        "price_volatility_20d",
-        "volatility_60d",
-        "volatility_relative_20d_60d",
-        "volatility_change_20d_60d",
-        "volatility_term_structure",
-    )
-
-    features = _existing_columns(
-        train,
-        feature_candidates,
-    )
-
-    if not features:
-        raise RuntimeError(
-            "No event-risk features available."
-        )
-
-    train["event"] = (
-        _numeric(
-            train,
-            "forward_return_5d",
-        ).abs()
-        >= 0.10
-    ).astype(int)
-
-    validation["event"] = (
-        _numeric(
-            validation,
-            "forward_return_5d",
-        ).abs()
-        >= 0.10
-    ).astype(int)
-
-    test["event"] = (
-        _numeric(
-            test,
-            "forward_return_5d",
-        ).abs()
-        >= 0.10
-    ).astype(int)
-
-    candidate_sets = {
-        "volatility_20d": [
-            column
-            for column in (
-                "price_volatility_20d",
-            )
-            if column in train.columns
-        ],
-        "volatility_60d": [
-            column
-            for column in (
-                "volatility_60d",
-            )
-            if column in train.columns
-        ],
-        "volatility_combined": features,
+        "bootstrap_ci_low": float(
+            low
+        ),
+        "bootstrap_ci_high": float(
+            high
+        ),
+        "bootstrap_probability_positive": float(
+            np.mean(deltas > 0)
+        ),
+        "bootstrap_probability_non_positive": float(
+            np.mean(deltas <= 0)
+        ),
     }
 
-    best_name = None
-    best_features = None
+
+def _select_event_feature_set(
+    train: pd.DataFrame,
+    validation: pd.DataFrame,
+) -> tuple[
+    str,
+    list[str],
+    float,
+]:
+    best_name: str | None = None
+    best_columns: list[str] = []
     best_auc = -np.inf
 
-    for name, candidate in candidate_sets.items():
-        candidate = _existing_columns(
+    for name, candidates in (
+        EVENT_FEATURE_SETS.items()
+    ):
+        columns = _existing_columns(
             train,
-            candidate,
+            candidates,
         )
+
+        if not columns:
+            continue
 
         model = _fit(
             train,
-            candidate,
+            columns,
             "event",
         )
 
         if model is None:
             continue
 
-        score = _predict(
+        probabilities = _predict(
             model,
             validation,
-            candidate,
+            columns,
         )
 
-        auc = _auc(
-            validation["event"],
-            score,
+        valid = probabilities.notna()
+
+        if valid.sum() < 30:
+            continue
+
+        y_true = validation.loc[
+            valid,
+            "event",
+        ]
+
+        if y_true.nunique() < 2:
+            continue
+
+        auc = float(
+            roc_auc_score(
+                y_true,
+                probabilities.loc[valid],
+            )
         )
 
-        if np.isfinite(auc) and auc > best_auc:
+        print(
+            f"    event feature set "
+            f"{name}: validation AUC="
+            f"{auc:.6f}"
+        )
+
+        if auc > best_auc:
             best_auc = auc
             best_name = name
-            best_features = candidate
+            best_columns = columns
 
-    if best_features is None:
+    if best_name is None:
         raise RuntimeError(
-            "Could not train event-risk model."
+            "Could not select an event feature set."
         )
+
+    return (
+        best_name,
+        best_columns,
+        best_auc,
+    )
+
+
+def _build_event_scores(
+    train: pd.DataFrame,
+    validation: pd.DataFrame,
+    test: pd.DataFrame,
+) -> tuple[
+    pd.Series,
+    pd.Series,
+    pd.Series,
+    str,
+    list[str],
+    float,
+]:
+    (
+        name,
+        columns,
+        validation_auc,
+    ) = _select_event_feature_set(
+        train,
+        validation,
+    )
+
+    print()
+    print(
+        "Selected event feature set: "
+        f"{name}"
+    )
+
+    print(
+        f"Validation AUC: "
+        f"{validation_auc:.6f}"
+    )
 
     combined = pd.concat(
         [
@@ -402,187 +567,62 @@ def run_conditional_direction_analysis(
 
     model = _fit(
         combined,
-        best_features,
+        columns,
         "event",
     )
 
-    train_score = _predict(
+    if model is None:
+        raise RuntimeError(
+            "Could not fit selected event model."
+        )
+
+    train_scores = _predict(
         model,
         train,
-        best_features,
+        columns,
     )
 
-    test_score = _predict(
+    validation_scores = _predict(
+        model,
+        validation,
+        columns,
+    )
+
+    test_scores = _predict(
         model,
         test,
-        best_features,
+        columns,
     )
 
-    train = train.copy()
-    test = test.copy()
-
-    train["event_score"] = train_score
-    test["event_score"] = test_score
-
-    rows = []
-
-    for fraction in event_tail_fractions:
-        threshold = _tail_threshold(
-            train,
-            "event_score",
-            fraction,
-        )
-
-        if threshold is None:
-            continue
-
-        train_tail = train.loc[
-            train["event_score"] >= threshold
-        ].copy()
-
-        test_tail = test.loc[
-            test["event_score"] >= threshold
-        ].copy()
-
-        train_tail[fi_column] = _numeric(
-            train_tail,
-            fi_column,
-        )
-
-        test_tail[fi_column] = _numeric(
-            test_tail,
-            fi_column,
-        )
-
-        train_tail = train_tail.dropna(
-            subset=[
-                fi_column,
-                "forward_return_5d",
-            ]
-        )
-
-        test_tail = test_tail.dropna(
-            subset=[
-                fi_column,
-                "forward_return_5d",
-            ]
-        )
-
-        if train_tail.empty or test_tail.empty:
-            continue
-
-        fi_threshold = float(
-            train_tail[fi_column].median()
-        )
-
-        low = test_tail.loc[
-            test_tail[fi_column] <= fi_threshold
-        ]
-
-        high = test_tail.loc[
-            test_tail[fi_column] > fi_threshold
-        ]
-
-        low_down = (
-            low["forward_return_5d"] <= -0.10
-        )
-
-        high_down = (
-            high["forward_return_5d"] <= -0.10
-        )
-
-        if low.empty or high.empty:
-            continue
-
-        low_rate = float(
-            low_down.mean()
-        )
-
-        high_rate = float(
-            high_down.mean()
-        )
-
-        delta = high_rate - low_rate
-
-        bootstrap = _bootstrap_delta(
-            low_down.astype(float).to_numpy(),
-            high_down.astype(float).to_numpy(),
-            bootstrap_iterations,
-            RANDOM_STATE
-            + int(fraction * 10_000),
-        )
-
-        if bootstrap.size:
-            ci_low, ci_high = np.percentile(
-                bootstrap,
-                [2.5, 97.5],
-            )
-            bootstrap_mean = float(
-                bootstrap.mean()
-            )
-            probability_positive = float(
-                (bootstrap > 0).mean()
-            )
-        else:
-            ci_low = np.nan
-            ci_high = np.nan
-            bootstrap_mean = np.nan
-            probability_positive = np.nan
-
-        fi_auc = _auc(
-            (
-                test_tail[
-                    "forward_return_5d"
-                ]
-                <= -0.10
-            ).astype(int),
-            test_tail[fi_column],
-        )
-
-        rows.append(
-            {
-                "tail": fraction,
-                "training_tail_events": len(train_tail),
-                "test_tail_events": len(test_tail),
-                "fi_threshold": fi_threshold,
-                "low_fi_events": len(low),
-                "high_fi_events": len(high),
-                "low_fi_down_rate": low_rate,
-                "high_fi_down_rate": high_rate,
-                "observed_delta_down_rate": delta,
-                "bootstrap_mean_delta_down_rate": bootstrap_mean,
-                "bootstrap_ci_low": float(ci_low),
-                "bootstrap_ci_high": float(ci_high),
-                "bootstrap_probability_positive": probability_positive,
-                "auc_fi": fi_auc,
-            }
-        )
-
-    result = ExperimentResult(
-        name="fi_direction_conditional",
-        description=(
-            "Conditional FI direction analysis."
-        ),
+    return (
+        train_scores,
+        validation_scores,
+        test_scores,
+        name,
+        columns,
+        validation_auc,
     )
 
-    result.add_table(
-        "conditional_direction",
-        pd.DataFrame(rows),
+
+def _prepare_direction_frame(
+    frame: pd.DataFrame,
+    features: list[str],
+) -> pd.DataFrame:
+    result = frame.copy()
+
+    for column in features:
+        result[column] = _numeric(
+            result,
+            column,
+        )
+
+    result["direction"] = pd.to_numeric(
+        result["direction"],
+        errors="coerce",
     )
 
-    result.add_metadata(
-        "event_model",
-        best_name,
-    )
-
-    result.add_metadata(
-        "event_model_features",
-        best_features,
-    )
-
-    result.add_metric(
-        "event_model_validation_auc",
-        best_auc,
+    result = result.dropna(
+        subset=features + ["direction"]
     )
 
     return result
@@ -593,294 +633,437 @@ def run_incremental_fi_bootstrap(
     *,
     fi_columns: tuple[str, ...],
     tail_fractions: tuple[float, ...],
-    bootstrap_iterations: int,
+    bootstrap_iterations: int = BOOTSTRAP_ITERATIONS,
 ) -> ExperimentResult:
-    data = context.data.copy()
-
-    data["target"] = (
-        _numeric(
-            data,
-            "forward_return_5d",
-        )
-        <= -0.10
-    ).astype(int)
-
     train = context.train.copy()
     validation = context.validation.copy()
     test = context.test.copy()
 
-    event_features = _existing_columns(
+    required = [
+        "forward_return_5d",
+    ]
+
+    missing = [
+        column
+        for column in required
+        if column not in context.data.columns
+    ]
+
+    if missing:
+        raise KeyError(
+            "Missing required columns: "
+            f"{missing}"
+        )
+
+    for frame in (
         train,
-        (
-            "price_volatility_20d",
-            "volatility_60d",
-            "volatility_relative_20d_60d",
-            "volatility_change_20d_60d",
-            "volatility_term_structure",
-        ),
+        validation,
+        test,
+    ):
+        frame["forward_return_5d"] = (
+            _numeric(
+                frame,
+                "forward_return_5d",
+            )
+        )
+
+        frame["event"] = (
+            frame["forward_return_5d"].abs()
+            >= EVENT_THRESHOLD
+        ).astype(int)
+
+        frame["direction"] = np.where(
+            frame["forward_return_5d"]
+            <= -EVENT_THRESHOLD,
+            1,
+            np.where(
+                frame["forward_return_5d"]
+                >= EVENT_THRESHOLD,
+                0,
+                np.nan,
+            ),
+        )
+
+    (
+        train_event_score,
+        validation_event_score,
+        test_event_score,
+        event_model_name,
+        event_model_features,
+        event_model_validation_auc,
+    ) = _build_event_scores(
+        train,
+        validation,
+        test,
     )
 
-    fi_features = _existing_columns(
+    train["event_score"] = (
+        train_event_score
+    )
+
+    validation["event_score"] = (
+        validation_event_score
+    )
+
+    test["event_score"] = (
+        test_event_score
+    )
+
+    available_fi_columns = _existing_columns(
         train,
         fi_columns,
     )
 
-    if not event_features or not fi_features:
-        raise RuntimeError(
-            "Required FI/event features are missing."
-        )
-
-    train["event"] = (
-        _numeric(
-            train,
-            "forward_return_5d",
-        ).abs()
-        >= 0.10
-    ).astype(int)
-
-    validation["event"] = (
-        _numeric(
-            validation,
-            "forward_return_5d",
-        ).abs()
-        >= 0.10
-    ).astype(int)
-
-    test["event"] = (
-        _numeric(
-            test,
-            "forward_return_5d",
-        ).abs()
-        >= 0.10
-    ).astype(int)
-
-    event_model = _fit(
-        train,
-        event_features,
-        "event",
+    print()
+    print(
+        "FI columns available: "
+        f"{len(available_fi_columns)}"
     )
 
-    if event_model is None:
-        raise RuntimeError(
-            "Could not fit event model."
+    if available_fi_columns:
+        print(
+            "  "
+            + ", ".join(
+                available_fi_columns
+            )
         )
 
-    validation_score = _predict(
-        event_model,
-        validation,
-        event_features,
-    )
+    test_event = test.loc[
+        test["event"] == 1
+    ].copy()
 
-    event_auc = _auc(
-        validation["event"],
-        validation_score,
+    test_event = test_event.dropna(
+        subset=[
+            "event_score",
+            "direction",
+        ]
     )
 
     rows = []
 
     for fraction in tail_fractions:
+        print()
+        print(
+            "-" * 80
+        )
+        print(
+            f"TAIL {fraction:.0%}"
+        )
+        print(
+            "-" * 80
+        )
+
         threshold = _tail_threshold(
-            validation.assign(
-                event_score=validation_score
-            ),
+            train,
             "event_score",
             fraction,
         )
 
         if threshold is None:
+            print(
+                "No training threshold available."
+            )
             continue
 
-        train_score = _predict(
-            event_model,
+        train_direction = _apply_tail_threshold(
             train,
-            event_features,
+            "event_score",
+            threshold,
         )
 
-        test_score = _predict(
-            event_model,
-            test,
-            event_features,
-        )
-
-        train_tail = train.loc[
-            train_score >= threshold
+        train_direction = train_direction.loc[
+            train_direction["event"] == 1
         ].copy()
 
-        test_tail = test.loc[
-            test_score >= threshold
-        ].copy()
-
-        if train_tail.empty or test_tail.empty:
-            continue
-
-        event_target = (
-            _numeric(
-                train_tail,
-                "forward_return_5d",
-            )
-            <= -0.10
-        ).astype(int)
-
-        fi_target = (
-            _numeric(
-                test_tail,
-                "forward_return_5d",
-            )
-            <= -0.10
-        ).astype(int)
-
-        base_model = _fit(
-            train_tail,
-            [],
-            "event",
+        test_tail = _apply_tail_threshold(
+            test_event,
+            "event_score",
+            threshold,
         )
 
-        del base_model
-
-        fi_frame = test_tail.copy()
-
-        for column in fi_features:
-            fi_frame[column] = _numeric(
-                fi_frame,
-                column,
+        if test_tail.empty:
+            print(
+                "No OOS observations in tail."
             )
-
-        valid = fi_frame[
-            fi_features
-        ].notna().all(axis=1)
-
-        valid &= fi_target.notna()
-
-        if valid.sum() < 30:
             continue
 
-        scores = fi_frame.loc[
-            valid,
-            fi_features,
-        ].mean(axis=1)
+        down_count = int(
+            (
+                test_tail["direction"] == 1
+            ).sum()
+        )
 
-        auc = _auc(
-            fi_target.loc[valid],
-            scores,
+        up_count = int(
+            (
+                test_tail["direction"] == 0
+            ).sum()
+        )
+
+        print(
+            f"Training tail events: "
+            f"{len(train_direction):,}"
+        )
+
+        print(
+            f"Test tail events:     "
+            f"{len(test_tail):,}"
+        )
+
+        print(
+            f"DOWN / UP: "
+            f"{down_count:,} / {up_count:,}"
+        )
+
+        if (
+            down_count == 0
+            or up_count == 0
+        ):
+            print(
+                "Skipping because OOS tail "
+                "has only one direction."
+            )
+            continue
+
+        baseline_features = [
+            "event_score",
+        ]
+
+        baseline_train = (
+            _prepare_direction_frame(
+                train_direction,
+                baseline_features,
+            )
+        )
+
+        baseline_model = _fit(
+            baseline_train,
+            baseline_features,
+            "direction",
+        )
+
+        baseline_predictions = _predict(
+            baseline_model,
+            test_tail,
+            baseline_features,
+        )
+
+        treatment_features = [
+            "event_score",
+            *available_fi_columns,
+        ]
+
+        treatment_train = (
+            _prepare_direction_frame(
+                train_direction,
+                treatment_features,
+            )
+        )
+
+        treatment_model = _fit(
+            treatment_train,
+            treatment_features,
+            "direction",
+        )
+
+        treatment_predictions = _predict(
+            treatment_model,
+            test_tail,
+            treatment_features,
+        )
+
+        frame = test_tail.copy()
+
+        frame[
+            "baseline_prediction"
+        ] = baseline_predictions
+
+        frame[
+            "treatment_prediction"
+        ] = treatment_predictions
+
+        frame = frame.dropna(
+            subset=[
+                "direction",
+                "baseline_prediction",
+                "treatment_prediction",
+            ]
+        )
+
+        if (
+            len(frame) < 20
+            or frame["direction"].nunique() < 2
+        ):
+            print(
+                "Skipping because valid predictions "
+                "do not contain both directions."
+            )
+            continue
+
+        auc_baseline = float(
+            roc_auc_score(
+                frame["direction"],
+                frame[
+                    "baseline_prediction"
+                ],
+            )
+        )
+
+        auc_treatment = float(
+            roc_auc_score(
+                frame["direction"],
+                frame[
+                    "treatment_prediction"
+                ],
+            )
+        )
+
+        delta_auc = (
+            auc_treatment
+            - auc_baseline
+        )
+
+        validation_year = (
+            pd.Timestamp(
+                context.validation_end
+            ).year
+        )
+
+        bootstrap_seed = (
+            RANDOM_STATE
+            + int(
+                round(
+                    fraction * 10_000
+                )
+            )
+            + validation_year
+        )
+
+        deltas = (
+            _paired_stratified_bootstrap_delta_auc(
+                y_true=frame[
+                    "direction"
+                ].to_numpy(),
+                baseline_score=frame[
+                    "baseline_prediction"
+                ].to_numpy(),
+                treatment_score=frame[
+                    "treatment_prediction"
+                ].to_numpy(),
+                iterations=bootstrap_iterations,
+                random_state=bootstrap_seed,
+            )
+        )
+
+        bootstrap = _summarize_bootstrap(
+            deltas
+        )
+
+        print()
+        print(
+            f"Event-score AUC: "
+            f"{auc_baseline:.6f}"
+        )
+
+        print(
+            f"Event + FI AUC:  "
+            f"{auc_treatment:.6f}"
+        )
+
+        print(
+            f"Observed delta:   "
+            f"{delta_auc:+.6f}"
+        )
+
+        print(
+            f"Bootstrap mean:   "
+            f"{bootstrap['bootstrap_mean_delta_auc']:+.6f}"
+        )
+
+        print(
+            "Bootstrap 95% CI: "
+            f"["
+            f"{bootstrap['bootstrap_ci_low']:+.6f}, "
+            f"{bootstrap['bootstrap_ci_high']:+.6f}"
+            f"]"
+        )
+
+        print(
+            f"P(delta > 0):     "
+            f"{bootstrap['bootstrap_probability_positive']:.4f}"
+        )
+
+        print(
+            f"P(delta <= 0):    "
+            f"{bootstrap['bootstrap_probability_non_positive']:.4f}"
+        )
+
+        print(
+            f"Bootstrap n:      "
+            f"{len(deltas):,}"
         )
 
         rows.append(
             {
                 "tail": fraction,
-                "event_model_validation_auc": event_auc,
-                "fi_auc": auc,
-                "test_rows": int(valid.sum()),
-                "bootstrap_iterations": bootstrap_iterations,
-                "fi_features": len(fi_features),
+                "training_tail_events": int(
+                    len(train_direction)
+                ),
+                "test_events": int(
+                    len(frame)
+                ),
+                "down_events": down_count,
+                "up_events": up_count,
+                "event_score_threshold": (
+                    threshold
+                ),
+                "auc_event_score": auc_baseline,
+                "auc_event_fi": auc_treatment,
+                "delta_auc": delta_auc,
+                **bootstrap,
             }
         )
 
     result = ExperimentResult(
         name="fi_direction_bootstrap",
         description=(
-            "Incremental FI bootstrap diagnostic."
+            "Paired bootstrap av inkrementell "
+            "FI-information ovanpå event-risk."
         ),
     )
 
     result.add_table(
-        "bootstrap",
+        "paired_bootstrap",
         pd.DataFrame(rows),
     )
 
-    return result
-
-
-def run_short_interest_dynamics(
-    context,
-    *,
-    event_tail: float,
-    change_columns: tuple[str, ...],
-    positive_cutoffs: tuple[float, ...],
-) -> ExperimentResult:
-    data = context.data.copy()
-
-    train = context.train.copy()
-    test = context.test.copy()
-
-    event_column = "forward_return_5d"
-
-    if event_column not in data.columns:
-        raise KeyError(
-            f"Saknar {event_column}"
-        )
-
-    rows = []
-
-    for column in change_columns:
-        if column not in train.columns:
-            continue
-
-        values = _numeric(
-            train,
-            column,
-        ).dropna()
-
-        if values.empty:
-            continue
-
-        threshold = float(
-            values.quantile(
-                1.0 - event_tail
-            )
-        )
-
-        for cutoff in positive_cutoffs:
-            train_threshold = max(
-                threshold,
-                cutoff,
-            )
-
-            selected = test.loc[
-                _numeric(
-                    test,
-                    column,
-                )
-                >= train_threshold
-            ].copy()
-
-            if selected.empty:
-                continue
-
-            returns = _numeric(
-                selected,
-                event_column,
-            )
-
-            down_rate = float(
-                (
-                    returns <= -0.10
-                ).mean()
-            )
-
-            rows.append(
-                {
-                    "change_column": column,
-                    "cutoff": cutoff,
-                    "threshold": train_threshold,
-                    "n": len(selected),
-                    "down_rate": down_rate,
-                    "mean_return": float(
-                        returns.mean()
-                    ),
-                }
-            )
-
-    result = ExperimentResult(
-        name="fi_direction_short_dynamics",
-        description=(
-            "Short-interest dynamics within "
-            "event-risk tail."
-        ),
+    result.add_metadata(
+        "event_model",
+        event_model_name,
     )
 
-    result.add_table(
-        "short_dynamics",
-        pd.DataFrame(rows),
+    result.add_metadata(
+        "event_model_features",
+        event_model_features,
+    )
+
+    result.add_metric(
+        "event_model_validation_auc",
+        event_model_validation_auc,
+    )
+
+    result.add_metadata(
+        "fi_columns",
+        available_fi_columns,
+    )
+
+    result.add_metadata(
+        "bootstrap_iterations",
+        bootstrap_iterations,
+    )
+
+    result.add_metadata(
+        "event_threshold",
+        EVENT_THRESHOLD,
     )
 
     return result
