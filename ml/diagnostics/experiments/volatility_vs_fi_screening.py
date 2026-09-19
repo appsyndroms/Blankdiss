@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.volatility import (
+    run_feature_set_comparison,
+)
 
 
 class VolatilityVsFIExperiment(
@@ -20,7 +23,7 @@ class VolatilityVsFIExperiment(
     }
 
     def analyze_window(self, context):
-        return self.run_feature_set_comparison(
+        return run_feature_set_comparison(
             context,
             feature_sets=self.feature_sets,
             target="down_5pct_5d",
