@@ -694,7 +694,7 @@ jobs:
             data/processed/ml/research/discovery/*/report.md
           if-no-files-found: error
 
-      - name: Persist latest diagnostic results
+      - name: Persist research and discovery results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -703,12 +703,22 @@ jobs:
             data/processed/ml/research/latest/diagnostics.json \
             data/processed/ml/research/latest/diagnostic/*.json \
             data/processed/analysis/features_*.jsonl \
-            data/processed/analysis/features_metadata.json
+            data/processed/analysis/features_metadata.json \
+            data/processed/ml/research/discovery/latest/results.jsonl \
+            data/processed/ml/research/discovery/latest/pooled.json \
+            data/processed/ml/research/discovery/latest/findings.json \
+            data/processed/ml/research/discovery/latest/metadata.json \
+            data/processed/ml/research/discovery/latest/report.md \
+            data/processed/ml/research/discovery/*/results.jsonl \
+            data/processed/ml/research/discovery/*/pooled.json \
+            data/processed/ml/research/discovery/*/findings.json \
+            data/processed/ml/research/discovery/*/metadata.json \
+            data/processed/ml/research/discovery/*/report.md
 
           if git diff --cached --quiet; then
-            echo "Inga forsknings- eller featureresultat ändrades."
+            echo "Inga forsknings- eller discovery-resultat ändrades."
           else
-            git commit -m "Update research results"
+            git commit -m "Update research and discovery results"
 
             for attempt in 1 2 3; do
               if git push origin HEAD:main; then
