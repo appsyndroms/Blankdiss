@@ -3,6 +3,9 @@ from __future__ import annotations
 from ml.diagnostics.framework import (
     DiagnosticExperiment,
 )
+from ml.diagnostics.framework.conditional_models import (
+    run_conditional_model_comparison,
+)
 
 
 class SIConditionalModelComparisonExperiment(
@@ -17,6 +20,6 @@ class SIConditionalModelComparisonExperiment(
     )
 
     def analyze_window(self, context):
-        return self.run_conditional_model_comparison(
+        return run_conditional_model_comparison(
             context
         )
