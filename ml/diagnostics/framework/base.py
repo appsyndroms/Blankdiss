@@ -6,12 +6,12 @@ from typing import Any
 
 import pandas as pd
 
+from .context import ExperimentContext
 from .stratification import (
     PretestBins,
     make_pretest_bins,
     two_dimensional_stratification,
 )
-from .context import ExperimentContext
 
 
 @dataclass
@@ -175,145 +175,4 @@ class DiagnosticExperiment(ABC):
             y_bins,
             event_columns,
             return_column=return_column,
-        )
-
-    def run_si_level_confirmation(
-        self,
-        context: ExperimentContext,
-        *,
-        risk_cutoffs: tuple[float, ...],
-        short_interest_cutoff: float,
-    ) -> ExperimentResult:
-        from .event_risk import (
-            run_si_level_confirmation,
-        )
-
-        return run_si_level_confirmation(
-            context,
-            risk_cutoffs=risk_cutoffs,
-            short_interest_cutoff=short_interest_cutoff,
-        )
-
-    def run_event_risk_interaction(
-        self,
-        context: ExperimentContext,
-        *,
-        risk_cutoffs: tuple[float, ...],
-        positive_change_cutoff: float,
-    ) -> ExperimentResult:
-        from .event_risk import (
-            run_event_risk_interaction,
-        )
-
-        return run_event_risk_interaction(
-            context,
-            risk_cutoffs=risk_cutoffs,
-            positive_change_cutoff=positive_change_cutoff,
-        )
-
-    def run_si_price_dynamics(
-        self,
-        context: ExperimentContext,
-        *,
-        horizons: tuple[int, ...],
-        si_change_cutoffs: tuple[float, ...],
-        event_risk_cutoffs: tuple[float, ...],
-        prior_return_columns: tuple[str, ...],
-    ) -> ExperimentResult:
-        from .price_dynamics import (
-            run_si_price_dynamics,
-        )
-
-        return run_si_price_dynamics(
-            context,
-            horizons=horizons,
-            si_change_cutoffs=si_change_cutoffs,
-            event_risk_cutoffs=event_risk_cutoffs,
-            prior_return_columns=prior_return_columns,
-        )
-
-    def run_si_level_change_joint(
-        self,
-        context: ExperimentContext,
-        *,
-        horizons: tuple[int, ...],
-        level_quantiles: tuple[float, ...],
-        change_cutoffs: tuple[float, ...],
-    ) -> ExperimentResult:
-        from .si_additional import (
-            run_si_level_change_joint,
-        )
-
-        return run_si_level_change_joint(
-            context,
-            horizons=horizons,
-            level_quantiles=level_quantiles,
-            change_cutoffs=change_cutoffs,
-        )
-
-    def run_si_change_persistence(
-        self,
-        context: ExperimentContext,
-        *,
-        change_cutoffs: tuple[float, ...],
-        horizons: tuple[int, ...],
-    ) -> ExperimentResult:
-        from .si_additional import (
-            run_si_change_persistence,
-        )
-
-        return run_si_change_persistence(
-            context,
-            change_cutoffs=change_cutoffs,
-            horizons=horizons,
-        )
-
-    def run_si_concentration(
-        self,
-        context: ExperimentContext,
-        *,
-        concentration_columns: tuple[str, ...],
-        concentration_quantile: float,
-        horizons: tuple[int, ...],
-        change_cutoff: float,
-    ) -> ExperimentResult:
-        from .si_additional import (
-            run_si_concentration,
-        )
-
-        return run_si_concentration(
-            context,
-            concentration_columns=concentration_columns,
-            concentration_quantile=concentration_quantile,
-            horizons=horizons,
-            change_cutoff=change_cutoff,
-        )
-
-    def run_sector_relative_return(
-        self,
-        context: ExperimentContext,
-        *,
-        horizons: tuple[int, ...],
-        si_change_cutoffs: tuple[float, ...],
-    ) -> ExperimentResult:
-        from .sector_relative import (
-            run_sector_relative_return,
-        )
-
-        return run_sector_relative_return(
-            context,
-            horizons=horizons,
-            si_change_cutoffs=si_change_cutoffs,
-        )
-
-    def run_conditional_model_comparison(
-        self,
-        context: ExperimentContext,
-    ) -> ExperimentResult:
-        from .conditional_models import (
-            run_conditional_model_comparison,
-        )
-
-        return run_conditional_model_comparison(
-            context
         )
