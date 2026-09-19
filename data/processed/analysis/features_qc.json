@@ -28,6 +28,7 @@
     "data/raw/prices/prices_2022-01-01_latest.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-16.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-17.jsonl",
+    "data/raw/prices/prices_2022-01-03_2026-09-18.jsonl",
     "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
@@ -73,7 +74,7 @@
     "mapping_integrity": {
       "status": "PASS",
       "feature_symbols": 225,
-      "mapping_symbols": 411,
+      "mapping_symbols": 412,
       "unknown_yahoo_symbols": [],
       "rows_with_unknown_symbols": 0
     },
@@ -105,26 +106,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 128536,
-          "null": 73704,
+          "non_null": 129636,
+          "null": 72604,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 128324,
-          "null": 73916,
+          "non_null": 128456,
+          "null": 73784,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 126114,
-          "null": 76126,
+          "non_null": 126256,
+          "null": 75984,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 120177,
-          "null": 82063,
+          "non_null": 120322,
+          "null": 81918,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
