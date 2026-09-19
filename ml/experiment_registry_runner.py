@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import json
 import shutil
 from datetime import datetime, timezone
@@ -10,9 +9,9 @@ from typing import Any
 from ml.config import WALK_FORWARD_WINDOWS
 from ml.dataset import load_features
 from ml.diagnostics.framework import (
-    DiagnosticExperiment,
     ExperimentContext,
     ExperimentResult,
+    load_experiment,
 )
 
 
@@ -93,45 +92,6 @@ def _run_timestamp() -> str:
     )
 
 
-def _load_experiment(
-    module_name: str,
-) -> DiagnosticExperiment:
-    module = importlib.import_module(
-        module_name
-    )
-
-    experiment_classes = [
-        value
-        for value in vars(module).values()
-        if isinstance(value, type)
-        and issubclass(
-            value,
-            DiagnosticExperiment,
-        )
-        and value is not DiagnosticExperiment
-    ]
-
-    if not experiment_classes:
-        raise RuntimeError(
-            f"Modulen {module_name} saknar en "
-            "DiagnosticExperiment-klass."
-        )
-
-    if len(experiment_classes) > 1:
-        names = ", ".join(
-            cls.__name__
-            for cls in experiment_classes
-        )
-
-        raise RuntimeError(
-            f"Modulen {module_name} innehåller flera "
-            "DiagnosticExperiment-klasser: "
-            f"{names}"
-        )
-
-    return experiment_classes[0]()
-
-
 def _run_experiment(
     experiment: dict,
     features,
@@ -147,7 +107,7 @@ def _run_experiment(
     results = []
 
     try:
-        instance = _load_experiment(
+        instance = load_experiment(
             module_name
         )
 
