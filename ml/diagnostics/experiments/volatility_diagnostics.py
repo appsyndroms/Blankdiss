@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.volatility import (
+    run_descriptive_volatility_analysis,
+)
 
 
 class VolatilityDiagnosticsExperiment(
@@ -20,15 +23,11 @@ class VolatilityDiagnosticsExperiment(
         "down_10pct_5d",
     )
 
-    volatility_column = (
-        "price_volatility_20d"
-    )
+    volatility_column = "price_volatility_20d"
 
     def analyze_window(self, context):
-        return self.run_descriptive_volatility_analysis(
+        return run_descriptive_volatility_analysis(
             context,
-            volatility_column=(
-                self.volatility_column
-            ),
+            volatility_column=self.volatility_column,
             targets=self.targets,
         )
