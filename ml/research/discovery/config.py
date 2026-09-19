@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import yaml
@@ -19,6 +20,7 @@ class ValidationConfig:
 @dataclass(frozen=True)
 class DiscoveryConfig:
     enabled: bool
+    discovery_end_date: date
     targets: tuple[str, ...]
     signals: tuple[str, ...]
     stress_features: tuple[str, ...]
@@ -32,27 +34,38 @@ def _require_list(
     key: str,
 ) -> list[Any]:
     value = config.get(key)
-
     if not isinstance(value, list):
         raise ValueError(
             f"Discovery config '{key}' måste vara en lista."
         )
-
     if not value:
         raise ValueError(
             f"Discovery config '{key}' får inte vara tom."
         )
-
     return value
+
+
+def _parse_date(
+    value: Any,
+    name: str,
+) -> date:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"Discovery config '{name}' måste vara ett datum."
+        )
+
+    try:
+        return date.fromisoformat(value.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"Ogiltigt datum för '{name}': {value}"
+        ) from exc
 
 
 def _parse_validation(
     config: dict[str, Any],
 ) -> ValidationConfig:
-    raw = config.get(
-        "validation",
-        {},
-    )
+    raw = config.get("validation", {})
 
     if not isinstance(raw, dict):
         raise ValueError(
@@ -61,34 +74,19 @@ def _parse_validation(
 
     result = ValidationConfig(
         min_rows_per_window=int(
-            raw.get(
-                "min_rows_per_window",
-                20,
-            )
+            raw.get("min_rows_per_window", 20)
         ),
         min_positive_windows=int(
-            raw.get(
-                "min_positive_windows",
-                2,
-            )
+            raw.get("min_positive_windows", 2)
         ),
         min_lift=float(
-            raw.get(
-                "min_lift",
-                1.10,
-            )
+            raw.get("min_lift", 1.10)
         ),
         max_return_difference=float(
-            raw.get(
-                "max_return_difference",
-                0.0,
-            )
+            raw.get("max_return_difference", 0.0)
         ),
         max_findings=int(
-            raw.get(
-                "max_findings",
-                25,
-            )
+            raw.get("max_findings", 25)
         ),
     )
 
@@ -116,9 +114,7 @@ def _parse_validation(
 
 
 def load_discovery_config() -> DiscoveryConfig:
-    raw_config = os.environ.get(
-        "DISCOVERY_CONFIG"
-    )
+    raw_config = os.environ.get("DISCOVERY_CONFIG")
 
     if not raw_config:
         raise RuntimeError(
@@ -126,9 +122,7 @@ def load_discovery_config() -> DiscoveryConfig:
             "Definiera discovery-konfigurationen i workflowets env."
         )
 
-    config = yaml.safe_load(
-        raw_config
-    )
+    config = yaml.safe_load(raw_config)
 
     if not isinstance(config, dict):
         raise ValueError(
@@ -178,10 +172,7 @@ def load_discovery_config() -> DiscoveryConfig:
         {},
     )
 
-    if not isinstance(
-        raw_directions,
-        dict,
-    ):
+    if not isinstance(raw_directions, dict):
         raise ValueError(
             "stress_directions måste vara ett objekt."
         )
@@ -203,6 +194,11 @@ def load_discovery_config() -> DiscoveryConfig:
                 f"'{feature}'."
             )
 
+    discovery_end_date = _parse_date(
+        config.get("discovery_end_date"),
+        "discovery_end_date",
+    )
+
     validation = _parse_validation(
         config
     )
@@ -214,6 +210,7 @@ def load_discovery_config() -> DiscoveryConfig:
                 True,
             )
         ),
+        discovery_end_date=discovery_end_date,
         targets=targets,
         signals=signals,
         stress_features=stress_features,
