@@ -16,7 +16,7 @@
   },
   "source_fingerprint": {
     "algorithm": "sha256",
-    "fingerprint": "8a23da162ce0d4d14844cd96766e02c4f812ed481925e7959db37c48959803e9",
+    "fingerprint": "3e130b7ec5982b515f1d4dcfd12216af1ed2315c8694419c24a14a3150909f3e",
     "files": [
       {
         "path": "data/processed/fi/aggregate/reconstructed.jsonl",
@@ -65,13 +65,13 @@
       },
       {
         "path": "data/raw/prices/prices_2026-09-18_2026-09-18.jsonl",
-        "sha256": "3d43a089d320247a8cc80847e6d04efb91556a0b6537fe2624a7ebf757a0189c",
-        "size_bytes": 212
+        "sha256": "d1ef7af26792d31660050b226618a8edf483bf76099a989b240f6c4628cf8a8a",
+        "size_bytes": 842
       }
     ]
   },
   "fi_rows": 202240,
-  "price_rows": 443240,
+  "price_rows": 443243,
   "feature_rows": 202240,
   "matched_fi_rows": 130695,
   "unmatched_fi_rows": 71545,
@@ -264,7 +264,7 @@
     {
       "path": "data/processed/analysis/features_0020.jsonl",
       "rows": 10000,
-      "size_bytes": 18462474
+      "size_bytes": 18462581
     },
     {
       "path": "data/processed/analysis/features_0021.jsonl",
