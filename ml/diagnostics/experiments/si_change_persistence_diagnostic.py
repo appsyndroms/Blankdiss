@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework import (
+    DiagnosticExperiment,
+)
+from ml.diagnostics.framework.si_additional import (
+    run_si_change_persistence,
+)
 
 
 class SIChangePersistenceExperiment(
@@ -30,10 +35,6 @@ class SIChangePersistenceExperiment(
     )
 
     def analyze_window(self, context):
-        from ml.diagnostics.framework.si_additional import (
-            run_si_change_persistence,
-        )
-
         return run_si_change_persistence(
             context,
             change_cutoffs=self.change_cutoffs,
