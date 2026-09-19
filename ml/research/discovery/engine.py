@@ -7,23 +7,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ml.config import (
-    TARGETS,
-    WALK_FORWARD_WINDOWS,
-)
-from ml.dataset import (
-    build_target,
-    load_features,
-)
-from ml.research.bootstrap import (
-    bootstrap_mean_difference,
-)
-from ml.research.signals import (
-    build_signal,
-    tail_mask,
-)
-
-from .config import DiscoveryConfig
+from ml.research.config import TARGETS, WALK_FORWARD_WINDOWS
+from ml.research.discovery.config import DiscoveryConfig
+from ml.research.discovery.features import build_signal, load_features
+from ml.research.discovery.metrics import bootstrap_mean_difference
+from ml.research.discovery.targets import build_target, _target_return_column
+from ml.research.discovery.validation import tail_mask
 
 
 @dataclass(frozen=True)
@@ -47,175 +36,130 @@ class DiscoveryData:
     returns: dict[str, np.ndarray]
 
 
-def _stable_seed(
-    *parts: object,
-) -> int:
-    payload = "|".join(
-        str(part)
-        for part in parts
-    ).encode("utf-8")
-
-    digest = hashlib.sha256(
-        payload
-    ).digest()
-
-    return int.from_bytes(
-        digest[:8],
-        byteorder="little",
-        signed=False,
-    ) % (2**32 - 1)
+def _stable_seed(*parts: object) -> int:
+    payload = "|".join(str(part) for part in parts).encode("utf-8")
+    digest = hashlib.sha256(payload).digest()
+    return int.from_bytes(digest[:4], byteorder="little", signed=False)
 
 
 def _target_map() -> dict[str, Any]:
-    return {
-        target.name: target
-        for target in TARGETS
-    }
+    return {target.name: target for target in TARGETS}
 
 
-def _validate_targets(
-    config: DiscoveryConfig,
-) -> dict[str, Any]:
+def _validate_targets(config: DiscoveryConfig) -> None:
     available = _target_map()
 
-    unknown = sorted(
-        set(config.targets)
-        - set(available)
-    )
+    missing = [
+        target_name
+        for target_name in config.targets
+        if target_name not in available
+    ]
 
-    if unknown:
+    if missing:
         raise ValueError(
-            "Okända discovery-targets: "
-            + ", ".join(unknown)
+            f"Unknown target(s): {', '.join(missing)}"
         )
 
-    return {
-        name: available[name]
-        for name in config.targets
-    }
 
+def _validate_signals(config: DiscoveryConfig) -> None:
+    if not config.signals:
+        raise ValueError("Discovery requires at least one signal.")
 
-def _validate_signals(
-    config: DiscoveryConfig,
-) -> None:
-    for signal_name in config.signals:
-        build_signal(
-            pd.DataFrame(
-                {
-                    "snapshot_date": [],
-                }
-            ),
-            signal_name,
-        )
+    if not config.stress_features:
+        raise ValueError("Discovery requires at least one stress feature.")
 
 
 def _build_window_masks(
     frame: pd.DataFrame,
 ) -> dict[str, dict[str, np.ndarray]]:
-    dates = pd.to_datetime(
-        frame["snapshot_date"]
+    snapshot_dates = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
     )
 
-    masks: dict[
-        str,
-        dict[str, np.ndarray],
-    ] = {}
+    windows: dict[str, dict[str, np.ndarray]] = {}
 
-    for index, window in enumerate(
-        WALK_FORWARD_WINDOWS,
-        start=1,
-    ):
-        train_end = pd.Timestamp(
-            window.train_end
-        )
-        validation_end = pd.Timestamp(
-            window.validation_end
-        )
-        test_end = pd.Timestamp(
-            window.test_end
-        )
+    for window in WALK_FORWARD_WINDOWS:
+        train_start = pd.Timestamp(window.train_start)
+        train_end = pd.Timestamp(window.train_end)
+        validation_start = pd.Timestamp(window.validation_start)
+        validation_end = pd.Timestamp(window.validation_end)
+        test_start = pd.Timestamp(window.test_start)
+        test_end = pd.Timestamp(window.test_end)
 
-        train_mask = (
-            dates <= train_end
-        )
-
-        validation_mask = (
-            (dates > train_end)
-            & (dates <= validation_end)
-        )
-
-        test_mask = (
-            (dates > validation_end)
-            & (dates <= test_end)
-        )
-
-        masks[
-            f"window_{index}"
-        ] = {
-            "train": train_mask.to_numpy(),
-            "validation": validation_mask.to_numpy(),
-            "test": test_mask.to_numpy(),
+        windows[window.name] = {
+            "train": (
+                (snapshot_dates >= train_start)
+                & (snapshot_dates <= train_end)
+            ).to_numpy(),
+            "validation": (
+                (snapshot_dates >= validation_start)
+                & (snapshot_dates <= validation_end)
+            ).to_numpy(),
+            "test": (
+                (snapshot_dates >= test_start)
+                & (snapshot_dates <= test_end)
+            ).to_numpy(),
         }
 
-    return masks
+    return windows
 
 
-def prepare_data(
-    config: DiscoveryConfig,
-) -> DiscoveryData:
+def prepare_data(config: DiscoveryConfig) -> DiscoveryData:
+    _validate_targets(config)
+    _validate_signals(config)
+
     frame = load_features()
 
-    targets_config = _validate_targets(
-        config
-    )
+    targets: dict[str, np.ndarray] = {}
+    returns: dict[str, np.ndarray] = {}
 
-    signals = {
-        name: build_signal(
-            frame,
-            name,
-        ).to_numpy(dtype=float)
-        for name in config.signals
-    }
+    for target_name in config.targets:
+        target = _target_map()[target_name]
 
-    stress_signals = {
-        name: build_signal(
-            frame,
-            name,
-        ).to_numpy(dtype=float)
-        for name in config.stress_features
-    }
+        target_values = build_target(frame, target)
+        targets[target_name] = np.asarray(
+            target_values,
+            dtype=float,
+        )
 
-    targets = {
-        name: build_target(
-            frame,
-            target,
-        ).to_numpy(dtype=float)
-        for name, target
-        in targets_config.items()
-    }
+        return_column = _target_return_column(target)
 
-    return_columns = {
-        target.return_column
-        for target in targets_config.values()
-    }
+        if return_column not in frame.columns:
+            raise ValueError(
+                f"Return column '{return_column}' for target "
+                f"'{target_name}' is missing from feature frame."
+            )
 
-    returns = {
-        column: pd.to_numeric(
-            frame[column],
+        returns[target_name] = pd.to_numeric(
+            frame[return_column],
             errors="coerce",
         ).to_numpy(dtype=float)
-        for column in return_columns
-        if column in frame.columns
-    }
+
+    signals: dict[str, np.ndarray] = {}
+
+    for signal_name in config.signals:
+        signals[signal_name] = np.asarray(
+            build_signal(frame, signal_name),
+            dtype=float,
+        )
+
+    stress_signals: dict[str, np.ndarray] = {}
+
+    for stress_feature in config.stress_features:
+        stress_signals[stress_feature] = np.asarray(
+            build_signal(frame, stress_feature),
+            dtype=float,
+        )
+
+    windows = _build_window_masks(frame)
 
     return DiscoveryData(
         frame=frame,
         targets=targets,
         signals=signals,
         stress_signals=stress_signals,
-        windows=_build_window_masks(
-            frame
-        ),
+        windows=windows,
         returns=returns,
     )
 
@@ -228,21 +172,20 @@ def build_candidates(
     for target_name in config.targets:
         for signal_name in config.signals:
             for stress_feature in config.stress_features:
-                stress_direction = (
-                    config.stress_directions[
-                        stress_feature
-                    ]
+                stress_direction = config.stress_directions.get(
+                    stress_feature,
+                    "upper",
                 )
 
                 for signal_tail in config.tails:
                     for stress_tail in config.tails:
                         candidate_id = (
-                            f"{signal_name}"
-                            f"__{_tail_name(signal_tail)}"
-                            f"__{stress_feature}"
-                            f"__{stress_direction}"
-                            f"__{_tail_name(stress_tail)}"
-                            f"__{target_name}"
+                            f"{target_name}__"
+                            f"{signal_name}__"
+                            f"{_tail_name(signal_tail)}__"
+                            f"{stress_feature}__"
+                            f"{_tail_name(stress_tail)}__"
+                            f"{stress_direction}"
                         )
 
                         candidates.append(
@@ -260,196 +203,147 @@ def build_candidates(
     return candidates
 
 
-def _tail_name(
-    fraction: float,
-) -> str:
-    if fraction == 0.20:
-        return "20pct"
-
-    if fraction == 0.10:
-        return "10pct"
-
-    if fraction == 0.05:
-        return "5pct"
-
-    if fraction == 0.025:
-        return "2_5pct"
-
-    if fraction == 0.01:
-        return "1pct"
-
-    return str(
-        fraction
-    ).replace(
-        ".",
-        "_",
-    )
+def _tail_name(tail: float) -> str:
+    return f"{tail:.4f}".replace(".", "p")
 
 
-def _evaluate_candidate(
+def evaluate_candidate_on_mask(
     data: DiscoveryData,
     candidate: Candidate,
-    window_name: str,
+    base_mask: np.ndarray,
+    split: str,
 ) -> dict[str, Any]:
-    target = data.targets[
-        candidate.target_name
-    ]
+    """
+    Evaluate one exact candidate on an arbitrary observation mask.
 
-    signal = data.signals[
-        candidate.signal_name
-    ]
+    This is the shared metric implementation used by discovery and by
+    frozen/OOS evaluation. Keeping the calculation here ensures that
+    discovery and frozen validation use exactly the same definitions.
+    """
+    target = data.targets[candidate.target_name]
 
-    stress = data.stress_signals[
-        candidate.stress_feature
-    ]
+    signal = data.signals[candidate.signal_name]
+    stress_signal = data.stress_signals[candidate.stress_feature]
 
-    window_mask = data.windows[
-        window_name
-    ]["test"]
-
-    frame = data.frame
-
-    signal_tail_mask = tail_mask(
-        frame,
-        pd.Series(
-            signal,
-            index=frame.index,
-        ),
+    signal_mask = tail_mask(
+        signal,
         candidate.signal_tail,
         direction="upper",
-    ).to_numpy()
+    )
 
-    stress_tail_mask = tail_mask(
-        frame,
-        pd.Series(
-            stress,
-            index=frame.index,
-        ),
+    stress_mask = tail_mask(
+        stress_signal,
         candidate.stress_tail,
         direction=candidate.stress_direction,
-    ).to_numpy()
+    )
+
+    finite_target = np.isfinite(target)
 
     selected = (
-        window_mask
-        & signal_tail_mask
-        & stress_tail_mask
-        & np.isfinite(target)
+        base_mask
+        & signal_mask
+        & stress_mask
+        & finite_target
     )
 
     rest = (
-        window_mask
+        base_mask
         & ~selected
-        & np.isfinite(target)
+        & finite_target
     )
 
-    selected_target = target[selected]
-    rest_target = target[rest]
+    n = int(selected.sum())
+    rest_n = int(rest.sum())
 
-    n = int(
-        selected.sum()
-    )
-
-    events = (
-        selected_target > 0
-    )
-
-    event_count = int(
-        events.sum()
-    )
+    events = int((target[selected] > 0).sum())
 
     event_rate = (
-        float(
-            events.mean()
-        )
-        if n
-        else None
+        events / n
+        if n > 0
+        else float("nan")
     )
 
-    baseline_mask = (
-        window_mask
-        & np.isfinite(target)
-    )
-
-    baseline_target = target[
-        baseline_mask
+    baseline_values = target[
+        base_mask & finite_target
     ]
 
-    baseline_events = (
-        baseline_target > 0
-    )
-
-    baseline_rate = (
-        float(
-            baseline_events.mean()
-        )
-        if baseline_target.size
-        else None
+    baseline_event_rate = (
+        float((baseline_values > 0).mean())
+        if len(baseline_values)
+        else float("nan")
     )
 
     lift = (
-        event_rate / baseline_rate
-        if (
-            event_rate is not None
-            and baseline_rate
-            and baseline_rate > 0
+        event_rate - baseline_event_rate
+        if np.isfinite(event_rate)
+        and np.isfinite(baseline_event_rate)
+        else float("nan")
+    )
+
+    return_values = data.returns[candidate.target_name]
+
+    selected_returns = return_values[selected]
+    rest_returns = return_values[rest]
+
+    selected_returns = selected_returns[
+        np.isfinite(selected_returns)
+    ]
+
+    rest_returns = rest_returns[
+        np.isfinite(rest_returns)
+    ]
+
+    mean_return = (
+        float(selected_returns.mean())
+        if len(selected_returns)
+        else float("nan")
+    )
+
+    rest_mean_return = (
+        float(rest_returns.mean())
+        if len(rest_returns)
+        else float("nan")
+    )
+
+    return_difference = (
+        mean_return - rest_mean_return
+        if np.isfinite(mean_return)
+        and np.isfinite(rest_mean_return)
+        else float("nan")
+    )
+
+    bootstrap_ci_low = float("nan")
+    bootstrap_ci_high = float("nan")
+
+    if len(selected_returns) and len(rest_returns):
+        seed = _stable_seed(
+            candidate.candidate_id,
+            split,
         )
-        else None
+
+        bootstrap = bootstrap_mean_difference(
+            selected_returns,
+            rest_returns,
+            seed=seed,
+        )
+
+        if bootstrap is not None:
+            bootstrap_ci_low = float(
+                bootstrap[0]
+            )
+            bootstrap_ci_high = float(
+                bootstrap[1]
+            )
+
+    total_base_n = int(
+        (base_mask & finite_target).sum()
     )
 
-    return_column = _target_return_column(
-        candidate.target_name
+    selected_fraction = (
+        n / total_base_n
+        if total_base_n > 0
+        else float("nan")
     )
-
-    returns = data.returns.get(
-        return_column
-    )
-
-    mean_return = None
-    rest_mean_return = None
-    return_difference = None
-    ci_low = None
-    ci_high = None
-
-    if returns is not None:
-        selected_returns = returns[
-            selected
-            & np.isfinite(returns)
-        ]
-
-        rest_returns = returns[
-            rest
-            & np.isfinite(returns)
-        ]
-
-        if selected_returns.size:
-            mean_return = float(
-                selected_returns.mean()
-            )
-
-        if rest_returns.size:
-            rest_mean_return = float(
-                rest_returns.mean()
-            )
-
-        if (
-            mean_return is not None
-            and rest_mean_return is not None
-        ):
-            return_difference = (
-                mean_return
-                - rest_mean_return
-            )
-
-            ci_low, ci_high = (
-                bootstrap_mean_difference(
-                    selected_returns,
-                    rest_returns,
-                    seed=_stable_seed(
-                        candidate.candidate_id,
-                        window_name,
-                    ),
-                )
-            )
 
     return {
         "candidate_id": candidate.candidate_id,
@@ -459,41 +353,34 @@ def _evaluate_candidate(
         "stress_feature": candidate.stress_feature,
         "stress_tail": candidate.stress_tail,
         "stress_direction": candidate.stress_direction,
-        "window": window_name,
-        "split": "test",
+        "window": split,
+        "split": split,
         "n": n,
-        "events": event_count,
+        "rest_n": rest_n,
+        "events": events,
         "event_rate": event_rate,
-        "baseline_event_rate": baseline_rate,
+        "baseline_event_rate": baseline_event_rate,
         "lift": lift,
         "mean_return": mean_return,
         "rest_mean_return": rest_mean_return,
         "return_difference": return_difference,
-        "bootstrap_ci_low": ci_low,
-        "bootstrap_ci_high": ci_high,
-        "selected_fraction": (
-            float(
-                selected[window_mask].mean()
-            )
-            if window_mask.any()
-            else None
-        ),
+        "bootstrap_ci_low": bootstrap_ci_low,
+        "bootstrap_ci_high": bootstrap_ci_high,
+        "selected_fraction": selected_fraction,
     }
 
 
-def _target_return_column(
-    target_name: str,
-) -> str:
-    target = _target_map().get(
-        target_name
+def _evaluate_candidate(
+    data: DiscoveryData,
+    candidate: Candidate,
+    window_name: str,
+) -> dict[str, Any]:
+    return evaluate_candidate_on_mask(
+        data=data,
+        candidate=candidate,
+        base_mask=data.windows[window_name]["test"],
+        split=window_name,
     )
-
-    if target is None:
-        raise ValueError(
-            f"Okänd target: {target_name}"
-        )
-
-    return target.return_column
 
 
 def evaluate_candidates(
@@ -502,216 +389,146 @@ def evaluate_candidates(
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
 
-    window_names = list(
-        data.windows
-    )
-
-    total = (
-        len(candidates)
-        * len(window_names)
-    )
-
-    completed = 0
-
     for candidate in candidates:
-        for window_name in window_names:
+        for window_name in data.windows:
             result = _evaluate_candidate(
-                data,
-                candidate,
-                window_name,
+                data=data,
+                candidate=candidate,
+                window_name=window_name,
             )
 
-            results.append(
-                result
-            )
-
-            completed += 1
-
-            if (
-                completed == 1
-                or completed % 100 == 0
-                or completed == total
-            ):
-                print(
-                    "Discovery progress: "
-                    f"{completed:,}/{total:,}",
-                    flush=True,
-                )
+            results.append(result)
 
     return results
 
 
 def pool_results(
     results: list[dict[str, Any]],
-    min_rows_per_window: int = 1,
 ) -> list[dict[str, Any]]:
-    grouped: dict[
-        str,
-        list[dict[str, Any]],
-    ] = {}
+    if not results:
+        return []
 
-    for result in results:
-        grouped.setdefault(
-            result["candidate_id"],
-            [],
-        ).append(result)
+    frame = pd.DataFrame(results)
+
+    group_columns = [
+        "candidate_id",
+        "target_name",
+        "signal_name",
+        "signal_tail",
+        "stress_feature",
+        "stress_tail",
+        "stress_direction",
+    ]
 
     pooled: list[dict[str, Any]] = []
 
-    for candidate_id, rows in grouped.items():
-        first = rows[0]
+    for keys, group in frame.groupby(
+        group_columns,
+        dropna=False,
+    ):
+        (
+            candidate_id,
+            target_name,
+            signal_name,
+            signal_tail,
+            stress_feature,
+            stress_tail,
+            stress_direction,
+        ) = keys
 
-        valid_rows = [
-            row
-            for row in rows
-            if row["n"] >= min_rows_per_window
-        ]
+        n = int(group["n"].sum())
+        events = int(group["events"].sum())
 
-        lift_values = _values(
-            valid_rows,
-            "lift",
+        event_rate = (
+            events / n
+            if n > 0
+            else float("nan")
         )
 
-        event_rates = _values(
-            valid_rows,
-            "event_rate",
+        baseline_event_rate = (
+            float(
+                np.average(
+                    group["baseline_event_rate"],
+                    weights=group["n"],
+                )
+            )
+            if n > 0
+            else float("nan")
         )
 
-        return_differences = _values(
-            valid_rows,
-            "return_difference",
+        lift = (
+            event_rate - baseline_event_rate
+            if np.isfinite(event_rate)
+            and np.isfinite(baseline_event_rate)
+            else float("nan")
         )
 
-        mean_returns = _values(
-            valid_rows,
-            "mean_return",
+        selected_returns = group[
+            "mean_return"
+        ].to_numpy(dtype=float)
+
+        rest_returns = group[
+            "rest_mean_return"
+        ].to_numpy(dtype=float)
+
+        valid_selected = np.isfinite(selected_returns)
+        valid_rest = np.isfinite(rest_returns)
+
+        weighted_mean_return = (
+            float(
+                np.average(
+                    selected_returns[valid_selected],
+                    weights=group.loc[
+                        valid_selected,
+                        "n",
+                    ],
+                )
+            )
+            if valid_selected.any()
+            else float("nan")
         )
 
-        window_metrics = [
-            {
-                "window": row["window"],
-                "n": row["n"],
-                "events": row["events"],
-                "event_rate": row["event_rate"],
-                "baseline_event_rate": row[
-                    "baseline_event_rate"
-                ],
-                "lift": row["lift"],
-                "mean_return": row[
-                    "mean_return"
-                ],
-                "rest_mean_return": row[
-                    "rest_mean_return"
-                ],
-                "return_difference": row[
-                    "return_difference"
-                ],
-                "bootstrap_ci_low": row[
-                    "bootstrap_ci_low"
-                ],
-                "bootstrap_ci_high": row[
-                    "bootstrap_ci_high"
-                ],
-            }
-            for row in valid_rows
-        ]
+        weighted_rest_mean_return = (
+            float(
+                np.average(
+                    rest_returns[valid_rest],
+                    weights=group.loc[
+                        valid_rest,
+                        "rest_n",
+                    ],
+                )
+            )
+            if valid_rest.any()
+            else float("nan")
+        )
+
+        return_difference = (
+            weighted_mean_return
+            - weighted_rest_mean_return
+            if np.isfinite(weighted_mean_return)
+            and np.isfinite(weighted_rest_mean_return)
+            else float("nan")
+        )
 
         pooled.append(
             {
                 "candidate_id": candidate_id,
-                "target_name": first["target_name"],
-                "signal_name": first["signal_name"],
-                "signal_tail": first["signal_tail"],
-                "stress_feature": first[
-                    "stress_feature"
-                ],
-                "stress_tail": first[
-                    "stress_tail"
-                ],
-                "stress_direction": first[
-                    "stress_direction"
-                ],
-                "windows": len(rows),
-                "valid_windows": len(
-                    valid_rows
-                ),
-                "min_n": min(
-                    (
-                        row["n"]
-                        for row in rows
-                    ),
-                    default=0,
-                ),
-                "max_n": max(
-                    (
-                        row["n"]
-                        for row in rows
-                    ),
-                    default=0,
-                ),
-                "lift": _mean(
-                    lift_values
-                ),
-                "event_rate": _mean(
-                    event_rates
-                ),
-                "mean_return": _mean(
-                    mean_returns
-                ),
-                "return_difference": _mean(
-                    return_differences
-                ),
-                "lift_min": min(
-                    lift_values,
-                    default=None,
-                ),
-                "lift_max": max(
-                    lift_values,
-                    default=None,
-                ),
-                "lift_spread": (
-                    max(lift_values)
-                    - min(lift_values)
-                    if lift_values
-                    else None
-                ),
-                "return_difference_min": min(
-                    return_differences,
-                    default=None,
-                ),
-                "return_difference_max": max(
-                    return_differences,
-                    default=None,
-                ),
-                "return_difference_spread": (
-                    max(return_differences)
-                    - min(return_differences)
-                    if return_differences
-                    else None
-                ),
-                "window_metrics": window_metrics,
-                "stable_lift_windows": sum(
-                    1
-                    for row in valid_rows
-                    if (
-                        row.get("lift")
-                        is not None
-                        and row["lift"] > 1.0
-                    )
-                ),
-                "negative_return_windows": sum(
-                    1
-                    for row in valid_rows
-                    if (
-                        row.get(
-                            "return_difference"
-                        )
-                        is not None
-                        and row[
-                            "return_difference"
-                        ] < 0
-                    )
-                ),
+                "target_name": target_name,
+                "signal_name": signal_name,
+                "signal_tail": signal_tail,
+                "stress_feature": stress_feature,
+                "stress_tail": stress_tail,
+                "stress_direction": stress_direction,
+                "window": "pooled",
+                "split": "pooled",
+                "n": n,
+                "events": events,
+                "event_rate": event_rate,
+                "baseline_event_rate": baseline_event_rate,
+                "lift": lift,
+                "mean_return": weighted_mean_return,
+                "rest_mean_return": weighted_rest_mean_return,
+                "return_difference": return_difference,
             }
         )
 
@@ -719,156 +536,61 @@ def pool_results(
 
 
 def find_candidates(
-    pooled: list[dict[str, Any]],
+    results: list[dict[str, Any]],
     config: DiscoveryConfig,
 ) -> list[dict[str, Any]]:
-    validation = config.validation
+    if not results:
+        return []
 
-    findings = []
+    frame = pd.DataFrame(results)
 
-    for row in pooled:
-        if (
-            row["valid_windows"]
-            < validation.min_positive_windows
-        ):
-            continue
+    if "lift" not in frame.columns:
+        return []
 
-        lift_ok = (
-            row["lift"] is not None
-            and row["lift"]
-            >= validation.min_lift
-        )
-
-        return_ok = (
-            row["return_difference"]
-            is not None
-            and row["return_difference"]
-            <= validation.max_return_difference
-        )
-
-        if not (
-            lift_ok
-            or return_ok
-        ):
-            continue
-
-        score = 0.0
-
-        if row["lift"] is not None:
-            score += (
-                row["lift"] - 1.0
+    frame = frame[
+        np.isfinite(
+            pd.to_numeric(
+                frame["lift"],
+                errors="coerce",
             )
-
-        if (
-            row["return_difference"]
-            is not None
-        ):
-            score += max(
-                0.0,
-                -row["return_difference"],
-            )
-
-        findings.append(
-            {
-                **row,
-                "discovery_score": score,
-                "lift_signal": lift_ok,
-                "return_signal": return_ok,
-            }
         )
+    ].copy()
 
-    findings.sort(
-        key=lambda row: (
-            row["discovery_score"],
-            row.get(
-                "lift",
-                0.0,
-            ) or 0.0,
-        ),
-        reverse=True,
+    if frame.empty:
+        return []
+
+    frame = frame.sort_values(
+        ["lift", "n"],
+        ascending=[False, False],
     )
 
-    return findings[
-        : validation.max_findings
-    ]
+    return frame.head(
+        config.validation.top_k
+    ).to_dict("records")
 
 
 def run_discovery(
     config: DiscoveryConfig,
-) -> tuple[
-    DiscoveryData,
-    list[Candidate],
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-]:
-    print(
-        "Preparing discovery data...",
-        flush=True,
-    )
+) -> dict[str, Any]:
+    data = prepare_data(config)
 
-    data = prepare_data(
-        config
-    )
-
-    candidates = build_candidates(
-        config
-    )
-
-    print(
-        f"Discovery candidates: "
-        f"{len(candidates):,}",
-        flush=True,
-    )
+    candidates = build_candidates(config)
 
     results = evaluate_candidates(
-        data,
-        candidates,
+        data=data,
+        candidates=candidates,
     )
 
-    pooled = pool_results(
-        results,
-        min_rows_per_window=(
-            config.validation
-            .min_rows_per_window
-        ),
-    )
+    pooled = pool_results(results)
 
-    findings = find_candidates(
+    selected = find_candidates(
         pooled,
         config,
     )
 
-    print(
-        f"Discovery findings: "
-        f"{len(findings):,}",
-        flush=True,
-    )
-
-    return (
-        data,
-        candidates,
-        results,
-        pooled,
-        findings,
-    )
-
-
-def _values(
-    rows: list[dict[str, Any]],
-    key: str,
-) -> list[float]:
-    return [
-        float(row[key])
-        for row in rows
-        if row.get(key) is not None
-    ]
-
-
-def _mean(
-    values: list[float],
-) -> float | None:
-    if not values:
-        return None
-
-    return sum(values) / len(values)
+    return {
+        "results": results,
+        "pooled": pooled,
+        "selected": selected,
+        "candidate_count": len(candidates),
+    }
