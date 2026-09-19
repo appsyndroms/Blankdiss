@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.event_risk import (
+    run_event_risk_interaction,
+)
 
 
 class FIShortInterestEventRiskInteractionExperiment(
@@ -24,7 +27,7 @@ class FIShortInterestEventRiskInteractionExperiment(
     positive_change_cutoff = 0.20
 
     def analyze_window(self, context):
-        return self.run_event_risk_interaction(
+        return run_event_risk_interaction(
             context,
             risk_cutoffs=self.event_risk_cutoffs,
             positive_change_cutoff=self.positive_change_cutoff,
