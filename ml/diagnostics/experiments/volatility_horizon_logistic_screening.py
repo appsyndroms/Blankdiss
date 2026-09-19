@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.volatility import (
+    run_logistic_screen,
+)
 
 
 class VolatilityHorizonLogisticExperiment(
@@ -29,7 +32,7 @@ class VolatilityHorizonLogisticExperiment(
     }
 
     def analyze_window(self, context):
-        return self.run_logistic_screen(
+        return run_logistic_screen(
             context,
             feature_sets=self.feature_sets,
             target="down_5pct_5d",
