@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.volatility import (
+    run_interaction_screen,
+)
 
 
 class VolatilityInteractionExperiment(
@@ -33,7 +36,7 @@ class VolatilityInteractionExperiment(
     }
 
     def analyze_window(self, context):
-        return self.run_interaction_screen(
+        return run_interaction_screen(
             context,
             base_features=self.base_features,
             interactions=self.interactions,
