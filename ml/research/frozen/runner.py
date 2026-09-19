@@ -4,7 +4,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from ml.research.discovery.config import (
@@ -18,6 +17,7 @@ from ml.research.discovery.engine import (
 )
 
 from .config import load_config
+from .null_test import run_frozen_null_test
 
 
 ROOT = Path(
@@ -25,7 +25,9 @@ ROOT = Path(
 )
 
 
-def _build_candidate(config) -> Candidate:
+def _build_candidate(
+    config,
+) -> Candidate:
     candidate = config.candidate
 
     return Candidate(
@@ -39,14 +41,22 @@ def _build_candidate(config) -> Candidate:
     )
 
 
-def _build_discovery_config(config) -> DiscoveryConfig:
+def _build_discovery_config(
+    config,
+) -> DiscoveryConfig:
     candidate = config.candidate
 
     return DiscoveryConfig(
         enabled=True,
-        targets=(candidate.target_name,),
-        signals=(candidate.signal_name,),
-        stress_features=(candidate.stress_feature,),
+        targets=(
+            candidate.target_name,
+        ),
+        signals=(
+            candidate.signal_name,
+        ),
+        stress_features=(
+            candidate.stress_feature,
+        ),
         tails=(
             candidate.signal_tail,
             candidate.stress_tail,
@@ -82,6 +92,79 @@ def _write_json(
         )
 
 
+def _build_report(
+    config,
+    candidate: Candidate,
+    result: dict,
+    null_result: dict,
+) -> str:
+    lines = [
+        "# Blankdiss Frozen Hypothesis",
+        "",
+        "## Hypothesis",
+        "",
+        config.question,
+        "",
+        "## Frozen candidate",
+        "",
+        f"- Candidate: `{candidate.candidate_id}`",
+        f"- Target: `{candidate.target_name}`",
+        f"- Signal: `{candidate.signal_name}`",
+        f"- Signal tail: `{candidate.signal_tail}`",
+        f"- Stress feature: `{candidate.stress_feature}`",
+        f"- Stress tail: `{candidate.stress_tail}`",
+        f"- Stress direction: `{candidate.stress_direction}`",
+        "",
+        "## Discovery boundary",
+        "",
+        f"- Discovery run: `{config.discovery_run}`",
+        f"- Discovery end: `{config.discovery_end_date}`",
+        "",
+        "## OOS evaluation",
+        "",
+        f"- Start: `{config.evaluation.start_date}`",
+        f"- End: `{config.evaluation.end_date}`",
+        f"- Rows: {result['n']}",
+        f"- Events: {result['events']}",
+        f"- Event rate: {result['event_rate']}",
+        f"- Baseline event rate: {result['baseline_event_rate']}",
+        f"- Lift: {result['lift']}",
+        f"- Mean return: {result['mean_return']}",
+        f"- Rest mean return: {result['rest_mean_return']}",
+        f"- Return difference: {result['return_difference']}",
+        "",
+        "## Frozen null test",
+        "",
+        f"- Metric: `{null_result['metric']}`",
+        f"- Permutations: {null_result['permutations_requested']:,}",
+        f"- Valid permutations: {null_result['permutations_valid']:,}",
+        f"- Seed: {null_result['seed']}",
+        f"- Observed: {null_result['observed']}",
+        f"- Null mean: {null_result['null_mean']}",
+        f"- Null std: {null_result['null_std']}",
+        f"- Null 95th percentile: {null_result['null_percentile_95']}",
+        f"- Null 99th percentile: {null_result['null_percentile_99']}",
+        f"- Empirical p-value: {null_result['p_value']}",
+        "",
+        "## Method",
+        "",
+        (
+            "The candidate was frozen before the OOS evaluation. "
+            "The null test keeps the candidate, signal and stress "
+            "definition fixed and permutes only the outcome within "
+            "the OOS period."
+        ),
+        "",
+        (
+            "No candidate search or parameter selection is performed "
+            "during the frozen null test."
+        ),
+        "",
+    ]
+
+    return "\n".join(lines)
+
+
 def run() -> None:
     config = load_config()
 
@@ -107,6 +190,12 @@ def run() -> None:
         flush=True,
     )
 
+    print(
+        f"Null metric: "
+        f"{config.null_test.metric}",
+        flush=True,
+    )
+
     discovery_config = _build_discovery_config(
         config
     )
@@ -116,7 +205,8 @@ def run() -> None:
     )
 
     dates = pd.to_datetime(
-        data.frame["snapshot_date"]
+        data.frame["snapshot_date"],
+        errors="coerce",
     )
 
     evaluation_mask = (
@@ -146,13 +236,58 @@ def run() -> None:
         split="oos",
     )
 
+    print(
+        "OOS result:",
+        flush=True,
+    )
+
+    print(
+        json.dumps(
+            result,
+            indent=2,
+            ensure_ascii=False,
+            default=str,
+        ),
+        flush=True,
+    )
+
+    null_result = run_frozen_null_test(
+        data=data,
+        candidate=candidate,
+        oos_mask=evaluation_mask,
+        observed_result=result,
+        permutations=(
+            config.null_test.permutations
+        ),
+        seed=config.null_test.seed,
+        metric=config.null_test.metric,
+    )
+
+    print(
+        "Frozen null result:",
+        flush=True,
+    )
+
+    print(
+        json.dumps(
+            null_result,
+            indent=2,
+            ensure_ascii=False,
+            default=str,
+        ),
+        flush=True,
+    )
+
     timestamp = datetime.now(
         timezone.utc
     ).strftime(
         "%Y%m%dT%H%M%SZ"
     )
 
-    run_dir = ROOT / timestamp
+    run_dir = (
+        ROOT / timestamp
+    )
+
     run_dir.mkdir(
         parents=True,
         exist_ok=True,
@@ -160,9 +295,13 @@ def run() -> None:
 
     metadata = {
         "created_at_utc": timestamp,
-        "hypothesis_id": config.hypothesis_id,
+        "hypothesis_id": (
+            config.hypothesis_id
+        ),
         "question": config.question,
-        "discovery_run": config.discovery_run,
+        "discovery_run": (
+            config.discovery_run
+        ),
         "discovery_end_date": (
             config.discovery_end_date.isoformat()
         ),
@@ -172,20 +311,51 @@ def run() -> None:
         "evaluation_end_date": (
             config.evaluation.end_date.isoformat()
         ),
-        "feature_rows": len(data.frame),
         "evaluation_rows": int(
             evaluation_mask.sum()
         ),
         "candidate": {
-            "candidate_id": candidate.candidate_id,
-            "target_name": candidate.target_name,
-            "signal_name": candidate.signal_name,
-            "signal_tail": candidate.signal_tail,
-            "stress_feature": candidate.stress_feature,
-            "stress_tail": candidate.stress_tail,
-            "stress_direction": candidate.stress_direction,
+            "candidate_id": (
+                candidate.candidate_id
+            ),
+            "target_name": (
+                candidate.target_name
+            ),
+            "signal_name": (
+                candidate.signal_name
+            ),
+            "signal_tail": (
+                candidate.signal_tail
+            ),
+            "stress_feature": (
+                candidate.stress_feature
+            ),
+            "stress_tail": (
+                candidate.stress_tail
+            ),
+            "stress_direction": (
+                candidate.stress_direction
+            ),
+        },
+        "null_test": {
+            "metric": (
+                config.null_test.metric
+            ),
+            "permutations": (
+                config.null_test.permutations
+            ),
+            "seed": (
+                config.null_test.seed
+            ),
         },
     }
+
+    report = _build_report(
+        config=config,
+        candidate=candidate,
+        result=result,
+        null_result=null_result,
+    )
 
     _write_json(
         run_dir / "result.json",
@@ -193,34 +363,13 @@ def run() -> None:
     )
 
     _write_json(
-        run_dir / "metadata.json",
-        metadata,
+        run_dir / "null_test.json",
+        null_result,
     )
 
-    report = "\n".join(
-        [
-            "# Blankdiss Frozen Hypothesis OOS",
-            "",
-            f"- Hypothesis: `{config.hypothesis_id}`",
-            f"- Candidate: `{candidate.candidate_id}`",
-            f"- Discovery run: `{config.discovery_run}`",
-            f"- Discovery end: `{config.discovery_end_date}`",
-            f"- OOS start: `{config.evaluation.start_date}`",
-            f"- OOS end: `{config.evaluation.end_date}`",
-            f"- OOS rows: {result['n']}",
-            f"- Events: {result['events']}",
-            f"- Event rate: {result['event_rate']}",
-            f"- Baseline event rate: {result['baseline_event_rate']}",
-            f"- Lift: {result['lift']}",
-            f"- Mean return: {result['mean_return']}",
-            f"- Rest mean return: {result['rest_mean_return']}",
-            f"- Return difference: {result['return_difference']}",
-            "",
-            "## Hypothesis",
-            "",
-            config.question,
-            "",
-        ]
+    _write_json(
+        run_dir / "metadata.json",
+        metadata,
     )
 
     (
@@ -231,6 +380,7 @@ def run() -> None:
     )
 
     latest = ROOT / "latest"
+
     latest.mkdir(
         parents=True,
         exist_ok=True,
@@ -239,6 +389,11 @@ def run() -> None:
     _write_json(
         latest / "result.json",
         result,
+    )
+
+    _write_json(
+        latest / "null_test.json",
+        null_result,
     )
 
     _write_json(
@@ -254,12 +409,13 @@ def run() -> None:
     )
 
     print(
-        "Frozen hypothesis OOS complete.",
+        "Frozen hypothesis complete.",
         flush=True,
     )
 
     print(
-        f"Result: {result}",
+        f"Empirical p-value: "
+        f"{null_result['p_value']}",
         flush=True,
     )
 
