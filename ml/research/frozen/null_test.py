@@ -1,66 +1,105 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 from ml.research.discovery.engine import (
     Candidate,
     DiscoveryData,
     evaluate_candidate_on_mask,
 )
-from ml.research.discovery.targets import (
-    build_target,
-    _target_return_column,
-)
 
 
 def _permuted_data(
     data: DiscoveryData,
-    target_name: str,
-    mask: np.ndarray,
+    candidate: Candidate,
+    oos_mask: np.ndarray,
     rng: np.random.Generator,
+    metric: str,
 ) -> DiscoveryData:
     """
-    Permuterar endast outcome-värden inom OOS-masken.
+    Create one frozen-null dataset.
 
-    Signaler och stressvariabler lämnas orörda.
+    The candidate, signal and stress feature remain completely fixed.
+
+    For lift:
+        the target values are shuffled within OOS.
+
+    For return_difference:
+        the target return values are shuffled within OOS.
     """
 
-    target = data.targets[target_name]
+    targets = dict(data.targets)
+    returns = dict(data.returns)
 
-    return_values = data.returns[target_name].copy()
+    target = targets[
+        candidate.target_name
+    ]
 
-    valid = (
-        mask
-        & np.isfinite(return_values)
-    )
+    return_values = returns[
+        candidate.target_name
+    ]
 
-    shuffled = return_values[
-        valid
-    ].copy()
-
-    rng.shuffle(shuffled)
-
-    permuted_returns = return_values.copy()
-
-    permuted_returns[
-        valid
-    ] = shuffled
-
-    target_config = next(
-        target_config
-        for target_config in (
-            # build_target behöver rätt target-konfiguration.
-            # DiscoveryData innehåller inte target-konfigurationen,
-            # så den hämtas via engine-data indirekt i runnern.
+    if metric == "lift":
+        valid = (
+            oos_mask
+            & np.isfinite(target)
         )
-    )
 
-    raise RuntimeError(
-        "Internal error: _permuted_data must be supplied "
-        "with target configuration."
+        shuffled = target[
+            valid
+        ].copy()
+
+        rng.shuffle(
+            shuffled
+        )
+
+        permuted_target = target.copy()
+
+        permuted_target[
+            valid
+        ] = shuffled
+
+        targets[
+            candidate.target_name
+        ] = permuted_target
+
+    elif metric == "return_difference":
+        valid = (
+            oos_mask
+            & np.isfinite(return_values)
+        )
+
+        shuffled = return_values[
+            valid
+        ].copy()
+
+        rng.shuffle(
+            shuffled
+        )
+
+        permuted_returns = return_values.copy()
+
+        permuted_returns[
+            valid
+        ] = shuffled
+
+        returns[
+            candidate.target_name
+        ] = permuted_returns
+
+    else:
+        raise ValueError(
+            "metric måste vara 'lift' "
+            "eller 'return_difference'."
+        )
+
+    return replace(
+        data,
+        targets=targets,
+        returns=returns,
     )
 
 
@@ -74,9 +113,12 @@ def run_frozen_null_test(
     metric: str,
 ) -> dict[str, Any]:
     """
-    Frozen null-test för exakt en kandidat.
+    Test one already-frozen candidate against a permutation null.
 
-    Ingen candidate search sker under permutationerna.
+    IMPORTANT:
+        No candidate search is performed here.
+
+    The exact same candidate is evaluated for every permutation.
     """
 
     if permutations < 1:
@@ -97,8 +139,9 @@ def run_frozen_null_test(
         metric
     )
 
-    if observed_value is None or not np.isfinite(
-        observed_value
+    if (
+        observed_value is None
+        or not np.isfinite(observed_value)
     ):
         raise ValueError(
             f"Observed metric '{metric}' är inte giltig."
@@ -108,112 +151,38 @@ def run_frozen_null_test(
         seed
     )
 
-    target = data.targets[
-        candidate.target_name
-    ]
-
-    returns = data.returns[
-        candidate.target_name
-    ]
-
-    valid = (
-        oos_mask
-        & np.isfinite(target)
-        & np.isfinite(returns)
-    )
-
-    original_returns = returns.copy()
-
     null_values: list[float] = []
 
     for permutation_index in range(
         1,
         permutations + 1,
     ):
-        permuted_returns = original_returns.copy()
-
-        shuffled = permuted_returns[
-            valid
-        ].copy()
-
-        rng.shuffle(
-            shuffled
-        )
-
-        permuted_returns[
-            valid
-        ] = shuffled
-
-        selected_mask = _candidate_selected_mask(
+        permuted_data = _permuted_data(
             data=data,
             candidate=candidate,
+            oos_mask=oos_mask,
+            rng=rng,
+            metric=metric,
         )
 
-        selected = (
-            oos_mask
-            & selected_mask
-            & np.isfinite(permuted_returns)
+        result = evaluate_candidate_on_mask(
+            data=permuted_data,
+            candidate=candidate,
+            base_mask=oos_mask,
+            split="oos_null",
         )
 
-        rest = (
-            oos_mask
-            & ~selected_mask
-            & np.isfinite(permuted_returns)
+        value = result.get(
+            metric
         )
 
-        if metric == "return_difference":
-            selected_values = permuted_returns[
-                selected
-            ]
-
-            rest_values = permuted_returns[
-                rest
-            ]
-
-            if (
-                not len(selected_values)
-                or not len(rest_values)
-            ):
-                continue
-
-            value = float(
-                selected_values.mean()
-                - rest_values.mean()
+        if (
+            value is not None
+            and np.isfinite(value)
+        ):
+            null_values.append(
+                float(value)
             )
-
-        else:
-            selected_values = target[
-                selected
-            ]
-
-            baseline_values = target[
-                oos_mask
-                & np.isfinite(target)
-            ]
-
-            if (
-                not len(selected_values)
-                or not len(baseline_values)
-            ):
-                continue
-
-            event_rate = float(
-                (selected_values > 0).mean()
-            )
-
-            baseline_rate = float(
-                (baseline_values > 0).mean()
-            )
-
-            if baseline_rate <= 0:
-                continue
-
-            value = (
-                event_rate
-                - baseline_rate
-            )
-
-        null_values.append(value)
 
         if (
             permutation_index == 1
@@ -228,7 +197,8 @@ def run_frozen_null_test(
 
     if not null_values:
         raise RuntimeError(
-            "Frozen null-testet producerade inga giltiga permutationer."
+            "Frozen null-testet producerade "
+            "inga giltiga permutationer."
         )
 
     null_array = np.asarray(
@@ -242,6 +212,7 @@ def run_frozen_null_test(
         )
     )
 
+    # +1 correction prevents p=0 for finite permutation counts.
     p_value = (
         exceedances + 1
     ) / (
@@ -250,11 +221,20 @@ def run_frozen_null_test(
 
     return {
         "metric": metric,
-        "observed": float(observed_value),
-        "permutations_requested": permutations,
-        "permutations_valid": len(null_values),
-        "seed": seed,
-        "p_value": float(p_value),
+        "observed": float(
+            observed_value
+        ),
+        "permutations_requested": int(
+            permutations
+        ),
+        "permutations_valid": int(
+            len(null_array)
+        ),
+        "seed": int(seed),
+        "exceedances": exceedances,
+        "p_value": float(
+            p_value
+        ),
         "null_mean": float(
             null_array.mean()
         ),
@@ -267,36 +247,16 @@ def run_frozen_null_test(
         "null_max": float(
             null_array.max()
         ),
+        "null_percentile_95": float(
+            np.percentile(
+                null_array,
+                95,
+            )
+        ),
+        "null_percentile_99": float(
+            np.percentile(
+                null_array,
+                99,
+            )
+        ),
     }
-
-
-def _candidate_selected_mask(
-    data: DiscoveryData,
-    candidate: Candidate,
-) -> np.ndarray:
-    from ml.research.discovery.validation import tail_mask
-
-    signal = data.signals[
-        candidate.signal_name
-    ]
-
-    stress = data.stress_signals[
-        candidate.stress_feature
-    ]
-
-    signal_mask = tail_mask(
-        signal,
-        candidate.signal_tail,
-        direction="upper",
-    )
-
-    stress_mask = tail_mask(
-        stress,
-        candidate.stress_tail,
-        direction=candidate.stress_direction,
-    )
-
-    return (
-        signal_mask
-        & stress_mask
-    )
