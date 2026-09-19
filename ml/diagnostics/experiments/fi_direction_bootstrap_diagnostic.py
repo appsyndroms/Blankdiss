@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ml.diagnostics.framework import DiagnosticExperiment
+from ml.diagnostics.framework.fi_direction import (
+    run_incremental_fi_bootstrap,
+)
 
 
 class FIDirectionBootstrapExperiment(
@@ -14,9 +17,6 @@ class FIDirectionBootstrapExperiment(
     )
 
     bootstrap_iterations = 2_000
-
-    event_threshold = 0.10
-    event_horizon = 5
 
     tail_fractions = (
         0.01,
@@ -44,7 +44,7 @@ class FIDirectionBootstrapExperiment(
     )
 
     def analyze_window(self, context):
-        return self.run_incremental_fi_bootstrap(
+        return run_incremental_fi_bootstrap(
             context,
             fi_columns=self.fi_columns,
             tail_fractions=self.tail_fractions,
