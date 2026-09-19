@@ -24,15 +24,10 @@ def run() -> None:
         data,
         candidates,
         results,
+        pooled,
         findings,
     ) = run_discovery(
         config
-    )
-
-    from .engine import pool_results
-
-    pooled = pool_results(
-        results
     )
 
     run_dir = write_results(
