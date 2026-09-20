@@ -410,7 +410,7 @@ jobs:
 
           deciles = results.get(
               "decile_analysis",
-              []
+              [],
           )
 
           if len(deciles) != 30:
@@ -420,7 +420,7 @@ jobs:
 
           conditional = results.get(
               "conditional_rank_analysis",
-              []
+              [],
           )
 
           if len(conditional) != 3:
@@ -430,7 +430,7 @@ jobs:
 
           walk_forward = results.get(
               "walk_forward",
-              []
+              [],
           )
 
           if not walk_forward:
@@ -443,7 +443,7 @@ jobs:
           for run in walk_forward:
               for row in run.get(
                   "results",
-                  []
+                  [],
               ):
                   model_names.add(
                       row.get("model")
@@ -510,13 +510,6 @@ jobs:
             data/processed/ml/research/*/diagnostics.json
             data/processed/ml/research/*/diagnostic/*.json
 
-            data/processed/ml/research/incremental_si/results.json
-            data/processed/ml/research/incremental_si/decile_analysis.csv
-            data/processed/ml/research/incremental_si/conditional_rank_analysis.csv
-            data/processed/ml/research/incremental_si/walk_forward_models.csv
-            data/processed/ml/research/incremental_si/metadata.json
-            data/processed/ml/research/incremental_si/report.md
-
             data/processed/ml/research/discovery/latest/results.jsonl
             data/processed/ml/research/discovery/latest/pooled.json
             data/processed/ml/research/discovery/latest/findings.json
@@ -529,6 +522,8 @@ jobs:
             data/processed/ml/research/discovery/*/metadata.json
             data/processed/ml/research/discovery/*/report.md
 
+            !data/processed/ml/research/incremental_si/**
+
           if-no-files-found: error
 
       - name: Persist research and discovery results
@@ -539,12 +534,6 @@ jobs:
           git add \
             data/processed/ml/research/latest/diagnostics.json \
             data/processed/ml/research/latest/diagnostic/*.json \
-            data/processed/ml/research/incremental_si/results.json \
-            data/processed/ml/research/incremental_si/decile_analysis.csv \
-            data/processed/ml/research/incremental_si/conditional_rank_analysis.csv \
-            data/processed/ml/research/incremental_si/walk_forward_models.csv \
-            data/processed/ml/research/incremental_si/metadata.json \
-            data/processed/ml/research/incremental_si/report.md \
             data/processed/analysis/features_*.jsonl \
             data/processed/analysis/features_metadata.json \
             data/processed/ml/research/discovery/latest/results.jsonl \
