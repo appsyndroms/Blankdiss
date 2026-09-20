@@ -1,24 +1,19 @@
 from __future__ import annotations
 import json
-import os
 from pathlib import Path
-import yaml
-from ml.research.discovery.config import DiscoveryConfig
+from ml.research.discovery.config import (
+    DiscoveryConfig,
+    ValidationConfig,
+)
 from ml.research.discovery.engine import (
     Candidate,
     prepare_data,
 )
+from ml.research.frozen.config import load_config
 from ml.research.frozen.subgroup_analysis import (
     run_subgroup_analysis,
 )
 ROOT = Path(__file__).resolve().parents[3]
-HYPOTHESIS_PATH = (
-    ROOT
-    / "ml"
-    / "research"
-    / "frozen"
-    / "hypothesis.yml"
-)
 OUTPUT_DIR = (
     ROOT
     / "data"
@@ -28,161 +23,64 @@ OUTPUT_DIR = (
     / "frozen"
     / "subgroups"
 )
-def load_hypothesis() -> dict:
-    with HYPOTHESIS_PATH.open(
-        "r",
-        encoding="utf-8",
-    ) as handle:
-        return yaml.safe_load(handle)
-def load_discovery_config(
-    discovery_end_date: str,
-) -> DiscoveryConfig:
-    raw_config = os.environ.get(
-        "DISCOVERY_CONFIG"
+def _build_candidate(config) -> Candidate:
+    candidate = config.candidate
+    return Candidate(
+        candidate_id=candidate.candidate_id,
+        target_name=candidate.target_name,
+        signal_name=candidate.signal_name,
+        signal_tail=candidate.signal_tail,
+        stress_feature=candidate.stress_feature,
+        stress_tail=candidate.stress_tail,
+        stress_direction=candidate.stress_direction,
     )
-    if not raw_config:
-        raise RuntimeError(
-            "DISCOVERY_CONFIG saknas i miljön. "
-            "Subgroup analysis behöver samma discovery-konfiguration "
-            "som användes för att skapa kandidaten."
-        )
-    config_data = yaml.safe_load(raw_config)
-    if not isinstance(config_data, dict):
-        raise RuntimeError(
-            "DISCOVERY_CONFIG kunde inte tolkas som ett YAML-objekt."
-        )
-    config_data = dict(config_data)
-    # Den frysta hypotesen anger exakt vilken discovery-period
-    # som låg till grund för kandidaten.
-    config_data["discovery_end_date"] = (
-        discovery_end_date
-    )
+def _build_discovery_config(config) -> DiscoveryConfig:
+    candidate = config.candidate
     return DiscoveryConfig(
-        **config_data
-    )
-def build_frozen_candidate(
-    candidate_cfg: dict,
-) -> Candidate:
-    required = [
-        "candidate_id",
-        "target_name",
-        "signal_name",
-        "signal_tail",
-        "stress_feature",
-        "stress_tail",
-        "stress_direction",
-    ]
-    missing = [
-        key
-        for key in required
-        if key not in candidate_cfg
-    ]
-    if missing:
-        raise RuntimeError(
-            "Fryst kandidat saknar obligatoriska fält: "
-            + ", ".join(missing)
-        )
-    candidate = Candidate(
-        candidate_id=str(
-            candidate_cfg["candidate_id"]
+        enabled=True,
+        discovery_end_date=config.discovery_end_date,
+        targets=(candidate.target_name,),
+        signals=(candidate.signal_name,),
+        stress_features=(candidate.stress_feature,),
+        tails=(
+            candidate.signal_tail,
+            candidate.stress_tail,
         ),
-        target_name=str(
-            candidate_cfg["target_name"]
-        ),
-        signal_name=str(
-            candidate_cfg["signal_name"]
-        ),
-        signal_tail=float(
-            candidate_cfg["signal_tail"]
-        ),
-        stress_feature=str(
-            candidate_cfg["stress_feature"]
-        ),
-        stress_tail=float(
-            candidate_cfg["stress_tail"]
-        ),
-        stress_direction=str(
-            candidate_cfg["stress_direction"]
-        ),
-    )
-    expected_candidate_id = (
-        f"{candidate.signal_name}"
-        f"__{_tail_name(candidate.signal_tail)}"
-        f"__{candidate.stress_feature}"
-        f"__{candidate.stress_direction}"
-        f"__{_tail_name(candidate.stress_tail)}"
-        f"__{candidate.target_name}"
-    )
-    if candidate.candidate_id != expected_candidate_id:
-        raise RuntimeError(
-            "Fryst kandidat-ID stämmer inte med kandidatens "
-            "parametrar.\n"
-            f"Configured: {candidate.candidate_id}\n"
-            f"Expected:  {expected_candidate_id}"
-        )
-    return candidate
-def _tail_name(
-    fraction: float,
-) -> str:
-    if fraction == 0.20:
-        return "20pct"
-    if fraction == 0.10:
-        return "10pct"
-    if fraction == 0.05:
-        return "5pct"
-    if fraction == 0.025:
-        return "2_5pct"
-    if fraction == 0.01:
-        return "1pct"
-    return str(
-        fraction
-    ).replace(
-        ".",
-        "_",
+        stress_directions={
+            candidate.stress_feature: (
+                candidate.stress_direction
+            )
+        },
+        validation=ValidationConfig(),
     )
 def main() -> None:
-    hypothesis = load_hypothesis()
-    hypothesis_cfg = hypothesis[
-        "hypothesis"
-    ]
-    candidate_cfg = hypothesis_cfg[
-        "candidate"
-    ]
-    evaluation_cfg = hypothesis_cfg[
-        "evaluation"
-    ]
-    source_cfg = hypothesis_cfg[
-        "source"
-    ]
-    discovery_config = load_discovery_config(
-        discovery_end_date=source_cfg[
-            "discovery_end_date"
-        ],
+    config = load_config()
+    discovery_config = _build_discovery_config(
+        config
     )
-    # Important:
-    # The frozen OOS period must remain available.
     data = prepare_data(
         discovery_config,
         apply_discovery_end=False,
     )
-    # The subgroup analysis must use the exact candidate
-    # stored in hypothesis.yml. It must not reconstruct the
-    # candidate through the discovery grid.
-    candidate = build_frozen_candidate(
-        candidate_cfg
-    )
+    candidate = _build_candidate(config)
     results = run_subgroup_analysis(
         data=data,
         candidate=candidate,
-        evaluation_start=evaluation_cfg[
-            "start_date"
-        ],
-        evaluation_end=evaluation_cfg[
-            "end_date"
-        ],
+        evaluation_start=(
+            config.evaluation.start_date.isoformat()
+        ),
+        evaluation_end=(
+            config.evaluation.end_date.isoformat()
+        ),
         output_dir=OUTPUT_DIR,
     )
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
     metadata = {
+        "hypothesis_id": config.hypothesis_id,
+        "discovery_run": config.discovery_run,
         "candidate_id": candidate.candidate_id,
         "target_name": candidate.target_name,
         "signal_name": candidate.signal_name,
@@ -190,30 +88,26 @@ def main() -> None:
         "stress_feature": candidate.stress_feature,
         "stress_tail": candidate.stress_tail,
         "stress_direction": candidate.stress_direction,
-        "discovery_end_date": source_cfg[
-            "discovery_end_date"
-        ],
-        "evaluation_start": evaluation_cfg[
-            "start_date"
-        ],
-        "evaluation_end": evaluation_cfg[
-            "end_date"
-        ],
+        "discovery_end_date": (
+            config.discovery_end_date.isoformat()
+        ),
+        "evaluation_start": (
+            config.evaluation.start_date.isoformat()
+        ),
+        "evaluation_end": (
+            config.evaluation.end_date.isoformat()
+        ),
         "analysis": [
             "period",
             "sector",
             "market_regime",
         ],
         "method": (
-            "Diagnostic subgroup analysis of the frozen OOS "
-            "hypothesis. No thresholds or candidate parameters "
-            "are optimized."
+            "Diagnostic subgroup analysis of the frozen "
+            "OOS hypothesis. No thresholds or candidate "
+            "parameters are optimized."
         ),
     }
-    OUTPUT_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
     with (
         OUTPUT_DIR / "metadata.json"
     ).open(
