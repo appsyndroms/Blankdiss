@@ -102,6 +102,160 @@ jobs:
               -quit
           )"
 
+      - name: Run full discovery grid
+        run: |
+          python -u -m ml.research.discovery.runner
+
+      - name: Inspect discovery outputs
+        if: always()
+        run: |
+          echo "=== Discovery output directory ==="
+          find data/processed/ml/research/discovery \
+            -maxdepth 3 \
+            -type f \
+            -print 2>/dev/null || true
+
+          echo "=== Latest discovery metadata ==="
+          if [ -f data/processed/ml/research/discovery/latest/metadata.json ]; then
+            cat data/processed/ml/research/discovery/latest/metadata.json
+          else
+            echo "latest/metadata.json saknas"
+          fi
+
+          echo "=== Latest discovery report ==="
+          if [ -f data/processed/ml/research/discovery/latest/report.md ]; then
+            cat data/processed/ml/research/discovery/latest/report.md
+          else
+            echo "latest/report.md saknas"
+          fi
+
+          echo "=== Latest discovery findings ==="
+          if [ -f data/processed/ml/research/discovery/latest/findings.json ]; then
+            cat data/processed/ml/research/discovery/latest/findings.json
+          else
+            echo "latest/findings.json saknas"
+          fi
+
+          echo "=== Latest discovery results ==="
+          if [ -f data/processed/ml/research/discovery/latest/results.jsonl ]; then
+            cat data/processed/ml/research/discovery/latest/results.jsonl
+          else
+            echo "latest/results.jsonl saknas"
+          fi
+
+      - name: Verify discovery outputs
+        run: |
+          test -f data/processed/ml/research/discovery/latest/results.jsonl
+          test -f data/processed/ml/research/discovery/latest/pooled.json
+          test -f data/processed/ml/research/discovery/latest/findings.json
+          test -f data/processed/ml/research/discovery/latest/metadata.json
+          test -f data/processed/ml/research/discovery/latest/report.md
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          base = Path(
+              "data/processed/ml/research/discovery/latest"
+          )
+
+          metadata = json.loads(
+              (base / "metadata.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          if not isinstance(metadata, dict):
+              raise SystemExit(
+                  "Discovery metadata är inte ett objekt."
+              )
+
+          expected_tails = {
+              0.01,
+              0.025,
+              0.05,
+              0.10,
+          }
+
+          actual_tails = {
+              float(value)
+              for value in metadata.get("tails", [])
+          }
+
+          if actual_tails != expected_tails:
+              raise SystemExit(
+                  "Fel discovery tails: "
+                  f"expected={sorted(expected_tails)}, "
+                  f"actual={sorted(actual_tails)}"
+              )
+
+          if metadata.get("targets") != [
+              "down_10pct_5d"
+          ]:
+              raise SystemExit(
+                  "Fel discovery target-konfiguration."
+              )
+
+          if metadata.get("signals") != [
+              "short_interest_change"
+          ]:
+              raise SystemExit(
+                  "Fel discovery signal-konfiguration."
+              )
+
+          if metadata.get("stress_features") != [
+              "price_volatility_20d"
+          ]:
+              raise SystemExit(
+                  "Fel discovery stress-feature."
+              )
+
+          expected_candidate_count = 16
+
+          actual_candidate_count = metadata.get(
+              "candidate_count"
+          )
+
+          if actual_candidate_count != expected_candidate_count:
+              raise SystemExit(
+                  "Fel antal discovery candidates: "
+                  f"expected={expected_candidate_count}, "
+                  f"actual={actual_candidate_count}"
+              )
+
+          results_path = (
+              base / "results.jsonl"
+          )
+
+          result_lines = [
+              line
+              for line in results_path.read_text(
+                  encoding="utf-8"
+              ).splitlines()
+              if line.strip()
+          ]
+
+          if len(result_lines) != 16:
+              raise SystemExit(
+                  "Discovery results.jsonl innehåller "
+                  f"{len(result_lines)} rader; "
+                  "förväntade 16."
+              )
+
+          print(
+              "Discovery verification passed."
+          )
+          print(
+              f"Candidates: {actual_candidate_count}"
+          )
+          print(
+              f"Result rows: {len(result_lines)}"
+          )
+          print(
+              f"Tails: {sorted(actual_tails)}"
+          )
+          PY
+
       - name: Verify frozen hypothesis
         run: |
           python - <<'PY'
@@ -194,7 +348,9 @@ jobs:
                   "Fel antal null-permutationer."
               )
 
-          print("Frozen hypothesis verification passed.")
+          print(
+              "Frozen hypothesis verification passed."
+          )
           print(
               f"Candidate: {candidate['candidate_id']}"
           )
@@ -556,7 +712,7 @@ jobs:
           )
           PY
 
-      - name: Persist frozen research results
+      - name: Persist research results
         run: |
           git config user.name \
             "github-actions[bot]"
@@ -565,15 +721,16 @@ jobs:
             "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add \
+            data/processed/ml/research/discovery/ \
             data/processed/ml/research/frozen/
 
           if git diff --cached --quiet; then
-            echo "Inga frozen-resultat ändrades."
+            echo "Inga research-resultat ändrades."
             exit 0
           fi
 
           git commit \
-            -m "Update frozen ML research results"
+            -m "Update ML research results"
 
           for attempt in 1 2 3; do
             echo "Push attempt $attempt..."
@@ -596,5 +753,5 @@ jobs:
             fi
           done
 
-          echo "Kunde inte pusha frozen-resultaten."
+          echo "Kunde inte pusha research-resultaten."
           exit 1
