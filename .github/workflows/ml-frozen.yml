@@ -56,7 +56,7 @@ jobs:
         env:
           DISCOVERY_CONFIG: ${{ env.DISCOVERY_CONFIG }}
         run: |
-          python -m ml.research.discovery
+          python -m ml.research.discovery.runner
 
       - name: Run frozen interaction analysis
         run: |
@@ -71,27 +71,43 @@ jobs:
           discovery_root = Path("data/processed/ml/research/discovery")
           frozen_root = Path("data/processed/ml/research/frozen")
 
-          discovery_files = list(discovery_root.rglob("metadata.json"))
-          frozen_files = list(frozen_root.rglob("metadata.json"))
+          discovery_files = list(
+              discovery_root.rglob("metadata.json")
+          )
+
+          frozen_files = list(
+              frozen_root.rglob("metadata.json")
+          )
 
           if not discovery_files:
-              raise SystemExit("No discovery metadata found")
+              raise SystemExit(
+                  "No discovery metadata found"
+              )
 
           if not frozen_files:
-              raise SystemExit("No frozen metadata found")
+              raise SystemExit(
+                  "No frozen metadata found"
+              )
 
           latest_discovery = max(
               discovery_files,
-              key=lambda p: p.stat().st_mtime
+              key=lambda p: p.stat().st_mtime,
           )
 
           latest_frozen = max(
               frozen_files,
-              key=lambda p: p.stat().st_mtime
+              key=lambda p: p.stat().st_mtime,
           )
 
-          print(f"Latest discovery metadata: {latest_discovery}")
-          print(f"Latest frozen metadata: {latest_frozen}")
+          print(
+              f"Latest discovery metadata: "
+              f"{latest_discovery}"
+          )
+
+          print(
+              f"Latest frozen metadata: "
+              f"{latest_frozen}"
+          )
 
           with latest_discovery.open() as f:
               discovery = json.load(f)
@@ -99,23 +115,30 @@ jobs:
           with latest_frozen.open() as f:
               frozen = json.load(f)
 
-          assert discovery.get("discovery_end_date") == "2025-12-19", \
+          assert (
               discovery.get("discovery_end_date")
+              == "2025-12-19"
+          ), discovery.get("discovery_end_date")
 
-          assert frozen.get("discovery_end_date") == "2025-12-19", \
+          assert (
               frozen.get("discovery_end_date")
+              == "2025-12-19"
+          ), frozen.get("discovery_end_date")
 
-          print("Frozen verification passed.")
+          print(
+              "Frozen verification passed."
+          )
           PY
 
       - name: Verify interaction outputs
         run: |
           python - <<'PY'
           import json
-          import csv
           from pathlib import Path
 
-          root = Path("data/processed/ml/research/interaction")
+          root = Path(
+              "data/processed/ml/research/interaction"
+          )
 
           required = [
               root / "results.json",
@@ -125,45 +148,72 @@ jobs:
 
           for path in required:
               if not path.exists():
-                  raise SystemExit(f"Missing interaction output: {path}")
+                  raise SystemExit(
+                      f"Missing interaction output: {path}"
+                  )
 
           with (root / "results.json").open() as f:
               data = json.load(f)
 
-          assert data["target"] == "down_10pct_5d"
-          assert data["discovery_end"] == "2025-12-19"
-          assert data["bootstrap_iterations"] == 2000
+          assert (
+              data["target"]
+              == "down_10pct_5d"
+          )
+
+          assert (
+              data["discovery_end"]
+              == "2025-12-19"
+          )
+
+          assert (
+              data["bootstrap_iterations"]
+              == 2000
+          )
 
           results = data["results"]
 
           si_only = [
-              r for r in results
+              r
+              for r in results
               if r["type"] == "si_only"
           ]
 
           vol_only = [
-              r for r in results
+              r
+              for r in results
               if r["type"] == "vol_only"
           ]
 
           interactions = [
-              r for r in results
+              r
+              for r in results
               if r["type"] == "si_x_vol"
           ]
 
-          formal = data.get("formal_interactions", [])
+          formal = data.get(
+              "formal_interactions",
+              [],
+          )
 
-          assert len(si_only) == 4, \
-              f"Expected 4 SI-only rows, got {len(si_only)}"
+          assert len(si_only) == 4, (
+              f"Expected 4 SI-only rows, "
+              f"got {len(si_only)}"
+          )
 
-          assert len(vol_only) == 4, \
-              f"Expected 4 volatility-only rows, got {len(vol_only)}"
+          assert len(vol_only) == 4, (
+              f"Expected 4 volatility-only rows, "
+              f"got {len(vol_only)}"
+          )
 
-          assert len(interactions) == 16, \
-              f"Expected 16 SI×VOL rows, got {len(interactions)}"
+          assert len(interactions) == 16, (
+              f"Expected 16 SI×VOL rows, "
+              f"got {len(interactions)}"
+          )
 
-          assert len(formal) == 16, \
-              f"Expected 16 formal interaction rows, got {len(formal)}"
+          assert len(formal) == 16, (
+              f"Expected 16 formal interaction rows, "
+              f"got {len(formal)}"
+          )
 
           for row in formal:
               assert row["status"] == "ok", row
@@ -183,19 +233,39 @@ jobs:
               ]
 
               for field in required_fields:
-                  assert field in row, \
+                  assert field in row, (
                       f"Missing {field} in {row}"
+                  )
 
               assert (
-                  row["interaction_additive_ci_low"]
-                  <= row["interaction_additive_ci_high"]
+                  row[
+                      "interaction_additive_ci_low"
+                  ]
+                  <= row[
+                      "interaction_additive_ci_high"
+                  ]
               ), row
 
-          print("Interaction verification passed.")
-          print(f"SI-only rows: {len(si_only)}")
-          print(f"Vol-only rows: {len(vol_only)}")
-          print(f"SI×Vol rows: {len(interactions)}")
-          print(f"Formal interaction rows: {len(formal)}")
+          print(
+              "Interaction verification passed."
+          )
+
+          print(
+              f"SI-only rows: {len(si_only)}"
+          )
+
+          print(
+              f"Vol-only rows: {len(vol_only)}"
+          )
+
+          print(
+              f"SI×Vol rows: {len(interactions)}"
+          )
+
+          print(
+              f"Formal interaction rows: "
+              f"{len(formal)}"
+          )
           PY
 
       - name: Verify subgroup outputs
@@ -203,7 +273,9 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          root = Path("data/processed/ml/research")
+          root = Path(
+              "data/processed/ml/research"
+          )
 
           subgroup_files = list(
               root.rglob("*subgroup*.json")
@@ -212,19 +284,30 @@ jobs:
           )
 
           if subgroup_files:
-              print("Subgroup outputs found:")
+              print(
+                  "Subgroup outputs found:"
+              )
+
               for path in subgroup_files:
                   print(path)
           else:
-              print("No separate subgroup files found; skipping.")
+              print(
+                  "No separate subgroup files found; "
+                  "skipping."
+              )
 
-          print("Subgroup verification passed.")
+          print(
+              "Subgroup verification passed."
+          )
           PY
 
       - name: Persist frozen research results
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add \
             data/processed/ml/research/discovery/ \
@@ -236,5 +319,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update ML research results"
+          git commit \
+            -m "Update ML research results"
+
           git push
