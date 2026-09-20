@@ -83,7 +83,6 @@ def main() -> None:
         apply_discovery_end=False,
     )
     candidates = build_candidates(
-        data,
         discovery_config,
     )
     candidate_id = candidate_cfg[
