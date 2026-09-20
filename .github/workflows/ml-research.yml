@@ -1,24 +1,18 @@
 name: Blankdiss Research
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 env:
   DISCOVERY_CONFIG: |
     enabled: true
-
     targets:
       - down_5pct_5d
       - down_7pct_5d
       - down_10pct_5d
-
     signals:
       - short_interest_change
       - short_interest_level
-
     stress_features:
       - price_volatility_20d
       - price_momentum_5d
@@ -26,14 +20,12 @@ env:
       - price_momentum_60d
       - distance_from_20d_high
       - distance_from_60d_high
-
     tails:
       - 0.20
       - 0.10
       - 0.05
       - 0.025
       - 0.01
-
     stress_directions:
       price_volatility_20d: upper
       price_momentum_5d: lower
@@ -41,377 +33,67 @@ env:
       price_momentum_60d: lower
       distance_from_20d_high: lower
       distance_from_60d_high: lower
-
     validation:
       min_rows_per_window: 20
       min_positive_windows: 2
       min_lift: 1.10
       max_return_difference: 0.0
       max_findings: 25
-
 concurrency:
   group: research-manual
   cancel-in-progress: false
-
 jobs:
   research:
     name: Kör Blankdiss Research Matrix
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Clean latest research results
         run: |
           mkdir -p data/processed/ml/research/latest/diagnostic
           find data/processed/ml/research/latest -type f -delete
-
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
-
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
-
       - name: Check whether features need rebuilding
-        id: feature_check
         run: |
-          python - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-
-          ROOT = Path(".").resolve()
-
-          fi_path = (
-              ROOT
-              / "data"
-              / "processed"
-              / "fi"
-              / "aggregate"
-              / "reconstructed.jsonl"
-          )
-
-          price_dir = (
-              ROOT
-              / "data"
-              / "raw"
-              / "prices"
-          )
-
-          metadata_path = (
-              ROOT
-              / "data"
-              / "processed"
-              / "analysis"
-              / "features_metadata.json"
-          )
-
-          def file_sha256(path):
-              digest = hashlib.sha256()
-
-              with path.open("rb") as handle:
-                  for chunk in iter(
-                      lambda: handle.read(1024 * 1024),
-                      b"",
-                  ):
-                      digest.update(chunk)
-
-              return digest.hexdigest()
-
-          if not fi_path.exists():
-              raise SystemExit(
-                  f"Saknar FI-data: {fi_path}"
-              )
-
-          price_files = sorted(
-              price_dir.glob("prices_*.jsonl")
-          )
-
-          source_files = [
-              fi_path,
-              *price_files,
-          ]
-
-          print()
-          print("=== Feature source check ===")
-          print(
-              "Metadata exists:",
-              metadata_path.exists(),
-          )
-          print(
-              "Metadata path:",
-              metadata_path,
-          )
-          print(
-              "Source files:",
-              len(source_files),
-          )
-          print()
-
-          entries = []
-
-          for path in source_files:
-              if not path.exists():
-                  raise SystemExit(
-                      f"Saknar datafil: {path}"
-                  )
-
-              sha256 = file_sha256(path)
-
-              entry = {
-                  "path": str(
-                      path.relative_to(ROOT)
-                  ),
-                  "sha256": sha256,
-                  "size_bytes": path.stat().st_size,
-              }
-
-              entries.append(entry)
-
-              print(
-                  f"{entry['path']}"
-              )
-              print(
-                  f"  SHA256: {sha256}"
-              )
-              print(
-                  f"  Size:   {entry['size_bytes']} bytes"
-              )
-
-          canonical = json.dumps(
-              entries,
-              ensure_ascii=False,
-              sort_keys=True,
-              separators=(",", ":"),
-          ).encode("utf-8")
-
-          current_fingerprint = hashlib.sha256(
-              canonical
-          ).hexdigest()
-
-          old_fingerprint = None
-          old_entries = []
-
-          if metadata_path.exists():
-              try:
-                  metadata = json.loads(
-                      metadata_path.read_text(
-                          encoding="utf-8"
-                      )
-                  )
-              except Exception as exc:
-                  raise SystemExit(
-                      "Kunde inte läsa "
-                      f"{metadata_path}: {exc}"
-                  )
-
-              source_fingerprint = metadata.get(
-                  "source_fingerprint"
-              )
-
-              if isinstance(
-                  source_fingerprint,
-                  dict,
-              ):
-                  old_fingerprint = (
-                      source_fingerprint.get(
-                          "fingerprint"
-                      )
-                  )
-
-                  old_entries = (
-                      source_fingerprint.get(
-                          "files",
-                          [],
-                      )
-                  )
-
-          print()
-          print("=== Fingerprint comparison ===")
-          print(
-              "Previous:",
-              old_fingerprint,
-          )
-          print(
-              "Current: ",
-              current_fingerprint,
-          )
-
-          if old_entries:
-              old_by_path = {
-                  item["path"]: item
-                  for item in old_entries
-              }
-
-              current_by_path = {
-                  item["path"]: item
-                  for item in entries
-              }
-
-              all_paths = sorted(
-                  set(old_by_path)
-                  | set(current_by_path)
-              )
-
-              print()
-              print("=== Source file differences ===")
-
-              differences = 0
-
-              for path in all_paths:
-                  old = old_by_path.get(path)
-                  current = current_by_path.get(path)
-
-                  if old is None:
-                      print(
-                          f"ADDED:   {path}"
-                      )
-                      differences += 1
-                      continue
-
-                  if current is None:
-                      print(
-                          f"REMOVED: {path}"
-                      )
-                      differences += 1
-                      continue
-
-                  if (
-                      old.get("sha256")
-                      != current.get("sha256")
-                  ):
-                      print(
-                          f"CHANGED: {path}"
-                      )
-                      print(
-                          "  Previous SHA256:",
-                          old.get("sha256"),
-                      )
-                      print(
-                          "  Current SHA256: ",
-                          current.get("sha256"),
-                      )
-                      differences += 1
-
-                  elif (
-                      old.get("size_bytes")
-                      != current.get("size_bytes")
-                  ):
-                      print(
-                          f"SIZE CHANGED: {path}"
-                      )
-                      print(
-                          "  Previous size:",
-                          old.get("size_bytes"),
-                      )
-                      print(
-                          "  Current size: ",
-                          current.get("size_bytes"),
-                      )
-                      differences += 1
-
-              if differences == 0:
-                  print(
-                      "No source file differences."
-                  )
-          else:
-              print()
-              print(
-                  "No previous source fingerprint "
-                  "found in metadata."
-              )
-
-          changed = (
-              old_fingerprint
-              != current_fingerprint
-          )
-
-          print()
-          print(
-              "Changed:",
-              changed,
-          )
-
-          with open(
-              "feature_check.env",
-              "w",
-              encoding="utf-8",
-          ) as handle:
-              handle.write(
-                  "FEATURES_CHANGED="
-                  + (
-                      "true"
-                      if changed
-                      else "false"
-                  )
-                  + "\n"
-              )
-
-              handle.write(
-                  "FEATURE_SOURCE_FINGERPRINT="
-                  + current_fingerprint
-                  + "\n"
-              )
-
-          print()
-          print(
-              "FEATURES_CHANGED="
-              + (
-                  "true"
-                  if changed
-                  else "false"
-              )
-          )
-          print(
-              "=== End feature source check ==="
-          )
-          PY
-
-          cat feature_check.env >> "$GITHUB_ENV"
-
+          python -u -m analysis.feature_source_check
       - name: Build features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.build_features
-
       - name: Inspect feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci inspect-features
-
       - name: Verify feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-features
-
       - name: Run Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.features_qc
-
       - name: Verify Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-feature-qc
-
       - name: Verify feature dataset exists
         run: |
           test -f data/processed/analysis/features_metadata.json
-
           test -n "$(
             find data/processed/analysis \
               -maxdepth 1 \
@@ -420,39 +102,31 @@ jobs:
               -print \
               -quit
           )"
-
       - name: Run Research Matrix
         run: |
           python -u -m ml.research.runner
-
       - name: Run Registered Experiments
         run: |
           python -u -m ml.experiment_registry_runner
-
       - name: Run Discovery
         run: |
           python -u -m ml.research.discovery.runner
-
       - name: Verify research results
         run: |
           test -f data/processed/ml/research/latest/results.jsonl
           test -f data/processed/ml/research/latest/pooled.json
           test -f data/processed/ml/research/latest/metadata.json
           test -f data/processed/ml/research/latest/report.md
-
           python - <<'PY'
           import json
           from pathlib import Path
-
           base = Path(
               "data/processed/ml/research/latest"
           )
-
           results_path = base / "results.jsonl"
           pooled_path = base / "pooled.json"
           metadata_path = base / "metadata.json"
           report_path = base / "report.md"
-
           result_count = sum(
               1
               for line in results_path.open(
@@ -460,64 +134,52 @@ jobs:
               )
               if line.strip()
           )
-
           if result_count == 0:
               raise SystemExit(
                   "Research results innehåller inga resultat."
               )
-
           pooled = json.loads(
               pooled_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(pooled, list):
               raise SystemExit(
                   "Pooled research results är inte en lista."
               )
-
           if len(pooled) == 0:
               raise SystemExit(
                   "Pooled research results innehåller inga experiment."
               )
-
           metadata = json.loads(
               metadata_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(metadata, dict):
               raise SystemExit(
                   "Research metadata är inte ett objekt."
               )
-
           report = report_path.read_text(
               encoding="utf-8"
           )
-
           if not report.strip():
               raise SystemExit(
                   "Research report är tom."
               )
-
           print(
               "Research results:",
               result_count,
           )
-
           print(
               "Pooled experiments:",
               len(pooled),
           )
-
           print(
               "Report:",
               report_path,
           )
           PY
-
       - name: Verify discovery results
         run: |
           test -f data/processed/ml/research/discovery/latest/results.jsonl
@@ -525,21 +187,17 @@ jobs:
           test -f data/processed/ml/research/discovery/latest/findings.json
           test -f data/processed/ml/research/discovery/latest/metadata.json
           test -f data/processed/ml/research/discovery/latest/report.md
-
           python - <<'PY'
           import json
           from pathlib import Path
-
           base = Path(
               "data/processed/ml/research/discovery/latest"
           )
-
           results_path = base / "results.jsonl"
           pooled_path = base / "pooled.json"
           findings_path = base / "findings.json"
           metadata_path = base / "metadata.json"
           report_path = base / "report.md"
-
           result_count = sum(
               1
               for line in results_path.open(
@@ -547,63 +205,51 @@ jobs:
               )
               if line.strip()
           )
-
           if result_count == 0:
               raise SystemExit(
                   "Discovery results innehåller inga resultat."
               )
-
           pooled = json.loads(
               pooled_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(pooled, list):
               raise SystemExit(
                   "Discovery pooled results är inte en lista."
               )
-
           if len(pooled) == 0:
               raise SystemExit(
                   "Discovery pooled results innehåller inga kandidater."
               )
-
           findings = json.loads(
               findings_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(findings, list):
               raise SystemExit(
                   "Discovery findings är inte en lista."
               )
-
           metadata = json.loads(
               metadata_path.read_text(
                   encoding="utf-8"
               )
           )
-
           if not isinstance(metadata, dict):
               raise SystemExit(
                   "Discovery metadata är inte ett objekt."
               )
-
           expected_candidates = 900
-
           actual_candidates = metadata.get(
               "candidate_count"
           )
-
           if actual_candidates != expected_candidates:
               raise SystemExit(
                   "Fel antal discovery-kandidater: "
                   f"{actual_candidates}; "
                   f"förväntade {expected_candidates}."
               )
-
           expected_oos_results = (
               expected_candidates
               * len(
@@ -613,58 +259,47 @@ jobs:
                   )
               )
           )
-
           if result_count != expected_oos_results:
               raise SystemExit(
                   "Fel antal Discovery OOS-resultat: "
                   f"{result_count}; "
                   f"förväntade {expected_oos_results}."
               )
-
           report = report_path.read_text(
               encoding="utf-8"
           )
-
           if not report.strip():
               raise SystemExit(
                   "Discovery report är tom."
               )
-
           print(
               "Discovery results:",
               result_count,
           )
-
           print(
               "Discovery pooled candidates:",
               len(pooled),
           )
-
           print(
               "Discovery findings:",
               len(findings),
           )
-
           print(
               "Discovery candidates:",
               actual_candidates,
           )
-
           print(
               "Discovery expected OOS results:",
               expected_oos_results,
           )
-
           print(
               "Discovery report:",
               report_path,
           )
           PY
-
       - name: Verify diagnostic results
         run: |
           python -m ml.diagnostics.verify
-
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -693,12 +328,10 @@ jobs:
             data/processed/ml/research/discovery/*/metadata.json
             data/processed/ml/research/discovery/*/report.md
           if-no-files-found: error
-
       - name: Persist research and discovery results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add \
             data/processed/ml/research/latest/diagnostics.json \
             data/processed/ml/research/latest/diagnostic/*.json \
@@ -714,24 +347,19 @@ jobs:
             data/processed/ml/research/discovery/*/findings.json \
             data/processed/ml/research/discovery/*/metadata.json \
             data/processed/ml/research/discovery/*/report.md
-
           if git diff --cached --quiet; then
             echo "Inga forsknings- eller discovery-resultat ändrades."
           else
             git commit -m "Update research and discovery results"
-
             for attempt in 1 2 3; do
               if git push origin HEAD:main; then
                 exit 0
               fi
-
               if [ "$attempt" -eq 3 ]; then
                 echo "Kunde inte pusha forskningsresultaten efter 3 försök."
                 exit 1
               fi
-
               echo "Push misslyckades. Hämtar senaste main och försöker igen."
-
               git fetch origin main
               git rebase origin/main
             done
