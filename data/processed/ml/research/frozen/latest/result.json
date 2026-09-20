@@ -1,0 +1,22 @@
+{
+  "candidate_id": "short_interest_change__1pct__price_volatility_20d__upper__2_5pct__down_10pct_5d",
+  "target_name": "down_10pct_5d",
+  "signal_name": "short_interest_change",
+  "signal_tail": 0.01,
+  "stress_feature": "price_volatility_20d",
+  "stress_tail": 0.025,
+  "stress_direction": "upper",
+  "window": null,
+  "split": "oos",
+  "n": 26,
+  "events": 4,
+  "event_rate": 0.15384615384615385,
+  "baseline_event_rate": 0.03759398496240601,
+  "lift": 4.092307692307693,
+  "mean_return": -0.025010095201932536,
+  "rest_mean_return": 0.0015005140605138603,
+  "return_difference": -0.026510609262446395,
+  "bootstrap_ci_low": -0.0619747118752667,
+  "bootstrap_ci_high": 0.007794446168985488,
+  "selected_fraction": 0.0006435962176345363
+}

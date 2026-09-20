@@ -1,0 +1,24 @@
+{
+  "created_at_utc": "20260920T053713Z",
+  "hypothesis_id": "short_interest_change_volatility_down_10pct_5d",
+  "question": "Är extremt hög förändring i short interest kombinerat med extremt hög 20-dagars prisvolatilitet associerat med förhöjd risk för minst 10 procents nedgång inom 5 handelsdagar i en helt separat OOS-period?",
+  "discovery_run": "20260919T192154Z",
+  "discovery_end_date": "2025-12-19",
+  "evaluation_start_date": "2025-12-20",
+  "evaluation_end_date": "2026-09-18",
+  "evaluation_rows": 40398,
+  "candidate": {
+    "candidate_id": "short_interest_change__1pct__price_volatility_20d__upper__2_5pct__down_10pct_5d",
+    "target_name": "down_10pct_5d",
+    "signal_name": "short_interest_change",
+    "signal_tail": 0.01,
+    "stress_feature": "price_volatility_20d",
+    "stress_tail": 0.025,
+    "stress_direction": "upper"
+  },
+  "null_test": {
+    "metric": "lift",
+    "permutations": 1000,
+    "seed": 42
+  }
+}
