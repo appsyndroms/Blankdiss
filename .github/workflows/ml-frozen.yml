@@ -1,11 +1,8 @@
-name: ML Frozen Hypothesis
+name: ML Frozen Verification
 on:
   workflow_dispatch:
 permissions:
   contents: write
-concurrency:
-  group: research-frozen
-  cancel-in-progress: false
 jobs:
   frozen:
     runs-on: ubuntu-latest
@@ -16,301 +13,63 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      # ---------------------------------------------------------
-      # 1. Refresh source data
-      # ---------------------------------------------------------
-      - name: Refresh short interest data
+      - name: Refresh FI data
         run: |
           python -u -m fi
-      - name: Refresh price data
+      - name: Refresh prices
         run: |
           python -u -m prices --start 2022-01-01
-      # ---------------------------------------------------------
-      # 2. Build canonical feature dataset
-      # ---------------------------------------------------------
+      - name: Check whether features need rebuilding
+        run: |
+          python -u -m analysis.feature_source_check
       - name: Build features
+        if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.build_features
       - name: Inspect feature dataset
+        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m analysis.ci inspect-features
+          python -u -m analysis.inspect_features
       - name: Verify feature dataset
         run: |
-          python -m analysis.ci verify-features
-      - name: Run Feature QC
+          python -u -m analysis.verify_features
+      - name: Feature QC
+        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -u -m analysis.features_qc
-      - name: Verify Feature QC
+          python -u -m analysis.feature_qc
+      - name: Verify frozen configuration
         run: |
-          python -m analysis.ci verify-feature-qc
-      - name: Verify feature dataset exists
-        run: |
-          test -f data/processed/analysis/features_metadata.json
-          test -n "$(
-            find data/processed/analysis \
-              -maxdepth 1 \
-              -type f \
-              -name 'features_*.jsonl' \
-              -print \
-              -quit
-          )"
-      # ---------------------------------------------------------
-      # 3. Verify frozen hypothesis configuration
-      # ---------------------------------------------------------
-      - name: Verify frozen hypothesis configuration
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import yaml
-          path = Path(
-              "ml/research/frozen/hypothesis.yml"
-          )
-          with path.open(
-              "r",
-              encoding="utf-8",
-          ) as f:
-              config = yaml.safe_load(f)
-          hypothesis = config["hypothesis"]
-          source = hypothesis["source"]
-          candidate = hypothesis["candidate"]
-          evaluation = hypothesis["evaluation"]
-          assert hypothesis["status"] == "frozen"
-          assert (
-              source["discovery_run"]
-              == "20260919T192154Z"
-          )
-          assert (
-              source["discovery_end_date"]
-              == "2025-12-19"
-          )
-          assert (
-              candidate["candidate_id"]
-              == (
-                  "short_interest_change__1pct__"
-                  "price_volatility_20d__upper__"
-                  "2_5pct__down_10pct_5d"
-              )
-          )
-          assert (
-              candidate["target_name"]
-              == "down_10pct_5d"
-          )
-          assert (
-              candidate["signal_name"]
-              == "short_interest_change"
-          )
-          assert (
-              candidate["signal_tail"]
-              == 0.01
-          )
-          assert (
-              candidate["stress_feature"]
-              == "price_volatility_20d"
-          )
-          assert (
-              candidate["stress_tail"]
-              == 0.025
-          )
-          assert (
-              candidate["stress_direction"]
-              == "upper"
-          )
-          assert (
-              evaluation["start_date"]
-              == "2025-12-20"
-          )
-          assert (
-              evaluation["end_date"]
-              == "2026-09-18"
-          )
-          assert (
-              hypothesis["null_test"]["metric"]
-              == "lift"
-          )
-          assert (
-              hypothesis["null_test"]["permutations"]
-              == 1000
-          )
-          assert (
-              hypothesis["null_test"]["seed"]
-              == 42
-          )
-          print(
-              "Frozen hypothesis configuration verified."
-          )
-          PY
-      # ---------------------------------------------------------
-      # 4. Run frozen hypothesis
-      # ---------------------------------------------------------
+          python -u -m ml.research.frozen.verify_config
       - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
-      # ---------------------------------------------------------
-      # 5. Verify frozen hypothesis result
-      # ---------------------------------------------------------
-      - name: Verify frozen hypothesis result
-        run: |
-          test -f \
-            data/processed/ml/research/frozen/latest/result.json
-          test -f \
-            data/processed/ml/research/frozen/latest/null_test.json
-          test -f \
-            data/processed/ml/research/frozen/latest/metadata.json
-          test -f \
-            data/processed/ml/research/frozen/latest/report.md
-          python - <<'PY'
-          from pathlib import Path
-          import json
-          output_dir = Path(
-              "data/processed/ml/research/frozen/latest"
-          )
-          result_path = (
-              output_dir
-              / "result.json"
-          )
-          null_path = (
-              output_dir
-              / "null_test.json"
-          )
-          with result_path.open(
-              "r",
-              encoding="utf-8",
-          ) as f:
-              result = json.load(f)
-          with null_path.open(
-              "r",
-              encoding="utf-8",
-          ) as f:
-              null_result = json.load(f)
-          print(
-              "Frozen verification passed."
-          )
-          print(
-              "Rows:",
-              result.get("n"),
-          )
-          print(
-              "Events:",
-              result.get("events"),
-          )
-          print(
-              "Event rate:",
-              result.get("event_rate"),
-          )
-          print(
-              "Baseline:",
-              result.get("baseline_event_rate"),
-          )
-          print(
-              "Lift:",
-              result.get("lift"),
-          )
-          print(
-              "Return difference:",
-              result.get("return_difference"),
-          )
-          print(
-              "Null permutations:",
-              null_result.get(
-                  "permutations_requested"
-              ),
-          )
-          print(
-              "Null p-value:",
-              null_result.get(
-                  "p_value"
-              ),
-          )
-          PY
-      # ---------------------------------------------------------
-      # 6. Run diagnostic subgroup analysis
-      # ---------------------------------------------------------
-      - name: Run frozen subgroup analysis
+      - name: Run subgroup analysis
         run: |
           python -u -m ml.research.frozen.subgroup_runner
-      # ---------------------------------------------------------
-      # 7. Verify subgroup outputs
-      # ---------------------------------------------------------
       - name: Verify subgroup outputs
         run: |
-          test -f \
-            data/processed/ml/research/frozen/subgroups/period.csv
-          test -f \
-            data/processed/ml/research/frozen/subgroups/sector.csv
-          test -f \
-            data/processed/ml/research/frozen/subgroups/market_regime.csv
-          test -f \
-            data/processed/ml/research/frozen/subgroups/metadata.json
-      - name: Print subgroup analysis
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          output_dir = Path(
-              "data/processed/ml/research/frozen/subgroups"
-          )
-          for filename in [
-              "period.csv",
-              "sector.csv",
-              "market_regime.csv",
-          ]:
-              path = (
-                  output_dir
-                  / filename
-              )
-              print()
-              print("=" * 80)
-              print(filename)
-              print("=" * 80)
-              if path.stat().st_size == 0:
-                  print("Empty file.")
-                  continue
-              print(
-                  path.read_text(
-                      encoding="utf-8"
-                  )
-              )
-          PY
-      # ---------------------------------------------------------
-      # 8. Upload artifact
-      # ---------------------------------------------------------
-      - name: Upload frozen hypothesis artifact
+          python -u -m ml.research.frozen.verify_subgroup_outputs
+      - name: Upload frozen research outputs
         uses: actions/upload-artifact@v4
         with:
-          name: blankdiss-frozen-hypothesis
+          name: frozen-research-results
           path: |
-            data/processed/ml/research/frozen
-      # ---------------------------------------------------------
-      # 9. Persist frozen research outputs
-      # ---------------------------------------------------------
-      - name: Commit frozen research outputs
+            ml/research/frozen/results/
+            ml/research/frozen/subgroups/
+      - name: Commit frozen outputs
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            data/processed/ml/research/frozen
+            ml/research/frozen/results \
+            ml/research/frozen/subgroups
           if git diff --cached --quiet; then
-            echo "No frozen research changes to commit."
-            exit 0
+            echo "No frozen output changes to commit."
+          else
+            git commit -m "Update frozen research results"
+            git push
           fi
-          git commit \
-            -m "Update frozen hypothesis results"
-          for attempt in 1 2 3; do
-            if git push origin HEAD:main; then
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo \
-                "Kunde inte pusha frozen-resultaten efter 3 försök."
-              exit 1
-            fi
-            echo \
-              "Push misslyckades. Hämtar senaste main och försöker igen."
-            git fetch origin main
-            git rebase origin/main
-          done
