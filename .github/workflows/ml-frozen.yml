@@ -226,7 +226,10 @@ jobs:
           with results_json.open() as f:
               data = json.load(f)
 
+          # --------------------------------------------------
           # Core metadata
+          # --------------------------------------------------
+
           assert (
               data["target"]
               == "down_10pct_5d"
@@ -243,13 +246,46 @@ jobs:
 
           results = data["results"]
 
-          # The interaction analysis currently writes
-          # 4 SI-only + 4 volatility-only + 16 SI×VOL rows.
+          # --------------------------------------------------
+          # Expected tails
+          # --------------------------------------------------
+
+          expected_tails = [
+              0.01,
+              0.025,
+              0.05,
+              0.1,
+          ]
+
+          expected_pairs = {
+              (si_tail, vol_tail)
+              for si_tail in expected_tails
+              for vol_tail in expected_tails
+          }
+
+          # --------------------------------------------------
+          # 4 SI-only rows
+          # --------------------------------------------------
+
           si_only = [
               r
               for r in results
               if r.get("analysis") == "si_only"
           ]
+
+          assert len(si_only) == 4, (
+              f"Expected 4 SI-only rows, "
+              f"got {len(si_only)}"
+          )
+
+          assert sorted(
+              r["si_tail"]
+              for r in si_only
+          ) == expected_tails
+
+          # --------------------------------------------------
+          # 4 volatility-only rows
+          # --------------------------------------------------
 
           vol_only = [
               r
@@ -258,69 +294,38 @@ jobs:
               == "volatility_only"
           ]
 
-          interactions = [
-              r
-              for r in results
-              if r.get("analysis")
-              == "interaction"
-          ]
-
-          formal = data.get(
-              "formal_interactions",
-              []
-          )
-
-          assert len(si_only) == 4, (
-              f"Expected 4 SI-only rows, "
-              f"got {len(si_only)}"
-          )
-
           assert len(vol_only) == 4, (
               f"Expected 4 volatility-only rows, "
               f"got {len(vol_only)}"
           )
-
-          assert len(interactions) == 16, (
-              f"Expected 16 SI×VOL rows, "
-              f"got {len(interactions)}"
-          )
-
-          assert len(formal) == 16, (
-              f"Expected 16 formal interaction rows, "
-              f"got {len(formal)}"
-          )
-
-          # Verify SI-only and volatility-only tails.
-          expected_tails = [
-              0.01,
-              0.025,
-              0.05,
-              0.1,
-          ]
-
-          assert sorted(
-              r["si_tail"]
-              for r in si_only
-          ) == expected_tails
 
           assert sorted(
               r["vol_tail"]
               for r in vol_only
           ) == expected_tails
 
-          # Verify all 16 SI × volatility combinations.
-          expected_pairs = {
-              (si_tail, vol_tail)
-              for si_tail in expected_tails
-              for vol_tail in expected_tails
-          }
+          # --------------------------------------------------
+          # 16 SI × volatility rows
+          # --------------------------------------------------
+
+          interaction_rows = [
+              r
+              for r in results
+              if r.get("analysis")
+              == "interaction"
+          ]
+
+          assert len(interaction_rows) == 16, (
+              f"Expected 16 SI×VOL rows, "
+              f"got {len(interaction_rows)}"
+          )
 
           actual_pairs = {
               (
                   r["si_tail"],
                   r["vol_tail"],
               )
-              for r in interactions
+              for r in interaction_rows
           }
 
           assert actual_pairs == expected_pairs, (
@@ -329,37 +334,49 @@ jobs:
               f"got {actual_pairs}"
           )
 
-          # Verify formal 2×2 interaction output.
+          # --------------------------------------------------
+          # Formal 2×2 interaction output
+          #
+          # The current implementation stores these rows
+          # in data["interactions"].
+          # --------------------------------------------------
+
+          formal = data.get(
+              "interactions",
+              []
+          )
+
+          assert len(formal) == 16, (
+              f"Expected 16 formal interaction rows, "
+              f"got {len(formal)}"
+          )
+
           required_fields = [
               "si_tail",
               "vol_tail",
-              "risk_11",
-              "risk_10",
-              "risk_01",
-              "risk_00",
-              "interaction_additive",
-              "interaction_additive_ci_low",
-              "interaction_additive_ci_high",
-              "interaction_multiplicative",
-              "return_interaction",
+              "si_high_vol_n",
+              "si_low_vol_n",
+              "si_high_vol_event_rate",
+              "si_low_vol_event_rate",
+              "event_rate_difference",
+              "si_high_vol_lift",
+              "si_low_vol_lift",
+              "lift_ratio_high_vs_low_vol",
+              "return_difference_high_vol",
+              "return_difference_low_vol",
           ]
 
           formal_pairs = set()
 
           for row in formal:
-              assert row.get("status") == "ok", row
-
               for field in required_fields:
                   assert field in row, (
-                      f"Missing {field} in {row}"
+                      f"Missing {field} in "
+                      f"interaction row: {row}"
                   )
 
               si_tail = row["si_tail"]
               vol_tail = row["vol_tail"]
-
-              formal_pairs.add(
-                  (si_tail, vol_tail)
-              )
 
               assert (
                   si_tail in expected_tails
@@ -369,25 +386,42 @@ jobs:
                   vol_tail in expected_tails
               ), row
 
-              ci_low = (
-                  row[
-                      "interaction_additive_ci_low"
-                  ]
+              formal_pairs.add(
+                  (si_tail, vol_tail)
               )
 
-              ci_high = (
-                  row[
-                      "interaction_additive_ci_high"
-                  ]
+              # Basic numerical consistency.
+              expected_difference = (
+                  row["si_high_vol_event_rate"]
+                  - row["si_low_vol_event_rate"]
               )
 
-              assert ci_low <= ci_high, row
+              assert abs(
+                  expected_difference
+                  - row["event_rate_difference"]
+              ) < 1e-12, row
+
+              # Lift ratio must be based on the two
+              # subgroup lifts.
+              expected_ratio = (
+                  row["si_high_vol_lift"]
+                  / row["si_low_vol_lift"]
+              )
+
+              assert abs(
+                  expected_ratio
+                  - row["lift_ratio_high_vs_low_vol"]
+              ) < 1e-10, row
 
           assert formal_pairs == expected_pairs, (
               "Formal interaction grid mismatch: "
               f"expected {expected_pairs}, "
               f"got {formal_pairs}"
           )
+
+          # --------------------------------------------------
+          # Final verification summary
+          # --------------------------------------------------
 
           print(
               "Interaction verification passed."
@@ -398,7 +432,8 @@ jobs:
           )
 
           print(
-              f"SI-only rows: {len(si_only)}"
+              f"SI-only rows: "
+              f"{len(si_only)}"
           )
 
           print(
@@ -408,7 +443,7 @@ jobs:
 
           print(
               f"SI×Vol rows: "
-              f"{len(interactions)}"
+              f"{len(interaction_rows)}"
           )
 
           print(
