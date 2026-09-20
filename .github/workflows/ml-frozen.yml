@@ -3,8 +3,54 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+env:
+  DISCOVERY_CONFIG: |
+    enabled: true
+    targets:
+      - down_5pct_5d
+      - down_7pct_5d
+      - down_10pct_5d
+    signals:
+      - short_interest_change
+      - short_interest_level
+    stress_features:
+      - price_volatility_20d
+      - price_momentum_5d
+      - price_momentum_20d
+      - price_momentum_60d
+      - distance_from_20d_high
+      - distance_from_60d_high
+    tails:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+    stress_directions:
+      price_volatility_20d:
+        - upper
+      price_momentum_5d:
+        - lower
+      price_momentum_20d:
+        - lower
+      price_momentum_60d:
+        - lower
+      distance_from_20d_high:
+        - lower
+      distance_from_60d_high:
+        - lower
+    validation:
+      min_rows_per_window: 20
+      min_positive_windows: 2
+      min_lift: 1.10
+      max_return_difference: 0.0
+      max_findings: 25
+concurrency:
+  group: ml-frozen
+  cancel-in-progress: false
 jobs:
   frozen:
+    name: Kör Frozen Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -13,14 +59,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Refresh FI data
+      - name: Fetch FI data
         run: |
           python -u -m fi
-      - name: Refresh prices
+      - name: Fetch prices
         run: |
           python -u -m prices --start 2022-01-01
       - name: Check whether features need rebuilding
@@ -33,43 +80,105 @@ jobs:
       - name: Inspect feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -u -m analysis.inspect_features
+          python -m analysis.ci inspect-features
       - name: Verify feature dataset
-        run: |
-          python -u -m analysis.verify_features
-      - name: Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -u -m analysis.feature_qc
+          python -m analysis.ci verify-features
+      - name: Run Feature QC
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -u -m analysis.features_qc
+      - name: Verify Feature QC
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -m analysis.ci verify-feature-qc
+      - name: Verify feature dataset exists
+        run: |
+          test -f data/processed/analysis/features_metadata.json
+          test -n "$(
+            find data/processed/analysis \
+              -maxdepth 1 \
+              -type f \
+              -name 'features_*.jsonl' \
+              -print \
+              -quit
+          )"
       - name: Verify frozen configuration
         run: |
           python -u -m ml.research.frozen.verify_config
-      - name: Run frozen hypothesis
+      - name: Run frozen verification
         run: |
           python -u -m ml.research.frozen.runner
-      - name: Run subgroup analysis
+      - name: Run frozen subgroup analysis
         run: |
           python -u -m ml.research.frozen.subgroup_runner
-      - name: Verify subgroup outputs
+      - name: Verify frozen subgroup outputs
         run: |
-          python -u -m ml.research.frozen.verify_subgroup_outputs
-      - name: Upload frozen research outputs
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("data/processed/ml/research/frozen/subgroups")
+          required = [
+              root / "period.csv",
+              root / "sector.csv",
+              root / "market_regime.csv",
+              root / "metadata.json",
+          ]
+          for path in required:
+              if not path.exists():
+                  raise RuntimeError(
+                      f"Missing frozen subgroup output: {path}"
+                  )
+          metadata_path = root / "metadata.json"
+          with metadata_path.open(
+              "r",
+              encoding="utf-8",
+          ) as handle:
+              metadata = json.load(handle)
+          if not isinstance(metadata, dict):
+              raise RuntimeError(
+                  "Frozen subgroup metadata must be a JSON object."
+              )
+          print("Frozen subgroup outputs verified.")
+          print(
+              f"Candidate: "
+              f"{metadata.get('candidate_id', '<missing>')}"
+          )
+          print(
+              f"Evaluation: "
+              f"{metadata.get('evaluation_start', '<missing>')} "
+              f"to "
+              f"{metadata.get('evaluation_end', '<missing>')}"
+          )
+          PY
+      - name: Upload frozen artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: frozen-research-results
+          name: ml-frozen
           path: |
-            ml/research/frozen/results/
-            ml/research/frozen/subgroups/
-      - name: Commit frozen outputs
+            data/processed/ml/research/frozen
+            data/processed/ml/research/frozen/subgroups
+      - name: Persist frozen outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            ml/research/frozen/results \
-            ml/research/frozen/subgroups
+            data/processed/ml/research/frozen
           if git diff --cached --quiet; then
             echo "No frozen output changes to commit."
-          else
-            git commit -m "Update frozen research results"
-            git push
+            exit 0
           fi
+          git commit \
+            -m "Update frozen ML verification outputs"
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push attempt ${attempt} failed."
+            if [ "$attempt" -lt 3 ]; then
+              git pull --rebase origin "$(git branch --show-current)"
+            fi
+          done
+          echo "Failed to push after 3 attempts."
+          exit 1
