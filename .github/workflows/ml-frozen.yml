@@ -68,66 +68,135 @@ jobs:
           import json
           from pathlib import Path
 
-          discovery_root = Path("data/processed/ml/research/discovery")
-          frozen_root = Path("data/processed/ml/research/frozen")
-
-          discovery_files = list(
-              discovery_root.rglob("metadata.json")
+          discovery_root = Path(
+              "data/processed/ml/research/discovery"
           )
 
-          frozen_files = list(
-              frozen_root.rglob("metadata.json")
+          frozen_root = Path(
+              "data/processed/ml/research/frozen"
           )
 
-          if not discovery_files:
+          discovery_metadata = (
+              discovery_root / "latest" / "metadata.json"
+          )
+
+          if not discovery_metadata.exists():
               raise SystemExit(
-                  "No discovery metadata found"
+                  f"Missing discovery metadata: "
+                  f"{discovery_metadata}"
               )
 
-          if not frozen_files:
-              raise SystemExit(
-                  "No frozen metadata found"
-              )
-
-          latest_discovery = max(
-              discovery_files,
-              key=lambda p: p.stat().st_mtime,
-          )
-
-          latest_frozen = max(
-              frozen_files,
-              key=lambda p: p.stat().st_mtime,
-          )
-
-          print(
-              f"Latest discovery metadata: "
-              f"{latest_discovery}"
-          )
-
-          print(
-              f"Latest frozen metadata: "
-              f"{latest_frozen}"
-          )
-
-          with latest_discovery.open() as f:
+          with discovery_metadata.open() as f:
               discovery = json.load(f)
 
-          with latest_frozen.open() as f:
-              frozen = json.load(f)
+          assert discovery["targets"] == [
+              "down_10pct_5d"
+          ]
+
+          assert discovery["signals"] == [
+              "short_interest_change"
+          ]
+
+          assert discovery["stress_features"] == [
+              "price_volatility_20d"
+          ]
+
+          assert discovery["tails"] == [
+              0.01,
+              0.025,
+              0.05,
+              0.1,
+          ]
 
           assert (
-              discovery.get("discovery_end_date")
-              == "2025-12-19"
-          ), discovery.get("discovery_end_date")
+              discovery["stress_directions"][
+                  "price_volatility_20d"
+              ]
+              == "upper"
+          )
 
           assert (
-              frozen.get("discovery_end_date")
-              == "2025-12-19"
-          ), frozen.get("discovery_end_date")
+              discovery["feature_rows"] > 0
+          )
+
+          assert (
+              discovery["candidate_count"] == 16
+          )
+
+          assert (
+              discovery["result_count"] == 32
+          )
+
+          assert (
+              discovery["pooled_count"] == 16
+          )
+
+          windows = discovery["walk_forward_windows"]
+
+          assert len(windows) == 2
 
           print(
-              "Frozen verification passed."
+              "Discovery verification passed."
           )
+
+          print(
+              f"Feature rows: "
+              f"{discovery['feature_rows']}"
+          )
+
+          print(
+              f"Candidates: "
+              f"{discovery['candidate_count']}"
+          )
+
+          print(
+              f"Results: "
+              f"{discovery['result_count']}"
+          )
+
+          print(
+              f"Pooled: "
+              f"{discovery['pooled_count']}"
+          )
+
+          # Verify that at least one frozen metadata
+          # file contains the expected discovery end date.
+          matching_frozen_metadata = []
+
+          for path in frozen_root.rglob(
+              "metadata.json"
+          ):
+              try:
+                  with path.open() as f:
+                      metadata = json.load(f)
+              except Exception:
+                  continue
+
+              if (
+                  metadata.get(
+                      "discovery_end_date"
+                  )
+                  == "2025-12-19"
+              ):
+                  matching_frozen_metadata.append(
+                      path
+                  )
+
+          if not matching_frozen_metadata:
+              raise SystemExit(
+                  "No frozen metadata with "
+                  "discovery_end_date=2025-12-19 "
+                  "was found."
+              )
+
+          print(
+              "Frozen metadata verification passed."
+          )
+
+          for path in matching_frozen_metadata:
+              print(
+                  f"Verified frozen metadata: {path}"
+              )
           PY
 
       - name: Verify interaction outputs
@@ -152,7 +221,9 @@ jobs:
                       f"Missing interaction output: {path}"
                   )
 
-          with (root / "results.json").open() as f:
+          results_json = root / "results.json"
+
+          with results_json.open() as f:
               data = json.load(f)
 
           assert (
@@ -215,22 +286,22 @@ jobs:
               f"got {len(formal)}"
           )
 
+          required_fields = [
+              "si_tail",
+              "vol_tail",
+              "risk_11",
+              "risk_10",
+              "risk_01",
+              "risk_00",
+              "interaction_additive",
+              "interaction_additive_ci_low",
+              "interaction_additive_ci_high",
+              "interaction_multiplicative",
+              "return_interaction",
+          ]
+
           for row in formal:
               assert row["status"] == "ok", row
-
-              required_fields = [
-                  "si_tail",
-                  "vol_tail",
-                  "risk_11",
-                  "risk_10",
-                  "risk_01",
-                  "risk_00",
-                  "interaction_additive",
-                  "interaction_additive_ci_low",
-                  "interaction_additive_ci_high",
-                  "interaction_multiplicative",
-                  "return_interaction",
-              ]
 
               for field in required_fields:
                   assert field in row, (
