@@ -14,7 +14,7 @@ HYPOTHESIS_PATH = (
     / "ml"
     / "research"
     / "frozen"
-    / "hypothesis.yaml"
+    / "hypothesis.yml"
 )
 OUTPUT_DIR = (
     ROOT
