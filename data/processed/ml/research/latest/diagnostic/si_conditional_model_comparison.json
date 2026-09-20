@@ -3,8 +3,8 @@
   "question": "Tillför SI information utöver event-risk, och tillför kombinationen med tidigare avkastning ytterligare OOS-information?",
   "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-20T13:41:46.344103+00:00",
-  "finished_at_utc": "2026-09-20T13:41:49.860252+00:00",
+  "started_at_utc": "2026-09-20T14:50:12.561444+00:00",
+  "finished_at_utc": "2026-09-20T14:50:15.882917+00:00",
   "windows": [
     {
       "window": "window_1",
