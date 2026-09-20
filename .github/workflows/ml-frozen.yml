@@ -46,8 +46,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import yaml
-          path = Path("ml/research/frozen/hypothesis.yaml")
-          with path.open("r", encoding="utf-8") as f:
+          path = Path(
+              "ml/research/frozen/hypothesis.yaml"
+          )
+          with path.open(
+              "r",
+              encoding="utf-8",
+          ) as f:
               config = yaml.safe_load(f)
           hypothesis = config["hypothesis"]
           source = hypothesis["source"]
@@ -114,7 +119,9 @@ jobs:
               hypothesis["null_test"]["seed"]
               == 42
           )
-          print("Frozen hypothesis configuration verified.")
+          print(
+              "Frozen hypothesis configuration verified."
+          )
           PY
       - name: Run frozen hypothesis
         run: |
@@ -143,7 +150,9 @@ jobs:
               encoding="utf-8",
           ) as f:
               result = json.load(f)
-          print("Frozen verification passed.")
+          print(
+              "Frozen verification passed."
+          )
           print(
               "Rows:",
               result.get("n"),
