@@ -1,15 +1,11 @@
 name: ML Frozen Research
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 concurrency:
   group: ml-frozen-main
   cancel-in-progress: false
-
 env:
   DISCOVERY_CONFIG: |
     enabled: true
@@ -33,63 +29,50 @@ env:
       min_lift: 1.10
       max_return_difference: 0.0
       max_findings: 25
-
 jobs:
   frozen-research:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
-
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
-
       - name: Check feature source
         run: |
           python -u -m analysis.feature_source_check
-
       - name: Build features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.build_features
-
       - name: Inspect feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci inspect-features
-
       - name: Verify feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-features
-
       - name: Run Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.features_qc
-
       - name: Verify Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-feature-qc
-
       - name: Verify feature dataset exists
         run: |
           test -f data/processed/analysis/features_metadata.json
@@ -101,11 +84,187 @@ jobs:
               -print \
               -quit
           )"
-
+      - name: Run interaction analysis
+        run: |
+          python -u -m ml.research.interaction_analysis
+      - name: Inspect interaction outputs
+        if: always()
+        run: |
+          echo "=== Interaction output directory ==="
+          find data/processed/ml/research/interaction \
+            -maxdepth 2 \
+            -type f \
+            -print 2>/dev/null || true
+          echo "=== Interaction results ==="
+          if [ -f data/processed/ml/research/interaction/results.json ]; then
+            cat data/processed/ml/research/interaction/results.json
+          else
+            echo "results.json saknas"
+          fi
+          echo "=== Interaction CSV ==="
+          if [ -f data/processed/ml/research/interaction/interactions.csv ]; then
+            cat data/processed/ml/research/interaction/interactions.csv
+          else
+            echo "interactions.csv saknas"
+          fi
+      - name: Verify interaction outputs
+        run: |
+          test -f data/processed/ml/research/interaction/results.json
+          test -f data/processed/ml/research/interaction/results.csv
+          test -f data/processed/ml/research/interaction/interactions.csv
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base = Path(
+              "data/processed/ml/research/interaction"
+          )
+          results_path = base / "results.json"
+          results_csv = base / "results.csv"
+          interactions_csv = base / "interactions.csv"
+          document = json.loads(
+              results_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(document, dict):
+              raise SystemExit(
+                  "Interaction results är inte ett objekt."
+              )
+          if document.get("target") != "down_10pct_5d":
+              raise SystemExit(
+                  "Fel interaction target."
+              )
+          if document.get("discovery_end") != "2025-12-19":
+              raise SystemExit(
+                  "Fel interaction discovery_end."
+              )
+          if not document.get("rows"):
+              raise SystemExit(
+                  "Interaction analysis innehåller "
+                  "inga feature-rader."
+              )
+          results = document.get("results")
+          if not isinstance(results, list):
+              raise SystemExit(
+                  "Interaction results saknar results-lista."
+              )
+          si_only = [
+              row
+              for row in results
+              if row.get("analysis") == "si_only"
+          ]
+          volatility_only = [
+              row
+              for row in results
+              if row.get("analysis")
+              == "volatility_only"
+          ]
+          interaction = [
+              row
+              for row in results
+              if row.get("analysis")
+              == "interaction"
+          ]
+          if len(si_only) != 4:
+              raise SystemExit(
+                  "Förväntade 4 SI-only-resultat, "
+                  f"fick {len(si_only)}."
+              )
+          if len(volatility_only) != 4:
+              raise SystemExit(
+                  "Förväntade 4 volatility-only-resultat, "
+                  f"fick {len(volatility_only)}."
+              )
+          if len(interaction) != 16:
+              raise SystemExit(
+                  "Förväntade 16 interaction-resultat, "
+                  f"fick {len(interaction)}."
+              )
+          interactions = document.get(
+              "interactions"
+          )
+          if not isinstance(interactions, list):
+              raise SystemExit(
+                  "Interaction results saknar "
+                  "interactions-lista."
+              )
+          if len(interactions) != 16:
+              raise SystemExit(
+                  "Förväntade 16 direkta "
+                  "interaction-resultat, "
+                  f"fick {len(interactions)}."
+              )
+          expected_tails = {
+              0.01,
+              0.025,
+              0.05,
+              0.10,
+          }
+          actual_si_tails = {
+              float(row["si_tail"])
+              for row in si_only
+          }
+          actual_vol_tails = {
+              float(row["vol_tail"])
+              for row in volatility_only
+          }
+          actual_interaction_si = {
+              float(row["si_tail"])
+              for row in interaction
+          }
+          actual_interaction_vol = {
+              float(row["vol_tail"])
+              for row in interaction
+          }
+          if actual_si_tails != expected_tails:
+              raise SystemExit(
+                  "Fel SI tails."
+              )
+          if actual_vol_tails != expected_tails:
+              raise SystemExit(
+                  "Fel volatility tails."
+              )
+          if actual_interaction_si != expected_tails:
+              raise SystemExit(
+                  "Fel interaction SI tails."
+              )
+          if actual_interaction_vol != expected_tails:
+              raise SystemExit(
+                  "Fel interaction volatility tails."
+              )
+          for path in (
+              results_csv,
+              interactions_csv,
+          ):
+              if path.stat().st_size == 0:
+                  raise SystemExit(
+                      f"Tom interaction-fil: {path}"
+                  )
+          print(
+              "Interaction verification passed."
+          )
+          print(
+              f"Feature rows: {document['rows']}"
+          )
+          print(
+              f"SI-only cells: {len(si_only)}"
+          )
+          print(
+              f"Volatility-only cells: "
+              f"{len(volatility_only)}"
+          )
+          print(
+              f"Interaction cells: "
+              f"{len(interaction)}"
+          )
+          print(
+              f"Direct interaction cells: "
+              f"{len(interactions)}"
+          )
+          PY
       - name: Run full discovery grid
         run: |
           python -u -m ml.research.discovery.runner
-
       - name: Inspect discovery outputs
         if: always()
         run: |
@@ -114,35 +273,30 @@ jobs:
             -maxdepth 3 \
             -type f \
             -print 2>/dev/null || true
-
           echo "=== Latest discovery metadata ==="
           if [ -f data/processed/ml/research/discovery/latest/metadata.json ]; then
             cat data/processed/ml/research/discovery/latest/metadata.json
           else
             echo "latest/metadata.json saknas"
           fi
-
           echo "=== Latest discovery report ==="
           if [ -f data/processed/ml/research/discovery/latest/report.md ]; then
             cat data/processed/ml/research/discovery/latest/report.md
           else
             echo "latest/report.md saknas"
           fi
-
           echo "=== Latest discovery findings ==="
           if [ -f data/processed/ml/research/discovery/latest/findings.json ]; then
             cat data/processed/ml/research/discovery/latest/findings.json
           else
             echo "latest/findings.json saknas"
           fi
-
           echo "=== Latest discovery results ==="
           if [ -f data/processed/ml/research/discovery/latest/results.jsonl ]; then
             cat data/processed/ml/research/discovery/latest/results.jsonl
           else
             echo "latest/results.jsonl saknas"
           fi
-
       - name: Verify discovery outputs
         run: |
           test -f data/processed/ml/research/discovery/latest/results.jsonl
@@ -150,139 +304,104 @@ jobs:
           test -f data/processed/ml/research/discovery/latest/findings.json
           test -f data/processed/ml/research/discovery/latest/metadata.json
           test -f data/processed/ml/research/discovery/latest/report.md
-
           python - <<'PY'
           import json
           from pathlib import Path
-
           base = Path(
               "data/processed/ml/research/discovery/latest"
           )
-
           metadata = json.loads(
               (base / "metadata.json").read_text(
                   encoding="utf-8"
               )
           )
-
-          if not isinstance(metadata, dict):
-              raise SystemExit(
-                  "Discovery metadata är inte ett objekt."
-              )
-
           expected_tails = {
               0.01,
               0.025,
               0.05,
               0.10,
           }
-
           actual_tails = {
               float(value)
               for value in metadata.get("tails", [])
           }
-
           if actual_tails != expected_tails:
               raise SystemExit(
                   "Fel discovery tails: "
                   f"expected={sorted(expected_tails)}, "
                   f"actual={sorted(actual_tails)}"
               )
-
           if metadata.get("targets") != [
               "down_10pct_5d"
           ]:
               raise SystemExit(
                   "Fel discovery target-konfiguration."
               )
-
           if metadata.get("signals") != [
               "short_interest_change"
           ]:
               raise SystemExit(
                   "Fel discovery signal-konfiguration."
               )
-
           if metadata.get("stress_features") != [
               "price_volatility_20d"
           ]:
               raise SystemExit(
                   "Fel discovery stress-feature."
               )
-
           expected_candidate_count = 16
-
-          actual_candidate_count = metadata.get(
+          if metadata.get(
               "candidate_count"
-          )
-
-          if actual_candidate_count != expected_candidate_count:
+          ) != expected_candidate_count:
               raise SystemExit(
                   "Fel antal discovery candidates: "
                   f"expected={expected_candidate_count}, "
-                  f"actual={actual_candidate_count}"
+                  f"actual={metadata.get('candidate_count')}"
               )
-
-          results_path = (
-              base / "results.jsonl"
-          )
-
           result_lines = [
               line
-              for line in results_path.read_text(
+              for line in (
+                  base / "results.jsonl"
+              ).read_text(
                   encoding="utf-8"
               ).splitlines()
               if line.strip()
           ]
-
           if len(result_lines) < expected_candidate_count:
               raise SystemExit(
                   "Discovery results.jsonl innehåller "
-                  f"bara {len(result_lines)} rader; "
-                  f"förväntade minst "
-                  f"{expected_candidate_count}."
+                  f"bara {len(result_lines)} rader."
               )
-
           results = []
-
           for line in result_lines:
               try:
                   row = json.loads(line)
               except json.JSONDecodeError as exc:
                   raise SystemExit(
-                      "Ogiltig JSON-rad i "
-                      f"results.jsonl: {exc}"
+                      f"Ogiltig JSON-rad: {exc}"
                   )
-
               if not isinstance(row, dict):
                   raise SystemExit(
-                      "En discovery-resultatrad "
-                      "är inte ett objekt."
+                      "Discovery-resultatrad är "
+                      "inte ett objekt."
                   )
-
               results.append(row)
-
           candidate_ids = {
               row.get("candidate_id")
               for row in results
               if row.get("candidate_id")
           }
-
           if len(candidate_ids) < expected_candidate_count:
               raise SystemExit(
-                  "För få unika candidate_id "
-                  "i discovery-resultaten: "
-                  f"expected at least "
-                  f"{expected_candidate_count}, "
-                  f"actual {len(candidate_ids)}"
+                  "För få unika candidate_id: "
+                  f"{len(candidate_ids)}"
               )
-
           print(
               "Discovery verification passed."
           )
           print(
               f"Candidate space: "
-              f"{actual_candidate_count}"
+              f"{metadata['candidate_count']}"
           )
           print(
               f"Result rows: {len(results)}"
@@ -291,80 +410,61 @@ jobs:
               f"Unique candidate IDs: "
               f"{len(candidate_ids)}"
           )
-          print(
-              f"Tails: {sorted(actual_tails)}"
-          )
           PY
-
       - name: Verify frozen hypothesis
         run: |
           python - <<'PY'
           from pathlib import Path
           import yaml
-
           path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
-
           if not path.exists():
               raise SystemExit(
                   f"Frozen hypothesis saknas: {path}"
               )
-
           with path.open(
               encoding="utf-8"
           ) as handle:
               document = yaml.safe_load(handle)
-
           if not isinstance(document, dict):
               raise SystemExit(
                   "Frozen hypothesis är inte "
                   "ett YAML-objekt."
               )
-
           hypothesis = document.get(
               "hypothesis"
           )
-
           if not isinstance(hypothesis, dict):
               raise SystemExit(
-                  "Saknar 'hypothesis' "
-                  "i frozen hypothesis."
+                  "Saknar 'hypothesis'."
               )
-
           if hypothesis.get("status") != "frozen":
               raise SystemExit(
                   "Frozen hypothesis har inte "
                   "status='frozen'."
               )
-
           candidate = hypothesis.get(
               "candidate"
           )
-
           evaluation = hypothesis.get(
               "evaluation"
           )
-
           null_test = hypothesis.get(
               "null_test"
           )
-
           if not isinstance(candidate, dict):
               raise SystemExit(
                   "Saknar candidate-konfiguration."
               )
-
           if not isinstance(evaluation, dict):
               raise SystemExit(
                   "Saknar evaluation-konfiguration."
               )
-
           if not isinstance(null_test, dict):
               raise SystemExit(
                   "Saknar null_test-konfiguration."
               )
-
           required_candidate_fields = [
               "candidate_id",
               "target_name",
@@ -374,375 +474,201 @@ jobs:
               "stress_tail",
               "stress_direction",
           ]
-
           for field in required_candidate_fields:
               if field not in candidate:
                   raise SystemExit(
                       f"Saknar candidate-fält: {field}"
                   )
-
           if candidate["stress_direction"] not in {
               "upper",
               "lower",
           }:
               raise SystemExit(
-                  "Ogiltig stress_direction: "
-                  f"{candidate['stress_direction']!r}"
+                  "Ogiltig stress_direction."
               )
-
           if evaluation.get(
               "start_date"
           ) != "2025-12-20":
               raise SystemExit(
                   "Fel frozen OOS-start."
               )
-
           if evaluation.get(
               "end_date"
           ) != "2026-09-18":
               raise SystemExit(
                   "Fel frozen OOS-slut."
               )
-
           if null_test.get(
               "permutations"
           ) != 1000:
               raise SystemExit(
                   "Fel antal null-permutationer."
               )
-
           print(
               "Frozen hypothesis verification passed."
           )
-
-          print(
-              f"Candidate: "
-              f"{candidate['candidate_id']}"
-          )
-
-          print(
-              f"Target: "
-              f"{candidate['target_name']}"
-          )
-
-          print(
-              f"Signal: "
-              f"{candidate['signal_name']}"
-          )
-
-          print(
-              f"Stress: "
-              f"{candidate['stress_feature']} "
-              f"({candidate['stress_direction']})"
-          )
-
-          print(
-              f"OOS: "
-              f"{evaluation['start_date']} "
-              f"-> "
-              f"{evaluation['end_date']}"
-          )
-
-          print(
-              f"Null permutations: "
-              f"{null_test['permutations']}"
-          )
           PY
-
       - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
-
       - name: Inspect frozen outputs
         if: always()
         run: |
           echo "=== Frozen output directory ==="
-
           find data/processed/ml/research/frozen \
             -maxdepth 3 \
             -type f \
             -print 2>/dev/null || true
-
           echo "=== Latest metadata ==="
-
           if [ -f data/processed/ml/research/frozen/latest/metadata.json ]; then
             cat data/processed/ml/research/frozen/latest/metadata.json
           else
             echo "latest/metadata.json saknas"
           fi
-
           echo "=== Latest result ==="
-
           if [ -f data/processed/ml/research/frozen/latest/result.json ]; then
             cat data/processed/ml/research/frozen/latest/result.json
           else
             echo "latest/result.json saknas"
           fi
-
           echo "=== Latest null test ==="
-
           if [ -f data/processed/ml/research/frozen/latest/null_test.json ]; then
             cat data/processed/ml/research/frozen/latest/null_test.json
           else
             echo "latest/null_test.json saknas"
           fi
-
-          echo "=== Git status ==="
-
-          git status --short
-
       - name: Run frozen subgroup analysis
         run: |
           python -u -m ml.research.frozen.subgroup_runner
-
       - name: Verify frozen results
         run: |
           test -f data/processed/ml/research/frozen/latest/result.json
           test -f data/processed/ml/research/frozen/latest/null_test.json
           test -f data/processed/ml/research/frozen/latest/metadata.json
-
           python - <<'PY'
           import json
           from pathlib import Path
           import yaml
-
           base = Path(
               "data/processed/ml/research/frozen/latest"
           )
-
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
-
-          result_path = (
-              base / "result.json"
-          )
-
-          null_test_path = (
-              base / "null_test.json"
-          )
-
-          metadata_path = (
-              base / "metadata.json"
-          )
-
-          if not result_path.exists():
-              raise SystemExit(
-                  f"Saknat frozen-resultat: "
-                  f"{result_path}"
+          result = json.loads(
+              (base / "result.json").read_text(
+                  encoding="utf-8"
               )
-
-          if not null_test_path.exists():
-              raise SystemExit(
-                  f"Saknat null-test-resultat: "
-                  f"{null_test_path}"
+          )
+          null_test = json.loads(
+              (base / "null_test.json").read_text(
+                  encoding="utf-8"
               )
-
-          if not metadata_path.exists():
-              raise SystemExit(
-                  f"Saknad frozen-metadata: "
-                  f"{metadata_path}"
+          )
+          metadata = json.loads(
+              (base / "metadata.json").read_text(
+                  encoding="utf-8"
               )
-
+          )
           hypothesis = yaml.safe_load(
               hypothesis_path.read_text(
                   encoding="utf-8"
               )
           )
-
           expected = hypothesis[
               "hypothesis"
           ]
-
-          result = json.loads(
-              result_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          null_test = json.loads(
-              null_test_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          metadata = json.loads(
-              metadata_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if not isinstance(result, dict):
-              raise SystemExit(
-                  "Frozen result är inte ett objekt."
-              )
-
-          if not isinstance(null_test, dict):
-              raise SystemExit(
-                  "Frozen null-test är inte ett objekt."
-              )
-
-          if not isinstance(metadata, dict):
-              raise SystemExit(
-                  "Frozen metadata är inte ett objekt."
-              )
-
           expected_candidate = expected[
               "candidate"
           ]["candidate_id"]
-
-          actual_candidate = metadata.get(
+          if metadata.get(
               "candidate",
               {}
           ).get(
               "candidate_id"
-          )
-
-          if actual_candidate != expected_candidate:
+          ) != expected_candidate:
               raise SystemExit(
-                  "Fel frozen candidate_id: "
-                  f"expected={expected_candidate!r}, "
-                  f"actual={actual_candidate!r}"
+                  "Fel frozen candidate_id."
               )
-
-          expected_start = expected[
-              "evaluation"
-          ]["start_date"]
-
-          actual_start = metadata.get(
+          if metadata.get(
               "evaluation_start_date"
-          )
-
-          if actual_start != expected_start:
-              raise SystemExit(
-                  "Fel frozen evaluation_start: "
-                  f"expected={expected_start!r}, "
-                  f"actual={actual_start!r}"
-              )
-
-          expected_end = expected[
+          ) != expected[
               "evaluation"
-          ]["end_date"]
-
-          actual_end = metadata.get(
+          ]["start_date"]:
+              raise SystemExit(
+                  "Fel frozen evaluation start."
+              )
+          if metadata.get(
               "evaluation_end_date"
-          )
-
-          if actual_end != expected_end:
+          ) != expected[
+              "evaluation"
+          ]["end_date"]:
               raise SystemExit(
-                  "Fel frozen evaluation_end: "
-                  f"expected={expected_end!r}, "
-                  f"actual={actual_end!r}"
+                  "Fel frozen evaluation end."
               )
-
-          expected_permutations = expected[
-              "null_test"
-          ]["permutations"]
-
-          actual_permutations = null_test.get(
+          if null_test.get(
               "permutations_requested"
-          )
-
-          if actual_permutations != expected_permutations:
-              raise SystemExit(
-                  "Fel antal null-permutationer: "
-                  f"expected={expected_permutations}, "
-                  f"actual={actual_permutations}"
-              )
-
-          expected_metric = expected[
+          ) != expected[
               "null_test"
-          ]["metric"]
-
-          actual_metric = null_test.get(
-              "metric"
-          )
-
-          if actual_metric != expected_metric:
+          ]["permutations"]:
               raise SystemExit(
-                  "Fel null-test metric: "
-                  f"expected={expected_metric!r}, "
-                  f"actual={actual_metric!r}"
+                  "Fel antal null-permutationer."
               )
-
+          if null_test.get(
+              "metric"
+          ) != expected[
+              "null_test"
+          ]["metric"]:
+              raise SystemExit(
+                  "Fel null-test metric."
+              )
           print(
               "Frozen verification passed."
           )
-
           print(
-              f"Candidate: {actual_candidate}"
+              f"Candidate: {expected_candidate}"
           )
-
-          print(
-              f"OOS: {actual_start} "
-              f"-> {actual_end}"
-          )
-
-          print(
-              f"Null metric: {actual_metric}"
-          )
-
-          print(
-              f"Null permutations: "
-              f"{actual_permutations}"
-          )
-
           print(
               f"Observed metric: "
               f"{null_test.get('observed')}"
           )
-
           print(
               f"Empirical p-value: "
               f"{null_test.get('p_value')}"
           )
           PY
-
       - name: Verify subgroup outputs
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           import yaml
-
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
-
           output_dir = Path(
               "data/processed/ml/research/frozen/subgroups"
           )
-
-          if not output_dir.exists():
-              raise SystemExit(
-                  "Subgroup output directory saknas."
-              )
-
           required_files = [
               "period.csv",
               "sector.csv",
               "market_regime.csv",
               "metadata.json",
           ]
-
           for filename in required_files:
               path = output_dir / filename
-
               if not path.exists():
                   raise SystemExit(
                       f"Saknad subgroup-fil: {path}"
                   )
-
           hypothesis = yaml.safe_load(
               hypothesis_path.read_text(
                   encoding="utf-8"
               )
           )
-
           expected = hypothesis[
               "hypothesis"
           ]
-
           metadata = json.loads(
               (
                   output_dir / "metadata.json"
@@ -750,36 +676,24 @@ jobs:
                   encoding="utf-8"
               )
           )
-
-          if not isinstance(metadata, dict):
-              raise SystemExit(
-                  "Subgroup metadata är inte ett objekt."
-              )
-
           checks = {
               "candidate_id": (
                   expected["candidate"][
                       "candidate_id"
                   ],
-                  metadata.get(
-                      "candidate_id"
-                  ),
+                  metadata.get("candidate_id"),
               ),
               "evaluation_start": (
                   expected["evaluation"][
                       "start_date"
                   ],
-                  metadata.get(
-                      "evaluation_start"
-                  ),
+                  metadata.get("evaluation_start"),
               ),
               "evaluation_end": (
                   expected["evaluation"][
                       "end_date"
                   ],
-                  metadata.get(
-                      "evaluation_end"
-                  ),
+                  metadata.get("evaluation_end"),
               ),
               "discovery_end_date": (
                   expected["source"][
@@ -790,7 +704,6 @@ jobs:
                   ),
               ),
           }
-
           for name, (
               expected_value,
               actual_value,
@@ -802,49 +715,29 @@ jobs:
                       f"expected={expected_value!r}, "
                       f"actual={actual_value!r}"
                   )
-
           print(
               "Subgroup verification passed."
           )
-
-          print(
-              f"Candidate: "
-              f"{metadata['candidate_id']}"
-          )
-
-          print(
-              f"OOS: "
-              f"{metadata['evaluation_start']} "
-              f"-> "
-              f"{metadata['evaluation_end']}"
-          )
           PY
-
       - name: Persist research results
         run: |
           git config user.name \
             "github-actions[bot]"
-
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add \
             data/processed/ml/research/discovery/ \
-            data/processed/ml/research/frozen/
-
+            data/processed/ml/research/frozen/ \
+            data/processed/ml/research/interaction/
           if git diff --cached --quiet; then
             echo "Inga research-resultat ändrades."
             exit 0
           fi
-
           git commit \
             -m "Update ML research results"
-
           for attempt in 1 2 3; do
             echo "Push attempt $attempt..."
-
             git fetch origin main
-
             if git rebase --autostash origin/main; then
               if git push origin HEAD:main; then
                 echo "Push lyckades."
@@ -854,12 +747,10 @@ jobs:
               echo "Rebase misslyckades."
               git rebase --abort || true
             fi
-
             if [ "$attempt" -lt 3 ]; then
               echo "Push/rebase misslyckades. Försöker igen..."
               sleep 5
             fi
           done
-
           echo "Kunde inte pusha research-resultaten."
           exit 1
