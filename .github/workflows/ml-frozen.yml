@@ -1,11 +1,15 @@
 name: ML Frozen Research
+
 on:
   workflow_dispatch:
+
 permissions:
   contents: write
+
 concurrency:
   group: ml-frozen-main
   cancel-in-progress: false
+
 env:
   DISCOVERY_CONFIG: |
     enabled: true
@@ -27,50 +31,63 @@ env:
       min_lift: 1.10
       max_return_difference: 0.0
       max_findings: 25
+
 jobs:
   frozen-research:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
+
       - name: Fetch prices
         run: |
           python -m prices --start 2022-01-01
+
       - name: Check feature source
         run: |
           python -u -m analysis.feature_source_check
+
       - name: Build features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.build_features
+
       - name: Inspect feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci inspect-features
+
       - name: Verify feature dataset
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-features
+
       - name: Run Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m analysis.features_qc
+
       - name: Verify Feature QC
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -m analysis.ci verify-feature-qc
+
       - name: Verify feature dataset exists
         run: |
           test -f data/processed/analysis/features_metadata.json
@@ -82,46 +99,59 @@ jobs:
               -print \
               -quit
           )"
+
       - name: Verify frozen hypothesis
         run: |
           python - <<'PY'
           from pathlib import Path
           import yaml
+
           path = Path("ml/research/frozen/hypothesis.yml")
+
           if not path.exists():
               raise SystemExit(
                   f"Frozen hypothesis saknas: {path}"
               )
+
           with path.open(encoding="utf-8") as handle:
               document = yaml.safe_load(handle)
+
           if not isinstance(document, dict):
               raise SystemExit(
                   "Frozen hypothesis är inte ett YAML-objekt."
               )
+
           hypothesis = document.get("hypothesis")
+
           if not isinstance(hypothesis, dict):
               raise SystemExit(
                   "Saknar 'hypothesis' i frozen hypothesis."
               )
+
           if hypothesis.get("status") != "frozen":
               raise SystemExit(
                   "Frozen hypothesis har inte status='frozen'."
               )
+
           candidate = hypothesis.get("candidate")
           evaluation = hypothesis.get("evaluation")
           null_test = hypothesis.get("null_test")
+
           if not isinstance(candidate, dict):
               raise SystemExit(
                   "Saknar candidate-konfiguration."
               )
+
           if not isinstance(evaluation, dict):
               raise SystemExit(
                   "Saknar evaluation-konfiguration."
               )
+
           if not isinstance(null_test, dict):
               raise SystemExit(
                   "Saknar null_test-konfiguration."
               )
+
           required_candidate_fields = [
               "candidate_id",
               "target_name",
@@ -131,11 +161,13 @@ jobs:
               "stress_tail",
               "stress_direction",
           ]
+
           for field in required_candidate_fields:
               if field not in candidate:
                   raise SystemExit(
                       f"Saknar candidate-fält: {field}"
                   )
+
           if candidate["stress_direction"] not in {
               "upper",
               "lower",
@@ -144,113 +176,144 @@ jobs:
                   "Ogiltig stress_direction: "
                   f"{candidate['stress_direction']!r}"
               )
+
           if evaluation.get("start_date") != "2025-12-20":
               raise SystemExit(
                   "Fel frozen OOS-start."
               )
+
           if evaluation.get("end_date") != "2026-09-18":
               raise SystemExit(
                   "Fel frozen OOS-slut."
               )
+
           if null_test.get("permutations") != 1000:
               raise SystemExit(
                   "Fel antal null-permutationer."
               )
+
           print("Frozen hypothesis verification passed.")
+
           print(
               f"Candidate: {candidate['candidate_id']}"
           )
+
           print(
               f"Target: {candidate['target_name']}"
           )
+
           print(
               f"Signal: {candidate['signal_name']}"
           )
+
           print(
               f"Stress: {candidate['stress_feature']} "
               f"({candidate['stress_direction']})"
           )
+
           print(
               f"OOS: {evaluation['start_date']} "
               f"-> {evaluation['end_date']}"
           )
+
           print(
               f"Null permutations: "
               f"{null_test['permutations']}"
           )
           PY
+
       - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
+
       - name: Run frozen subgroup analysis
         run: |
           python -u -m ml.research.frozen.subgroup_runner
+
       - name: Verify frozen results
         run: |
           test -f data/processed/ml/research/frozen/results.json
           test -f data/processed/ml/research/frozen/null_test.json
+
           python - <<'PY'
           import json
           from pathlib import Path
           import yaml
+
           base = Path(
               "data/processed/ml/research/frozen"
           )
+
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
+
           results_path = base / "results.json"
           null_test_path = base / "null_test.json"
+
           if not results_path.exists():
               raise SystemExit(
                   f"Saknad frozen-resultat: {results_path}"
               )
+
           if not null_test_path.exists():
               raise SystemExit(
                   f"Saknat null-test-resultat: {null_test_path}"
               )
+
           hypothesis = yaml.safe_load(
               hypothesis_path.read_text(
                   encoding="utf-8"
               )
           )
+
           expected = hypothesis["hypothesis"]
+
           results = json.loads(
               results_path.read_text(
                   encoding="utf-8"
               )
           )
+
           null_test = json.loads(
               null_test_path.read_text(
                   encoding="utf-8"
               )
           )
+
           if not isinstance(results, dict):
               raise SystemExit(
                   "Frozen results är inte ett objekt."
               )
+
           if not isinstance(null_test, dict):
               raise SystemExit(
                   "Frozen null-test är inte ett objekt."
               )
+
           expected_candidate = expected[
               "candidate"
           ]["candidate_id"]
+
           actual_candidate = results.get(
               "candidate_id"
           )
+
           if actual_candidate != expected_candidate:
               raise SystemExit(
                   "Fel frozen candidate_id: "
                   f"expected={expected_candidate!r}, "
                   f"actual={actual_candidate!r}"
               )
+
           expected_start = expected[
               "evaluation"
           ]["start_date"]
+
           expected_end = expected[
               "evaluation"
           ]["end_date"]
+
           if results.get(
               "evaluation_start"
           ) != expected_start:
@@ -259,6 +322,7 @@ jobs:
                   f"expected={expected_start!r}, "
                   f"actual={results.get('evaluation_start')!r}"
               )
+
           if results.get(
               "evaluation_end"
           ) != expected_end:
@@ -267,63 +331,80 @@ jobs:
                   f"expected={expected_end!r}, "
                   f"actual={results.get('evaluation_end')!r}"
               )
+
           permutations = null_test.get(
               "permutations"
           )
+
           expected_permutations = expected[
               "null_test"
           ]["permutations"]
+
           if permutations != expected_permutations:
               raise SystemExit(
                   "Fel antal null-permutationer: "
                   f"expected={expected_permutations}, "
                   f"actual={permutations}"
               )
+
           print("Frozen verification passed.")
+
           print(
               f"Candidate: {actual_candidate}"
           )
+
           print(
               f"OOS: {expected_start} -> {expected_end}"
           )
+
           print(
               f"Null permutations: {permutations}"
           )
           PY
+
       - name: Verify subgroup outputs
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           import yaml
+
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
+
           output_dir = Path(
               "data/processed/ml/research/frozen/subgroups"
           )
+
           if not output_dir.exists():
               raise SystemExit(
                   "Subgroup output directory saknas."
               )
+
           required_files = [
               "period.csv",
               "sector.csv",
               "market_regime.csv",
               "metadata.json",
           ]
+
           for filename in required_files:
               path = output_dir / filename
+
               if not path.exists():
                   raise SystemExit(
                       f"Saknad subgroup-fil: {path}"
                   )
+
           hypothesis = yaml.safe_load(
               hypothesis_path.read_text(
                   encoding="utf-8"
               )
           )
+
           expected = hypothesis["hypothesis"]
+
           metadata = json.loads(
               (
                   output_dir / "metadata.json"
@@ -331,10 +412,12 @@ jobs:
                   encoding="utf-8"
               )
           )
+
           if not isinstance(metadata, dict):
               raise SystemExit(
                   "Subgroup metadata är inte ett objekt."
               )
+
           checks = {
               "candidate_id": (
                   expected["candidate"][
@@ -369,10 +452,12 @@ jobs:
                   ),
               ),
           }
+
           for name, (
               expected_value,
               actual_value,
           ) in checks.items():
+
               if actual_value != expected_value:
                   raise SystemExit(
                       f"Fel subgroup-metadata för "
@@ -380,13 +465,16 @@ jobs:
                       f"expected={expected_value!r}, "
                       f"actual={actual_value!r}"
                   )
+
           print(
               "Subgroup verification passed."
           )
+
           print(
               f"Candidate: "
               f"{metadata['candidate_id']}"
           )
+
           print(
               f"OOS: "
               f"{metadata['evaluation_start']} "
@@ -394,6 +482,7 @@ jobs:
               f"{metadata['evaluation_end']}"
           )
           PY
+
       - name: Upload frozen research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -404,23 +493,31 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 9
+
       - name: Persist frozen research results
         run: |
           git config user.name \
             "github-actions[bot]"
+
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add \
             data/processed/ml/research/frozen/
+
           if git diff --cached --quiet; then
             echo "Inga frozen-resultat ändrades."
             exit 0
           fi
+
           git commit \
             -m "Update frozen ML research results"
+
           for attempt in 1 2 3; do
             echo "Push attempt $attempt..."
+
             git fetch origin main
+
             if git rebase origin/main; then
               if git push origin HEAD:main; then
                 echo "Push lyckades."
@@ -430,12 +527,12 @@ jobs:
               echo "Rebase misslyckades."
               git rebase --abort || true
             fi
+
             if [ "$attempt" -lt 3 ]; then
               echo "Remote ändrades. Försöker igen..."
               sleep 5
             fi
           done
+
           echo "Kunde inte pusha frozen-resultaten."
           exit 1
-
-Det här är alltså ren YAML att kopiera till .github/workflows/ml-frozen.yml.
