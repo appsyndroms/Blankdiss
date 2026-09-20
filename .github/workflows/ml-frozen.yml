@@ -16,38 +16,59 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      # ---------------------------------------------------------
+      # 1. Refresh source data
+      # ---------------------------------------------------------
       - name: Refresh short interest data
         run: |
           python -u -m fi
       - name: Refresh price data
         run: |
           python -u -m prices --start 2022-01-01
+      # ---------------------------------------------------------
+      # 2. Build canonical feature dataset
+      # ---------------------------------------------------------
       - name: Build features
         run: |
-          python -u -m ml.features.build
-      - name: Inspect features
+          python -u -m analysis.build_features
+      - name: Inspect feature dataset
         run: |
-          python -u -m ml.features.inspect
-      - name: Verify features
+          python -m analysis.ci inspect-features
+      - name: Verify feature dataset
         run: |
-          python -u -m ml.features.verify
-      - name: Feature QC
+          python -m analysis.ci verify-features
+      - name: Run Feature QC
         run: |
-          python -u -m ml.features.qc
-      - name: Verify feature QC
+          python -u -m analysis.features_qc
+      - name: Verify Feature QC
         run: |
-          python -u -m ml.features.verify_qc
+          python -m analysis.ci verify-feature-qc
+      - name: Verify feature dataset exists
+        run: |
+          test -f data/processed/analysis/features_metadata.json
+          test -n "$(
+            find data/processed/analysis \
+              -maxdepth 1 \
+              -type f \
+              -name 'features_*.jsonl' \
+              -print \
+              -quit
+          )"
+      # ---------------------------------------------------------
+      # 3. Verify frozen hypothesis configuration
+      # ---------------------------------------------------------
       - name: Verify frozen hypothesis configuration
         run: |
           python - <<'PY'
           from pathlib import Path
           import yaml
           path = Path(
-              "ml/research/frozen/hypothesis.yaml"
+              "ml/research/frozen/hypothesis.yml"
           )
           with path.open(
               "r",
@@ -123,33 +144,49 @@ jobs:
               "Frozen hypothesis configuration verified."
           )
           PY
+      # ---------------------------------------------------------
+      # 4. Run frozen hypothesis
+      # ---------------------------------------------------------
       - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
+      # ---------------------------------------------------------
+      # 5. Verify frozen hypothesis result
+      # ---------------------------------------------------------
       - name: Verify frozen hypothesis result
         run: |
+          test -f \
+            data/processed/ml/research/frozen/latest/result.json
+          test -f \
+            data/processed/ml/research/frozen/latest/null_test.json
+          test -f \
+            data/processed/ml/research/frozen/latest/metadata.json
+          test -f \
+            data/processed/ml/research/frozen/latest/report.md
           python - <<'PY'
           from pathlib import Path
           import json
           output_dir = Path(
-              "data/processed/ml/research/frozen"
+              "data/processed/ml/research/frozen/latest"
           )
-          required_files = [
-              "result.json",
-              "report.md",
-          ]
-          for filename in required_files:
-              path = output_dir / filename
-              if not path.exists():
-                  raise SystemExit(
-                      f"Missing frozen output: {path}"
-                  )
-          result_path = output_dir / "result.json"
+          result_path = (
+              output_dir
+              / "result.json"
+          )
+          null_path = (
+              output_dir
+              / "null_test.json"
+          )
           with result_path.open(
               "r",
               encoding="utf-8",
           ) as f:
               result = json.load(f)
+          with null_path.open(
+              "r",
+              encoding="utf-8",
+          ) as f:
+              null_result = json.load(f)
           print(
               "Frozen verification passed."
           )
@@ -179,20 +216,26 @@ jobs:
           )
           print(
               "Null permutations:",
-              result.get("null_test", {}).get(
-                  "permutations"
+              null_result.get(
+                  "permutations_requested"
               ),
           )
           print(
               "Null p-value:",
-              result.get("null_test", {}).get(
+              null_result.get(
                   "p_value"
               ),
           )
           PY
+      # ---------------------------------------------------------
+      # 6. Run diagnostic subgroup analysis
+      # ---------------------------------------------------------
       - name: Run frozen subgroup analysis
         run: |
           python -u -m ml.research.frozen.subgroup_runner
+      # ---------------------------------------------------------
+      # 7. Verify subgroup outputs
+      # ---------------------------------------------------------
       - name: Verify subgroup outputs
         run: |
           test -f \
@@ -215,7 +258,10 @@ jobs:
               "sector.csv",
               "market_regime.csv",
           ]:
-              path = output_dir / filename
+              path = (
+                  output_dir
+                  / filename
+              )
               print()
               print("=" * 80)
               print(filename)
@@ -229,12 +275,18 @@ jobs:
                   )
               )
           PY
+      # ---------------------------------------------------------
+      # 8. Upload artifact
+      # ---------------------------------------------------------
       - name: Upload frozen hypothesis artifact
         uses: actions/upload-artifact@v4
         with:
           name: blankdiss-frozen-hypothesis
           path: |
             data/processed/ml/research/frozen
+      # ---------------------------------------------------------
+      # 9. Persist frozen research outputs
+      # ---------------------------------------------------------
       - name: Commit frozen research outputs
         run: |
           git config user.name "github-actions[bot]"
@@ -248,4 +300,17 @@ jobs:
           fi
           git commit \
             -m "Update frozen hypothesis results"
-          git push
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo \
+                "Kunde inte pusha frozen-resultaten efter 3 försök."
+              exit 1
+            fi
+            echo \
+              "Push misslyckades. Hämtar senaste main och försöker igen."
+            git fetch origin main
+            git rebase origin/main
+          done
