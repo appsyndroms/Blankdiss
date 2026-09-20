@@ -1,10 +1,8 @@
 from __future__ import annotations
-
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
-
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -15,49 +13,35 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-
 from ml.config import TARGETS, WALK_FORWARD_WINDOWS
 from ml.dataset import build_target, load_features
 from ml.research.signals import build_signal
-
-
 DISCOVERY_END = pd.Timestamp("2025-12-19")
 TARGET_NAME = "down_10pct_5d"
 SI_SIGNAL_NAME = "short_interest_change"
 VOL_SIGNAL_NAME = "price_volatility_20d"
-
 VOL_GROUPS = 3
 SI_DECILES = 10
-
 MIN_MODEL_ROWS = 100
 MIN_CLASS_COUNT = 5
-
 OUTPUT_DIR = Path(
     "data/processed/ml/research/incremental_si"
 )
-
-
 @dataclass(frozen=True)
 class SplitConfig:
     name: str
     train_end: pd.Timestamp
     validation_end: pd.Timestamp
     test_end: pd.Timestamp
-
-
 def target_config():
     for target in TARGETS:
         if target.name == TARGET_NAME:
             return target
-
     raise ValueError(
         f"Unknown target: {TARGET_NAME}"
     )
-
-
 def build_splits() -> list[SplitConfig]:
     splits = []
-
     for index, window in enumerate(
         WALK_FORWARD_WINDOWS,
         start=1,
@@ -76,35 +60,27 @@ def build_splits() -> list[SplitConfig]:
                 ),
             )
         )
-
     return splits
-
-
 def safe_auc(
     y_true: np.ndarray,
     scores: np.ndarray,
 ) -> float | None:
     if len(y_true) == 0:
         return None
-
     if np.unique(y_true).size < 2:
         return None
-
     return float(
         roc_auc_score(
             y_true,
             scores,
         )
     )
-
-
 def safe_log_loss(
     y_true: np.ndarray,
     probabilities: np.ndarray,
 ) -> float | None:
     if len(y_true) == 0:
         return None
-
     try:
         return float(
             log_loss(
@@ -115,23 +91,18 @@ def safe_log_loss(
         )
     except ValueError:
         return None
-
-
 def safe_brier(
     y_true: np.ndarray,
     probabilities: np.ndarray,
 ) -> float | None:
     if len(y_true) == 0:
         return None
-
     return float(
         brier_score_loss(
             y_true,
             probabilities,
         )
     )
-
-
 def model_metrics(
     y_true: np.ndarray,
     probabilities: np.ndarray,
@@ -157,8 +128,6 @@ def model_metrics(
             probabilities,
         ),
     }
-
-
 def rankdata_average(
     values: np.ndarray,
 ) -> np.ndarray:
@@ -170,46 +139,34 @@ def rankdata_average(
         values,
         dtype=float,
     )
-
     order = np.argsort(
         values,
         kind="mergesort",
     )
-
     sorted_values = values[order]
-
     ranks = np.empty(
         len(values),
         dtype=float,
     )
-
     start = 0
-
     while start < len(values):
         end = start + 1
-
         while (
             end < len(values)
             and sorted_values[end]
             == sorted_values[start]
         ):
             end += 1
-
         average_rank = (
             start
             + end
             - 1
         ) / 2.0 + 1.0
-
         ranks[
             order[start:end]
         ] = average_rank
-
         start = end
-
     return ranks
-
-
 def spearman(
     x: np.ndarray,
     y: np.ndarray,
@@ -218,26 +175,21 @@ def spearman(
         np.isfinite(x)
         & np.isfinite(y)
     )
-
     if valid.sum() < 3:
         return None
-
     x_valid = x[valid]
     y_valid = y[valid]
-
     if (
         np.unique(x_valid).size < 2
         or np.unique(y_valid).size < 2
     ):
         return None
-
     x_rank = rankdata_average(
         x_valid
     )
     y_rank = rankdata_average(
         y_valid
     )
-
     x_centered = (
         x_rank
         - x_rank.mean()
@@ -246,7 +198,6 @@ def spearman(
         y_rank
         - y_rank.mean()
     )
-
     denominator = (
         np.sqrt(
             np.sum(
@@ -259,10 +210,8 @@ def spearman(
             )
         )
     )
-
     if denominator == 0:
         return None
-
     return float(
         np.sum(
             x_centered
@@ -270,8 +219,6 @@ def spearman(
         )
         / denominator
     )
-
-
 def cross_sectional_group(
     frame: pd.DataFrame,
     values: pd.Series,
@@ -280,7 +227,6 @@ def cross_sectional_group(
     """
     Assign cross-sectional quantile groups independently for every
     snapshot date.
-
     Group 0 = lowest values.
     Group groups-1 = highest values.
     """
@@ -289,7 +235,6 @@ def cross_sectional_group(
         index=frame.index,
         dtype=float,
     )
-
     working = pd.DataFrame(
         {
             "date": frame[
@@ -299,7 +244,6 @@ def cross_sectional_group(
         },
         index=frame.index,
     )
-
     for _, index in working.groupby(
         "date",
         sort=False,
@@ -308,34 +252,25 @@ def cross_sectional_group(
             index,
             "value",
         ]
-
         valid = local.notna()
-
         if valid.sum() < groups:
             continue
-
         ranks = local.loc[
             valid
         ].rank(
             method="first",
             pct=True,
         )
-
         group = np.floor(
             ranks * groups
         ).astype(int)
-
         group = group.clip(
             upper=groups - 1
         )
-
         result.loc[
             group.index
         ] = group.astype(float)
-
     return result
-
-
 def conditional_si_decile(
     frame: pd.DataFrame,
     si: pd.Series,
@@ -345,7 +280,6 @@ def conditional_si_decile(
     Assign:
       - volatility tercile cross-sectionally per date
       - SI decile within date + volatility tercile
-
     This directly answers whether SI has a monotonic relationship
     with the target after conditioning on current volatility.
     """
@@ -354,13 +288,11 @@ def conditional_si_decile(
         volatility,
         VOL_GROUPS,
     )
-
     si_group = pd.Series(
         np.nan,
         index=frame.index,
         dtype=float,
     )
-
     working = pd.DataFrame(
         {
             "date": frame[
@@ -371,7 +303,6 @@ def conditional_si_decile(
         },
         index=frame.index,
     )
-
     for (
         _,
         index,
@@ -386,31 +317,24 @@ def conditional_si_decile(
             index,
             "si",
         ]
-
         valid = local.notna()
-
         if valid.sum() < SI_DECILES:
             continue
-
         ranks = local.loc[
             valid
         ].rank(
             method="first",
             pct=True,
         )
-
         group = np.floor(
             ranks * SI_DECILES
         ).astype(int)
-
         group = group.clip(
             upper=SI_DECILES - 1
         )
-
         si_group.loc[
             group.index
         ] = group.astype(float)
-
     return pd.DataFrame(
         {
             "vol_group": vol_group,
@@ -418,8 +342,6 @@ def conditional_si_decile(
         },
         index=frame.index,
     )
-
-
 def decile_analysis(
     frame: pd.DataFrame,
     target: np.ndarray,
@@ -432,9 +354,7 @@ def decile_analysis(
         si,
         volatility,
     )
-
     rows = []
-
     for vol_group in range(
         VOL_GROUPS
     ):
@@ -452,25 +372,20 @@ def decile_analysis(
                 ].to_numpy()
                 == si_decile
             )
-
             valid_target = (
                 mask
                 & np.isfinite(target)
             )
-
             y = target[
                 valid_target
             ]
-
             return_mask = (
                 mask
                 & np.isfinite(returns)
             )
-
             selected_returns = returns[
                 return_mask
             ]
-
             rows.append(
                 {
                     "vol_group": int(
@@ -510,10 +425,7 @@ def decile_analysis(
                     ),
                 }
             )
-
     return rows
-
-
 def conditional_rank_analysis(
     frame: pd.DataFrame,
     target: np.ndarray,
@@ -525,9 +437,7 @@ def conditional_rank_analysis(
         si,
         volatility,
     )
-
     rows = []
-
     for vol_group in range(
         VOL_GROUPS
     ):
@@ -537,7 +447,6 @@ def conditional_rank_analysis(
             ].to_numpy()
             == vol_group
         )
-
         valid = (
             mask
             & np.isfinite(target)
@@ -547,13 +456,10 @@ def conditional_rank_analysis(
                 )
             )
         )
-
         si_values = si.to_numpy(
             dtype=float
         )[valid]
-
         y = target[valid]
-
         rows.append(
             {
                 "vol_group": int(
@@ -585,17 +491,13 @@ def conditional_rank_analysis(
                 ),
             }
         )
-
     return rows
-
-
 def fit_model(
     x_train: pd.DataFrame,
     y_train: np.ndarray,
 ) -> Pipeline | None:
     if len(x_train) < MIN_MODEL_ROWS:
         return None
-
     if (
         np.unique(y_train).size < 2
         or np.sum(y_train == 1)
@@ -604,7 +506,6 @@ def fit_model(
         < MIN_CLASS_COUNT
     ):
         return None
-
     model = Pipeline(
         [
             (
@@ -622,15 +523,11 @@ def fit_model(
             ),
         ]
     )
-
     model.fit(
         x_train,
         y_train,
     )
-
     return model
-
-
 def prepare_model_frame(
     si: pd.Series,
     volatility: pd.Series,
@@ -638,11 +535,9 @@ def prepare_model_frame(
     si_values = si.to_numpy(
         dtype=float
     )
-
     vol_values = volatility.to_numpy(
         dtype=float
     )
-
     result = pd.DataFrame(
         {
             "volatility": vol_values,
@@ -653,7 +548,6 @@ def prepare_model_frame(
             ),
         }
     )
-
     return result.replace(
         [
             np.inf,
@@ -661,8 +555,6 @@ def prepare_model_frame(
         ],
         np.nan,
     )
-
-
 def run_model_family(
     model_frame: pd.DataFrame,
     target: np.ndarray,
@@ -683,9 +575,7 @@ def run_model_family(
             "si_x_volatility",
         ],
     }
-
     rows = []
-
     for (
         model_name,
         columns,
@@ -694,12 +584,10 @@ def run_model_family(
             train_mask
             & np.isfinite(target)
         )
-
         eval_valid = (
             eval_mask
             & np.isfinite(target)
         )
-
         for column in columns:
             train_valid &= (
                 np.isfinite(
@@ -715,7 +603,6 @@ def run_model_family(
                     ].to_numpy()
                 )
             )
-
         if not train_valid.any():
             rows.append(
                 {
@@ -724,7 +611,6 @@ def run_model_family(
                 }
             )
             continue
-
         if not eval_valid.any():
             rows.append(
                 {
@@ -733,30 +619,24 @@ def run_model_family(
                 }
             )
             continue
-
         x_train = model_frame.loc[
             train_valid,
             columns,
         ]
-
         y_train = target[
             train_valid
         ].astype(int)
-
         x_eval = model_frame.loc[
             eval_valid,
             columns,
         ]
-
         y_eval = target[
             eval_valid
         ].astype(int)
-
         model = fit_model(
             x_train,
             y_train,
         )
-
         if model is None:
             rows.append(
                 {
@@ -765,16 +645,13 @@ def run_model_family(
                 }
             )
             continue
-
         probabilities = model.predict_proba(
             x_eval
         )[:, 1]
-
         metrics = model_metrics(
             y_eval,
             probabilities,
         )
-
         rows.append(
             {
                 "model": model_name,
@@ -783,22 +660,18 @@ def run_model_family(
                 **metrics,
             }
         )
-
     by_name = {
         row["model"]: row
         for row in rows
         if row.get("status") == "ok"
     }
-
     baseline = by_name.get(
         "volatility_only"
     )
-
     if baseline is not None:
         for row in rows:
             if row.get("status") != "ok":
                 continue
-
             for metric in (
                 "auc",
                 "log_loss",
@@ -810,11 +683,9 @@ def run_model_family(
                 value = row.get(
                     metric
                 )
-
                 delta_key = (
                     f"delta_{metric}_vs_volatility_only"
                 )
-
                 if (
                     baseline_value is not None
                     and value is not None
@@ -825,49 +696,38 @@ def run_model_family(
                     )
                 else:
                     row[delta_key] = None
-
     return rows
-
-
 def main() -> None:
     print(
         "Loading features...",
         flush=True,
     )
-
     frame = load_features().copy()
-
     frame["snapshot_date"] = pd.to_datetime(
         frame["snapshot_date"],
         errors="coerce",
     )
-
     frame = frame.loc[
         frame["snapshot_date"]
         <= DISCOVERY_END
     ].copy()
-
     frame.reset_index(
         drop=True,
         inplace=True,
     )
-
     print(
         f"Rows through "
         f"{DISCOVERY_END.date()}: "
         f"{len(frame):,}",
         flush=True,
     )
-
     target_cfg = target_config()
-
     target = build_target(
         frame,
         target_cfg,
     ).to_numpy(
         dtype=float
     )
-
     returns = pd.to_numeric(
         frame[
             target_cfg.return_column
@@ -876,27 +736,22 @@ def main() -> None:
     ).to_numpy(
         dtype=float
     )
-
     si = build_signal(
         frame,
         SI_SIGNAL_NAME,
     )
-
     volatility = build_signal(
         frame,
         VOL_SIGNAL_NAME,
     )
-
     model_frame = prepare_model_frame(
         si,
         volatility,
     )
-
     print(
         "Running conditional SI decile analysis...",
         flush=True,
     )
-
     deciles = decile_analysis(
         frame,
         target,
@@ -904,7 +759,6 @@ def main() -> None:
         si,
         volatility,
     )
-
     conditional_ranks = (
         conditional_rank_analysis(
             frame,
@@ -913,15 +767,12 @@ def main() -> None:
             volatility,
         )
     )
-
     model_results = []
-
     for split in build_splits():
         train_mask = (
             frame["snapshot_date"]
             <= split.train_end
         ).to_numpy()
-
         validation_mask = (
             (
                 frame["snapshot_date"]
@@ -932,7 +783,6 @@ def main() -> None:
                 <= split.validation_end
             )
         ).to_numpy()
-
         test_mask = (
             (
                 frame["snapshot_date"]
@@ -943,16 +793,24 @@ def main() -> None:
                 <= split.test_end
             )
         ).to_numpy()
-
         cutoff_mask = (
             frame["snapshot_date"]
             <= DISCOVERY_END
         ).to_numpy()
-
-        train_mask &= cutoff_mask
-        validation_mask &= cutoff_mask
-        test_mask &= cutoff_mask
-
+        # Avoid in-place mutation of potentially read-only
+        # NumPy arrays returned by pandas.
+        train_mask = (
+            train_mask
+            & cutoff_mask
+        )
+        validation_mask = (
+            validation_mask
+            & cutoff_mask
+        )
+        test_mask = (
+            test_mask
+            & cutoff_mask
+        )
         for (
             evaluation_name,
             evaluation_mask,
@@ -972,14 +830,12 @@ def main() -> None:
                 f"{evaluation_name}",
                 flush=True,
             )
-
             rows = run_model_family(
                 model_frame=model_frame,
                 target=target,
                 train_mask=train_mask,
                 eval_mask=evaluation_mask,
             )
-
             model_results.append(
                 {
                     "window": split.name,
@@ -1004,7 +860,6 @@ def main() -> None:
                     "results": rows,
                 }
             )
-
     document = {
         "analysis": (
             "incremental_short_interest"
@@ -1048,17 +903,14 @@ def main() -> None:
         ),
         "walk_forward": model_results,
     }
-
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
-
     results_path = (
         OUTPUT_DIR
         / "results.json"
     )
-
     results_path.write_text(
         json.dumps(
             document,
@@ -1068,7 +920,6 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-
     pd.DataFrame(
         deciles
     ).to_csv(
@@ -1076,7 +927,6 @@ def main() -> None:
         / "decile_analysis.csv",
         index=False,
     )
-
     pd.DataFrame(
         conditional_ranks
     ).to_csv(
@@ -1084,9 +934,7 @@ def main() -> None:
         / "conditional_rank_analysis.csv",
         index=False,
     )
-
     flattened_models = []
-
     for run in model_results:
         for result in run[
             "results"
@@ -1106,11 +954,9 @@ def main() -> None:
                 ],
                 **result,
             }
-
             flattened_models.append(
                 flattened
             )
-
     pd.DataFrame(
         flattened_models
     ).to_csv(
@@ -1118,7 +964,6 @@ def main() -> None:
         / "walk_forward_models.csv",
         index=False,
     )
-
     lines = [
         "# Incremental Short-Interest Analysis",
         "",
@@ -1132,7 +977,6 @@ def main() -> None:
         "| Volatility | SI decile | N | Events | Event rate | Mean return |",
         "|---|---:|---:|---:|---:|---:|",
     ]
-
     for row in deciles:
         lines.append(
             "| "
@@ -1143,7 +987,6 @@ def main() -> None:
             f"{_fmt(row['event_rate'])} | "
             f"{_fmt(row['mean_return'])} |"
         )
-
     lines.extend(
         [
             "",
@@ -1153,7 +996,6 @@ def main() -> None:
             "|---|---:|---:|---:|---:|",
         ]
     )
-
     for row in conditional_ranks:
         lines.append(
             "| "
@@ -1163,7 +1005,6 @@ def main() -> None:
             f"{_fmt(row['event_rate'])} | "
             f"{_fmt(row['spearman_si_target'])} |"
         )
-
     lines.extend(
         [
             "",
@@ -1173,7 +1014,6 @@ def main() -> None:
             "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
-
     for row in flattened_models:
         lines.append(
             "| "
@@ -1189,18 +1029,15 @@ def main() -> None:
             f"{_fmt(row.get('brier'))} | "
             f"{_fmt(row.get('delta_brier_vs_volatility_only'))} |"
         )
-
     report_path = (
         OUTPUT_DIR
         / "report.md"
     )
-
     report_path.write_text(
         "\n".join(lines)
         + "\n",
         encoding="utf-8",
     )
-
     metadata = {
         "analysis": (
             "incremental_short_interest"
@@ -1229,7 +1066,6 @@ def main() -> None:
             for split in build_splits()
         ],
     }
-
     for window in metadata[
         "walk_forward_windows"
     ]:
@@ -1254,7 +1090,6 @@ def main() -> None:
                 "test_end"
             ].date()
         )
-
     (
         OUTPUT_DIR
         / "metadata.json"
@@ -1266,27 +1101,20 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-
     print()
     print(
         f"Written to {OUTPUT_DIR}"
     )
-
-
 def _fmt(
     value: Any,
 ) -> str:
     if value is None:
         return ""
-
     if isinstance(
         value,
         float,
     ):
         return f"{value:.6f}"
-
     return str(value)
-
-
 if __name__ == "__main__":
     main()
