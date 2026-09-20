@@ -3,80 +3,223 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: ml-frozen-main
+  cancel-in-progress: false
+env:
+  DISCOVERY_CONFIG: |
+    enabled: true
+    discovery_end_date: "2025-12-19"
+    targets:
+      - down_10pct_5d
+    signals:
+      - short_interest_change
+    stress_features:
+      - price_volatility_20d
+      - price_momentum_5d
+      - price_momentum_20d
+      - price_momentum_60d
+      - distance_from_20d_high
+      - distance_from_60d_high
+    tails:
+      - 0.01
+      - 0.025
+    stress_directions:
+      price_volatility_20d: upper
+      price_momentum_5d: lower
+      price_momentum_20d: lower
+      price_momentum_60d: lower
+      distance_from_20d_high: lower
+      distance_from_60d_high: lower
+    validation:
+      min_rows_per_window: 20
+      min_positive_windows: 2
+      min_lift: 1.10
+      max_return_difference: 0.0
+      max_findings: 25
 jobs:
   frozen-research:
     runs-on: ubuntu-latest
-    env:
-      DISCOVERY_CONFIG: |
-        enabled: true
-        discovery_end_date: "2025-12-19"
-        targets:
-          - down_10pct_5d
-        signals:
-          - short_interest_change
-        stress_features:
-          - price_volatility_20d
-          - price_momentum_5d
-          - price_momentum_20d
-          - price_momentum_60d
-          - distance_from_20d_high
-          - distance_from_60d_high
-        tails:
-          - 0.01
-          - 0.025
-        stress_directions:
-          price_volatility_20d: upper
-          price_momentum_5d: lower
-          price_momentum_20d: lower
-          price_momentum_60d: lower
-          distance_from_20d_high: lower
-          distance_from_60d_high: lower
-        validation:
-          min_rows: 20
-          min_events: 2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Fetch FI data
+      - name: Fetch FI aggregate
         run: |
-          python -m ml.data.fetch_fi
-      - name: Fetch price data
+          python -u -m fi
+      - name: Fetch prices
         run: |
-          python -m ml.data.fetch_prices
-      - name: Feature source check
+          python -m prices --start 2022-01-01
+      - name: Check feature source
         run: |
-          python -m ml.research.feature_source_check
+          python -u -m analysis.feature_source_check
       - name: Build features
+        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m ml.research.build_features
-      - name: Feature QC
+          python -u -m analysis.build_features
+      - name: Inspect feature dataset
+        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m ml.research.feature_qc
+          python -m analysis.ci inspect-features
       - name: Verify feature dataset
+        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m ml.research.verify_feature_dataset
+          python -m analysis.ci verify-features
+      - name: Run Feature QC
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -u -m analysis.features_qc
+      - name: Verify Feature QC
+        if: env.FEATURES_CHANGED == 'true'
+        run: |
+          python -m analysis.ci verify-feature-qc
+      - name: Verify feature dataset exists
+        run: |
+          test -f data/processed/analysis/features_metadata.json
+          test -n "$(
+            find data/processed/analysis \
+              -maxdepth 1 \
+              -type f \
+              -name 'features_*.jsonl' \
+              -print \
+              -quit
+          )"
       - name: Verify frozen hypothesis
         run: |
-          python -m ml.research.frozen.verify_config
+          python -u -m ml.research.frozen.verify_config
       - name: Run frozen hypothesis
         run: |
-          python -m ml.research.frozen.runner
+          python -u -m ml.research.frozen.runner
       - name: Run frozen subgroup analysis
         run: |
-          python -m ml.research.frozen.subgroup_runner
+          python -u -m ml.research.frozen.subgroup_runner
+      - name: Verify frozen results
+        run: |
+          test -f data/processed/ml/research/frozen/results.json
+          test -f data/processed/ml/research/frozen/null_test.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base = Path(
+              "data/processed/ml/research/frozen"
+          )
+          hypothesis_path = Path(
+              "ml/research/frozen/hypothesis.yml"
+          )
+          results_path = (
+              base / "results.json"
+          )
+          null_test_path = (
+              base / "null_test.json"
+          )
+          if not results_path.exists():
+              raise SystemExit(
+                  f"Saknad frozen-resultat: {results_path}"
+              )
+          if not null_test_path.exists():
+              raise SystemExit(
+                  f"Saknat null-test-resultat: {null_test_path}"
+              )
+          import yaml
+          hypothesis = yaml.safe_load(
+              hypothesis_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          expected = hypothesis[
+              "hypothesis"
+          ]
+          results = json.loads(
+              results_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          null_test = json.loads(
+              null_test_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(results, dict):
+              raise SystemExit(
+                  "Frozen results är inte ett objekt."
+              )
+          if not isinstance(null_test, dict):
+              raise SystemExit(
+                  "Frozen null-test är inte ett objekt."
+              )
+          expected_candidate = expected[
+              "candidate"
+          ]["candidate_id"]
+          actual_candidate = results.get(
+              "candidate_id"
+          )
+          if actual_candidate != expected_candidate:
+              raise SystemExit(
+                  "Fel frozen candidate_id: "
+                  f"expected={expected_candidate!r}, "
+                  f"actual={actual_candidate!r}"
+              )
+          expected_start = expected[
+              "evaluation"
+          ]["start_date"]
+          expected_end = expected[
+              "evaluation"
+          ]["end_date"]
+          if results.get(
+              "evaluation_start"
+          ) != expected_start:
+              raise SystemExit(
+                  "Fel frozen evaluation_start: "
+                  f"expected={expected_start!r}, "
+                  f"actual={results.get('evaluation_start')!r}"
+              )
+          if results.get(
+              "evaluation_end"
+          ) != expected_end:
+              raise SystemExit(
+                  "Fel frozen evaluation_end: "
+                  f"expected={expected_end!r}, "
+                  f"actual={results.get('evaluation_end')!r}"
+              )
+          permutations = null_test.get(
+              "permutations"
+          )
+          expected_permutations = expected[
+              "null_test"
+          ]["permutations"]
+          if permutations != expected_permutations:
+              raise SystemExit(
+                  "Fel antal null-permutationer: "
+                  f"expected={expected_permutations}, "
+                  f"actual={permutations}"
+              )
+          print(
+              "Frozen verification passed."
+          )
+          print(
+              f"Candidate: {actual_candidate}"
+          )
+          print(
+              f"OOS: {expected_start} -> {expected_end}"
+          )
+          print(
+              f"Null permutations: {permutations}"
+          )
+          PY
       - name: Verify subgroup outputs
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+          import yaml
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
@@ -99,52 +242,82 @@ jobs:
                   raise SystemExit(
                       f"Saknad subgroup-fil: {path}"
                   )
-          import yaml
-          with hypothesis_path.open(
-              "r",
-              encoding="utf-8",
-          ) as handle:
-              hypothesis = yaml.safe_load(handle)
-          expected = hypothesis["hypothesis"]
-          with (
-              output_dir / "metadata.json"
-          ).open(
-              "r",
-              encoding="utf-8",
-          ) as handle:
-              metadata = json.load(handle)
+          hypothesis = yaml.safe_load(
+              hypothesis_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+          expected = hypothesis[
+              "hypothesis"
+          ]
+          metadata = json.loads(
+              (
+                  output_dir / "metadata.json"
+              ).read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(metadata, dict):
+              raise SystemExit(
+                  "Subgroup metadata är inte ett objekt."
+              )
           checks = {
               "candidate_id": (
-                  expected["candidate"]["candidate_id"],
-                  metadata.get("candidate_id"),
+                  expected["candidate"][
+                      "candidate_id"
+                  ],
+                  metadata.get(
+                      "candidate_id"
+                  ),
               ),
               "evaluation_start": (
-                  expected["evaluation"]["start_date"],
-                  metadata.get("evaluation_start"),
+                  expected["evaluation"][
+                      "start_date"
+                  ],
+                  metadata.get(
+                      "evaluation_start"
+                  ),
               ),
               "evaluation_end": (
-                  expected["evaluation"]["end_date"],
-                  metadata.get("evaluation_end"),
+                  expected["evaluation"][
+                      "end_date"
+                  ],
+                  metadata.get(
+                      "evaluation_end"
+                  ),
               ),
               "discovery_end_date": (
-                  expected["source"]["discovery_end_date"],
-                  metadata.get("discovery_end_date"),
+                  expected["source"][
+                      "discovery_end_date"
+                  ],
+                  metadata.get(
+                      "discovery_end_date"
+                  ),
               ),
           }
-          for name, (expected_value, actual_value) in checks.items():
+          for name, (
+              expected_value,
+              actual_value,
+          ) in checks.items():
               if actual_value != expected_value:
                   raise SystemExit(
-                      f"Fel subgroup-metadata för {name}: "
+                      f"Fel subgroup-metadata för "
+                      f"{name}: "
                       f"expected={expected_value!r}, "
                       f"actual={actual_value!r}"
                   )
-          print("Subgroup outputs verified.")
           print(
-              f"Candidate: {metadata['candidate_id']}"
+              "Subgroup verification passed."
           )
           print(
-              f"OOS: {metadata['evaluation_start']} "
-              f"-> {metadata['evaluation_end']}"
+              f"Candidate: "
+              f"{metadata['candidate_id']}"
+          )
+          print(
+              f"OOS: "
+              f"{metadata['evaluation_start']} "
+              f"-> "
+              f"{metadata['evaluation_end']}"
           )
           PY
       - name: Upload frozen research artifacts
@@ -155,17 +328,38 @@ jobs:
             data/processed/ml/research/frozen/
             ml/research/frozen/hypothesis.yml
           if-no-files-found: error
-      - name: Persist outputs
+          retention-days: 30
+          compression-level: 9
+      - name: Persist frozen research results
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name \
+            "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            data/processed/ml/research/frozen/ \
-            ml/research/frozen/hypothesis.yml
+            data/processed/ml/research/frozen/
           if git diff --cached --quiet; then
-            echo "No output changes to commit."
+            echo "Inga frozen-resultat ändrades."
             exit 0
           fi
           git commit \
-            -m "Update frozen ML research outputs"
-          git push
+            -m "Update frozen ML research results"
+          for attempt in 1 2 3; do
+            echo "Push attempt $attempt..."
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Push lyckades."
+                exit 0
+              fi
+            else
+              echo "Rebase misslyckades."
+              git rebase --abort || true
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Remote ändrades. Försöker igen..."
+              sleep 5
+            fi
+          done
+          echo "Kunde inte pusha frozen-resultaten."
+          exit 1
