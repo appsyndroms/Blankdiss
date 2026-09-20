@@ -1,0 +1,15 @@
+{
+  "metric": "lift",
+  "observed": 4.092307692307693,
+  "permutations_requested": 1000,
+  "permutations_valid": 1000,
+  "seed": 42,
+  "exceedances": 15,
+  "p_value": 0.015984015984015984,
+  "null_mean": 0.9923846153846154,
+  "null_std": 0.9903786228347458,
+  "null_min": 0.0,
+  "null_max": 5.115384615384616,
+  "null_percentile_95": 3.0692307692307694,
+  "null_percentile_99": 4.092307692307693
+}

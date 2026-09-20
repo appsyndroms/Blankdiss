@@ -1,0 +1,20 @@
+{
+  "hypothesis_id": "short_interest_change_volatility_down_10pct_5d",
+  "discovery_run": "20260919T192154Z",
+  "candidate_id": "short_interest_change__1pct__price_volatility_20d__upper__2_5pct__down_10pct_5d",
+  "target_name": "down_10pct_5d",
+  "signal_name": "short_interest_change",
+  "signal_tail": 0.01,
+  "stress_feature": "price_volatility_20d",
+  "stress_tail": 0.025,
+  "stress_direction": "upper",
+  "discovery_end_date": "2025-12-19",
+  "evaluation_start": "2025-12-20",
+  "evaluation_end": "2026-09-18",
+  "analysis": [
+    "period",
+    "sector",
+    "market_regime"
+  ],
+  "method": "Diagnostic subgroup analysis of the frozen OOS hypothesis. No thresholds or candidate parameters are optimized."
+}
