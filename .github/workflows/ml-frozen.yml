@@ -16,21 +16,11 @@ env:
       - short_interest_change
     stress_features:
       - price_volatility_20d
-      - price_momentum_5d
-      - price_momentum_20d
-      - price_momentum_60d
-      - distance_from_20d_high
-      - distance_from_60d_high
     tails:
       - 0.01
       - 0.025
     stress_directions:
       price_volatility_20d: upper
-      price_momentum_5d: lower
-      price_momentum_20d: lower
-      price_momentum_60d: lower
-      distance_from_20d_high: lower
-      distance_from_60d_high: lower
     validation:
       min_rows_per_window: 20
       min_positive_windows: 2
@@ -94,7 +84,101 @@ jobs:
           )"
       - name: Verify frozen hypothesis
         run: |
-          python -u -m ml.research.frozen.verify_config
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          path = Path("ml/research/frozen/hypothesis.yml")
+          if not path.exists():
+              raise SystemExit(
+                  f"Frozen hypothesis saknas: {path}"
+              )
+          with path.open(encoding="utf-8") as handle:
+              document = yaml.safe_load(handle)
+          if not isinstance(document, dict):
+              raise SystemExit(
+                  "Frozen hypothesis är inte ett YAML-objekt."
+              )
+          hypothesis = document.get("hypothesis")
+          if not isinstance(hypothesis, dict):
+              raise SystemExit(
+                  "Saknar 'hypothesis' i frozen hypothesis."
+              )
+          if hypothesis.get("status") != "frozen":
+              raise SystemExit(
+                  "Frozen hypothesis har inte status='frozen'."
+              )
+          candidate = hypothesis.get("candidate")
+          evaluation = hypothesis.get("evaluation")
+          null_test = hypothesis.get("null_test")
+          if not isinstance(candidate, dict):
+              raise SystemExit(
+                  "Saknar candidate-konfiguration."
+              )
+          if not isinstance(evaluation, dict):
+              raise SystemExit(
+                  "Saknar evaluation-konfiguration."
+              )
+          if not isinstance(null_test, dict):
+              raise SystemExit(
+                  "Saknar null_test-konfiguration."
+              )
+          required_candidate_fields = [
+              "candidate_id",
+              "target_name",
+              "signal_name",
+              "signal_tail",
+              "stress_feature",
+              "stress_tail",
+              "stress_direction",
+          ]
+          for field in required_candidate_fields:
+              if field not in candidate:
+                  raise SystemExit(
+                      f"Saknar candidate-fält: {field}"
+                  )
+          if candidate["stress_direction"] not in {
+              "upper",
+              "lower",
+          }:
+              raise SystemExit(
+                  "Ogiltig stress_direction: "
+                  f"{candidate['stress_direction']!r}"
+              )
+          if evaluation.get("start_date") != "2025-12-20":
+              raise SystemExit(
+                  "Fel frozen OOS-start."
+              )
+          if evaluation.get("end_date") != "2026-09-18":
+              raise SystemExit(
+                  "Fel frozen OOS-slut."
+              )
+          if null_test.get("permutations") != 1000:
+              raise SystemExit(
+                  "Fel antal null-permutationer."
+              )
+          print("Frozen hypothesis verification passed.")
+          print(
+              f"Candidate: {candidate['candidate_id']}"
+          )
+          print(
+              f"Target: {candidate['target_name']}"
+          )
+          print(
+              f"Signal: {candidate['signal_name']}"
+          )
+          print(
+              f"Stress: {candidate['stress_feature']} "
+              f"({candidate['stress_direction']})"
+          )
+          print(
+              f"OOS: {evaluation['start_date']} "
+              f"-> {evaluation['end_date']}"
+          )
+          print(
+              f"Null permutations: "
+              f"{null_test['permutations']}"
+          )
+          PY
       - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
@@ -108,18 +192,15 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+          import yaml
           base = Path(
               "data/processed/ml/research/frozen"
           )
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
-          results_path = (
-              base / "results.json"
-          )
-          null_test_path = (
-              base / "null_test.json"
-          )
+          results_path = base / "results.json"
+          null_test_path = base / "null_test.json"
           if not results_path.exists():
               raise SystemExit(
                   f"Saknad frozen-resultat: {results_path}"
@@ -128,15 +209,12 @@ jobs:
               raise SystemExit(
                   f"Saknat null-test-resultat: {null_test_path}"
               )
-          import yaml
           hypothesis = yaml.safe_load(
               hypothesis_path.read_text(
                   encoding="utf-8"
               )
           )
-          expected = hypothesis[
-              "hypothesis"
-          ]
+          expected = hypothesis["hypothesis"]
           results = json.loads(
               results_path.read_text(
                   encoding="utf-8"
@@ -201,9 +279,7 @@ jobs:
                   f"expected={expected_permutations}, "
                   f"actual={permutations}"
               )
-          print(
-              "Frozen verification passed."
-          )
+          print("Frozen verification passed.")
           print(
               f"Candidate: {actual_candidate}"
           )
@@ -247,9 +323,7 @@ jobs:
                   encoding="utf-8"
               )
           )
-          expected = hypothesis[
-              "hypothesis"
-          ]
+          expected = hypothesis["hypothesis"]
           metadata = json.loads(
               (
                   output_dir / "metadata.json"
@@ -363,3 +437,5 @@ jobs:
           done
           echo "Kunde inte pusha frozen-resultaten."
           exit 1
+
+Det här är alltså ren YAML att kopiera till .github/workflows/ml-frozen.yml.
