@@ -1,4 +1,4 @@
-name: Blankdiss Frozen Hypothesis
+name: ML Frozen Hypothesis
 on:
   workflow_dispatch:
 permissions:
@@ -8,230 +8,235 @@ concurrency:
   cancel-in-progress: false
 jobs:
   frozen:
-    name: Kör Frozen Hypothesis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Refresh FI data
+      - name: Refresh short interest data
         run: |
           python -u -m fi
-      - name: Refresh prices
+      - name: Refresh price data
         run: |
           python -u -m prices --start 2022-01-01
       - name: Build features
         run: |
-          python -u -m analysis.build_features
-      - name: Inspect feature dataset
+          python -u -m ml.features.build
+      - name: Inspect features
         run: |
-          python -m analysis.ci inspect-features
-      - name: Verify feature dataset
+          python -u -m ml.features.inspect
+      - name: Verify features
         run: |
-          python -m analysis.ci verify-features
-      - name: Run Feature QC
+          python -u -m ml.features.verify
+      - name: Feature QC
         run: |
-          python -u -m analysis.features_qc
-      - name: Verify Feature QC
+          python -u -m ml.features.qc
+      - name: Verify feature QC
         run: |
-          python -m analysis.ci verify-feature-qc
-      - name: Verify feature dataset exists
+          python -u -m ml.features.verify_qc
+      - name: Verify frozen hypothesis configuration
         run: |
-          test -f data/processed/analysis/features_metadata.json
-          test -n "$(
-            find data/processed/analysis \
-              -maxdepth 1 \
-              -type f \
-              -name 'features_*.jsonl' \
-              -print \
-              -quit
-          )"
-      - name: Verify frozen hypothesis config
-        run: |
-          test -f ml/research/frozen/hypothesis.yml
           python - <<'PY'
-          from ml.research.frozen.config import load_config
-          config = load_config()
-          print("Frozen hypothesis:")
-          print(f"  ID: {config.hypothesis_id}")
-          print(f"  Discovery run: {config.discovery_run}")
-          print(f"  Discovery end: {config.discovery_end_date}")
-          print(
-              f"  OOS: "
-              f"{config.evaluation.start_date}"
-              f" -> "
-              f"{config.evaluation.end_date}"
+          from pathlib import Path
+          import yaml
+          path = Path("ml/research/frozen/hypothesis.yaml")
+          with path.open("r", encoding="utf-8") as f:
+              config = yaml.safe_load(f)
+          hypothesis = config["hypothesis"]
+          source = hypothesis["source"]
+          candidate = hypothesis["candidate"]
+          evaluation = hypothesis["evaluation"]
+          assert hypothesis["status"] == "frozen"
+          assert (
+              source["discovery_run"]
+              == "20260919T192154Z"
           )
-          print(f"  Candidate: {config.candidate.candidate_id}")
-          print(f"  Null metric: {config.null_test.metric}")
-          print(f"  Permutations: {config.null_test.permutations}")
-          print(f"  Seed: {config.null_test.seed}")
-          if config.hypothesis_id != (
-              "short_interest_change_volatility_down_10pct_5d"
-          ):
-              raise SystemExit("Unexpected hypothesis ID.")
-          if config.discovery_run != "20260919T192154Z":
-              raise SystemExit("Unexpected discovery run.")
-          if str(config.discovery_end_date) != "2025-12-19":
-              raise SystemExit("Unexpected discovery end date.")
-          if str(config.evaluation.start_date) != "2025-12-20":
-              raise SystemExit("Unexpected OOS start date.")
-          if str(config.evaluation.end_date) != "2026-09-18":
-              raise SystemExit("Unexpected OOS end date.")
-          if config.candidate.candidate_id != (
-              "short_interest_change__1pct__"
-              "price_volatility_20d__upper__2_5pct__"
-              "down_10pct_5d"
-          ):
-              raise SystemExit("Unexpected frozen candidate.")
+          assert (
+              source["discovery_end_date"]
+              == "2025-12-19"
+          )
+          assert (
+              candidate["candidate_id"]
+              == (
+                  "short_interest_change__1pct__"
+                  "price_volatility_20d__upper__"
+                  "2_5pct__down_10pct_5d"
+              )
+          )
+          assert (
+              candidate["target_name"]
+              == "down_10pct_5d"
+          )
+          assert (
+              candidate["signal_name"]
+              == "short_interest_change"
+          )
+          assert (
+              candidate["signal_tail"]
+              == 0.01
+          )
+          assert (
+              candidate["stress_feature"]
+              == "price_volatility_20d"
+          )
+          assert (
+              candidate["stress_tail"]
+              == 0.025
+          )
+          assert (
+              candidate["stress_direction"]
+              == "upper"
+          )
+          assert (
+              evaluation["start_date"]
+              == "2025-12-20"
+          )
+          assert (
+              evaluation["end_date"]
+              == "2026-09-18"
+          )
+          assert (
+              hypothesis["null_test"]["metric"]
+              == "lift"
+          )
+          assert (
+              hypothesis["null_test"]["permutations"]
+              == 1000
+          )
+          assert (
+              hypothesis["null_test"]["seed"]
+              == 42
+          )
           print("Frozen hypothesis configuration verified.")
           PY
-      - name: Run Frozen Hypothesis
+      - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
-      - name: Verify frozen results
+      - name: Verify frozen hypothesis result
         run: |
           python - <<'PY'
-          import json
           from pathlib import Path
-          root = Path(
-              "data/processed/ml/research/frozen/latest"
+          import json
+          output_dir = Path(
+              "data/processed/ml/research/frozen"
           )
-          required = [
+          required_files = [
               "result.json",
-              "null_test.json",
-              "metadata.json",
               "report.md",
           ]
-          for filename in required:
-              path = root / filename
+          for filename in required_files:
+              path = output_dir / filename
               if not path.exists():
                   raise SystemExit(
-                      f"Missing frozen result: {path}"
+                      f"Missing frozen output: {path}"
                   )
-          result = json.loads(
-              (root / "result.json").read_text(
-                  encoding="utf-8"
-              )
-          )
-          null_test = json.loads(
-              (root / "null_test.json").read_text(
-                  encoding="utf-8"
-              )
-          )
-          metadata = json.loads(
-              (root / "metadata.json").read_text(
-                  encoding="utf-8"
-              )
-          )
-          report = (
-              root / "report.md"
-          ).read_text(
-              encoding="utf-8"
-          ).strip()
-          if not isinstance(result, dict):
-              raise SystemExit(
-                  "result.json is not an object."
-              )
-          if not isinstance(null_test, dict):
-              raise SystemExit(
-                  "null_test.json is not an object."
-              )
-          if not isinstance(metadata, dict):
-              raise SystemExit(
-                  "metadata.json is not an object."
-              )
-          if not report:
-              raise SystemExit(
-                  "Frozen report is empty."
-              )
-          if result.get("n", 0) <= 0:
-              raise SystemExit(
-                  "Frozen OOS evaluation contains no rows."
-              )
-          if null_test.get("permutations_valid", 0) < 1:
-              raise SystemExit(
-                  "Frozen null test contains no valid permutations."
-              )
-          p_value = null_test.get("p_value")
-          if p_value is None or not (
-              0.0 <= p_value <= 1.0
-          ):
-              raise SystemExit(
-                  f"Invalid frozen null-test p-value: {p_value}"
-              )
-          if metadata.get("hypothesis_id") != (
-              "short_interest_change_volatility_down_10pct_5d"
-          ):
-              raise SystemExit(
-                  "Frozen metadata contains unexpected hypothesis."
-              )
-          if metadata.get("discovery_end_date") != "2025-12-19":
-              raise SystemExit(
-                  "Frozen metadata contains unexpected discovery boundary."
-              )
-          if metadata.get("evaluation_start_date") != "2025-12-20":
-              raise SystemExit(
-                  "Frozen metadata contains unexpected OOS start."
-              )
-          if metadata.get("evaluation_end_date") != "2026-09-18":
-              raise SystemExit(
-                  "Frozen metadata contains unexpected OOS end."
-              )
+          result_path = output_dir / "result.json"
+          with result_path.open(
+              "r",
+              encoding="utf-8",
+          ) as f:
+              result = json.load(f)
           print("Frozen verification passed.")
-          print(f"Rows: {result.get('n')}")
-          print(f"Events: {result.get('events')}")
-          print(f"Event rate: {result.get('event_rate')}")
-          print(f"Baseline: {result.get('baseline_event_rate')}")
-          print(f"Lift: {result.get('lift')}")
+          print(
+              "Rows:",
+              result.get("n"),
+          )
+          print(
+              "Events:",
+              result.get("events"),
+          )
+          print(
+              "Event rate:",
+              result.get("event_rate"),
+          )
+          print(
+              "Baseline:",
+              result.get("baseline_event_rate"),
+          )
+          print(
+              "Lift:",
+              result.get("lift"),
+          )
           print(
               "Return difference:",
               result.get("return_difference"),
           )
           print(
               "Null permutations:",
-              null_test.get("permutations_valid"),
+              result.get("null_test", {}).get(
+                  "permutations"
+              ),
           )
           print(
               "Null p-value:",
-              null_test.get("p_value"),
+              result.get("null_test", {}).get(
+                  "p_value"
+              ),
           )
           PY
-      - name: Upload frozen artifacts
+      - name: Run frozen subgroup analysis
+        run: |
+          python -u -m ml.research.frozen.subgroup_runner
+      - name: Verify subgroup outputs
+        run: |
+          test -f \
+            data/processed/ml/research/frozen/subgroups/period.csv
+          test -f \
+            data/processed/ml/research/frozen/subgroups/sector.csv
+          test -f \
+            data/processed/ml/research/frozen/subgroups/market_regime.csv
+          test -f \
+            data/processed/ml/research/frozen/subgroups/metadata.json
+      - name: Print subgroup analysis
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          output_dir = Path(
+              "data/processed/ml/research/frozen/subgroups"
+          )
+          for filename in [
+              "period.csv",
+              "sector.csv",
+              "market_regime.csv",
+          ]:
+              path = output_dir / filename
+              print()
+              print("=" * 80)
+              print(filename)
+              print("=" * 80)
+              if path.stat().st_size == 0:
+                  print("Empty file.")
+                  continue
+              print(
+                  path.read_text(
+                      encoding="utf-8"
+                  )
+              )
+          PY
+      - name: Upload frozen hypothesis artifact
         uses: actions/upload-artifact@v4
         with:
           name: blankdiss-frozen-hypothesis
           path: |
-            data/processed/ml/research/frozen/
-          if-no-files-found: error
-      - name: Persist frozen results
+            data/processed/ml/research/frozen
+      - name: Commit frozen research outputs
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             data/processed/ml/research/frozen
           if git diff --cached --quiet; then
-            echo "No frozen result changes to commit."
+            echo "No frozen research changes to commit."
             exit 0
           fi
-          git commit -m "Update frozen hypothesis results"
-          for attempt in 1 2 3; do
-            if git push origin HEAD:main; then
-              exit 0
-            fi
-            echo "Push attempt ${attempt} failed."
-            if [ "${attempt}" -lt 3 ]; then
-              git fetch origin main
-              git rebase origin/main
-            fi
-          done
-          echo "Failed to push frozen results."
-          exit 1
+          git commit \
+            -m "Update frozen hypothesis results"
+          git push
