@@ -130,18 +130,23 @@ def _build_window_masks(
     return masks
 def prepare_data(
     config: DiscoveryConfig,
+    *,
+    apply_discovery_end: bool = True,
 ) -> DiscoveryData:
     frame = load_features()
     snapshot_dates = pd.to_datetime(
         frame["snapshot_date"],
         errors="coerce",
     )
-    discovery_end = pd.Timestamp(
-        config.discovery_end_date
-    )
-    frame = frame.loc[
-        snapshot_dates <= discovery_end
-    ].copy()
+    if apply_discovery_end:
+        discovery_end = pd.Timestamp(
+            config.discovery_end_date
+        )
+        frame = frame.loc[
+            snapshot_dates <= discovery_end
+        ].copy()
+    else:
+        frame = frame.copy()
     if frame.empty:
         raise ValueError(
             "Discovery-perioden innehåller inga feature-rader."
@@ -246,10 +251,11 @@ def _tail_name(
         ".",
         "_",
     )
-def _evaluate_candidate(
+def evaluate_candidate_on_mask(
     data: DiscoveryData,
     candidate: Candidate,
-    window_name: str,
+    base_mask: np.ndarray,
+    split: str = "oos",
 ) -> dict[str, Any]:
     target = data.targets[
         candidate.target_name
@@ -260,9 +266,6 @@ def _evaluate_candidate(
     stress = data.stress_signals[
         candidate.stress_feature
     ]
-    window_mask = data.windows[
-        window_name
-    ]["test"]
     frame = data.frame
     signal_tail_mask = tail_mask(
         frame,
@@ -283,13 +286,13 @@ def _evaluate_candidate(
         direction=candidate.stress_direction,
     ).to_numpy()
     selected = (
-        window_mask
+        base_mask
         & signal_tail_mask
         & stress_tail_mask
         & np.isfinite(target)
     )
     rest = (
-        window_mask
+        base_mask
         & ~selected
         & np.isfinite(target)
     )
@@ -312,7 +315,7 @@ def _evaluate_candidate(
         else None
     )
     baseline_mask = (
-        window_mask
+        base_mask
         & np.isfinite(target)
     )
     baseline_target = target[
@@ -379,7 +382,7 @@ def _evaluate_candidate(
                     rest_returns,
                     seed=_stable_seed(
                         candidate.candidate_id,
-                        window_name,
+                        split,
                     ),
                 )
             )
@@ -391,8 +394,8 @@ def _evaluate_candidate(
         "stress_feature": candidate.stress_feature,
         "stress_tail": candidate.stress_tail,
         "stress_direction": candidate.stress_direction,
-        "window": window_name,
-        "split": "test",
+        "window": None,
+        "split": split,
         "n": n,
         "events": event_count,
         "event_rate": event_rate,
@@ -405,11 +408,29 @@ def _evaluate_candidate(
         "bootstrap_ci_high": ci_high,
         "selected_fraction": (
             float(
-                selected[window_mask].mean()
+                selected[base_mask].mean()
             )
-            if window_mask.any()
+            if base_mask.any()
             else None
         ),
+    }
+def _evaluate_candidate(
+    data: DiscoveryData,
+    candidate: Candidate,
+    window_name: str,
+) -> dict[str, Any]:
+    window_mask = data.windows[
+        window_name
+    ]["test"]
+    result = evaluate_candidate_on_mask(
+        data=data,
+        candidate=candidate,
+        base_mask=window_mask,
+        split="test",
+    )
+    return {
+        **result,
+        "window": window_name,
     }
 def _target_return_column(
     target_name: str,
