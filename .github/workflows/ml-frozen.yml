@@ -23,6 +23,8 @@ env:
     tails:
       - 0.01
       - 0.025
+      - 0.05
+      - 0.10
     stress_directions:
       price_volatility_20d: upper
     validation:
@@ -553,17 +555,6 @@ jobs:
               f"{metadata['evaluation_end']}"
           )
           PY
-
-      - name: Upload frozen research artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frozen-research
-          path: |
-            data/processed/ml/research/frozen/
-            ml/research/frozen/hypothesis.yml
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 9
 
       - name: Persist frozen research results
         run: |
