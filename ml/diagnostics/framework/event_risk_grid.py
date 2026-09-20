@@ -52,6 +52,23 @@ DOWNSIDE_TARGETS = (
     -0.07,
     -0.10,
 )
+# Locked follow-up hypothesis.
+#
+# These values are deliberately NOT optimized by the follow-up experiment.
+# They are taken from the structural pattern identified by the discovery grid.
+LOCKED_RISK_CUTOFF = 0.25
+LOCKED_SI_CHANGE_CUTOFF = 0.25
+LOCKED_HORIZONS = (
+    1,
+    3,
+)
+LOCKED_DOWNSIDE_TARGET = -0.07
+LOCKED_EVENT_THRESHOLDS = (
+    0.03,
+    0.05,
+    0.07,
+    0.10,
+)
 @dataclass(frozen=True)
 class EventModel:
     name: str
@@ -66,7 +83,9 @@ def _numeric(
         frame[column],
         errors="coerce",
     )
-def _return_column(horizon: int) -> str:
+def _return_column(
+    horizon: int,
+) -> str:
     return f"forward_return_{horizon}d"
 def _add_short_interest_dynamics(
     frame: pd.DataFrame,
@@ -245,17 +264,13 @@ def _safe_auc(
 ) -> float:
     values = pd.DataFrame(
         {
-            "y": _numeric(
-                pd.DataFrame(
-                    {"x": y_true}
-                ),
-                "x",
+            "y": pd.to_numeric(
+                y_true,
+                errors="coerce",
             ),
-            "score": _numeric(
-                pd.DataFrame(
-                    {"x": scores}
-                ),
-                "x",
+            "score": pd.to_numeric(
+                scores,
+                errors="coerce",
             ),
         }
     ).dropna()
@@ -438,6 +453,372 @@ def _bootstrap_interaction(
             (deltas > 0).mean()
         ),
     )
+def _calculate_groups(
+    test: pd.DataFrame,
+    return_column: str,
+    risk_threshold: float,
+    si_threshold: float,
+    downside_target: float,
+) -> tuple[
+    pd.Series,
+    pd.Series,
+    pd.Series,
+    pd.Series,
+]:
+    test = test.copy()
+    test_change = _numeric(
+        test,
+        "short_interest_pct_change",
+    )
+    test["high_si_change"] = (
+        test_change >= si_threshold
+    )
+    test["high_event_risk"] = (
+        test["event_score"]
+        >= risk_threshold
+    )
+    target = (
+        _numeric(
+            test,
+            return_column,
+        )
+        <= downside_target
+    )
+    local = test[
+        target.notna()
+    ].copy()
+    local["down"] = (
+        target.loc[
+            local.index
+        ].astype(float)
+    )
+    local = local[
+        local[
+            "high_event_risk"
+        ].notna()
+        & local[
+            "high_si_change"
+        ].notna()
+    ]
+    return (
+        local[
+            local["high_event_risk"]
+            & local["high_si_change"]
+        ]["down"],
+        local[
+            local["high_event_risk"]
+            & ~local["high_si_change"]
+        ]["down"],
+        local[
+            ~local["high_event_risk"]
+            & local["high_si_change"]
+        ]["down"],
+        local[
+            ~local["high_event_risk"]
+            & ~local["high_si_change"]
+        ]["down"],
+    )
+def _evaluate_locked_configuration(
+    context,
+    horizon: int,
+    event_threshold: float,
+) -> dict | None:
+    train = _prepare_frame(
+        context.train,
+        horizon,
+    )
+    validation = _prepare_frame(
+        context.validation,
+        horizon,
+    )
+    pretest = _prepare_frame(
+        context.pretest,
+        horizon,
+    )
+    test = _prepare_frame(
+        context.test,
+        horizon,
+    )
+    event_model = _select_event_model(
+        train,
+        validation,
+        horizon,
+        event_threshold,
+    )
+    pretest_model = _fit_event_model(
+        pretest,
+        event_model.features,
+        horizon,
+        event_threshold,
+    )
+    if pretest_model is None:
+        return None
+    pretest = pretest.copy()
+    test = test.copy()
+    pretest["event_score"] = (
+        _predict_event_score(
+            pretest_model,
+            pretest,
+            event_model.features,
+        )
+    )
+    test["event_score"] = (
+        _predict_event_score(
+            pretest_model,
+            test,
+            event_model.features,
+        )
+    )
+    positive_change = _numeric(
+        pretest,
+        "short_interest_pct_change",
+    )
+    positive_change = positive_change[
+        positive_change > 0
+    ].dropna()
+    if positive_change.empty:
+        return None
+    si_threshold = float(
+        positive_change.quantile(
+            1.0 - LOCKED_SI_CHANGE_CUTOFF
+        )
+    )
+    risk_threshold = _tail_threshold(
+        pretest["event_score"],
+        LOCKED_RISK_CUTOFF,
+    )
+    if not np.isfinite(
+        risk_threshold
+    ):
+        return None
+    (
+        risk_high_si,
+        risk_low_si,
+        outside_high_si,
+        outside_low_si,
+    ) = _calculate_groups(
+        test=test,
+        return_column=_return_column(
+            horizon
+        ),
+        risk_threshold=risk_threshold,
+        si_threshold=si_threshold,
+        downside_target=LOCKED_DOWNSIDE_TARGET,
+    )
+    if any(
+        len(group) == 0
+        for group in (
+            risk_high_si,
+            risk_low_si,
+            outside_high_si,
+            outside_low_si,
+        )
+    ):
+        return None
+    (
+        interaction,
+        ci_low,
+        ci_high,
+        p_positive,
+    ) = _bootstrap_interaction(
+        risk_low_si,
+        risk_high_si,
+        outside_low_si,
+        outside_high_si,
+    )
+    return {
+        "selection_stage": "locked_follow_up",
+        "is_discovery_grid": False,
+        "horizon_days": horizon,
+        "event_threshold": event_threshold,
+        "downside_target": LOCKED_DOWNSIDE_TARGET,
+        "risk_cutoff": LOCKED_RISK_CUTOFF,
+        "risk_threshold": risk_threshold,
+        "si_change_cutoff": LOCKED_SI_CHANGE_CUTOFF,
+        "si_change_threshold": si_threshold,
+        "event_model": event_model.name,
+        "event_features": list(
+            event_model.features
+        ),
+        "event_validation_auc": (
+            event_model.validation_auc
+        ),
+        "risk_high_si_n": len(
+            risk_high_si
+        ),
+        "risk_low_si_n": len(
+            risk_low_si
+        ),
+        "outside_high_si_n": len(
+            outside_high_si
+        ),
+        "outside_low_si_n": len(
+            outside_low_si
+        ),
+        "risk_high_si_rate": float(
+            risk_high_si.mean()
+        ),
+        "risk_low_si_rate": float(
+            risk_low_si.mean()
+        ),
+        "outside_high_si_rate": float(
+            outside_high_si.mean()
+        ),
+        "outside_low_si_rate": float(
+            outside_low_si.mean()
+        ),
+        "risk_si_effect": float(
+            risk_high_si.mean()
+            - risk_low_si.mean()
+        ),
+        "outside_si_effect": float(
+            outside_high_si.mean()
+            - outside_low_si.mean()
+        ),
+        "interaction": interaction,
+        "interaction_ci_low": ci_low,
+        "interaction_ci_high": ci_high,
+        "interaction_p_positive": p_positive,
+    }
+def run_event_risk_grid(
+    context,
+) -> ExperimentResult:
+    all_rows: list[dict] = []
+    for horizon in HORIZONS:
+        rows = _run_grid_for_horizon(
+            context,
+            horizon,
+        )
+        all_rows.extend(rows)
+    result = ExperimentResult(
+        name="si_event_risk_grid",
+        description=(
+            "Systematiskt walk-forward-test av "
+            "interaktionen mellan short-interest-"
+            "förändring och extrem event-risk över "
+            "flera horisonter, risknivåer och "
+            "nedgångsmål."
+        ),
+    )
+    result.add_metric(
+        "analysis_type",
+        "discovery_grid",
+    )
+    result.add_metric(
+        "horizons",
+        list(HORIZONS),
+    )
+    result.add_metric(
+        "event_thresholds",
+        [
+            0.03,
+            0.05,
+            0.07,
+            0.10,
+        ],
+    )
+    result.add_metric(
+        "risk_cutoffs",
+        list(RISK_CUTOFFS),
+    )
+    result.add_metric(
+        "si_change_cutoffs",
+        list(SI_CHANGE_CUTOFFS),
+    )
+    result.add_metric(
+        "downside_targets",
+        list(DOWNSIDE_TARGETS),
+    )
+    result.add_metric(
+        "result_rows",
+        len(all_rows),
+    )
+    if all_rows:
+        grid = pd.DataFrame(
+            all_rows
+        )
+        grid["selection_stage"] = (
+            "discovery_grid"
+        )
+        grid["is_discovery_grid"] = True
+    else:
+        grid = pd.DataFrame(
+            columns=[
+                "selection_stage",
+                "is_discovery_grid",
+            ]
+        )
+    result.add_table(
+        "interaction_grid",
+        grid,
+    )
+    return result
+def run_locked_event_risk_follow_up(
+    context,
+) -> ExperimentResult:
+    rows: list[dict] = []
+    for horizon in LOCKED_HORIZONS:
+        for event_threshold in (
+            LOCKED_EVENT_THRESHOLDS
+        ):
+            row = _evaluate_locked_configuration(
+                context=context,
+                horizon=horizon,
+                event_threshold=event_threshold,
+            )
+            if row is not None:
+                rows.append(row)
+    result = ExperimentResult(
+        name="si_event_risk_locked_follow_up",
+        description=(
+            "Låst uppföljning av den hypotes som "
+            "identifierades i discovery-gridet: "
+            "översta 25 procenten av event-risk "
+            "kombinerat med översta 25 procenten "
+            "av positiv SI-förändring."
+        ),
+    )
+    result.add_metric(
+        "analysis_type",
+        "locked_follow_up",
+    )
+    result.add_metric(
+        "selection_warning",
+        (
+            "Hypotesen valdes efter discovery-gridet "
+            "på nuvarande historik. Detta är därför "
+            "inte en oberoende ny OOS-bekräftelse."
+        ),
+    )
+    result.add_metric(
+        "risk_cutoff",
+        LOCKED_RISK_CUTOFF,
+    )
+    result.add_metric(
+        "si_change_cutoff",
+        LOCKED_SI_CHANGE_CUTOFF,
+    )
+    result.add_metric(
+        "horizons",
+        list(LOCKED_HORIZONS),
+    )
+    result.add_metric(
+        "downside_target",
+        LOCKED_DOWNSIDE_TARGET,
+    )
+    result.add_metric(
+        "event_thresholds",
+        list(LOCKED_EVENT_THRESHOLDS),
+    )
+    result.add_metric(
+        "result_rows",
+        len(rows),
+    )
+    result.add_table(
+        "locked_results",
+        pd.DataFrame(rows),
+    )
+    return result
 def _run_grid_for_horizon(
     context,
     horizon: int,
@@ -618,6 +999,10 @@ def _run_grid_for_horizon(
                     )
                     rows.append(
                         {
+                            "selection_stage": (
+                                "discovery_grid"
+                            ),
+                            "is_discovery_grid": True,
                             "horizon_days": horizon,
                             "event_threshold": (
                                 event_threshold
@@ -709,57 +1094,3 @@ def _run_grid_for_horizon(
                         }
                     )
     return rows
-def run_event_risk_grid(
-    context,
-) -> ExperimentResult:
-    all_rows: list[dict] = []
-    for horizon in HORIZONS:
-        rows = _run_grid_for_horizon(
-            context,
-            horizon,
-        )
-        all_rows.extend(rows)
-    result = ExperimentResult(
-        name="si_event_risk_grid",
-        description=(
-            "Systematiskt walk-forward-test av "
-            "interaktionen mellan short-interest-"
-            "förändring och extrem event-risk över "
-            "flera horisonter, risknivåer och "
-            "nedgångsmål."
-        ),
-    )
-    result.add_metric(
-        "horizons",
-        list(HORIZONS),
-    )
-    result.add_metric(
-        "event_thresholds",
-        [
-            0.03,
-            0.05,
-            0.07,
-            0.10,
-        ],
-    )
-    result.add_metric(
-        "risk_cutoffs",
-        list(RISK_CUTOFFS),
-    )
-    result.add_metric(
-        "si_change_cutoffs",
-        list(SI_CHANGE_CUTOFFS),
-    )
-    result.add_metric(
-        "downside_targets",
-        list(DOWNSIDE_TARGETS),
-    )
-    result.add_metric(
-        "result_rows",
-        len(all_rows),
-    )
-    result.add_table(
-        "interaction_grid",
-        pd.DataFrame(all_rows),
-    )
-    return result
