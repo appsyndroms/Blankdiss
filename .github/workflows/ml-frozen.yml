@@ -229,22 +229,29 @@ jobs:
             -type f \
             -print 2>/dev/null || true
 
+          echo "=== Latest metadata ==="
+          if [ -f data/processed/ml/research/frozen/latest/metadata.json ]; then
+            cat data/processed/ml/research/frozen/latest/metadata.json
+          else
+            echo "latest/metadata.json saknas"
+          fi
+
+          echo "=== Latest result ==="
+          if [ -f data/processed/ml/research/frozen/latest/result.json ]; then
+            cat data/processed/ml/research/frozen/latest/result.json
+          else
+            echo "latest/result.json saknas"
+          fi
+
+          echo "=== Latest null test ==="
+          if [ -f data/processed/ml/research/frozen/latest/null_test.json ]; then
+            cat data/processed/ml/research/frozen/latest/null_test.json
+          else
+            echo "latest/null_test.json saknas"
+          fi
+
           echo "=== Git status ==="
           git status --short
-
-          echo "=== Frozen results ==="
-          if [ -f data/processed/ml/research/frozen/results.json ]; then
-            cat data/processed/ml/research/frozen/results.json
-          else
-            echo "results.json saknas"
-          fi
-
-          echo "=== Frozen null test ==="
-          if [ -f data/processed/ml/research/frozen/null_test.json ]; then
-            cat data/processed/ml/research/frozen/null_test.json
-          else
-            echo "null_test.json saknas"
-          fi
 
       - name: Run frozen subgroup analysis
         run: |
@@ -252,8 +259,9 @@ jobs:
 
       - name: Verify frozen results
         run: |
-          test -f data/processed/ml/research/frozen/results.json
-          test -f data/processed/ml/research/frozen/null_test.json
+          test -f data/processed/ml/research/frozen/latest/result.json
+          test -f data/processed/ml/research/frozen/latest/null_test.json
+          test -f data/processed/ml/research/frozen/latest/metadata.json
 
           python - <<'PY'
           import json
@@ -261,24 +269,30 @@ jobs:
           import yaml
 
           base = Path(
-              "data/processed/ml/research/frozen"
+              "data/processed/ml/research/frozen/latest"
           )
 
           hypothesis_path = Path(
               "ml/research/frozen/hypothesis.yml"
           )
 
-          results_path = base / "results.json"
+          result_path = base / "result.json"
           null_test_path = base / "null_test.json"
+          metadata_path = base / "metadata.json"
 
-          if not results_path.exists():
+          if not result_path.exists():
               raise SystemExit(
-                  f"Saknad frozen-resultat: {results_path}"
+                  f"Saknat frozen-resultat: {result_path}"
               )
 
           if not null_test_path.exists():
               raise SystemExit(
                   f"Saknat null-test-resultat: {null_test_path}"
+              )
+
+          if not metadata_path.exists():
+              raise SystemExit(
+                  f"Saknad frozen-metadata: {metadata_path}"
               )
 
           hypothesis = yaml.safe_load(
@@ -289,8 +303,8 @@ jobs:
 
           expected = hypothesis["hypothesis"]
 
-          results = json.loads(
-              results_path.read_text(
+          result = json.loads(
+              result_path.read_text(
                   encoding="utf-8"
               )
           )
@@ -301,9 +315,15 @@ jobs:
               )
           )
 
-          if not isinstance(results, dict):
+          metadata = json.loads(
+              metadata_path.read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          if not isinstance(result, dict):
               raise SystemExit(
-                  "Frozen results är inte ett objekt."
+                  "Frozen result är inte ett objekt."
               )
 
           if not isinstance(null_test, dict):
@@ -311,13 +331,19 @@ jobs:
                   "Frozen null-test är inte ett objekt."
               )
 
+          if not isinstance(metadata, dict):
+              raise SystemExit(
+                  "Frozen metadata är inte ett objekt."
+              )
+
           expected_candidate = expected[
               "candidate"
           ]["candidate_id"]
 
-          actual_candidate = results.get(
-              "candidate_id"
-          )
+          actual_candidate = metadata.get(
+              "candidate",
+              {}
+          ).get("candidate_id")
 
           if actual_candidate != expected_candidate:
               raise SystemExit(
@@ -330,41 +356,60 @@ jobs:
               "evaluation"
           ]["start_date"]
 
+          actual_start = metadata.get(
+              "evaluation_start_date"
+          )
+
+          if actual_start != expected_start:
+              raise SystemExit(
+                  "Fel frozen evaluation_start: "
+                  f"expected={expected_start!r}, "
+                  f"actual={actual_start!r}"
+              )
+
           expected_end = expected[
               "evaluation"
           ]["end_date"]
 
-          if results.get(
-              "evaluation_start"
-          ) != expected_start:
-              raise SystemExit(
-                  "Fel frozen evaluation_start: "
-                  f"expected={expected_start!r}, "
-                  f"actual={results.get('evaluation_start')!r}"
-              )
+          actual_end = metadata.get(
+              "evaluation_end_date"
+          )
 
-          if results.get(
-              "evaluation_end"
-          ) != expected_end:
+          if actual_end != expected_end:
               raise SystemExit(
                   "Fel frozen evaluation_end: "
                   f"expected={expected_end!r}, "
-                  f"actual={results.get('evaluation_end')!r}"
+                  f"actual={actual_end!r}"
               )
-
-          permutations = null_test.get(
-              "permutations"
-          )
 
           expected_permutations = expected[
               "null_test"
           ]["permutations"]
 
-          if permutations != expected_permutations:
+          actual_permutations = null_test.get(
+              "permutations_requested"
+          )
+
+          if actual_permutations != expected_permutations:
               raise SystemExit(
                   "Fel antal null-permutationer: "
                   f"expected={expected_permutations}, "
-                  f"actual={permutations}"
+                  f"actual={actual_permutations}"
+              )
+
+          expected_metric = expected[
+              "null_test"
+          ]["metric"]
+
+          actual_metric = null_test.get(
+              "metric"
+          )
+
+          if actual_metric != expected_metric:
+              raise SystemExit(
+                  "Fel null-test metric: "
+                  f"expected={expected_metric!r}, "
+                  f"actual={actual_metric!r}"
               )
 
           print("Frozen verification passed.")
@@ -372,10 +417,22 @@ jobs:
               f"Candidate: {actual_candidate}"
           )
           print(
-              f"OOS: {expected_start} -> {expected_end}"
+              f"OOS: {actual_start} -> {actual_end}"
           )
           print(
-              f"Null permutations: {permutations}"
+              f"Null metric: {actual_metric}"
+          )
+          print(
+              f"Null permutations: "
+              f"{actual_permutations}"
+          )
+          print(
+              f"Observed metric: "
+              f"{null_test.get('observed')}"
+          )
+          print(
+              f"Empirical p-value: "
+              f"{null_test.get('p_value')}"
           )
           PY
 
