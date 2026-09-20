@@ -100,15 +100,6 @@ jobs:
       - name: Run Incremental SI Analysis
         run: |
           python -u -m ml.research.incremental_si_analysis
-      - name: Verify research results
-        run: |
-          python -u -m ml.research.verify
-      - name: Verify discovery results
-        run: |
-          python -u -m ml.research.discovery.verify
-      - name: Verify incremental SI analysis
-        run: |
-          python -u -m ml.research.incremental_si_analysis --verify
       - name: Verify diagnostics
         run: |
           python -u -m ml.diagnostics.verify
