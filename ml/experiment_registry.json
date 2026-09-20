@@ -23,18 +23,25 @@
       "priority": 3
     },
     {
+      "id": "si_event_risk_grid",
+      "status": "active",
+      "question": "Är interaktionen mellan short-interest-förändring och event-risk robust över olika horisonter, risknivåer och nedgångsmål?",
+      "module": "ml.diagnostics.experiments.si_event_risk_grid_diagnostic",
+      "priority": 4
+    },
+    {
       "id": "si_conditional_model_comparison",
       "status": "active",
       "question": "Tillför SI information utöver event-risk, och tillför kombinationen med tidigare avkastning ytterligare OOS-information?",
       "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
-      "priority": 4
+      "priority": 5
     },
     {
       "id": "sector_relative_return",
       "status": "planned",
       "question": "Är effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
-      "priority": 5
+      "priority": 6
     }
   ]
 }
