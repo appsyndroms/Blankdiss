@@ -1,57 +1,39 @@
-name: ML Frozen Verification
+name: ML Frozen Research
 on:
   workflow_dispatch:
 permissions:
   contents: write
-env:
-  DISCOVERY_CONFIG: |
-    enabled: true
-    targets:
-      - down_5pct_5d
-      - down_7pct_5d
-      - down_10pct_5d
-    signals:
-      - short_interest_change
-      - short_interest_level
-    stress_features:
-      - price_volatility_20d
-      - price_momentum_5d
-      - price_momentum_20d
-      - price_momentum_60d
-      - distance_from_20d_high
-      - distance_from_60d_high
-    tails:
-      - 0.20
-      - 0.10
-      - 0.05
-      - 0.025
-      - 0.01
-    stress_directions:
-      price_volatility_20d:
-        - upper
-      price_momentum_5d:
-        - lower
-      price_momentum_20d:
-        - lower
-      price_momentum_60d:
-        - lower
-      distance_from_20d_high:
-        - lower
-      distance_from_60d_high:
-        - lower
-    validation:
-      min_rows_per_window: 20
-      min_positive_windows: 2
-      min_lift: 1.10
-      max_return_difference: 0.0
-      max_findings: 25
-concurrency:
-  group: ml-frozen
-  cancel-in-progress: false
 jobs:
-  frozen:
-    name: Kör Frozen Verification
+  frozen-research:
     runs-on: ubuntu-latest
+    env:
+      DISCOVERY_CONFIG: |
+        enabled: true
+        discovery_end_date: "2025-12-19"
+        targets:
+          - down_10pct_5d
+        signals:
+          - short_interest_change
+        stress_features:
+          - price_volatility_20d
+          - price_momentum_5d
+          - price_momentum_20d
+          - price_momentum_60d
+          - distance_from_20d_high
+          - distance_from_60d_high
+        tails:
+          - 0.01
+          - 0.025
+        stress_directions:
+          price_volatility_20d: upper
+          price_momentum_5d: lower
+          price_momentum_20d: lower
+          price_momentum_60d: lower
+          distance_from_20d_high: lower
+          distance_from_60d_high: lower
+        validation:
+          min_rows: 20
+          min_events: 2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,139 +41,131 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Fetch FI data
         run: |
-          python -u -m fi
-      - name: Fetch prices
+          python -m ml.data.fetch_fi
+      - name: Fetch price data
         run: |
-          python -u -m prices --start 2022-01-01
-      - name: Check whether features need rebuilding
+          python -m ml.data.fetch_prices
+      - name: Feature source check
         run: |
-          python -u -m analysis.feature_source_check
+          python -m ml.research.feature_source_check
       - name: Build features
-        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -u -m analysis.build_features
-      - name: Inspect feature dataset
-        if: env.FEATURES_CHANGED == 'true'
+          python -m ml.research.build_features
+      - name: Feature QC
         run: |
-          python -m analysis.ci inspect-features
+          python -m ml.research.feature_qc
       - name: Verify feature dataset
-        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m analysis.ci verify-features
-      - name: Run Feature QC
-        if: env.FEATURES_CHANGED == 'true'
+          python -m ml.research.verify_feature_dataset
+      - name: Verify frozen hypothesis
         run: |
-          python -u -m analysis.features_qc
-      - name: Verify Feature QC
-        if: env.FEATURES_CHANGED == 'true'
+          python -m ml.research.frozen.verify_config
+      - name: Run frozen hypothesis
         run: |
-          python -m analysis.ci verify-feature-qc
-      - name: Verify feature dataset exists
-        run: |
-          test -f data/processed/analysis/features_metadata.json
-          test -n "$(
-            find data/processed/analysis \
-              -maxdepth 1 \
-              -type f \
-              -name 'features_*.jsonl' \
-              -print \
-              -quit
-          )"
-      - name: Verify frozen configuration
-        run: |
-          python -u -c "
-          from ml.research.frozen.config import load_config
-          config = load_config()
-          print('Frozen configuration verified.')
-          print(f'Hypothesis: {config.hypothesis_id}')
-          print(f'Discovery run: {config.discovery_run}')
-          print(f'Discovery end: {config.discovery_end_date}')
-          print(f'Candidate: {config.candidate.candidate_id}')
-          print(f'Evaluation: {config.evaluation.start_date} to {config.evaluation.end_date}')
-          print(f'Null metric: {config.null_test.metric}')
-          print(f'Permutations: {config.null_test.permutations}')
-          "
-      - name: Run frozen verification
-        run: |
-          python -u -m ml.research.frozen.runner
+          python -m ml.research.frozen.runner
       - name: Run frozen subgroup analysis
         run: |
-          python -u -m ml.research.frozen.subgroup_runner
-      - name: Verify frozen subgroup outputs
+          python -m ml.research.frozen.subgroup_runner
+      - name: Verify subgroup outputs
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path(
+          hypothesis_path = Path(
+              "ml/research/frozen/hypothesis.yml"
+          )
+          output_dir = Path(
               "data/processed/ml/research/frozen/subgroups"
           )
-          required = [
-              root / "period.csv",
-              root / "sector.csv",
-              root / "market_regime.csv",
-              root / "metadata.json",
+          if not output_dir.exists():
+              raise SystemExit(
+                  "Subgroup output directory saknas."
+              )
+          required_files = [
+              "period.csv",
+              "sector.csv",
+              "market_regime.csv",
+              "metadata.json",
           ]
-          for path in required:
+          for filename in required_files:
+              path = output_dir / filename
               if not path.exists():
-                  raise RuntimeError(
-                      f"Missing frozen subgroup output: {path}"
+                  raise SystemExit(
+                      f"Saknad subgroup-fil: {path}"
                   )
-          metadata_path = root / "metadata.json"
-          with metadata_path.open(
+          import yaml
+          with hypothesis_path.open(
+              "r",
+              encoding="utf-8",
+          ) as handle:
+              hypothesis = yaml.safe_load(handle)
+          expected = hypothesis["hypothesis"]
+          with (
+              output_dir / "metadata.json"
+          ).open(
               "r",
               encoding="utf-8",
           ) as handle:
               metadata = json.load(handle)
-          if not isinstance(metadata, dict):
-              raise RuntimeError(
-                  "Frozen subgroup metadata must be a JSON object."
-              )
-          print("Frozen subgroup outputs verified.")
+          checks = {
+              "candidate_id": (
+                  expected["candidate"]["candidate_id"],
+                  metadata.get("candidate_id"),
+              ),
+              "evaluation_start": (
+                  expected["evaluation"]["start_date"],
+                  metadata.get("evaluation_start"),
+              ),
+              "evaluation_end": (
+                  expected["evaluation"]["end_date"],
+                  metadata.get("evaluation_end"),
+              ),
+              "discovery_end_date": (
+                  expected["source"]["discovery_end_date"],
+                  metadata.get("discovery_end_date"),
+              ),
+          }
+          for name, (expected_value, actual_value) in checks.items():
+              if actual_value != expected_value:
+                  raise SystemExit(
+                      f"Fel subgroup-metadata för {name}: "
+                      f"expected={expected_value!r}, "
+                      f"actual={actual_value!r}"
+                  )
+          print("Subgroup outputs verified.")
           print(
-              f"Candidate: "
-              f"{metadata.get('candidate_id', '<missing>')}"
+              f"Candidate: {metadata['candidate_id']}"
           )
           print(
-              f"Evaluation: "
-              f"{metadata.get('evaluation_start', '<missing>')} "
-              f"to "
-              f"{metadata.get('evaluation_end', '<missing>')}"
+              f"OOS: {metadata['evaluation_start']} "
+              f"-> {metadata['evaluation_end']}"
           )
           PY
-      - name: Upload frozen artifacts
+      - name: Upload frozen research artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ml-frozen
+          name: frozen-research
           path: |
-            data/processed/ml/research/frozen
-            data/processed/ml/research/frozen/subgroups
-      - name: Persist frozen outputs
+            data/processed/ml/research/frozen/
+            ml/research/frozen/hypothesis.yml
+          if-no-files-found: error
+      - name: Persist outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            data/processed/ml/research/frozen
+            data/processed/ml/research/frozen/ \
+            ml/research/frozen/hypothesis.yml
           if git diff --cached --quiet; then
-            echo "No frozen output changes to commit."
+            echo "No output changes to commit."
             exit 0
           fi
           git commit \
-            -m "Update frozen ML verification outputs"
-          for attempt in 1 2 3; do
-            if git push; then
-              exit 0
-            fi
-            echo "Push attempt ${attempt} failed."
-            if [ "$attempt" -lt 3 ]; then
-              git pull --rebase origin "$(git branch --show-current)"
-            fi
-          done
-          echo "Failed to push after 3 attempts."
-          exit 1
+            -m "Update frozen ML research outputs"
+          git push
