@@ -10,10 +10,12 @@ class SIEventRiskGridExperiment(
 ):
     name = "si_event_risk_grid"
     description = (
-        "Systematiskt testar om effekten av "
-        "short-interest-förändring är starkare "
-        "vid extrem event-risk över flera "
-        "horisonter och nedgångsmål."
+        "Discovery-grid för att identifiera robusta "
+        "interaktioner mellan short-interest-"
+        "förändring och event-risk över flera "
+        "horisonter, risknivåer och nedgångsmål. "
+        "Resultaten ska användas för hypotesbildning "
+        "och inte blandas ihop med låst uppföljning."
     )
     def analyze_window(
         self,
