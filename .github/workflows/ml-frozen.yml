@@ -235,21 +235,61 @@ jobs:
               if line.strip()
           ]
 
-          if len(result_lines) != 16:
+          if len(result_lines) < expected_candidate_count:
               raise SystemExit(
                   "Discovery results.jsonl innehåller "
-                  f"{len(result_lines)} rader; "
-                  "förväntade 16."
+                  f"bara {len(result_lines)} rader; "
+                  f"förväntade minst "
+                  f"{expected_candidate_count}."
+              )
+
+          results = []
+
+          for line in result_lines:
+              try:
+                  row = json.loads(line)
+              except json.JSONDecodeError as exc:
+                  raise SystemExit(
+                      "Ogiltig JSON-rad i "
+                      f"results.jsonl: {exc}"
+                  )
+
+              if not isinstance(row, dict):
+                  raise SystemExit(
+                      "En discovery-resultatrad "
+                      "är inte ett objekt."
+                  )
+
+              results.append(row)
+
+          candidate_ids = {
+              row.get("candidate_id")
+              for row in results
+              if row.get("candidate_id")
+          }
+
+          if len(candidate_ids) < expected_candidate_count:
+              raise SystemExit(
+                  "För få unika candidate_id "
+                  "i discovery-resultaten: "
+                  f"expected at least "
+                  f"{expected_candidate_count}, "
+                  f"actual {len(candidate_ids)}"
               )
 
           print(
               "Discovery verification passed."
           )
           print(
-              f"Candidates: {actual_candidate_count}"
+              f"Candidate space: "
+              f"{actual_candidate_count}"
           )
           print(
-              f"Result rows: {len(result_lines)}"
+              f"Result rows: {len(results)}"
+          )
+          print(
+              f"Unique candidate IDs: "
+              f"{len(candidate_ids)}"
           )
           print(
               f"Tails: {sorted(actual_tails)}"
@@ -262,36 +302,53 @@ jobs:
           from pathlib import Path
           import yaml
 
-          path = Path("ml/research/frozen/hypothesis.yml")
+          path = Path(
+              "ml/research/frozen/hypothesis.yml"
+          )
 
           if not path.exists():
               raise SystemExit(
                   f"Frozen hypothesis saknas: {path}"
               )
 
-          with path.open(encoding="utf-8") as handle:
+          with path.open(
+              encoding="utf-8"
+          ) as handle:
               document = yaml.safe_load(handle)
 
           if not isinstance(document, dict):
               raise SystemExit(
-                  "Frozen hypothesis är inte ett YAML-objekt."
+                  "Frozen hypothesis är inte "
+                  "ett YAML-objekt."
               )
 
-          hypothesis = document.get("hypothesis")
+          hypothesis = document.get(
+              "hypothesis"
+          )
 
           if not isinstance(hypothesis, dict):
               raise SystemExit(
-                  "Saknar 'hypothesis' i frozen hypothesis."
+                  "Saknar 'hypothesis' "
+                  "i frozen hypothesis."
               )
 
           if hypothesis.get("status") != "frozen":
               raise SystemExit(
-                  "Frozen hypothesis har inte status='frozen'."
+                  "Frozen hypothesis har inte "
+                  "status='frozen'."
               )
 
-          candidate = hypothesis.get("candidate")
-          evaluation = hypothesis.get("evaluation")
-          null_test = hypothesis.get("null_test")
+          candidate = hypothesis.get(
+              "candidate"
+          )
+
+          evaluation = hypothesis.get(
+              "evaluation"
+          )
+
+          null_test = hypothesis.get(
+              "null_test"
+          )
 
           if not isinstance(candidate, dict):
               raise SystemExit(
@@ -333,17 +390,23 @@ jobs:
                   f"{candidate['stress_direction']!r}"
               )
 
-          if evaluation.get("start_date") != "2025-12-20":
+          if evaluation.get(
+              "start_date"
+          ) != "2025-12-20":
               raise SystemExit(
                   "Fel frozen OOS-start."
               )
 
-          if evaluation.get("end_date") != "2026-09-18":
+          if evaluation.get(
+              "end_date"
+          ) != "2026-09-18":
               raise SystemExit(
                   "Fel frozen OOS-slut."
               )
 
-          if null_test.get("permutations") != 1000:
+          if null_test.get(
+              "permutations"
+          ) != 1000:
               raise SystemExit(
                   "Fel antal null-permutationer."
               )
@@ -351,23 +414,35 @@ jobs:
           print(
               "Frozen hypothesis verification passed."
           )
+
           print(
-              f"Candidate: {candidate['candidate_id']}"
+              f"Candidate: "
+              f"{candidate['candidate_id']}"
           )
+
           print(
-              f"Target: {candidate['target_name']}"
+              f"Target: "
+              f"{candidate['target_name']}"
           )
+
           print(
-              f"Signal: {candidate['signal_name']}"
+              f"Signal: "
+              f"{candidate['signal_name']}"
           )
+
           print(
-              f"Stress: {candidate['stress_feature']} "
+              f"Stress: "
+              f"{candidate['stress_feature']} "
               f"({candidate['stress_direction']})"
           )
+
           print(
-              f"OOS: {evaluation['start_date']} "
-              f"-> {evaluation['end_date']}"
+              f"OOS: "
+              f"{evaluation['start_date']} "
+              f"-> "
+              f"{evaluation['end_date']}"
           )
+
           print(
               f"Null permutations: "
               f"{null_test['permutations']}"
@@ -382,12 +457,14 @@ jobs:
         if: always()
         run: |
           echo "=== Frozen output directory ==="
+
           find data/processed/ml/research/frozen \
             -maxdepth 3 \
             -type f \
             -print 2>/dev/null || true
 
           echo "=== Latest metadata ==="
+
           if [ -f data/processed/ml/research/frozen/latest/metadata.json ]; then
             cat data/processed/ml/research/frozen/latest/metadata.json
           else
@@ -395,6 +472,7 @@ jobs:
           fi
 
           echo "=== Latest result ==="
+
           if [ -f data/processed/ml/research/frozen/latest/result.json ]; then
             cat data/processed/ml/research/frozen/latest/result.json
           else
@@ -402,6 +480,7 @@ jobs:
           fi
 
           echo "=== Latest null test ==="
+
           if [ -f data/processed/ml/research/frozen/latest/null_test.json ]; then
             cat data/processed/ml/research/frozen/latest/null_test.json
           else
@@ -409,6 +488,7 @@ jobs:
           fi
 
           echo "=== Git status ==="
+
           git status --short
 
       - name: Run frozen subgroup analysis
@@ -434,23 +514,34 @@ jobs:
               "ml/research/frozen/hypothesis.yml"
           )
 
-          result_path = base / "result.json"
-          null_test_path = base / "null_test.json"
-          metadata_path = base / "metadata.json"
+          result_path = (
+              base / "result.json"
+          )
+
+          null_test_path = (
+              base / "null_test.json"
+          )
+
+          metadata_path = (
+              base / "metadata.json"
+          )
 
           if not result_path.exists():
               raise SystemExit(
-                  f"Saknat frozen-resultat: {result_path}"
+                  f"Saknat frozen-resultat: "
+                  f"{result_path}"
               )
 
           if not null_test_path.exists():
               raise SystemExit(
-                  f"Saknat null-test-resultat: {null_test_path}"
+                  f"Saknat null-test-resultat: "
+                  f"{null_test_path}"
               )
 
           if not metadata_path.exists():
               raise SystemExit(
-                  f"Saknad frozen-metadata: {metadata_path}"
+                  f"Saknad frozen-metadata: "
+                  f"{metadata_path}"
               )
 
           hypothesis = yaml.safe_load(
@@ -459,7 +550,9 @@ jobs:
               )
           )
 
-          expected = hypothesis["hypothesis"]
+          expected = hypothesis[
+              "hypothesis"
+          ]
 
           result = json.loads(
               result_path.read_text(
@@ -501,7 +594,9 @@ jobs:
           actual_candidate = metadata.get(
               "candidate",
               {}
-          ).get("candidate_id")
+          ).get(
+              "candidate_id"
+          )
 
           if actual_candidate != expected_candidate:
               raise SystemExit(
@@ -570,24 +665,33 @@ jobs:
                   f"actual={actual_metric!r}"
               )
 
-          print("Frozen verification passed.")
+          print(
+              "Frozen verification passed."
+          )
+
           print(
               f"Candidate: {actual_candidate}"
           )
+
           print(
-              f"OOS: {actual_start} -> {actual_end}"
+              f"OOS: {actual_start} "
+              f"-> {actual_end}"
           )
+
           print(
               f"Null metric: {actual_metric}"
           )
+
           print(
               f"Null permutations: "
               f"{actual_permutations}"
           )
+
           print(
               f"Observed metric: "
               f"{null_test.get('observed')}"
           )
+
           print(
               f"Empirical p-value: "
               f"{null_test.get('p_value')}"
@@ -635,7 +739,9 @@ jobs:
               )
           )
 
-          expected = hypothesis["hypothesis"]
+          expected = hypothesis[
+              "hypothesis"
+          ]
 
           metadata = json.loads(
               (
@@ -691,8 +797,8 @@ jobs:
           ) in checks.items():
               if actual_value != expected_value:
                   raise SystemExit(
-                      f"Fel subgroup-metadata för "
-                      f"{name}: "
+                      f"Fel subgroup-metadata "
+                      f"för {name}: "
                       f"expected={expected_value!r}, "
                       f"actual={actual_value!r}"
                   )
@@ -700,10 +806,12 @@ jobs:
           print(
               "Subgroup verification passed."
           )
+
           print(
               f"Candidate: "
               f"{metadata['candidate_id']}"
           )
+
           print(
               f"OOS: "
               f"{metadata['evaluation_start']} "
