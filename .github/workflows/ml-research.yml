@@ -6,51 +6,51 @@ on:
 permissions:
   contents: write
 
-env:
-  DISCOVERY_CONFIG: |
-    enabled: true
-    targets:
-      - down_5pct_5d
-      - down_7pct_5d
-      - down_10pct_5d
-    signals:
-      - short_interest_change
-      - short_interest_level
-    stress_features:
-      - price_volatility_20d
-      - price_momentum_5d
-      - price_momentum_20d
-      - price_momentum_60d
-      - distance_from_20d_high
-      - distance_from_60d_high
-    tails:
-      - 0.20
-      - 0.10
-      - 0.05
-      - 0.025
-      - 0.01
-    stress_directions:
-      price_volatility_20d: upper
-      price_momentum_5d: lower
-      price_momentum_20d: lower
-      price_momentum_60d: lower
-      distance_from_20d_high: lower
-      distance_from_60d_high: lower
-    validation:
-      min_rows_per_window: 20
-      min_positive_windows: 2
-      min_lift: 1.10
-      max_return_difference: 0.0
-      max_findings: 25
-
 concurrency:
   group: research-manual
   cancel-in-progress: false
 
 jobs:
   research:
-    name: Kör Blankdiss Research Matrix
     runs-on: ubuntu-latest
+
+    env:
+      DISCOVERY_CONFIG: |
+        enabled: true
+        discovery_end_date: "2025-12-19"
+        targets:
+          - down_5pct_5d
+          - down_7pct_5d
+          - down_10pct_5d
+        signals:
+          - short_interest_change
+          - short_interest_level
+        stress_features:
+          - price_volatility_20d
+          - price_momentum_5d
+          - price_momentum_20d
+          - price_momentum_60d
+          - distance_from_20d_high
+          - distance_from_60d_high
+        tails:
+          - 0.20
+          - 0.10
+          - 0.05
+          - 0.025
+          - 0.01
+        stress_directions:
+          price_volatility_20d: upper
+          price_momentum_5d: lower
+          price_momentum_20d: lower
+          price_momentum_60d: lower
+          distance_from_20d_high: lower
+          distance_from_60d_high: lower
+        validation:
+          min_rows_per_window: 20
+          min_positive_windows: 2
+          min_lift: 1.10
+          max_return_difference: 0.0
+          max_findings: 25
 
     steps:
       - name: Checkout
@@ -60,7 +60,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -69,8 +68,8 @@ jobs:
 
       - name: Clean latest research results
         run: |
-          mkdir -p data/processed/ml/research/latest/diagnostic
-          find data/processed/ml/research/latest -type f -delete
+          rm -rf data/processed/ml/research/latest
+          rm -rf data/processed/ml/research/discovery
 
       - name: Fetch FI aggregate
         run: |
@@ -80,46 +79,34 @@ jobs:
         run: |
           python -m prices --start 2022-01-01
 
-      - name: Check whether features need rebuilding
+      - name: Feature source check
         run: |
           python -u -m analysis.feature_source_check
+
+      - name: Check whether features changed
+        id: feature_changes
+        shell: bash
+        run: |
+          if git diff --quiet -- data/processed/ml/features; then
+            echo "FEATURES_CHANGED=false" >> "$GITHUB_ENV"
+            echo "Feature dataset unchanged."
+          else
+            echo "FEATURES_CHANGED=true" >> "$GITHUB_ENV"
+            echo "Feature dataset changed."
+          fi
 
       - name: Build features
         if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -u -m analysis.build_features
+          python -u -m ml.features
 
       - name: Inspect feature dataset
-        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m analysis.ci inspect-features
+          python -u -m ml.dataset
 
       - name: Verify feature dataset
-        if: env.FEATURES_CHANGED == 'true'
         run: |
-          python -m analysis.ci verify-features
-
-      - name: Run Feature QC
-        if: env.FEATURES_CHANGED == 'true'
-        run: |
-          python -u -m analysis.features_qc
-
-      - name: Verify Feature QC
-        if: env.FEATURES_CHANGED == 'true'
-        run: |
-          python -m analysis.ci verify-feature-qc
-
-      - name: Verify feature dataset exists
-        run: |
-          test -f data/processed/analysis/features_metadata.json
-          test -n "$(
-            find data/processed/analysis \
-              -maxdepth 1 \
-              -type f \
-              -name 'features_*.jsonl' \
-              -print \
-              -quit
-          )"
+          python -u -m ml.verify_features
 
       - name: Run Research Matrix
         run: |
@@ -139,432 +126,48 @@ jobs:
 
       - name: Verify research results
         run: |
-          test -f data/processed/ml/research/latest/results.jsonl
-          test -f data/processed/ml/research/latest/pooled.json
-          test -f data/processed/ml/research/latest/metadata.json
-          test -f data/processed/ml/research/latest/report.md
-
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          base = Path(
-              "data/processed/ml/research/latest"
-          )
-
-          results_path = base / "results.jsonl"
-          pooled_path = base / "pooled.json"
-          metadata_path = base / "metadata.json"
-          report_path = base / "report.md"
-
-          result_count = sum(
-              1
-              for line in results_path.open(
-                  encoding="utf-8"
-              )
-              if line.strip()
-          )
-
-          if result_count == 0:
-              raise SystemExit(
-                  "Research results innehåller inga resultat."
-              )
-
-          pooled = json.loads(
-              pooled_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if not isinstance(pooled, list):
-              raise SystemExit(
-                  "Pooled research results är inte en lista."
-              )
-
-          if len(pooled) == 0:
-              raise SystemExit(
-                  "Pooled research results innehåller inga experiment."
-              )
-
-          metadata = json.loads(
-              metadata_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if not isinstance(metadata, dict):
-              raise SystemExit(
-                  "Research metadata är inte ett objekt."
-              )
-
-          report = report_path.read_text(
-              encoding="utf-8"
-          )
-
-          if not report.strip():
-              raise SystemExit(
-                  "Research report är tom."
-              )
-
-          print(
-              "Research results:",
-              result_count,
-          )
-
-          print(
-              "Pooled experiments:",
-              len(pooled),
-          )
-
-          print(
-              "Report:",
-              report_path,
-          )
-          PY
+          python -u -m ml.research.verify
 
       - name: Verify discovery results
         run: |
-          test -f data/processed/ml/research/discovery/latest/results.jsonl
-          test -f data/processed/ml/research/discovery/latest/pooled.json
-          test -f data/processed/ml/research/discovery/latest/findings.json
-          test -f data/processed/ml/research/discovery/latest/metadata.json
-          test -f data/processed/ml/research/discovery/latest/report.md
+          python -u -m ml.research.discovery.verify
 
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          base = Path(
-              "data/processed/ml/research/discovery/latest"
-          )
-
-          results_path = base / "results.jsonl"
-          pooled_path = base / "pooled.json"
-          findings_path = base / "findings.json"
-          metadata_path = base / "metadata.json"
-          report_path = base / "report.md"
-
-          result_count = sum(
-              1
-              for line in results_path.open(
-                  encoding="utf-8"
-              )
-              if line.strip()
-          )
-
-          if result_count == 0:
-              raise SystemExit(
-                  "Discovery results innehåller inga resultat."
-              )
-
-          pooled = json.loads(
-              pooled_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if not isinstance(pooled, list):
-              raise SystemExit(
-                  "Discovery pooled results är inte en lista."
-              )
-
-          if len(pooled) == 0:
-              raise SystemExit(
-                  "Discovery pooled results innehåller inga kandidater."
-              )
-
-          findings = json.loads(
-              findings_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if not isinstance(findings, list):
-              raise SystemExit(
-                  "Discovery findings är inte en lista."
-              )
-
-          metadata = json.loads(
-              metadata_path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if not isinstance(metadata, dict):
-              raise SystemExit(
-                  "Discovery metadata är inte ett objekt."
-              )
-
-          expected_candidates = 900
-
-          actual_candidates = metadata.get(
-              "candidate_count"
-          )
-
-          if actual_candidates != expected_candidates:
-              raise SystemExit(
-                  "Fel antal discovery-kandidater: "
-                  f"{actual_candidates}; "
-                  f"förväntade {expected_candidates}."
-              )
-
-          expected_oos_results = (
-              expected_candidates
-              * len(
-                  metadata.get(
-                      "walk_forward_windows",
-                      [],
-                  )
-              )
-          )
-
-          if result_count != expected_oos_results:
-              raise SystemExit(
-                  "Fel antal Discovery OOS-resultat: "
-                  f"{result_count}; "
-                  f"förväntade {expected_oos_results}."
-              )
-
-          report = report_path.read_text(
-              encoding="utf-8"
-          )
-
-          if not report.strip():
-              raise SystemExit(
-                  "Discovery report är tom."
-              )
-
-          print(
-              "Discovery results:",
-              result_count,
-          )
-
-          print(
-              "Discovery pooled candidates:",
-              len(pooled),
-          )
-
-          print(
-              "Discovery findings:",
-              len(findings),
-          )
-
-          print(
-              "Discovery candidates:",
-              actual_candidates,
-          )
-
-          print(
-              "Discovery expected OOS results:",
-              expected_oos_results,
-          )
-
-          print(
-              "Discovery report:",
-              report_path,
-          )
-          PY
-
-      - name: Verify Incremental SI Analysis
+      - name: Verify incremental SI analysis
         run: |
-          test -f data/processed/ml/research/incremental_si/results.json
-          test -f data/processed/ml/research/incremental_si/decile_analysis.csv
-          test -f data/processed/ml/research/incremental_si/conditional_rank_analysis.csv
-          test -f data/processed/ml/research/incremental_si/walk_forward_models.csv
-          test -f data/processed/ml/research/incremental_si/metadata.json
-          test -f data/processed/ml/research/incremental_si/report.md
+          python -u -m ml.research.incremental_si_analysis --verify
 
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          base = Path(
-              "data/processed/ml/research/incremental_si"
-          )
-
-          results = json.loads(
-              (base / "results.json").read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          if results.get("target") != "down_10pct_5d":
-              raise SystemExit(
-                  "Fel target i incremental SI analysis."
-              )
-
-          if results.get("signal") != "short_interest_change":
-              raise SystemExit(
-                  "Fel SI-signal i incremental SI analysis."
-              )
-
-          if results.get("conditioning_feature") != "price_volatility_20d":
-              raise SystemExit(
-                  "Fel conditioning feature i incremental SI analysis."
-              )
-
-          if results.get("discovery_end") != "2025-12-19":
-              raise SystemExit(
-                  "Incremental SI analysis använder fel cutoff."
-              )
-
-          deciles = results.get(
-              "decile_analysis",
-              [],
-          )
-
-          if len(deciles) != 30:
-              raise SystemExit(
-                  "Förväntade 30 volatilitets/SI-grupper."
-              )
-
-          conditional = results.get(
-              "conditional_rank_analysis",
-              [],
-          )
-
-          if len(conditional) != 3:
-              raise SystemExit(
-                  "Förväntade tre volatilitetsgrupper."
-              )
-
-          walk_forward = results.get(
-              "walk_forward",
-              [],
-          )
-
-          if not walk_forward:
-              raise SystemExit(
-                  "Walk-forward-resultat saknas."
-              )
-
-          model_names = set()
-
-          for run in walk_forward:
-              for row in run.get(
-                  "results",
-                  [],
-              ):
-                  model_names.add(
-                      row.get("model")
-                  )
-
-          expected_models = {
-              "volatility_only",
-              "volatility_plus_si",
-              "volatility_plus_si_interaction",
-          }
-
-          if not expected_models.issubset(
-              model_names
-          ):
-              raise SystemExit(
-                  "Alla tre modeller saknas."
-              )
-
-          print(
-              "Incremental SI analysis OK"
-          )
-
-          print(
-              "Rows:",
-              results.get("rows")
-          )
-
-          print(
-              "Conditional groups:",
-              len(deciles)
-          )
-
-          print(
-              "Walk-forward evaluations:",
-              len(walk_forward)
-          )
-
-          print(
-              "Models:",
-              sorted(model_names)
-          )
-          PY
-
-      - name: Verify diagnostic results
+      - name: Verify diagnostics
         run: |
           python -m ml.diagnostics.verify
 
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: blankdiss-research
+          name: blankdiss-research-${{ github.run_id }}
+          if-no-files-found: error
           path: |
-            data/processed/ml/research/latest/results.jsonl
-            data/processed/ml/research/latest/pooled.json
-            data/processed/ml/research/latest/metadata.json
-            data/processed/ml/research/latest/report.md
-            data/processed/ml/research/latest/diagnostics.json
-            data/processed/ml/research/latest/diagnostic/*.json
-
             data/processed/ml/research/*/results.jsonl
             data/processed/ml/research/*/pooled.json
             data/processed/ml/research/*/metadata.json
             data/processed/ml/research/*/report.md
             data/processed/ml/research/*/diagnostics.json
             data/processed/ml/research/*/diagnostic/*.json
-
-            data/processed/ml/research/discovery/latest/results.jsonl
-            data/processed/ml/research/discovery/latest/pooled.json
-            data/processed/ml/research/discovery/latest/findings.json
-            data/processed/ml/research/discovery/latest/metadata.json
-            data/processed/ml/research/discovery/latest/report.md
-
-            data/processed/ml/research/discovery/*/results.jsonl
-            data/processed/ml/research/discovery/*/pooled.json
-            data/processed/ml/research/discovery/*/findings.json
-            data/processed/ml/research/discovery/*/metadata.json
-            data/processed/ml/research/discovery/*/report.md
-
             !data/processed/ml/research/incremental_si/**
 
-          if-no-files-found: error
-
-      - name: Persist research and discovery results
+      - name: Persist research results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add \
-            data/processed/ml/research/latest/diagnostics.json \
-            data/processed/ml/research/latest/diagnostic/*.json \
-            data/processed/analysis/features_*.jsonl \
-            data/processed/analysis/features_metadata.json \
-            data/processed/ml/research/discovery/latest/results.jsonl \
-            data/processed/ml/research/discovery/latest/pooled.json \
-            data/processed/ml/research/discovery/latest/findings.json \
-            data/processed/ml/research/discovery/latest/metadata.json \
-            data/processed/ml/research/discovery/latest/report.md \
-            data/processed/ml/research/discovery/*/results.jsonl \
-            data/processed/ml/research/discovery/*/pooled.json \
-            data/processed/ml/research/discovery/*/findings.json \
-            data/processed/ml/research/discovery/*/metadata.json \
-            data/processed/ml/research/discovery/*/report.md
+            data/processed/ml/research/latest \
+            data/processed/ml/research/discovery \
+            data/processed/ml/research/interaction \
+            data/processed/ml/research/diagnostics
 
           if git diff --cached --quiet; then
-            echo "Inga forsknings- eller discovery-resultat ändrades."
+            echo "No research result changes to commit."
           else
-            git commit -m "Update research and discovery results"
-
-            for attempt in 1 2 3; do
-              if git push origin HEAD:main; then
-                exit 0
-              fi
-
-              if [ "$attempt" -eq 3 ]; then
-                echo "Kunde inte pusha forskningsresultaten efter 3 försök."
-                exit 1
-              fi
-
-              echo "Push misslyckades. Hämtar senaste main och försöker igen."
-
-              git fetch origin main
-              git rebase origin/main
-            done
+            git commit -m "Update ML research results"
+            git push
           fi
