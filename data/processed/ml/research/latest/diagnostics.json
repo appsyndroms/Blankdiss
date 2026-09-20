@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-20T14:50:15.904560+00:00",
-  "research_run_timestamp": "20260920T142119Z",
-  "registered_experiments": 6,
-  "active_experiments": 5,
-  "completed": 5,
+  "created_at_utc": "2026-09-20T15:47:48.570006+00:00",
+  "research_run_timestamp": "20260920T151840Z",
+  "registered_experiments": 7,
+  "active_experiments": 6,
+  "completed": 6,
   "failed": 0,
   "results": [
     {
@@ -25,6 +25,11 @@
       "experiment_id": "si_event_risk_grid",
       "status": "completed",
       "result_file": "diagnostic/si_event_risk_grid.json"
+    },
+    {
+      "experiment_id": "si_event_risk_locked_follow_up",
+      "status": "completed",
+      "result_file": "diagnostic/si_event_risk_locked_follow_up.json"
     },
     {
       "experiment_id": "si_conditional_model_comparison",
