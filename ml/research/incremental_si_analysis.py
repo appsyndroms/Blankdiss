@@ -944,7 +944,6 @@ def main() -> None:
             )
         ).to_numpy()
 
-        # Never allow observations after the frozen cutoff.
         cutoff_mask = (
             frame["snapshot_date"]
             <= DISCOVERY_END
@@ -1231,7 +1230,6 @@ def main() -> None:
         ],
     }
 
-    # Convert timestamps in dataclass output to strings.
     for window in metadata[
         "walk_forward_windows"
     ]:
