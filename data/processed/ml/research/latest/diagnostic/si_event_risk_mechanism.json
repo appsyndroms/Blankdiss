@@ -1,0 +1,226 @@
+{
+  "experiment_id": "si_event_risk_mechanism",
+  "question": "Är den låsta SI/event-risk-effekten tidsmässigt specifik, kvarstår den efter kontinuerlig kontroll för volatilitet och syns den även relativt sektor och marknad?",
+  "module": "ml.diagnostics.experiments.si_event_risk_mechanism_diagnostic",
+  "status": "completed",
+  "started_at_utc": "2026-09-20T16:44:12.085301+00:00",
+  "finished_at_utc": "2026-09-20T16:44:18.389410+00:00",
+  "windows": [
+    {
+      "window": "window_1",
+      "train_end": "2023-12-31",
+      "validation_end": "2024-12-31",
+      "test_end": "2025-12-31",
+      "result": {
+        "name": "si_event_risk_mechanism",
+        "description": "Låst mekanismtest av SI/event-risk-hypotesen med timing, kontinuerlig volatilitetskontroll och sektor-/marknadsrelativt utfall.",
+        "metrics": {
+          "analysis_type": "locked_mechanism_follow_up",
+          "horizon_days": 1,
+          "event_threshold": 0.07,
+          "risk_cutoff": 0.25,
+          "si_change_cutoff": 0.25,
+          "downside_target": -0.07,
+          "event_model": "volatility_20d",
+          "event_features": [
+            "price_volatility_20d"
+          ],
+          "event_validation_auc": 0.7789381843342765,
+          "risk_threshold": 0.472053292944446,
+          "si_change_threshold": 0.46999999999999975,
+          "selection_warning": "Den låsta hypotesen valdes efter tidigare discovery-resultat. Detta är därför fortfarande inte en oberoende ny OOS-bekräftelse.",
+          "sector_column": null
+        },
+        "metadata": {
+          "rows": 202240,
+          "train_rows": 68387,
+          "validation_rows": 45497,
+          "pretest_rows": 113884,
+          "test_rows": 49023,
+          "date_column": "snapshot_date",
+          "train_end": "2023-12-31",
+          "validation_end": "2024-12-31",
+          "test_end": "2025-12-31"
+        },
+        "tables": {
+          "timing": [
+            {
+              "analysis": "si_timing",
+              "lag": 0,
+              "lag_description": "current",
+              "risk_high_si_n": 88,
+              "risk_low_si_n": 7004,
+              "outside_high_si_n": 167,
+              "outside_low_si_n": 41764,
+              "risk_si_effect": 0.05113311873734489,
+              "outside_si_effect": -0.00378316253232449,
+              "interaction": 0.05491628126966938,
+              "interaction_ci_low": 0.00739100137744083,
+              "interaction_ci_high": 0.11297163974791342
+            },
+            {
+              "analysis": "si_timing",
+              "lag": 1,
+              "lag_description": "1_prior_si_observation",
+              "risk_high_si_n": 79,
+              "risk_low_si_n": 7013,
+              "outside_high_si_n": 172,
+              "outside_low_si_n": 41759,
+              "risk_si_effect": 0.021829261028794626,
+              "outside_si_effect": 0.007892185335900297,
+              "interaction": 0.013937075692894329,
+              "interaction_ci_low": -0.03300415807433836,
+              "interaction_ci_high": 0.07012691994174401
+            },
+            {
+              "analysis": "si_timing",
+              "lag": 2,
+              "lag_description": "2_prior_si_observation",
+              "risk_high_si_n": 80,
+              "risk_low_si_n": 7012,
+              "outside_high_si_n": 169,
+              "outside_low_si_n": 41762,
+              "risk_si_effect": 0.046477467199087276,
+              "outside_si_effect": -0.0037833437095924523,
+              "interaction": 0.05026081090867973,
+              "interaction_ci_low": -0.000476796255028732,
+              "interaction_ci_high": 0.11280626276195865
+            }
+          ],
+          "volatility_control": [
+            {
+              "analysis": "volatility_control",
+              "horizon_days": 1,
+              "event_threshold": 0.07,
+              "event_model": "volatility_20d",
+              "event_validation_auc": 0.7789381843342765,
+              "pretest_auc": 0.732445625764061,
+              "test_auc": 0.7425236746574343,
+              "coefficient_event_score": 0.6708618991181939,
+              "coefficient_si_change": 0.0078015083115236675,
+              "coefficient_volatility_20d": 0.036714938467866304,
+              "n_train": 43444,
+              "n_pretest": 71689,
+              "n_test": 30784
+            }
+          ],
+          "sector_relative": [
+            {
+              "analysis": "sector_relative",
+              "status": "unavailable",
+              "reason": "No known sector column was present in the feature dataset."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "window": "window_2",
+      "train_end": "2024-12-31",
+      "validation_end": "2025-12-31",
+      "test_end": "2026-12-31",
+      "result": {
+        "name": "si_event_risk_mechanism",
+        "description": "Låst mekanismtest av SI/event-risk-hypotesen med timing, kontinuerlig volatilitetskontroll och sektor-/marknadsrelativt utfall.",
+        "metrics": {
+          "analysis_type": "locked_mechanism_follow_up",
+          "horizon_days": 1,
+          "event_threshold": 0.07,
+          "risk_cutoff": 0.25,
+          "si_change_cutoff": 0.25,
+          "downside_target": -0.07,
+          "event_model": "volatility_20d",
+          "event_features": [
+            "price_volatility_20d"
+          ],
+          "event_validation_auc": 0.7489820224965117,
+          "risk_threshold": 0.47348326268644625,
+          "si_change_threshold": 0.46999999999999975,
+          "selection_warning": "Den låsta hypotesen valdes efter tidigare discovery-resultat. Detta är därför fortfarande inte en oberoende ny OOS-bekräftelse.",
+          "sector_column": null
+        },
+        "metadata": {
+          "rows": 202240,
+          "train_rows": 113884,
+          "validation_rows": 49023,
+          "pretest_rows": 162907,
+          "test_rows": 39333,
+          "date_column": "snapshot_date",
+          "train_end": "2024-12-31",
+          "validation_end": "2025-12-31",
+          "test_end": "2026-12-31"
+        },
+        "tables": {
+          "timing": [
+            {
+              "analysis": "si_timing",
+              "lag": 0,
+              "lag_description": "current",
+              "risk_high_si_n": 111,
+              "risk_low_si_n": 6273,
+              "outside_high_si_n": 178,
+              "outside_low_si_n": 32771,
+              "risk_si_effect": 0.06251157901086164,
+              "outside_si_effect": -0.003478685423087486,
+              "interaction": 0.06599026443394913,
+              "interaction_ci_low": 0.015900236538006915,
+              "interaction_ci_high": 0.12551057610649655
+            },
+            {
+              "analysis": "si_timing",
+              "lag": 1,
+              "lag_description": "1_prior_si_observation",
+              "risk_high_si_n": 113,
+              "risk_low_si_n": 6271,
+              "outside_high_si_n": 176,
+              "outside_low_si_n": 32773,
+              "risk_si_effect": -0.002154883485294721,
+              "outside_si_effect": 0.0022338579706687603,
+              "interaction": -0.004388741455963481,
+              "interaction_ci_low": -0.03384444928248556,
+              "interaction_ci_high": 0.031701497853327314
+            },
+            {
+              "analysis": "si_timing",
+              "lag": 2,
+              "lag_description": "2_prior_si_observation",
+              "risk_high_si_n": 115,
+              "risk_low_si_n": 6269,
+              "outside_high_si_n": 174,
+              "outside_low_si_n": 32775,
+              "risk_si_effect": 0.02393974491459008,
+              "outside_si_effect": 0.0022993766274757355,
+              "interaction": 0.021640368287114343,
+              "interaction_ci_low": -0.015000697926175229,
+              "interaction_ci_high": 0.06482074620563459
+            }
+          ],
+          "volatility_control": [
+            {
+              "analysis": "volatility_control",
+              "horizon_days": 1,
+              "event_threshold": 0.07,
+              "event_model": "volatility_20d",
+              "event_validation_auc": 0.7489820224965117,
+              "pretest_auc": 0.7359947686625832,
+              "test_auc": 0.7580777337111715,
+              "coefficient_event_score": 0.6703583414557907,
+              "coefficient_si_change": 0.012990459788824038,
+              "coefficient_volatility_20d": 0.04463285967440171,
+              "n_train": 71689,
+              "n_pretest": 102606,
+              "n_test": 25458
+            }
+          ],
+          "sector_relative": [
+            {
+              "analysis": "sector_relative",
+              "status": "unavailable",
+              "reason": "No known sector column was present in the feature dataset."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

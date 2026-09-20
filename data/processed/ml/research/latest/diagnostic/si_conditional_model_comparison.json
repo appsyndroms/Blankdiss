@@ -3,8 +3,8 @@
   "question": "Tillför SI information utöver event-risk, och tillför kombinationen med tidigare avkastning ytterligare OOS-information?",
   "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-20T15:47:45.291358+00:00",
-  "finished_at_utc": "2026-09-20T15:47:48.550361+00:00",
+  "started_at_utc": "2026-09-20T16:44:18.400910+00:00",
+  "finished_at_utc": "2026-09-20T16:44:21.032672+00:00",
   "windows": [
     {
       "window": "window_1",
@@ -42,12 +42,12 @@
               "model": "si_only",
               "features": "short_interest_pct_change",
               "validation_n": 28245,
-              "validation_auc": 0.4983326540795018,
+              "validation_auc": 0.49833312722728934,
               "validation_brier": 0.2500107104603405,
               "validation_log_loss": 0.6931686313577714,
               "test_n": 30918,
               "test_down_rate": 0.1427323888996701,
-              "test_auc": 0.49378256085403543,
+              "test_auc": 0.4937829840518956,
               "test_brier": 0.24999813735175674,
               "test_log_loss": 0.6931434566726914,
               "test_high_risk_n": 29898,
@@ -170,12 +170,12 @@
               "model": "si_only",
               "features": "short_interest_pct_change",
               "validation_n": 30918,
-              "validation_auc": 0.49378256085403543,
+              "validation_auc": 0.4937829840518956,
               "validation_brier": 0.24999813735175674,
               "validation_log_loss": 0.6931434566726914,
               "test_n": 25625,
               "test_down_rate": 0.14013658536585366,
-              "test_auc": 0.5029410636916739,
+              "test_auc": 0.5029421063576412,
               "test_brier": 0.24999620757816982,
               "test_log_loss": 0.6931395917877301,
               "test_high_risk_n": 24573,
@@ -232,7 +232,7 @@
               "test_high_risk_mean_return": -0.0011688752207607803,
               "test_low_risk_mean_return": 0.0012544270187324204,
               "test_mean_return_spread": -0.002423302239493201,
-              "test_high_risk_threshold": 0.5484023729013872,
+              "test_high_risk_threshold": 0.548402372901387,
               "test_low_risk_threshold": 0.398021575065309
             },
             {
@@ -256,7 +256,7 @@
               "test_low_risk_mean_return": 0.0013349089511625306,
               "test_mean_return_spread": -0.0024214213751311484,
               "test_high_risk_threshold": 0.5477872163038084,
-              "test_low_risk_threshold": 0.39807099363429277
+              "test_low_risk_threshold": 0.3980709936342927
             }
           ]
         }
