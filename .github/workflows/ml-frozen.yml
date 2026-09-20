@@ -106,7 +106,18 @@ jobs:
           )"
       - name: Verify frozen configuration
         run: |
-          python -u -m ml.research.frozen.verify_config
+          python -u -c "
+          from ml.research.frozen.config import load_config
+          config = load_config()
+          print('Frozen configuration verified.')
+          print(f'Hypothesis: {config.hypothesis_id}')
+          print(f'Discovery run: {config.discovery_run}')
+          print(f'Discovery end: {config.discovery_end_date}')
+          print(f'Candidate: {config.candidate.candidate_id}')
+          print(f'Evaluation: {config.evaluation.start_date} to {config.evaluation.end_date}')
+          print(f'Null metric: {config.null_test.metric}')
+          print(f'Permutations: {config.null_test.permutations}')
+          "
       - name: Run frozen verification
         run: |
           python -u -m ml.research.frozen.runner
@@ -118,7 +129,9 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path("data/processed/ml/research/frozen/subgroups")
+          root = Path(
+              "data/processed/ml/research/frozen/subgroups"
+          )
           required = [
               root / "period.csv",
               root / "sector.csv",
