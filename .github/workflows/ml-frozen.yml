@@ -193,29 +193,23 @@ jobs:
               )
 
           print("Frozen hypothesis verification passed.")
-
           print(
               f"Candidate: {candidate['candidate_id']}"
           )
-
           print(
               f"Target: {candidate['target_name']}"
           )
-
           print(
               f"Signal: {candidate['signal_name']}"
           )
-
           print(
               f"Stress: {candidate['stress_feature']} "
               f"({candidate['stress_direction']})"
           )
-
           print(
               f"OOS: {evaluation['start_date']} "
               f"-> {evaluation['end_date']}"
           )
-
           print(
               f"Null permutations: "
               f"{null_test['permutations']}"
@@ -225,6 +219,32 @@ jobs:
       - name: Run frozen hypothesis
         run: |
           python -u -m ml.research.frozen.runner
+
+      - name: Inspect frozen outputs
+        if: always()
+        run: |
+          echo "=== Frozen output directory ==="
+          find data/processed/ml/research/frozen \
+            -maxdepth 3 \
+            -type f \
+            -print 2>/dev/null || true
+
+          echo "=== Git status ==="
+          git status --short
+
+          echo "=== Frozen results ==="
+          if [ -f data/processed/ml/research/frozen/results.json ]; then
+            cat data/processed/ml/research/frozen/results.json
+          else
+            echo "results.json saknas"
+          fi
+
+          echo "=== Frozen null test ==="
+          if [ -f data/processed/ml/research/frozen/null_test.json ]; then
+            cat data/processed/ml/research/frozen/null_test.json
+          else
+            echo "null_test.json saknas"
+          fi
 
       - name: Run frozen subgroup analysis
         run: |
@@ -348,15 +368,12 @@ jobs:
               )
 
           print("Frozen verification passed.")
-
           print(
               f"Candidate: {actual_candidate}"
           )
-
           print(
               f"OOS: {expected_start} -> {expected_end}"
           )
-
           print(
               f"Null permutations: {permutations}"
           )
@@ -457,7 +474,6 @@ jobs:
               expected_value,
               actual_value,
           ) in checks.items():
-
               if actual_value != expected_value:
                   raise SystemExit(
                       f"Fel subgroup-metadata för "
@@ -469,12 +485,10 @@ jobs:
           print(
               "Subgroup verification passed."
           )
-
           print(
               f"Candidate: "
               f"{metadata['candidate_id']}"
           )
-
           print(
               f"OOS: "
               f"{metadata['evaluation_start']} "
