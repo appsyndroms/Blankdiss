@@ -37,18 +37,25 @@
       "priority": 5
     },
     {
+      "id": "si_event_risk_mechanism",
+      "status": "active",
+      "question": "Är den låsta SI/event-risk-effekten tidsmässigt specifik, kvarstår den efter kontinuerlig kontroll för volatilitet och syns den även relativt sektor och marknad?",
+      "module": "ml.diagnostics.experiments.si_event_risk_mechanism_diagnostic",
+      "priority": 6
+    },
+    {
       "id": "si_conditional_model_comparison",
       "status": "active",
       "question": "Tillför SI information utöver event-risk, och tillför kombinationen med tidigare avkastning ytterligare OOS-information?",
       "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
-      "priority": 6
+      "priority": 7
     },
     {
       "id": "sector_relative_return",
       "status": "planned",
       "question": "Är effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
-      "priority": 7
+      "priority": 8
     }
   ]
 }
