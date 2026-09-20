@@ -48,6 +48,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
@@ -77,7 +78,9 @@ jobs:
           )
 
           discovery_metadata = (
-              discovery_root / "latest" / "metadata.json"
+              discovery_root
+              / "latest"
+              / "metadata.json"
           )
 
           if not discovery_metadata.exists():
@@ -88,6 +91,10 @@ jobs:
 
           with discovery_metadata.open() as f:
               discovery = json.load(f)
+
+          # --------------------------------------------------
+          # Discovery configuration
+          # --------------------------------------------------
 
           assert discovery["targets"] == [
               "down_10pct_5d"
@@ -115,23 +122,30 @@ jobs:
               == "upper"
           )
 
+          # --------------------------------------------------
+          # Basic discovery output validation
+          # --------------------------------------------------
+
+          assert discovery["feature_rows"] > 0
+
           assert (
-              discovery["feature_rows"] > 0
+              discovery["candidate_count"]
+              == 16
           )
 
           assert (
-              discovery["candidate_count"] == 16
+              discovery["result_count"]
+              == 32
           )
 
           assert (
-              discovery["result_count"] == 32
+              discovery["pooled_count"]
+              == 16
           )
 
-          assert (
-              discovery["pooled_count"] == 16
-          )
-
-          windows = discovery["walk_forward_windows"]
+          windows = discovery[
+              "walk_forward_windows"
+          ]
 
           assert len(windows) == 2
 
@@ -159,8 +173,10 @@ jobs:
               f"{discovery['pooled_count']}"
           )
 
-          # Verify that at least one frozen metadata
-          # file contains the expected discovery end date.
+          # --------------------------------------------------
+          # Frozen metadata validation
+          # --------------------------------------------------
+
           matching_frozen_metadata = []
 
           for path in frozen_root.rglob(
@@ -195,7 +211,8 @@ jobs:
 
           for path in matching_frozen_metadata:
               print(
-                  f"Verified frozen metadata: {path}"
+                  f"Verified frozen metadata: "
+                  f"{path}"
               )
           PY
 
@@ -215,11 +232,20 @@ jobs:
               root / "interactions.csv",
           ]
 
+          # --------------------------------------------------
+          # Required files
+          # --------------------------------------------------
+
           for path in required:
               if not path.exists():
                   raise SystemExit(
-                      f"Missing interaction output: {path}"
+                      f"Missing interaction output: "
+                      f"{path}"
                   )
+
+          # --------------------------------------------------
+          # Load JSON
+          # --------------------------------------------------
 
           results_json = root / "results.json"
 
@@ -240,9 +266,7 @@ jobs:
               == "2025-12-19"
           )
 
-          assert (
-              data["rows"] > 0
-          )
+          assert data["rows"] > 0
 
           results = data["results"]
 
@@ -264,13 +288,14 @@ jobs:
           }
 
           # --------------------------------------------------
-          # 4 SI-only rows
+          # SI-only rows
           # --------------------------------------------------
 
           si_only = [
               r
               for r in results
-              if r.get("analysis") == "si_only"
+              if r.get("analysis")
+              == "si_only"
           ]
 
           assert len(si_only) == 4, (
@@ -284,7 +309,7 @@ jobs:
           ) == expected_tails
 
           # --------------------------------------------------
-          # 4 volatility-only rows
+          # Volatility-only rows
           # --------------------------------------------------
 
           vol_only = [
@@ -305,7 +330,7 @@ jobs:
           ) == expected_tails
 
           # --------------------------------------------------
-          # 16 SI × volatility rows
+          # SI × volatility rows
           # --------------------------------------------------
 
           interaction_rows = [
@@ -328,16 +353,19 @@ jobs:
               for r in interaction_rows
           }
 
-          assert actual_pairs == expected_pairs, (
+          assert (
+              actual_pairs
+              == expected_pairs
+          ), (
               "Interaction grid mismatch: "
               f"expected {expected_pairs}, "
               f"got {actual_pairs}"
           )
 
           # --------------------------------------------------
-          # Formal 2×2 interaction output
+          # Formal 2×2 interaction rows
           #
-          # The current implementation stores these rows
+          # The implementation stores the formal rows
           # in data["interactions"].
           # --------------------------------------------------
 
@@ -347,73 +375,254 @@ jobs:
           )
 
           assert len(formal) == 16, (
-              f"Expected 16 formal interaction rows, "
-              f"got {len(formal)}"
+              f"Expected 16 formal interaction "
+              f"rows, got {len(formal)}"
           )
-
-          required_fields = [
-              "si_tail",
-              "vol_tail",
-              "si_high_vol_n",
-              "si_low_vol_n",
-              "si_high_vol_event_rate",
-              "si_low_vol_event_rate",
-              "event_rate_difference",
-              "si_high_vol_lift",
-              "si_low_vol_lift",
-              "lift_ratio_high_vs_low_vol",
-              "return_difference_high_vol",
-              "return_difference_low_vol",
-          ]
 
           formal_pairs = set()
 
-          for row in formal:
-              for field in required_fields:
-                  assert field in row, (
-                      f"Missing {field} in "
-                      f"interaction row: {row}"
-                  )
+          required_cells = [
+              "cell_11_si_high_vol_high",
+              "cell_10_si_high_vol_low",
+              "cell_01_si_low_vol_high",
+              "cell_00_si_low_vol_low",
+          ]
 
+          required_fields = [
+              "risk_difference_interaction",
+              "risk_difference_interaction_ci_low",
+              "risk_difference_interaction_ci_high",
+              "risk_ratio_interaction",
+              "rr_interaction_ci_low",
+              "rr_interaction_ci_high",
+              "return_interaction",
+              "vol_effect_when_si_high",
+              "vol_effect_when_si_low",
+              "si_effect_when_vol_high",
+              "si_effect_when_vol_low",
+          ]
+
+          for row in formal:
               si_tail = row["si_tail"]
               vol_tail = row["vol_tail"]
 
               assert (
-                  si_tail in expected_tails
+                  si_tail
+                  in expected_tails
               ), row
 
               assert (
-                  vol_tail in expected_tails
+                  vol_tail
+                  in expected_tails
               ), row
 
               formal_pairs.add(
                   (si_tail, vol_tail)
               )
 
-              # Basic numerical consistency.
-              expected_difference = (
-                  row["si_high_vol_event_rate"]
-                  - row["si_low_vol_event_rate"]
+              # ------------------------------------------------
+              # Verify all four 2×2 cells.
+              # ------------------------------------------------
+
+              for cell_name in required_cells:
+                  assert cell_name in row, (
+                      f"Missing {cell_name}: "
+                      f"{row}"
+                  )
+
+                  cell = row[cell_name]
+
+                  for field in [
+                      "label",
+                      "n",
+                      "events",
+                      "event_rate",
+                      "mean_return",
+                  ]:
+                      assert field in cell, (
+                          f"Missing {field} in "
+                          f"{cell_name}: {row}"
+                      )
+
+                  assert cell["n"] >= 0
+
+                  assert cell["events"] >= 0
+
+                  assert (
+                      cell["events"]
+                      <= cell["n"]
+                  )
+
+                  if cell["n"] > 0:
+                      expected_rate = (
+                          cell["events"]
+                          / cell["n"]
+                      )
+
+                      assert abs(
+                          expected_rate
+                          - cell["event_rate"]
+                      ) < 1e-12, row
+
+              # ------------------------------------------------
+              # Verify formal statistics exist.
+              # ------------------------------------------------
+
+              for field in required_fields:
+                  assert field in row, (
+                      f"Missing {field}: "
+                      f"{row}"
+                  )
+
+              # ------------------------------------------------
+              # Extract 2×2 cells.
+              #
+              # 11 = SI high + volatility high
+              # 10 = SI high + volatility low
+              # 01 = SI low + volatility high
+              # 00 = SI low + volatility low
+              # ------------------------------------------------
+
+              cell_11 = row[
+                  "cell_11_si_high_vol_high"
+              ]
+
+              cell_10 = row[
+                  "cell_10_si_high_vol_low"
+              ]
+
+              cell_01 = row[
+                  "cell_01_si_low_vol_high"
+              ]
+
+              cell_00 = row[
+                  "cell_00_si_low_vol_low"
+              ]
+
+              # ------------------------------------------------
+              # Verify volatility effect when SI is high.
+              #
+              # 11 - 10
+              # ------------------------------------------------
+
+              expected_vol_effect_si_high = (
+                  cell_11["event_rate"]
+                  - cell_10["event_rate"]
               )
 
               assert abs(
-                  expected_difference
-                  - row["event_rate_difference"]
+                  expected_vol_effect_si_high
+                  - row[
+                      "vol_effect_when_si_high"
+                  ]
               ) < 1e-12, row
 
-              # Lift ratio must be based on the two
-              # subgroup lifts.
-              expected_ratio = (
-                  row["si_high_vol_lift"]
-                  / row["si_low_vol_lift"]
+              # ------------------------------------------------
+              # Verify volatility effect when SI is low.
+              #
+              # 01 - 00
+              # ------------------------------------------------
+
+              expected_vol_effect_si_low = (
+                  cell_01["event_rate"]
+                  - cell_00["event_rate"]
               )
 
               assert abs(
-                  expected_ratio
-                  - row["lift_ratio_high_vs_low_vol"]
-              ) < 1e-10, row
+                  expected_vol_effect_si_low
+                  - row[
+                      "vol_effect_when_si_low"
+                  ]
+              ) < 1e-12, row
 
-          assert formal_pairs == expected_pairs, (
+              # ------------------------------------------------
+              # Verify SI effect when volatility is high.
+              #
+              # 11 - 01
+              # ------------------------------------------------
+
+              expected_si_effect_vol_high = (
+                  cell_11["event_rate"]
+                  - cell_01["event_rate"]
+              )
+
+              assert abs(
+                  expected_si_effect_vol_high
+                  - row[
+                      "si_effect_when_vol_high"
+                  ]
+              ) < 1e-12, row
+
+              # ------------------------------------------------
+              # Verify SI effect when volatility is low.
+              #
+              # 10 - 00
+              # ------------------------------------------------
+
+              expected_si_effect_vol_low = (
+                  cell_10["event_rate"]
+                  - cell_00["event_rate"]
+              )
+
+              assert abs(
+                  expected_si_effect_vol_low
+                  - row[
+                      "si_effect_when_vol_low"
+                  ]
+              ) < 1e-12, row
+
+              # ------------------------------------------------
+              # Verify additive interaction.
+              #
+              # (11 - 10) - (01 - 00)
+              #
+              # Equivalently:
+              #
+              # 11 - 10 - 01 + 00
+              # ------------------------------------------------
+
+              expected_interaction = (
+                  expected_vol_effect_si_high
+                  - expected_vol_effect_si_low
+              )
+
+              assert abs(
+                  expected_interaction
+                  - row[
+                      "risk_difference_interaction"
+                  ]
+              ) < 1e-12, row
+
+              # ------------------------------------------------
+              # Basic CI ordering checks.
+              # ------------------------------------------------
+
+              assert (
+                  row[
+                      "risk_difference_interaction_ci_low"
+                  ]
+                  <= row[
+                      "risk_difference_interaction_ci_high"
+                  ]
+              )
+
+              assert (
+                  row[
+                      "rr_interaction_ci_low"
+                  ]
+                  <= row[
+                      "rr_interaction_ci_high"
+                  ]
+              )
+
+          # --------------------------------------------------
+          # Complete 16-cell grid
+          # --------------------------------------------------
+
+          assert (
+              formal_pairs
+              == expected_pairs
+          ), (
               "Formal interaction grid mismatch: "
               f"expected {expected_pairs}, "
               f"got {formal_pairs}"
@@ -453,6 +662,16 @@ jobs:
 
           print(
               "Verified all 16 SI×VOL combinations."
+          )
+
+          print(
+              "Verified all four 2×2 cells "
+              "per combination."
+          )
+
+          print(
+              "Verified marginal effects "
+              "and additive interaction."
           )
           PY
 
