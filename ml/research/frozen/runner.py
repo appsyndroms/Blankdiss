@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-
 import pandas as pd
-
 from ml.research.discovery.config import (
     DiscoveryConfig,
     ValidationConfig,
@@ -15,19 +12,13 @@ from ml.research.discovery.engine import (
     evaluate_candidate_on_mask,
     prepare_data,
 )
-
 from .config import load_config
 from .null_test import run_frozen_null_test
-
-
 ROOT = Path(
     "data/processed/ml/research/frozen"
 )
-
-
 def _build_candidate(config) -> Candidate:
     candidate = config.candidate
-
     return Candidate(
         candidate_id=candidate.candidate_id,
         target_name=candidate.target_name,
@@ -37,13 +28,11 @@ def _build_candidate(config) -> Candidate:
         stress_tail=candidate.stress_tail,
         stress_direction=candidate.stress_direction,
     )
-
-
 def _build_discovery_config(config) -> DiscoveryConfig:
     candidate = config.candidate
-
     return DiscoveryConfig(
         enabled=True,
+        discovery_end_date=config.discovery_end_date,
         targets=(candidate.target_name,),
         signals=(candidate.signal_name,),
         stress_features=(candidate.stress_feature,),
@@ -57,8 +46,6 @@ def _build_discovery_config(config) -> DiscoveryConfig:
         },
         validation=ValidationConfig(),
     )
-
-
 def _write_json(
     path: Path,
     payload,
@@ -67,7 +54,6 @@ def _write_json(
         parents=True,
         exist_ok=True,
     )
-
     with path.open(
         "w",
         encoding="utf-8",
@@ -80,8 +66,6 @@ def _write_json(
             allow_nan=False,
             default=str,
         )
-
-
 def _build_report(
     config,
     candidate: Candidate,
@@ -126,14 +110,26 @@ def _build_report(
         "## Frozen null test",
         "",
         f"- Metric: `{null_result['metric']}`",
-        f"- Permutations: {null_result['permutations_requested']:,}",
-        f"- Valid permutations: {null_result['permutations_valid']:,}",
+        (
+            f"- Permutations: "
+            f"{null_result['permutations_requested']:,}"
+        ),
+        (
+            f"- Valid permutations: "
+            f"{null_result['permutations_valid']:,}"
+        ),
         f"- Seed: {null_result['seed']}",
         f"- Observed: {null_result['observed']}",
         f"- Null mean: {null_result['null_mean']}",
         f"- Null std: {null_result['null_std']}",
-        f"- Null 95th percentile: {null_result['null_percentile_95']}",
-        f"- Null 99th percentile: {null_result['null_percentile_99']}",
+        (
+            "- Null 95th percentile: "
+            f"{null_result['null_percentile_95']}"
+        ),
+        (
+            "- Null 99th percentile: "
+            f"{null_result['null_percentile_99']}"
+        ),
         f"- Empirical p-value: {null_result['p_value']}",
         "",
         "## Method",
@@ -151,24 +147,20 @@ def _build_report(
         ),
         "",
     ]
-
     return "\n".join(lines)
-
-
 def run() -> None:
     config = load_config()
-
-    discovery_config = _build_discovery_config(config)
-
-    data = prepare_data(
-        discovery_config
+    discovery_config = _build_discovery_config(
+        config
     )
-
+    data = prepare_data(
+        discovery_config,
+        apply_discovery_end=False,
+    )
     dates = pd.to_datetime(
         data.frame["snapshot_date"],
         errors="coerce",
     )
-
     evaluation_mask = (
         (dates >= pd.Timestamp(
             config.evaluation.start_date
@@ -179,21 +171,19 @@ def run() -> None:
             )
         )
     ).to_numpy()
-
     if not evaluation_mask.any():
         raise RuntimeError(
             "OOS-perioden innehåller inga feature-rader."
         )
-
-    candidate = _build_candidate(config)
-
+    candidate = _build_candidate(
+        config
+    )
     result = evaluate_candidate_on_mask(
         data=data,
         candidate=candidate,
         base_mask=evaluation_mask,
         split="oos",
     )
-
     null_result = run_frozen_null_test(
         data=data,
         candidate=candidate,
@@ -203,20 +193,16 @@ def run() -> None:
         seed=config.null_test.seed,
         metric=config.null_test.metric,
     )
-
     timestamp = datetime.now(
         timezone.utc
     ).strftime(
         "%Y%m%dT%H%M%SZ"
     )
-
     run_dir = ROOT / timestamp
-
     run_dir.mkdir(
         parents=True,
         exist_ok=True,
     )
-
     metadata = {
         "created_at_utc": timestamp,
         "hypothesis_id": config.hypothesis_id,
@@ -249,65 +235,52 @@ def run() -> None:
             "seed": config.null_test.seed,
         },
     }
-
     report = _build_report(
         config=config,
         candidate=candidate,
         result=result,
         null_result=null_result,
     )
-
     _write_json(
         run_dir / "result.json",
         result,
     )
-
     _write_json(
         run_dir / "null_test.json",
         null_result,
     )
-
     _write_json(
         run_dir / "metadata.json",
         metadata,
     )
-
     (
         run_dir / "report.md"
     ).write_text(
         report,
         encoding="utf-8",
     )
-
     latest = ROOT / "latest"
-
     latest.mkdir(
         parents=True,
         exist_ok=True,
     )
-
     _write_json(
         latest / "result.json",
         result,
     )
-
     _write_json(
         latest / "null_test.json",
         null_result,
     )
-
     _write_json(
         latest / "metadata.json",
         metadata,
     )
-
     (
         latest / "report.md"
     ).write_text(
         report,
         encoding="utf-8",
     )
-
-
 if __name__ == "__main__":
     run()
