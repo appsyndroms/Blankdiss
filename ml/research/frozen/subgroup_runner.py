@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 from ml.research.discovery.config import DiscoveryConfig
 from ml.research.discovery.engine import (
-    build_candidates,
+    Candidate,
     prepare_data,
 )
 from ml.research.frozen.subgroup_analysis import (
@@ -60,17 +60,100 @@ def load_discovery_config(
     return DiscoveryConfig(
         **config_data
     )
+def build_frozen_candidate(
+    candidate_cfg: dict,
+) -> Candidate:
+    required = [
+        "candidate_id",
+        "target_name",
+        "signal_name",
+        "signal_tail",
+        "stress_feature",
+        "stress_tail",
+        "stress_direction",
+    ]
+    missing = [
+        key
+        for key in required
+        if key not in candidate_cfg
+    ]
+    if missing:
+        raise RuntimeError(
+            "Fryst kandidat saknar obligatoriska fält: "
+            + ", ".join(missing)
+        )
+    candidate = Candidate(
+        candidate_id=str(
+            candidate_cfg["candidate_id"]
+        ),
+        target_name=str(
+            candidate_cfg["target_name"]
+        ),
+        signal_name=str(
+            candidate_cfg["signal_name"]
+        ),
+        signal_tail=float(
+            candidate_cfg["signal_tail"]
+        ),
+        stress_feature=str(
+            candidate_cfg["stress_feature"]
+        ),
+        stress_tail=float(
+            candidate_cfg["stress_tail"]
+        ),
+        stress_direction=str(
+            candidate_cfg["stress_direction"]
+        ),
+    )
+    expected_candidate_id = (
+        f"{candidate.signal_name}"
+        f"__{_tail_name(candidate.signal_tail)}"
+        f"__{candidate.stress_feature}"
+        f"__{candidate.stress_direction}"
+        f"__{_tail_name(candidate.stress_tail)}"
+        f"__{candidate.target_name}"
+    )
+    if candidate.candidate_id != expected_candidate_id:
+        raise RuntimeError(
+            "Fryst kandidat-ID stämmer inte med kandidatens "
+            "parametrar.\n"
+            f"Configured: {candidate.candidate_id}\n"
+            f"Expected:  {expected_candidate_id}"
+        )
+    return candidate
+def _tail_name(
+    fraction: float,
+) -> str:
+    if fraction == 0.20:
+        return "20pct"
+    if fraction == 0.10:
+        return "10pct"
+    if fraction == 0.05:
+        return "5pct"
+    if fraction == 0.025:
+        return "2_5pct"
+    if fraction == 0.01:
+        return "1pct"
+    return str(
+        fraction
+    ).replace(
+        ".",
+        "_",
+    )
 def main() -> None:
     hypothesis = load_hypothesis()
-    candidate_cfg = hypothesis[
+    hypothesis_cfg = hypothesis[
         "hypothesis"
-    ]["candidate"]
-    evaluation_cfg = hypothesis[
-        "hypothesis"
-    ]["evaluation"]
-    source_cfg = hypothesis[
-        "hypothesis"
-    ]["source"]
+    ]
+    candidate_cfg = hypothesis_cfg[
+        "candidate"
+    ]
+    evaluation_cfg = hypothesis_cfg[
+        "evaluation"
+    ]
+    source_cfg = hypothesis_cfg[
+        "source"
+    ]
     discovery_config = load_discovery_config(
         discovery_end_date=source_cfg[
             "discovery_end_date"
@@ -82,23 +165,12 @@ def main() -> None:
         discovery_config,
         apply_discovery_end=False,
     )
-    candidates = build_candidates(
-        discovery_config,
+    # The subgroup analysis must use the exact candidate
+    # stored in hypothesis.yml. It must not reconstruct the
+    # candidate through the discovery grid.
+    candidate = build_frozen_candidate(
+        candidate_cfg
     )
-    candidate_id = candidate_cfg[
-        "candidate_id"
-    ]
-    matches = [
-        candidate
-        for candidate in candidates
-        if candidate.candidate_id == candidate_id
-    ]
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"Expected exactly one candidate "
-            f"'{candidate_id}', found {len(matches)}."
-        )
-    candidate = matches[0]
     results = run_subgroup_analysis(
         data=data,
         candidate=candidate,
@@ -111,25 +183,13 @@ def main() -> None:
         output_dir=OUTPUT_DIR,
     )
     metadata = {
-        "candidate_id": candidate_id,
-        "target_name": candidate_cfg[
-            "target_name"
-        ],
-        "signal_name": candidate_cfg[
-            "signal_name"
-        ],
-        "signal_tail": candidate_cfg[
-            "signal_tail"
-        ],
-        "stress_feature": candidate_cfg[
-            "stress_feature"
-        ],
-        "stress_tail": candidate_cfg[
-            "stress_tail"
-        ],
-        "stress_direction": candidate_cfg[
-            "stress_direction"
-        ],
+        "candidate_id": candidate.candidate_id,
+        "target_name": candidate.target_name,
+        "signal_name": candidate.signal_name,
+        "signal_tail": candidate.signal_tail,
+        "stress_feature": candidate.stress_feature,
+        "stress_tail": candidate.stress_tail,
+        "stress_direction": candidate.stress_direction,
         "discovery_end_date": source_cfg[
             "discovery_end_date"
         ],
@@ -170,7 +230,7 @@ def main() -> None:
         "Frozen subgroup analysis completed."
     )
     print(
-        f"Candidate: {candidate_id}"
+        f"Candidate: {candidate.candidate_id}"
     )
     for name, frame in results.items():
         print()
