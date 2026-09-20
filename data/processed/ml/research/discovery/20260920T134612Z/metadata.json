@@ -1,27 +1,41 @@
 {
-  "created_at_utc": "20260920T111427Z",
+  "created_at_utc": "20260920T134612Z",
   "feature_rows": 161842,
-  "candidate_count": 16,
-  "result_count": 32,
-  "pooled_count": 16,
+  "candidate_count": 900,
+  "result_count": 1800,
+  "pooled_count": 900,
   "finding_count": 0,
   "targets": [
+    "down_5pct_5d",
+    "down_7pct_5d",
     "down_10pct_5d"
   ],
   "signals": [
-    "short_interest_change"
+    "short_interest_change",
+    "short_interest_level"
   ],
   "stress_features": [
-    "price_volatility_20d"
+    "price_volatility_20d",
+    "price_momentum_5d",
+    "price_momentum_20d",
+    "price_momentum_60d",
+    "distance_from_20d_high",
+    "distance_from_60d_high"
   ],
   "tails": [
-    0.01,
-    0.025,
+    0.2,
+    0.1,
     0.05,
-    0.1
+    0.025,
+    0.01
   ],
   "stress_directions": {
-    "price_volatility_20d": "upper"
+    "price_volatility_20d": "upper",
+    "price_momentum_5d": "lower",
+    "price_momentum_20d": "lower",
+    "price_momentum_60d": "lower",
+    "distance_from_20d_high": "lower",
+    "distance_from_60d_high": "lower"
   },
   "validation": {
     "min_rows_per_window": 20,

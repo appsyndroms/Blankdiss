@@ -3,8 +3,8 @@
   "question": "Hur utvecklas priset före och efter förändring i rekonstruerad short interest, och kvarstår sambandet efter kontroll för tidigare prisrörelse och event-risk?",
   "module": "ml.diagnostics.experiments.si_price_dynamics_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-19T15:15:15.417704+00:00",
-  "finished_at_utc": "2026-09-19T15:15:17.982600+00:00",
+  "started_at_utc": "2026-09-20T13:41:29.293976+00:00",
+  "finished_at_utc": "2026-09-20T13:41:32.878222+00:00",
   "windows": [
     {
       "window": "window_1",
