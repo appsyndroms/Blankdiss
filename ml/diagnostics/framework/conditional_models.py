@@ -30,6 +30,7 @@ TARGET_THRESHOLD = -0.05
 
 SI_COLUMN = "short_interest_pct_change"
 PRIOR_RETURN_COLUMN = "price_return_5d"
+VOLATILITY_COLUMN = "price_volatility_20d"
 
 HIGH_RISK_QUANTILE = 0.80
 LOW_RISK_QUANTILE = 0.20
@@ -42,13 +43,26 @@ MODEL_FEATURES = {
     "event_risk_only": (
         "event_score",
     ),
-    "si_plus_event_risk": (
-        SI_COLUMN,
+    "event_risk_plus_si": (
         "event_score",
+        SI_COLUMN,
     ),
-    "si_plus_event_risk_plus_prior_return": (
-        SI_COLUMN,
+    "event_risk_plus_si_volatility": (
         "event_score",
+        SI_COLUMN,
+        VOLATILITY_COLUMN,
+    ),
+    "event_risk_plus_si_interaction": (
+        "event_score",
+        SI_COLUMN,
+        VOLATILITY_COLUMN,
+        "si_x_volatility",
+    ),
+    "event_risk_plus_si_interaction_plus_prior_return": (
+        "event_score",
+        SI_COLUMN,
+        VOLATILITY_COLUMN,
+        "si_x_volatility",
         PRIOR_RETURN_COLUMN,
     ),
 }
@@ -88,6 +102,35 @@ def _build_model() -> Pipeline:
             ),
         ]
     )
+
+
+def _prepare_interaction(
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    result = frame.copy()
+
+    if (
+        SI_COLUMN not in result.columns
+        or VOLATILITY_COLUMN not in result.columns
+    ):
+        result["si_x_volatility"] = np.nan
+        return result
+
+    si = _numeric(
+        result,
+        SI_COLUMN,
+    )
+
+    volatility = _numeric(
+        result,
+        VOLATILITY_COLUMN,
+    )
+
+    result["si_x_volatility"] = (
+        si * volatility
+    )
+
+    return result
 
 
 def _fit_model(
@@ -396,10 +439,6 @@ def _prepare_event_scores(
     tuple[str, ...],
     float,
 ]:
-    # Viktigt:
-    # Förbered hela tidsserien innan splitten så att
-    # short_interest_pct_change använder föregående
-    # observation även över splitgränserna.
     prepared = _prepare_event_frame(
         context.data
     )
@@ -411,6 +450,10 @@ def _prepare_event_scores(
         errors="coerce",
     )
 
+    prepared = _prepare_interaction(
+        prepared
+    )
+
     train_end = pd.Timestamp(
         context.train_end
     )
@@ -419,12 +462,11 @@ def _prepare_event_scores(
         context.validation_end
     )
 
-    if context.test_end is not None:
-        test_end = pd.Timestamp(
-            context.test_end
-        )
-    else:
-        test_end = None
+    test_end = (
+        pd.Timestamp(context.test_end)
+        if context.test_end is not None
+        else None
+    )
 
     train = prepared.loc[
         prepared[date_column]
@@ -532,6 +574,49 @@ def _prepare_event_scores(
     )
 
 
+def _model_delta(
+    rows: list[dict],
+) -> None:
+    baseline = next(
+        (
+            row
+            for row in rows
+            if row["model"]
+            == "event_risk_only"
+        ),
+        None,
+    )
+
+    if baseline is None:
+        return
+
+    for row in rows:
+        for metric in (
+            "test_auc",
+            "test_brier",
+            "test_log_loss",
+        ):
+            baseline_value = baseline.get(
+                metric
+            )
+            value = row.get(metric)
+
+            if (
+                pd.notna(baseline_value)
+                and pd.notna(value)
+            ):
+                row[
+                    f"delta_{metric}_vs_event_risk"
+                ] = (
+                    value
+                    - baseline_value
+                )
+            else:
+                row[
+                    f"delta_{metric}_vs_event_risk"
+                ] = np.nan
+
+
 def run_conditional_model_comparison(
     context,
 ) -> ExperimentResult:
@@ -550,6 +635,7 @@ def run_conditional_model_comparison(
     required = {
         SI_COLUMN,
         PRIOR_RETURN_COLUMN,
+        VOLATILITY_COLUMN,
         TARGET_COLUMN,
     }
 
@@ -597,6 +683,12 @@ def run_conditional_model_comparison(
             features,
         )
 
+        pretest_scores = _predict(
+            pretest_model,
+            pretest,
+            features,
+        )
+
         test_scores = _predict(
             pretest_model,
             test,
@@ -609,13 +701,7 @@ def run_conditional_model_comparison(
         )
 
         tail_metrics = _tail_analysis(
-            pretest_scores=(
-                _predict(
-                    pretest_model,
-                    pretest,
-                    features,
-                )
-            ),
+            pretest_scores=pretest_scores,
             test_frame=test,
             test_scores=test_scores,
         )
@@ -703,13 +789,15 @@ def run_conditional_model_comparison(
             }
         )
 
+    _model_delta(rows)
+
     result = ExperimentResult(
         name="si_conditional_model_comparison",
         description=(
-            "Jämför fyra walk-forward-modeller "
-            "för 5d-nedgång: SI-förändring, "
-            "event-risk, kombinationen och "
-            "kombinationen med tidigare avkastning."
+            "Walk-forward-jämförelse av SI, "
+            "event-risk, volatilitet och "
+            "SI × volatilitet-interaktion för "
+            "5d-nedgång."
         ),
     )
 
@@ -746,6 +834,12 @@ def run_conditional_model_comparison(
     result.add_metric(
         "tail_low_quantile",
         LOW_RISK_QUANTILE,
+    )
+
+    result.add_metric(
+        "interaction",
+        "short_interest_pct_change * "
+        "price_volatility_20d",
     )
 
     result.add_table(
