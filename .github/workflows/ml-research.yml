@@ -73,6 +73,7 @@ jobs:
           rm -rf data/processed/ml/research/si_context
           rm -rf data/processed/ml/research/incremental_si
           rm -rf data/processed/ml/research/momentum_incremental_si
+          rm -rf data/processed/ml/research/momentum_si_surface
 
       - name: Fetch FI aggregate
         run: |
@@ -186,6 +187,10 @@ jobs:
         run: |
           python -u -m ml.research.momentum_incremental_si_analysis
 
+      - name: Run Momentum × SI Surface Analysis
+        run: |
+          python -u -m ml.research.momentum_si_surface_analysis
+
       - name: Verify diagnostics
         run: |
           python -u -m ml.diagnostics.verify
@@ -205,6 +210,7 @@ jobs:
             data/processed/ml/research/si_context/**
             data/processed/ml/research/incremental_si/**
             data/processed/ml/research/momentum_incremental_si/**
+            data/processed/ml/research/momentum_si_surface/**
 
       - name: Persist research results
         run: |
@@ -218,6 +224,7 @@ jobs:
             data/processed/ml/research/si_context \
             data/processed/ml/research/incremental_si \
             data/processed/ml/research/momentum_incremental_si \
+            data/processed/ml/research/momentum_si_surface \
             2>/dev/null || true
 
           if git diff --cached --quiet; then
