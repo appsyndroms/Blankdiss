@@ -1,0 +1,717 @@
+from __future__ import annotations
+import json
+from pathlib import Path
+from typing import Any
+import numpy as np
+import pandas as pd
+from ml.config import TARGETS, WALK_FORWARD_WINDOWS
+from ml.dataset import build_target, load_features
+from ml.research.bootstrap import bootstrap_mean_difference
+DISCOVERY_END = pd.Timestamp("2025-12-19")
+TARGET_NAME = "down_10pct_5d"
+SI_FEATURE = "short_interest_change"
+PRIOR_RETURN_FEATURE = "price_return_5d"
+SI_TAILS = (
+    0.20,
+    0.10,
+    0.05,
+    0.025,
+    0.01,
+)
+PRIOR_RETURN_TAILS = (
+    0.20,
+    0.10,
+    0.05,
+    0.025,
+    0.01,
+)
+FUTURE_RETURN_HORIZONS = (
+    1,
+    3,
+    5,
+    10,
+    20,
+)
+OUTPUT_DIR = Path(
+    "data/processed/ml/research/si_context"
+)
+def target_config():
+    for target in TARGETS:
+        if target.name == TARGET_NAME:
+            return target
+    raise ValueError(
+        f"Unknown target: {TARGET_NAME}"
+    )
+def build_splits() -> list[dict[str, Any]]:
+    splits = []
+    for index, window in enumerate(
+        WALK_FORWARD_WINDOWS,
+        start=1,
+    ):
+        splits.append(
+            {
+                "name": f"window_{index}",
+                "train_end": pd.Timestamp(
+                    window.train_end
+                ),
+                "validation_end": pd.Timestamp(
+                    window.validation_end
+                ),
+                "test_end": pd.Timestamp(
+                    window.test_end
+                ),
+            }
+        )
+    return splits
+def cross_sectional_tail_mask(
+    frame: pd.DataFrame,
+    values: pd.Series,
+    fraction: float,
+    *,
+    direction: str,
+) -> pd.Series:
+    """
+    Creates a cross-sectional tail mask independently for each
+    snapshot date.
+    This is deliberately based only on information available on
+    the snapshot date. It therefore does not use future returns
+    or future observations.
+    """
+    if direction not in {
+        "upper",
+        "lower",
+    }:
+        raise ValueError(
+            f"Unknown direction: {direction}"
+        )
+    result = pd.Series(
+        False,
+        index=frame.index,
+        dtype=bool,
+    )
+    working = pd.DataFrame(
+        {
+            "date": frame["snapshot_date"],
+            "value": pd.to_numeric(
+                values,
+                errors="coerce",
+            ),
+        },
+        index=frame.index,
+    )
+    for _, index in working.groupby(
+        "date",
+        sort=False,
+    ).groups.items():
+        local = working.loc[
+            index,
+            "value",
+        ]
+        valid = local.notna()
+        if not valid.any():
+            continue
+        if direction == "upper":
+            threshold = local.loc[
+                valid
+            ].quantile(
+                1.0 - fraction
+            )
+            selected = (
+                local >= threshold
+            )
+        else:
+            threshold = local.loc[
+                valid
+            ].quantile(
+                fraction
+            )
+            selected = (
+                local <= threshold
+            )
+        result.loc[
+            selected.index
+        ] = selected.fillna(
+            False
+        ).astype(bool)
+    return result
+def safe_mean(
+    values: np.ndarray,
+) -> float | None:
+    values = values[
+        np.isfinite(values)
+    ]
+    if values.size == 0:
+        return None
+    return float(
+        values.mean()
+    )
+def event_rate(
+    target: np.ndarray,
+) -> float | None:
+    target = target[
+        np.isfinite(target)
+    ]
+    if target.size == 0:
+        return None
+    return float(
+        target.mean()
+    )
+def analyse_condition(
+    frame: pd.DataFrame,
+    target: np.ndarray,
+    si: pd.Series,
+    prior_return: pd.Series,
+    *,
+    prior_tail: float,
+    si_tail: float,
+    base_mask: np.ndarray,
+    split_name: str,
+    evaluation_name: str,
+) -> dict[str, Any]:
+    """
+    Compare high-SI-change stocks against other stocks that have
+    already experienced a large positive 5-day price move.
+    The key comparison is therefore:
+        strong prior return + high SI change
+        versus
+        strong prior return + not-high SI change
+    This directly tests whether SI adds information after conditioning
+    on prior momentum.
+    """
+    prior_mask = cross_sectional_tail_mask(
+        frame,
+        prior_return,
+        prior_tail,
+        direction="upper",
+    )
+    si_mask = cross_sectional_tail_mask(
+        frame,
+        si,
+        si_tail,
+        direction="upper",
+    )
+    base = (
+        base_mask
+        & np.isfinite(target)
+        & prior_mask.to_numpy()
+    )
+    high_si = (
+        base
+        & si_mask.to_numpy()
+    )
+    other_si = (
+        base
+        & ~si_mask.to_numpy()
+    )
+    high_target = target[
+        high_si
+    ]
+    other_target = target[
+        other_si
+    ]
+    target_difference = None
+    target_ci_low = None
+    target_ci_high = None
+    if (
+        high_target.size
+        and other_target.size
+    ):
+        target_difference = (
+            float(
+                high_target.mean()
+            )
+            - float(
+                other_target.mean()
+            )
+        )
+        (
+            target_ci_low,
+            target_ci_high,
+        ) = bootstrap_mean_difference(
+            high_target,
+            other_target,
+            seed=_stable_seed(
+                split_name,
+                evaluation_name,
+                prior_tail,
+                si_tail,
+                "target",
+            ),
+        )
+    row: dict[str, Any] = {
+        "split": split_name,
+        "evaluation": evaluation_name,
+        "prior_return_tail": prior_tail,
+        "si_tail": si_tail,
+        "prior_return_feature": PRIOR_RETURN_FEATURE,
+        "si_feature": SI_FEATURE,
+        "target": TARGET_NAME,
+        "base_n": int(base.sum()),
+        "high_si_n": int(high_si.sum()),
+        "other_si_n": int(other_si.sum()),
+        "high_si_events": int(
+            high_target.sum()
+        ),
+        "other_si_events": int(
+            other_target.sum()
+        ),
+        "high_si_event_rate": event_rate(
+            high_target
+        ),
+        "other_si_event_rate": event_rate(
+            other_target
+        ),
+        "event_rate_difference": (
+            (
+                event_rate(high_target)
+                - event_rate(other_target)
+            )
+            if (
+                event_rate(high_target)
+                is not None
+                and event_rate(other_target)
+                is not None
+            )
+            else None
+        ),
+        "event_rate_lift": (
+            (
+                event_rate(high_target)
+                / event_rate(other_target)
+            )
+            if (
+                event_rate(high_target)
+                is not None
+                and event_rate(other_target)
+                is not None
+                and event_rate(other_target) > 0
+            )
+            else None
+        ),
+        "target_difference": target_difference,
+        "target_bootstrap_ci_low": target_ci_low,
+        "target_bootstrap_ci_high": target_ci_high,
+    }
+    for horizon in FUTURE_RETURN_HORIZONS:
+        column = (
+            f"forward_return_{horizon}d"
+        )
+        if column not in frame.columns:
+            continue
+        returns = pd.to_numeric(
+            frame[column],
+            errors="coerce",
+        ).to_numpy(
+            dtype=float
+        )
+        high_returns = returns[
+            high_si
+            & np.isfinite(returns)
+        ]
+        other_returns = returns[
+            other_si
+            & np.isfinite(returns)
+        ]
+        difference = None
+        ci_low = None
+        ci_high = None
+        if (
+            high_returns.size
+            and other_returns.size
+        ):
+            difference = (
+                float(
+                    high_returns.mean()
+                )
+                - float(
+                    other_returns.mean()
+                )
+            )
+            (
+                ci_low,
+                ci_high,
+            ) = bootstrap_mean_difference(
+                high_returns,
+                other_returns,
+                seed=_stable_seed(
+                    split_name,
+                    evaluation_name,
+                    prior_tail,
+                    si_tail,
+                    horizon,
+                ),
+            )
+        row[
+            f"high_si_mean_return_{horizon}d"
+        ] = safe_mean(
+            high_returns
+        )
+        row[
+            f"other_si_mean_return_{horizon}d"
+        ] = safe_mean(
+            other_returns
+        )
+        row[
+            f"return_difference_{horizon}d"
+        ] = difference
+        row[
+            f"return_ci_low_{horizon}d"
+        ] = ci_low
+        row[
+            f"return_ci_high_{horizon}d"
+        ] = ci_high
+    return row
+def _stable_seed(
+    *parts: object,
+) -> int:
+    import hashlib
+    payload = "|".join(
+        str(part)
+        for part in parts
+    ).encode("utf-8")
+    digest = hashlib.sha256(
+        payload
+    ).digest()
+    return int.from_bytes(
+        digest[:8],
+        byteorder="little",
+        signed=False,
+    ) % (2**32 - 1)
+def run_analysis() -> dict[str, Any]:
+    print(
+        "Loading features...",
+        flush=True,
+    )
+    frame = load_features().copy()
+    frame["snapshot_date"] = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+    frame = frame.loc[
+        frame["snapshot_date"]
+        <= DISCOVERY_END
+    ].copy()
+    frame.reset_index(
+        drop=True,
+        inplace=True,
+    )
+    print(
+        f"Rows through "
+        f"{DISCOVERY_END.date()}: "
+        f"{len(frame):,}",
+        flush=True,
+    )
+    required = {
+        "snapshot_date",
+        SI_FEATURE,
+        PRIOR_RETURN_FEATURE,
+    }
+    missing = sorted(
+        required
+        - set(frame.columns)
+    )
+    if missing:
+        raise KeyError(
+            "SI context analysis saknar "
+            "kolumner: "
+            + ", ".join(missing)
+        )
+    target_cfg = target_config()
+    target = build_target(
+        frame,
+        target_cfg,
+    ).to_numpy(
+        dtype=float
+    )
+    si = pd.to_numeric(
+        frame[SI_FEATURE],
+        errors="coerce",
+    )
+    prior_return = pd.to_numeric(
+        frame[PRIOR_RETURN_FEATURE],
+        errors="coerce",
+    )
+    all_rows: list[dict[str, Any]] = []
+    print(
+        "Running momentum-conditioned SI analysis...",
+        flush=True,
+    )
+    for split in build_splits():
+        train_mask = (
+            frame["snapshot_date"]
+            <= split["train_end"]
+        ).to_numpy()
+        validation_mask = (
+            (
+                frame["snapshot_date"]
+                > split["train_end"]
+            )
+            & (
+                frame["snapshot_date"]
+                <= split["validation_end"]
+            )
+        ).to_numpy()
+        test_mask = (
+            (
+                frame["snapshot_date"]
+                > split["validation_end"]
+            )
+            & (
+                frame["snapshot_date"]
+                <= split["test_end"]
+            )
+        ).to_numpy()
+        cutoff_mask = (
+            frame["snapshot_date"]
+            <= DISCOVERY_END
+        ).to_numpy()
+        train_mask = (
+            train_mask
+            & cutoff_mask
+        )
+        validation_mask = (
+            validation_mask
+            & cutoff_mask
+        )
+        test_mask = (
+            test_mask
+            & cutoff_mask
+        )
+        for evaluation_name, mask in (
+            (
+                "validation",
+                validation_mask,
+            ),
+            (
+                "test",
+                test_mask,
+            ),
+        ):
+            print(
+                f"Context evaluation: "
+                f"{split['name']} / "
+                f"{evaluation_name}",
+                flush=True,
+            )
+            for prior_tail in (
+                PRIOR_RETURN_TAILS
+            ):
+                for si_tail in SI_TAILS:
+                    all_rows.append(
+                        analyse_condition(
+                            frame,
+                            target,
+                            si,
+                            prior_return,
+                            prior_tail=prior_tail,
+                            si_tail=si_tail,
+                            base_mask=mask,
+                            split_name=split[
+                                "name"
+                            ],
+                            evaluation_name=(
+                                evaluation_name
+                            ),
+                        )
+                    )
+    return {
+        "analysis": (
+            "momentum_conditioned_short_interest"
+        ),
+        "discovery_end": str(
+            DISCOVERY_END.date()
+        ),
+        "target": TARGET_NAME,
+        "prior_return_feature": (
+            PRIOR_RETURN_FEATURE
+        ),
+        "si_feature": SI_FEATURE,
+        "prior_return_tails": list(
+            PRIOR_RETURN_TAILS
+        ),
+        "si_tails": list(
+            SI_TAILS
+        ),
+        "future_return_horizons": list(
+            FUTURE_RETURN_HORIZONS
+        ),
+        "method": {
+            "conditioning": (
+                "large positive prior "
+                "5-day return"
+            ),
+            "cross_sectional_grouping": (
+                "independently per snapshot_date"
+            ),
+            "comparison": (
+                "high SI-change versus "
+                "other SI-change within "
+                "the same prior-return tail"
+            ),
+            "walk_forward": True,
+            "future_information_used_for_grouping": False,
+        },
+        "rows": all_rows,
+    }
+def write_outputs(
+    document: dict[str, Any],
+) -> None:
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    (
+        OUTPUT_DIR
+        / "results.json"
+    ).write_text(
+        json.dumps(
+            document,
+            indent=2,
+            ensure_ascii=False,
+            allow_nan=False,
+        ),
+        encoding="utf-8",
+    )
+    rows = document["rows"]
+    pd.DataFrame(
+        rows
+    ).to_csv(
+        OUTPUT_DIR
+        / "context_analysis.csv",
+        index=False,
+    )
+    test_rows = [
+        row
+        for row in rows
+        if row["evaluation"] == "test"
+    ]
+    pd.DataFrame(
+        test_rows
+    ).to_csv(
+        OUTPUT_DIR
+        / "test_results.csv",
+        index=False,
+    )
+    lines = [
+        "# Momentum-conditioned Short Interest",
+        "",
+        f"- Target: `{TARGET_NAME}`",
+        f"- Prior return: `{PRIOR_RETURN_FEATURE}`",
+        f"- SI signal: `{SI_FEATURE}`",
+        f"- Frozen cutoff: `{DISCOVERY_END.date()}`",
+        "",
+        "The primary comparison is high SI-change versus "
+        "other SI-change observations among stocks in the "
+        "same upper prior-return tail.",
+        "",
+        "## OOS results",
+        "",
+        "| Window | Eval | Prior tail | SI tail | N | High SI N | Other SI N | High SI event rate | Other event rate | Event lift | 5d return diff | 20d return diff |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in test_rows:
+        lines.append(
+            "| "
+            f"{row['split']} | "
+            f"{row['evaluation']} | "
+            f"{row['prior_return_tail']:.3f} | "
+            f"{row['si_tail']:.3f} | "
+            f"{row['base_n']} | "
+            f"{row['high_si_n']} | "
+            f"{row['other_si_n']} | "
+            f"{_fmt(row['high_si_event_rate'])} | "
+            f"{_fmt(row['other_si_event_rate'])} | "
+            f"{_fmt(row['event_rate_lift'])} | "
+            f"{_fmt(row.get('return_difference_5d'))} | "
+            f"{_fmt(row.get('return_difference_20d'))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Interpretation rule",
+            "",
+            "This analysis is descriptive and OOS. It does not "
+            "select a trading rule automatically. The main question "
+            "is whether high SI change remains associated with "
+            "negative subsequent returns after conditioning on "
+            "a large prior price increase.",
+        ]
+    )
+    (
+        OUTPUT_DIR
+        / "report.md"
+    ).write_text(
+        "\n".join(lines)
+        + "\n",
+        encoding="utf-8",
+    )
+    metadata = {
+        "analysis": (
+            "momentum_conditioned_short_interest"
+        ),
+        "created_at_utc": pd.Timestamp.now(
+            tz="UTC"
+        ).isoformat(),
+        "discovery_end": str(
+            DISCOVERY_END.date()
+        ),
+        "target": TARGET_NAME,
+        "prior_return_feature": (
+            PRIOR_RETURN_FEATURE
+        ),
+        "si_feature": SI_FEATURE,
+        "row_count": len(rows),
+        "test_row_count": len(
+            test_rows
+        ),
+        "walk_forward_windows": [
+            {
+                "name": split["name"],
+                "train_end": str(
+                    split["train_end"].date()
+                ),
+                "validation_end": str(
+                    split[
+                        "validation_end"
+                    ].date()
+                ),
+                "test_end": str(
+                    split["test_end"].date()
+                ),
+            }
+            for split in build_splits()
+        ],
+    }
+    (
+        OUTPUT_DIR
+        / "metadata.json"
+    ).write_text(
+        json.dumps(
+            metadata,
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+def _fmt(
+    value: Any,
+) -> str:
+    if value is None:
+        return ""
+    if isinstance(
+        value,
+        float,
+    ):
+        return f"{value:.6f}"
+    return str(value)
+def main() -> None:
+    document = run_analysis()
+    write_outputs(
+        document
+    )
+    print(
+        f"Written to {OUTPUT_DIR}",
+        flush=True,
+    )
+if __name__ == "__main__":
+    main()
