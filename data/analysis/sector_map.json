@@ -1,4 +1,3071 @@
 {
-  "id": "sector_relative_return",
-  "status": "planned"
+  "description": "Fryst sektormappning för Blankdiss. Mappningen ska inte byggas om automatiskt vid varje research-körning.",
+  "instruments": {
+    "1BD.F": {
+      "industry": "Medical Instruments & Supplies",
+      "isin": null,
+      "issuer": "Bio-Works Technologies AB",
+      "lei": "54930037JP1GWORMFS83",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "5J90.F": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Fluicell AB",
+      "lei": "549300R9LVFVFDTW5Y96",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "5WF.F": {
+      "industry": "Gambling",
+      "isin": null,
+      "issuer": "Gaming Corps AB",
+      "lei": "5493007I1HS4U2HMQH48",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "9AI.F": {
+      "industry": "Financial Data & Stock Exchanges",
+      "isin": null,
+      "issuer": "Goobit Group AB (publ)",
+      "lei": "5493007OXLTOLCXTBM48",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "AAC.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": "SE0021020716",
+      "issuer": "AAC Clyde Space AB",
+      "lei": "549300XQ7MZYAEFJLX90",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "AAK.ST": {
+      "industry": "Packaged Foods",
+      "isin": "SE0011337708",
+      "issuer": "AAK AB (publ)",
+      "lei": "549300GK4LGIDDWJWL07",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "ABB.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": null,
+      "issuer": "ABB Ltd",
+      "lei": "5493000LKVGOO9PELI61",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ABSL-B.ST": {
+      "industry": "Solar",
+      "isin": null,
+      "issuer": "Collector AB",
+      "lei": "529900G9LZILBPCZXA17",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ACAD.ST": {
+      "industry": "Education & Training Services",
+      "isin": "SE0007897079",
+      "issuer": "AcadeMedia AB",
+      "lei": "549300H47PGHY4JNKO68",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "ACARIX.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Acarix AB",
+      "lei": "549300KP2XS4513DEI67",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ACAST.ST": {
+      "industry": "Entertainment",
+      "isin": "SE0015960935",
+      "issuer": "Acast AB (publ)",
+      "lei": "5493004UROJFQSP6RC85",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "ACCON.ST": {
+      "industry": "Electronic Components",
+      "isin": "SE0010546242",
+      "issuer": "Acconeer AB",
+      "lei": "549300QTX5BP5V02EK37",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ACE.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0010573113",
+      "issuer": "Ascelia Pharma AB",
+      "lei": "5493002YR9VCJJPWYN08",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ACTI.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Active Biotech AB (publ)",
+      "lei": "549300OJ44CLMRU8YE43",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ACUC.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": null,
+      "issuer": "AcuCort AB",
+      "lei": "54930087FR3VVW5SU676",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ACUVI.ST": {
+      "industry": "Electronic Components",
+      "isin": null,
+      "issuer": "Acuvi AB",
+      "lei": "549300MUNUSWBKJ6Y928",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ADDT-B.ST": {
+      "industry": "Industrial Distribution",
+      "isin": "SE0014781795",
+      "issuer": "Addtech AB",
+      "lei": "549300QZ5U2IDRHPWL60",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ADVE.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": null,
+      "issuer": "Advenica AB (publ)",
+      "lei": "5493000RSYC7Q56WHO76",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "AFRY.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0005999836",
+      "issuer": "AFRY AB",
+      "lei": "549300Q87LKPPD4X9R30",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ALCA.ST": {
+      "industry": "Communication Equipment",
+      "isin": null,
+      "issuer": "Alcadon Group AB",
+      "lei": "54930024H9YVJ44DPZ25",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ALFA.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": "SE0000695876",
+      "issuer": "Alfa Laval AB",
+      "lei": "549300UCKT2UK88AG251",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ALIF-B.ST": {
+      "industry": "Medical Instruments & Supplies",
+      "isin": null,
+      "issuer": "AddLife AB",
+      "lei": "5493005T3M7CD7XWE013",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ALIG.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": "SE0007158910",
+      "issuer": "Alimak Group AB (publ)",
+      "lei": "549300LC2ER06GDV6565",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ALIV-SDB.ST": {
+      "industry": "Auto Parts",
+      "isin": "SE0000382335",
+      "issuer": "AUTOLIV, INC.",
+      "lei": "A23RUXWKASG834LTMK28",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "ALLEI.ST": {
+      "industry": "Steel",
+      "isin": "SE0017615644",
+      "issuer": "Alleima AB",
+      "lei": "529900EBHTYGLA6PGP77",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "ALM.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": null,
+      "issuer": "ALM EQUITY AB",
+      "lei": "549300FVH6QE042L3J12",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "ALTRA.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0011426428",
+      "issuer": "Nyfosa AB",
+      "lei": "5493000YR2B83SILCJ50",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "ALVO-SDB.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": "SE0025011463",
+      "issuer": "ALVOTECH",
+      "lei": "222100DCZBOWV5DZ8372",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ALZ.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0007413455",
+      "issuer": "Alzinova AB",
+      "lei": "549300K3IMVT20EK2S13",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "AMBEA.ST": {
+      "industry": "Medical Care Facilities",
+      "isin": "SE0009663826",
+      "issuer": "Ambea AB ( publ )",
+      "lei": "549300AEVNZRHYI5HV24",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ANNE-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "Annehem Fastigheter AB",
+      "lei": "5493001IZXU12M8NYV95",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "ANNX.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Annexin Pharmaceuticals AB (publ)",
+      "lei": "5493000JP703HGPJEX27",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ANOD-B.ST": {
+      "industry": "Information Technology Services",
+      "isin": "SE0017885767",
+      "issuer": "Addnode Group Aktiebolag (publ)",
+      "lei": "213800CQXEA3W1YWXZ31",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "APOTEA.ST": {
+      "industry": "Pharmaceutical Retailers",
+      "isin": "SE0023313762",
+      "issuer": "Apotea AB (publ)",
+      "lei": "636700XU8GQ8ZL4RNM17",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "AQ.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": null,
+      "issuer": "AQ Group AB",
+      "lei": "549300CN568MD1JD3E40",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ARJO-B.ST": {
+      "industry": "Medical Distribution",
+      "isin": "SE0010468116",
+      "issuer": "Arjo AB (publ)",
+      "lei": "549300OWGJPYKC6JF790",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ASKER.ST": {
+      "industry": "Medical Distribution",
+      "isin": "SE0024171458",
+      "issuer": "Asker Healthcare Group AB",
+      "lei": "636700RZEYK9TOWV8F05",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ASMDEE-B.ST": {
+      "industry": "Leisure",
+      "isin": "SE0023615638",
+      "issuer": "Asmodee Group AB",
+      "lei": "636700G5993BBAFDYD02",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "ASSA-B.ST": {
+      "industry": "Security & Protection Services",
+      "isin": "SE0007100581",
+      "issuer": "ASSA ABLOY AB",
+      "lei": "549300YECS8HKCIMMB67",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ATCO-B.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": "SE0000101032",
+      "issuer": "Atlas Copco Aktiebolag",
+      "lei": "213800T8PC8Q4FYJZR07",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ATIC.ST": {
+      "industry": "Leisure",
+      "isin": null,
+      "issuer": "Actic Group AB",
+      "lei": "549300HI1JEY110HXM08",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "ATORX.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0000767188",
+      "issuer": "Alligator Bioscience AB",
+      "lei": "549300E15VI0MB7LXV19",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ATRLJ-B.ST": {
+      "industry": "Real Estate - Development",
+      "isin": "SE0000191827",
+      "issuer": "Atrium Ljungberg AB",
+      "lei": "5493001NNP6HM67OVU09",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "ATT.ST": {
+      "industry": "Medical Care Facilities",
+      "isin": "SE0007666110",
+      "issuer": "Attendo AB (publ)",
+      "lei": "549300KEJDL2FNITUW65",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "AVT-B.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": null,
+      "issuer": "AVTECH Sweden AB (publ)",
+      "lei": "549300JCZZZMWU9O6B20",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "AXFO.ST": {
+      "industry": "Grocery Stores",
+      "isin": "SE0000635401",
+      "issuer": "Axfood AB",
+      "lei": "549300QIXCZWZLHE8L05",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "AXIC-A.ST": {
+      "industry": "Specialty Chemicals",
+      "isin": "SE0005250719",
+      "issuer": "aXichem AB (publ)",
+      "lei": "549300REE3038LIBWS21",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "AZA.ST": {
+      "industry": "Banks - Regional",
+      "isin": "SE0000170110",
+      "issuer": "Avanza Bank Holding AB",
+      "lei": "549300MBWR5H8SIJLE03",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "AZN.ST": {
+      "industry": "Drug Manufacturers - General",
+      "isin": null,
+      "issuer": "ASTRAZENECA PLC",
+      "lei": "PY6ZZQWO2IZFZC3IOL08",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "B3.ST": {
+      "industry": "Information Technology Services",
+      "isin": null,
+      "issuer": "B3 Consulting Group AB (publ)",
+      "lei": "549300DY2G2PN6NAI688",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "BAHN-B.ST": {
+      "industry": "Telecom Services",
+      "isin": null,
+      "issuer": "Bahnhof AB (publ)",
+      "lei": "213800K7LQU3H85KCU96",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "BALCO.ST": {
+      "industry": "Residential Construction",
+      "isin": null,
+      "issuer": "Balco Group AB",
+      "lei": "549300Z8JUDQ3BN8QB79",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BALD-B.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": "SE0000455057",
+      "issuer": "Fastighets AB Balder",
+      "lei": "549300GHKJCEZOAEUU82",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "BEAMMW-B.ST": {
+      "industry": "Semiconductors",
+      "isin": "SE0016799068",
+      "issuer": "BeammWave AB",
+      "lei": "9845008AD575B0BD7B65",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "BEGR.ST": {
+      "industry": "Steel",
+      "isin": null,
+      "issuer": "BE Group AB (publ)",
+      "lei": "549300TD8XXBS8J3TF85",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "BEIJ-B.ST": {
+      "industry": "Industrial Distribution",
+      "isin": "SE0015949748",
+      "issuer": "Beijer Ref AB (publ)",
+      "lei": "549300PZZEUVH08H4G75",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "BERG-B.ST": {
+      "industry": "Conglomerates",
+      "isin": null,
+      "issuer": "Bergman & Beving Aktiebolag",
+      "lei": "549300RC0HUZSJYJO751",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "BERNER-B.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "Berner Industrier AB",
+      "lei": "213800KL43V8X6MPRD94",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "BETCO.ST": {
+      "industry": "Software - Application",
+      "isin": "DK0060952240",
+      "issuer": "Better Collective A/S",
+      "lei": "2549001EPXH6NK7I2R78",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "BETS-B.ST": {
+      "industry": "Gambling",
+      "isin": "SE0006993986",
+      "issuer": "Betsson AB",
+      "lei": "549300W61XW8OFGBG077",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BHG.ST": {
+      "industry": "Internet Retail",
+      "isin": "SE0010948588",
+      "issuer": "BHG Group AB",
+      "lei": "549300ZLCWL2QTO3HR86",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BICO.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0013647385",
+      "issuer": "BICO Group AB",
+      "lei": "549300FE4PT8NDXXNK85",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BILI-A.ST": {
+      "industry": "Auto & Truck Dealerships",
+      "isin": "SE0009921588",
+      "issuer": "Bilia AB",
+      "lei": "2138002GW5WN1UYZAO32",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BILL.ST": {
+      "industry": "Paper & Paper Products",
+      "isin": "SE0000862997",
+      "issuer": "Billerud Aktiebolag (publ)",
+      "lei": "549300YJUYJ9A24RXL71",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "BIM.ST": {
+      "industry": "Software - Application",
+      "isin": null,
+      "issuer": "BIMobject AB",
+      "lei": "549300H8BEEY6RNQH874",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "BINERO.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": null,
+      "issuer": "BINERO GROUP",
+      "lei": "5493004RX6XHM63PCR80",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "BINV.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "BioInvent International Aktiebolag",
+      "lei": "549300E7QRHEF2IJUY10",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BIOA-B.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0010323311",
+      "issuer": "BioArctic AB",
+      "lei": "549300Y0OI2WVUNHLC33",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BIOG-B.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": "SE0017769995",
+      "issuer": "BioGaia AB",
+      "lei": "549300UBUJOY2L7TT361",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BIOVIC-B.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Biovica International AB",
+      "lei": "549300VADE1VRR555N78",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BMAX.ST": {
+      "industry": "Home Improvement Retail",
+      "isin": "SE0003303627",
+      "issuer": "Byggmax Group AB",
+      "lei": "549300MPJPYQB0KCNH03",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BOL.ST": {
+      "industry": "Other Industrial Metals & Mining",
+      "isin": "SE0012455673",
+      "issuer": "Boliden AB",
+      "lei": "21380059QU7IM1ONDJ56",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "BONAV-B.ST": {
+      "industry": "Residential Construction",
+      "isin": "SE0008091581",
+      "issuer": "Bonava AB (publ)",
+      "lei": "213800SLYJ6HYXWP8L95",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BONEX.ST": {
+      "industry": "Medical Instruments & Supplies",
+      "isin": "SE0009858152",
+      "issuer": "BONESUPPORT HOLDING AB",
+      "lei": "549300COLY053IGTLD63",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BOOZT.ST": {
+      "industry": "Apparel Retail",
+      "isin": "SE0009888738",
+      "issuer": "Boozt AB",
+      "lei": "549300HOEUKTVLRKQQ57",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BORG.ST": {
+      "industry": "Apparel Manufacturing",
+      "isin": null,
+      "issuer": "Björn Borg AB",
+      "lei": "549300UIPGM58Z67Z634",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BOTX.ST": {
+      "industry": "Gold",
+      "isin": null,
+      "issuer": "Botnia Gold AB",
+      "lei": "549300VQ2FN8R6PVMS43",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "BOUL.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Boule Diagnostics AB",
+      "lei": "213800IK1TGY858TKZ45",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BRAIN.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "BrainCool AB (publ)",
+      "lei": "549300TS1MVR250KBU26",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "BRAV.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0007491303",
+      "issuer": "Bravida Holding AB",
+      "lei": "549300H88IJGPNNL3T61",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "BTS-B.ST": {
+      "industry": "Consulting Services",
+      "isin": null,
+      "issuer": "BTS Group AB",
+      "lei": "549300GBTPZH31MU7R34",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "BUFAB.ST": {
+      "industry": "Industrial Distribution",
+      "isin": null,
+      "issuer": "Bufab AB (publ)",
+      "lei": "5493002TF62S16D67T17",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "BULTEN.ST": {
+      "industry": "Auto Parts",
+      "isin": null,
+      "issuer": "Bulten AB",
+      "lei": "549300HUR75YN61F4108",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "BURE.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0000195810",
+      "issuer": "Bure Equity AB",
+      "lei": "5493000EHCBQ7QQBGX32",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "BUSER.ST": {
+      "industry": "Software - Application",
+      "isin": null,
+      "issuer": "Bambuser AB",
+      "lei": "529900BWE386D22MGZ23",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "CAMX.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0007692850",
+      "issuer": "Camurus AB",
+      "lei": "5493003S6Z6VI7WYFQ06",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "CANDLE-B.ST": {
+      "industry": "Household & Personal Products",
+      "isin": null,
+      "issuer": "Candles Scandinavia AB",
+      "lei": "549300C84CYU5XE6YG89",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "CANTA.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0006371126",
+      "issuer": "CANTARGIA AB",
+      "lei": "549300GKWRT7RXI4VS85",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "CAST.ST": {
+      "industry": "Real Estate - Development",
+      "isin": "SE0000379190",
+      "issuer": "Castellum Aktiebolag",
+      "lei": "549300GU5OHTR1T5IY68",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "CAT-B.ST": {
+      "industry": "Asset Management",
+      "isin": null,
+      "issuer": "Catella AB",
+      "lei": "213800WNI4X4LCFHV831",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "CATE.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": "SE0001664707",
+      "issuer": "Catena AB",
+      "lei": "549300EMLM7AH5LDLY65",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "CDON.ST": {
+      "industry": "Internet Retail",
+      "isin": null,
+      "issuer": "CDON AB",
+      "lei": "5493006F7ZGT71653W96",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "CEVI.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0000683484",
+      "issuer": "CellaVision AB",
+      "lei": "529900IUBZBZ0HXFJ114",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "CFISH.ST": {
+      "industry": "Software - Application",
+      "isin": null,
+      "issuer": "Crunchfish AB",
+      "lei": "549300SCGCKME2FXVY03",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "CI.ST": {
+      "industry": "Metal Fabrication",
+      "isin": "SE0005003217",
+      "issuer": "Cell Impact AB (publ)",
+      "lei": "549300PS6XPVP3MP2W76",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "CIBUS.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": "SE0010832204",
+      "issuer": "Cibus Nordic Real Estate AB (publ)",
+      "lei": "549300PW36MFK96GCR23",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "CLA-B.ST": {
+      "industry": "Confectioners",
+      "isin": "SE0002626861",
+      "issuer": "Cloetta AB",
+      "lei": "549300CSLHPO6Y1AZN37",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "CLAS-B.ST": {
+      "industry": "Specialty Retail",
+      "isin": "SE0000584948",
+      "issuer": "Clas Ohlson Aktiebolag",
+      "lei": "549300MH8OETHBBKJU80",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "CLAV.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": "SE0005308558",
+      "issuer": "Clavister AB",
+      "lei": "549300WTKDTN285YJC32",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "CLS-B.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0002756130",
+      "issuer": "Clinical Laserthermia Systems AB",
+      "lei": "549300TH4O6D9205O691",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "CMMCF": {
+      "industry": "Aerospace & Defense",
+      "isin": null,
+      "issuer": "OXE Marine AB",
+      "lei": "549300MM3NFTH3M7CP61",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "COFFEE-B.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0026599557",
+      "issuer": "Coffee Stain Group AB",
+      "lei": "636700R8GB3NJ2J6DG90",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "COOR.ST": {
+      "industry": "Specialty Business Services",
+      "isin": "SE0007158829",
+      "issuer": "Coor Service Management Holding AB",
+      "lei": "529900TMO6717OKBSU69",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "CORE-D.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": "SE0010714279",
+      "issuer": "Corem Property Group AB",
+      "lei": "213800CHXQQD7TSS1T59",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "CRED-A.ST": {
+      "industry": "Asset Management",
+      "isin": null,
+      "issuer": "Creades AB (publ)",
+      "lei": "549300MYLGD0VKNGTJ47",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "CRNO-B.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": null,
+      "issuer": "Cereno Scientific AB",
+      "lei": "549300VX8KTMYDS6NM84",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "CTEK.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": null,
+      "issuer": "CTEK AB (publ)",
+      "lei": "5493007JXLLMFL3T8L95",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "CTM.ST": {
+      "industry": "Internet Content & Information",
+      "isin": "MT0001000109",
+      "issuer": "CATENA MEDIA P.L.C",
+      "lei": "549300609A73DL5C5Z86",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "CTT.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": null,
+      "issuer": "CTT Systems AB",
+      "lei": "549300AG5CO2JWUJQ994",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "CYNCA.ST": {
+      "industry": "Engineering & Construction",
+      "isin": null,
+      "issuer": "Cynca Nordic AB (publ)",
+      "lei": "549300V2QS9QL4C1KQ31",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "DCL0.F": {
+      "industry": "Utilities - Renewable",
+      "isin": null,
+      "issuer": "Climeon AB (publ)",
+      "lei": "549300JILS52HE40MQ24",
+      "sector": "Utilities",
+      "source": "Yahoo Finance"
+    },
+    "DIOS.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": "SE0001634262",
+      "issuer": "Diös Fastigheter AB",
+      "lei": "549300G3VF7LZQ9IW435",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "DIST.ST": {
+      "industry": "Electronics & Computer Distribution",
+      "isin": null,
+      "issuer": "DistIT AB",
+      "lei": "213800CGP4AKXSLWWS08",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "DIVIO-B.ST": {
+      "industry": "Software - Application",
+      "isin": null,
+      "issuer": "Divio Technologies AB",
+      "lei": "549300CKKC15TESVL798",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "DMYD-B.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Diamyd Medical Aktiebolag",
+      "lei": "5493003NP2HNQDEKB804",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "DOM.ST": {
+      "industry": "Leisure",
+      "isin": "SE0007691613",
+      "issuer": "Dometic Group AB (publ)",
+      "lei": "549300STIPMK5VSA7Y59",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "DONE.ST": {
+      "industry": "Software - Application",
+      "isin": "SE0010546911",
+      "issuer": "Done.ai Group AB",
+      "lei": "549300HN4ITSR6ZSAO17",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "DOXA.ST": {
+      "industry": "Real Estate - Development",
+      "isin": null,
+      "issuer": "Doxa Aktiebolag",
+      "lei": "529900M00QZG3C24PX08",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "DSNO.ST": {
+      "industry": "Internet Retail",
+      "isin": null,
+      "issuer": "Desenio Group AB (publ)",
+      "lei": "64884XU1OA337HY7A137",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "DUNI.ST": {
+      "industry": "Textile Manufacturing",
+      "isin": null,
+      "issuer": "Duni AB",
+      "lei": "549300MWQEN1427O5L53",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "DUST.ST": {
+      "industry": "Information Technology Services",
+      "isin": "SE0006625471",
+      "issuer": "Dustin Group AB",
+      "lei": "549300C3IRYAOWOT0783",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "DYVOX.ST": {
+      "industry": "Medical Instruments & Supplies",
+      "isin": "SE0017105620",
+      "issuer": "Tobii Dynavox AB",
+      "lei": "5493008X1XZR4R5R0P66",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "EAST.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "Eastnine AB (publ)",
+      "lei": "2138009N2FO2BZTVYS76",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "EG7.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": null,
+      "issuer": "Enad Global 7 AB (publ)",
+      "lei": "549300OBCTAOBEEVN513",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "EGTX.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Egetis Therapeutics AB (publ)",
+      "lei": "549300RZCKGWRUBPMY22",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "EKTA-B.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0000163628",
+      "issuer": "Elekta AB (publ)",
+      "lei": "54930044O54BK617EP80",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ELIC.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Elicera Therapeutics AB",
+      "lei": "549300I35L0R4INBFG27",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ELUX-B.ST": {
+      "industry": "Furnishings, Fixtures & Appliances",
+      "isin": "SE0000103814",
+      "issuer": "Aktiebolaget Electrolux",
+      "lei": "549300Y3HHZB1ZGFPJ93",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "EMBRAC-B.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0013121589",
+      "issuer": "Embracer Group AB",
+      "lei": "549300RFXXKT652HB549",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "ENEA.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": "SE0009697220",
+      "issuer": "Enea Aktiebolag",
+      "lei": "549300UNMLWLG6B2R803",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ENGCON-B.ST": {
+      "industry": "Farm & Heavy Construction Machinery",
+      "isin": "SE0017769847",
+      "issuer": "engcon AB",
+      "lei": "549300EMZ2B768S85S50",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ENITY.ST": {
+      "industry": "Mortgage Finance",
+      "isin": null,
+      "issuer": "Enity Holding AB (publ)",
+      "lei": "636700S7UMLTDQ0BKU55",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "ENQ.L": {
+      "industry": "Oil & Gas E&P",
+      "isin": "GB00B635TG28",
+      "issuer": "ENQUEST PLC",
+      "lei": "2138008LJU6WFQWOXJ73",
+      "sector": "Energy",
+      "source": "Yahoo Finance"
+    },
+    "ENRO.ST": {
+      "industry": "Internet Content & Information",
+      "isin": "SE0000718017",
+      "issuer": "Eniro Group AB",
+      "lei": "549300DYME127YXNIN46",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "ENZY.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": null,
+      "issuer": "Enzymatica AB (publ)",
+      "lei": "529900HNJP0335URJQ76",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "EOLU-B.ST": {
+      "industry": "Utilities - Renewable",
+      "isin": null,
+      "issuer": "Nolato Aktiebolag",
+      "lei": "213800T7T7I7WAOX8Y72",
+      "sector": "Utilities",
+      "source": "Yahoo Finance"
+    },
+    "EPIS-B.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Episurf Medical AB",
+      "lei": "549300GORBCSMHZB2J75",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "EPRO-B.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "Epiroc Aktiebolag",
+      "lei": "5493004Q73OEYW1SPE91",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "EQT.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0012853455",
+      "issuer": "EQT AB",
+      "lei": "213800U7P9GOIRKCTB34",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "ERIC-B.ST": {
+      "industry": "Communication Equipment",
+      "isin": "SE0000108656",
+      "issuer": "Telefonaktiebolaget LM Ericsson",
+      "lei": "549300W9JLPW15XIFM52",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ERMA.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": null,
+      "issuer": "Enorama Pharma AB",
+      "lei": "5493008ICNN7HHKZWL40",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ESSITY-B.ST": {
+      "industry": "Household & Personal Products",
+      "isin": "SE0009922164",
+      "issuer": "Essity Aktiebolag (publ)",
+      "lei": "549300G8E6YUVJ1DA153",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "ETRXF": {
+      "industry": "Utilities - Renewable",
+      "isin": null,
+      "issuer": "ETRION CORPORATION",
+      "lei": "549300PLK6HDBY7WQP24",
+      "sector": "Utilities",
+      "source": "Yahoo Finance"
+    },
+    "EVO.ST": {
+      "industry": "Gambling",
+      "isin": "SE0012673267",
+      "issuer": "Evolution AB (publ)",
+      "lei": "549300SUH6ZR1RF6TA88",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "EWRK.ST": {
+      "industry": "Staffing & Employment Services",
+      "isin": null,
+      "issuer": "Ework Group AB",
+      "lei": "549300WF2ILKHMGV9I45",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "EXPRS2.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Expres2ion Biotech Holding AB",
+      "lei": "549300FJK50P1ORYJC45",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "FABG.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0000950636",
+      "issuer": "Fabege AB",
+      "lei": "549300JNPI46XNH0PM97",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "FAG.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": "SE0010048884",
+      "issuer": "Fagerhult Group AB",
+      "lei": "549300G9NPD8LSJLMP91",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "FERRO.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": null,
+      "issuer": "Ferroamp AB (publ)",
+      "lei": "549300RS7OQHGNOP2H55",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "FG.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0015195771",
+      "issuer": "Fasadgruppen Group AB (publ)",
+      "lei": "549300E24LG2Z7KCFQ23",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "FLAT-B.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0016609846",
+      "issuer": "Flat Capital AB (publ)",
+      "lei": "549300LHOWJ5TLK68326",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "FPAR-D.ST": {
+      "industry": "Real Estate - Diversified",
+      "isin": null,
+      "issuer": "Fastpartner AB",
+      "lei": "549300BG6SL5QQ7LQW56",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "FREJA.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": null,
+      "issuer": "Freja eID Group AB",
+      "lei": "213800MB71X1WANLGO09",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "G5EN.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0001824004",
+      "issuer": "G5 Entertainment AB (publ)",
+      "lei": "549300K7QJ1N1FEG2X81",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "GAPW-B.ST": {
+      "industry": "Communication Equipment",
+      "isin": "SE0009155518",
+      "issuer": "Gapwaves AB",
+      "lei": "549300Z7VEJLHEVAJ835",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "GARO.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": "SE0008008262",
+      "issuer": "GARO Aktiebolag",
+      "lei": "549300RKWROUEEV6VP74",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "GBK.ST": {
+      "industry": "Entertainment",
+      "isin": null,
+      "issuer": "Goodbye Kansas Group AB",
+      "lei": "5493007JJTJFKGX2N830",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "GENO.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Genovis Aktiebolag",
+      "lei": "549300T5KGFRYR7ZST20",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "GETI-B.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0000202624",
+      "issuer": "Getinge AB (publ)",
+      "lei": "5493003PZ4F570G3W735",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "GOMX.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": null,
+      "issuer": "GomSpace Group AB",
+      "lei": "213800ES6SHKK5QTN734",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "GRANGX.ST": {
+      "industry": "Other Precious Metals & Mining",
+      "isin": "SE0018014243",
+      "issuer": "GRANGEX AB (publ)",
+      "lei": "549300MZ7HL7X6AXMC13",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "GREEN.ST": {
+      "industry": "Specialty Business Services",
+      "isin": null,
+      "issuer": "Green Landscaping Group AB (publ)",
+      "lei": "54930070F55O6PDFDF97",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "GRNG.ST": {
+      "industry": "Aluminum",
+      "isin": "SE0006288015",
+      "issuer": "Gränges AB",
+      "lei": "5493006UG44TYSIXOB13",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "GULD.ST": {
+      "industry": "Internet Retail",
+      "isin": "SE0025667033",
+      "issuer": "Guldbrev Holding AB (publ)",
+      "lei": "64889UO4P1E89XSM9619",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "HACK.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0025138357",
+      "issuer": "Hacksaw AB",
+      "lei": "636700SMLZDCBPNPMJ36",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "HANZA.ST": {
+      "industry": "Electronic Components",
+      "isin": "SE0005878543",
+      "issuer": "HANZA AB",
+      "lei": "549300X0C14ZL28N1L09",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "HAYPP.ST": {
+      "industry": "Tobacco",
+      "isin": "SE0016829469",
+      "issuer": "Haypp Group AB (publ)",
+      "lei": "549300NDGL14NS31UP49",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "HEBA-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0017911480",
+      "issuer": "Heba Fastighets Aktiebolag",
+      "lei": "549300B1UZTBDU27UJ88",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "HEM.ST": {
+      "industry": "Internet Content & Information",
+      "isin": "SE0015671995",
+      "issuer": "Hemnet Group AB (publ)",
+      "lei": "5493008VIU67J3HUAR07",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "HEXA-B.ST": {
+      "industry": "Scientific & Technical Instruments",
+      "isin": "SE0000103699",
+      "issuer": "Hexagon Aktiebolag",
+      "lei": "549300WJFW6ILNI4TA80",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "HEXI.ST": {
+      "industry": "Engineering & Construction",
+      "isin": null,
+      "issuer": "HEXICON AB",
+      "lei": "9845007784687FEF7569",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "HILB-B.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0016278154",
+      "issuer": "Hilbert Group AB (publ)",
+      "lei": "5493009PL18HHU5PKF66",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "HM-B.ST": {
+      "industry": "Apparel Manufacturing",
+      "isin": "SE0000106270",
+      "issuer": "H & M Hennes & Mauritz AB",
+      "lei": "529900O5RR7R39FRDM42",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "HMS.ST": {
+      "industry": "Communication Equipment",
+      "isin": "SE0009997018",
+      "issuer": "HMS Networks AB",
+      "lei": "549300MOY2FDUUDIQ179",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "HNSA.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0002148817",
+      "issuer": "Hansa Biopharma AB",
+      "lei": "549300LLEO25ZJJ3NT91",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "HOFI.ST": {
+      "industry": "Credit Services",
+      "isin": "SE0006887063",
+      "issuer": "Hoist Finance AB (publ)",
+      "lei": "549300NPK3FB2BEL4D08",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "HOLM-B.ST": {
+      "industry": "Paper & Paper Products",
+      "isin": "SE0000109290",
+      "issuer": "Holmen Aktiebolag",
+      "lei": "52990080SH3454F0QE68",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "HPOL-B.ST": {
+      "industry": "Specialty Chemicals",
+      "isin": "SE0007074281",
+      "issuer": "HEXPOL AB",
+      "lei": "549300MN30TBRLYN3465",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "HTRO.ST": {
+      "industry": "Communication Equipment",
+      "isin": "SE0002367797",
+      "issuer": "Hexatronic Group AB",
+      "lei": "2138001VSY1B4U9JLM82",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "HUFV-A.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0000170375",
+      "issuer": "Hufvudstaden AB",
+      "lei": "213800UEV5ZAFFVQ4J85",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "HUM.ST": {
+      "industry": "Medical Care Facilities",
+      "isin": null,
+      "issuer": "Humana AB",
+      "lei": "549300A5X3MXUDS67N81",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "HUMBLE.ST": {
+      "industry": "Packaged Foods",
+      "isin": null,
+      "issuer": "Humble Group AB",
+      "lei": "54930067DYL82EKQR937",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "HUSQ-B.ST": {
+      "industry": "Tools & Accessories",
+      "isin": "SE0001662230",
+      "issuer": "Husqvarna AB",
+      "lei": "549300GYQIIJ3UXB7655",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "IBT-B.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0008015259",
+      "issuer": "Infant Bacterial Therapeutics AB",
+      "lei": "2138008KVBXCRJGP6Z26",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ICO.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Iconovo AB",
+      "lei": "549300CH7SEE52V2WD15",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "IMMNOV.ST": {
+      "industry": "Diagnostics & Research",
+      "isin": "SE0006091997",
+      "issuer": "Immunovia AB (publ)",
+      "lei": "549300KHWL6KK1XGUO81",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "IMMU.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Mendus AB (publ)",
+      "lei": "529900AFBGFR7ZB50J95",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "IMP-A-SDB.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "IMPLANTICA AG",
+      "lei": "5493007VLX358PSHF006",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "IMPC.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "Impact Coatings AB (publ)",
+      "lei": "549300FYU5MJQU32ZU47",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "INDT.ST": {
+      "industry": "Industrial Distribution",
+      "isin": "SE0001515552",
+      "issuer": "Indutrade Aktiebolag",
+      "lei": "549300FISLQ6CEFP1867",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "INDU-C.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0000107203",
+      "issuer": "Aktiebolaget Industrivärden",
+      "lei": "549300TM1DLIQI3B3T37",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "INQ.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": null,
+      "issuer": "Anoto Group AB",
+      "lei": "54930036ZLGZG0G19M24",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "INSTAL.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0009664253",
+      "issuer": "Instalco AB",
+      "lei": "549300DZ9ONT2AXY4029",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "INTEA-D.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "Intea Fastigheter AB (publ)",
+      "lei": "549300KD3XGX3754UW61",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "INTEG-B.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Integrum AB",
+      "lei": "549300L5CG5PX4514U49",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "INTRUM.ST": {
+      "industry": "Credit Services",
+      "isin": "SE0000936478",
+      "issuer": "Intrum AB",
+      "lei": "549300UNCO2FCUWXX470",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "INVE-B.ST": {
+      "industry": "Asset Management",
+      "isin": null,
+      "issuer": "Investor Aktiebolag",
+      "lei": "549300VEBQPHRZBKUX38",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "INWI.ST": {
+      "industry": "Building Products & Equipment",
+      "isin": "SE0006220018",
+      "issuer": "Inwido AB (publ)",
+      "lei": "529900A9NKQW5UTHBG13",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "IPCO.ST": {
+      "industry": "Oil & Gas E&P",
+      "isin": "CA46016U1084",
+      "issuer": "INTERNATIONAL PETROLEUM CORPORATION",
+      "lei": "54930025D80LU0SMR645",
+      "sector": "Energy",
+      "source": "Yahoo Finance"
+    },
+    "IRIS.ST": {
+      "industry": "Security & Protection Services",
+      "isin": null,
+      "issuer": "Irisity AB (publ)",
+      "lei": "529900JYCV3JMCOGGU35",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "IS.ST": {
+      "industry": "Consumer Electronics",
+      "isin": null,
+      "issuer": "Image Systems AB",
+      "lei": "529900N708O043JCCO23",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ISOFOL.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Isofol Medical AB (publ)",
+      "lei": "549300MCXYAHG7VBHX75",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ITAB.ST": {
+      "industry": "Business Equipment & Supplies",
+      "isin": null,
+      "issuer": "ITAB Group AB",
+      "lei": "2138001H6FCSZBP26351",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ITECH.ST": {
+      "industry": "Specialty Chemicals",
+      "isin": null,
+      "issuer": "I-Tech AB",
+      "lei": "5493006L8302F0JKRN75",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "IVACC.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Intervacc AB",
+      "lei": "549300OICIVZBBZRNZ64",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "IVSO.ST": {
+      "industry": "Communication Equipment",
+      "isin": "SE0001200015",
+      "issuer": "INVISIO AB",
+      "lei": "54930054EB7KX3MY2Q11",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "JM.ST": {
+      "industry": "Residential Construction",
+      "isin": "SE0000806994",
+      "issuer": "JM AB",
+      "lei": "529900X0UEM9DOM6FK12",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "K33.ST": {
+      "industry": "Capital Markets",
+      "isin": "SE0007614722",
+      "issuer": "Arcane Crypto AB",
+      "lei": "549300O9UB56DF0JPH61",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "KAMBI.ST": {
+      "industry": "Gambling",
+      "isin": "MT0000780107",
+      "issuer": "KAMBI GROUP PLC",
+      "lei": "2138003TN71ZS4RHIJ87",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "KAR.ST": {
+      "industry": "Specialty Business Services",
+      "isin": "SE0012323715",
+      "issuer": "Karnov Group AB (publ)",
+      "lei": "549300P7312749LJS754",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "KEBNI-B.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": null,
+      "issuer": "KebNi AB (publ)",
+      "lei": "549300UWE2XN3O7TXX74",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "KFAST-B.ST": {
+      "industry": "Residential Construction",
+      "isin": null,
+      "issuer": "K-Fast Holding AB",
+      "lei": "549300VT0UXKWES37P59",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "KINV-B.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0015810247",
+      "issuer": "Kinnevik AB",
+      "lei": "2138006PZH76JOS6MN27",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "KJELL.ST": {
+      "industry": "Consumer Electronics",
+      "isin": "SE0016797591",
+      "issuer": "Kjell Group AB (publ)",
+      "lei": "549300NRNTB6O4IKO841",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "KLARA-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0010832287",
+      "issuer": "KlaraBo Sverige AB",
+      "lei": "5493001FIOIXOKMHG857",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "KNOW.ST": {
+      "industry": "Information Technology Services",
+      "isin": "SE0000421273",
+      "issuer": "Knowit Aktiebolag (publ)",
+      "lei": "549300CM6KSG2GY3HV62",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "LAGR-B.ST": {
+      "industry": "Conglomerates",
+      "isin": null,
+      "issuer": "Lagercrantz Group Aktiebolag",
+      "lei": "5493002L6I4YHANEYR87",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "LATO-B.ST": {
+      "industry": "Conglomerates",
+      "isin": "SE0010100958",
+      "issuer": "Investmentaktiebolaget Latour",
+      "lei": "5493006GFBLNB3Y0Y789",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "LIAB.ST": {
+      "industry": "Building Products & Equipment",
+      "isin": "SE0001852419",
+      "issuer": "Lindab International AB",
+      "lei": "54930085MH6IRQ1JP227",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "LIFCO-B.ST": {
+      "industry": "Conglomerates",
+      "isin": "SE0015949201",
+      "issuer": "Lifco AB (publ)",
+      "lei": "549300RTLL4VDQRCTW41",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "LIME.ST": {
+      "industry": "Software - Application",
+      "isin": "SE0011870195",
+      "issuer": "Lime Technologies AB (publ)",
+      "lei": "5493008UUFYDF3ZTHC65",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "LOGI-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0017083207",
+      "issuer": "Logistea AB",
+      "lei": "549300ZSB0ZCKM1SL747",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "LOOMIS.ST": {
+      "industry": "Security & Protection Services",
+      "isin": "SE0002683557",
+      "issuer": "Loomis AB",
+      "lei": "213800NS2XXVRYS7WP40",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "LUN.TO": {
+      "industry": "Copper",
+      "isin": null,
+      "issuer": "Lundin Mining Corporation",
+      "lei": "549300FQDIM6C8HTN269",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "LUND-B.ST": {
+      "industry": "Conglomerates",
+      "isin": null,
+      "issuer": "L E Lundbergföretagen Aktiebolag (publ)",
+      "lei": "529900BPSFZS6O3A9R04",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "LYKO-A.ST": {
+      "industry": "Household & Personal Products",
+      "isin": null,
+      "issuer": "Lyko Group AB (publ)",
+      "lei": "549300W7BBMEX4JO8495",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "MANTEX.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "Mantex Aktiebolag",
+      "lei": "549300CUQ0FYU2MBDD17",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "MCAP.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "MedCap AB (publ)",
+      "lei": "549300NGO5XAJ6TL8719",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "MCOV-B.ST": {
+      "industry": "Medical Care Facilities",
+      "isin": null,
+      "issuer": "Medicover AB",
+      "lei": "5493000E9BUOYMOW2K53",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "MEKO.ST": {
+      "industry": "Auto Parts",
+      "isin": "SE0002110064",
+      "issuer": "MEKO AB",
+      "lei": "529900R809HC1RFRQA91",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "MER.ST": {
+      "industry": "Oil & Gas E&P",
+      "isin": "CA00829Q1019",
+      "issuer": "Africa Oil Corp.",
+      "lei": "549300071188HIDJEB11",
+      "sector": "Energy",
+      "source": "Yahoo Finance"
+    },
+    "MIDS.ST": {
+      "industry": "Solar",
+      "isin": "SE0011281757",
+      "issuer": "Midsummer AB",
+      "lei": "549300ZOWFLNDFSHNB56",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "MILDEF.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": "SE0016074249",
+      "issuer": "MilDef Group AB",
+      "lei": "9845009F7Q0D56B38270",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "MINEST.ST": {
+      "industry": "Utilities - Renewable",
+      "isin": null,
+      "issuer": "Minesto AB",
+      "lei": "529900U9GE0JYU3PUP93",
+      "sector": "Utilities",
+      "source": "Yahoo Finance"
+    },
+    "MIPS.ST": {
+      "industry": "Leisure",
+      "isin": "SE0009216278",
+      "issuer": "Mips AB",
+      "lei": "549300LZSA4S0L54VQ25",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "MMGR-B.ST": {
+      "industry": "Industrial Distribution",
+      "isin": "SE0009922305",
+      "issuer": "Momentum Group AB",
+      "lei": "549300QOHUWQMD9G3757",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "MOB.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": "SE0013121340",
+      "issuer": "Moberg Pharma AB (publ)",
+      "lei": "549300XFXK7DVGDRP410",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "MOMENT.ST": {
+      "industry": "Entertainment",
+      "isin": null,
+      "issuer": "MOMENT GROUP AB",
+      "lei": "549300VNTTR22XK8DM54",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "MSAB-B.ST": {
+      "industry": "Software - Application",
+      "isin": null,
+      "issuer": "Micro Systemation AB (publ)",
+      "lei": "549300BVH5NT4MN90561",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "MTG-B.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0000412371",
+      "issuer": "Modern Times Group MTG AB",
+      "lei": "549300E8NDODRSX29339",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "MTRS.ST": {
+      "industry": "Pollution & Treatment Controls",
+      "isin": "SE0009806607",
+      "issuer": "Munters Group AB",
+      "lei": "549300KYCB37YAVUV523",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "MVIR.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0000273294",
+      "issuer": "Medivir Aktiebolag",
+      "lei": "549300VWDGUX0WMJ1T79",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "MYCR.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": "SE0000375115",
+      "issuer": "Mycronic AB (publ)",
+      "lei": "549300S5CCFESE4C6Y07",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "N170.F": {
+      "industry": "Household & Personal Products",
+      "isin": null,
+      "issuer": "Clemondo Group AB (publ)",
+      "lei": "549300AJ172TXRYCYX42",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "NANEXA.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": null,
+      "issuer": "Nanexa AB",
+      "lei": "549300J5L2ECZTLID491",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "NCAB.ST": {
+      "industry": "Electronic Components",
+      "isin": "SE0017160773",
+      "issuer": "NCAB Group AB (publ)",
+      "lei": "549300RUPCK2N43ES354",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "NCC-B.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0000117970",
+      "issuer": "NCC Aktiebolag",
+      "lei": "213800WRGLW3CY4MHW53",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "NDA-SE.ST": {
+      "industry": "Banks - Regional",
+      "isin": "FI4000297767",
+      "issuer": "Nordea Bank Abp",
+      "lei": "529900ODI3047E2LIV03",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "NELLY.ST": {
+      "industry": "Apparel Retail",
+      "isin": "SE0015245535",
+      "issuer": "Nelly Group AB (publ)",
+      "lei": "549300TY1ZF7FQEF0552",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "NEOBO.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0005034550",
+      "issuer": "Neobo Fastigheter AB (publ)",
+      "lei": "213800QBPS3L89U9TZ44",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "NETI-B.ST": {
+      "industry": "Communication Equipment",
+      "isin": "SE0000366098",
+      "issuer": "Net Insight AB",
+      "lei": "549300BMCT8IT2CFDH63",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "NEWA-B.ST": {
+      "industry": "Specialty Retail",
+      "isin": "SE0000426546",
+      "issuer": "New Wave Group AB",
+      "lei": "5493006EIYZZYQILKS31",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "NEXAM.ST": {
+      "industry": "Specialty Chemicals",
+      "isin": null,
+      "issuer": "Nexam Chemical Holding AB",
+      "lei": "213800JKT38J2VSPJV88",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "NIBE-B.ST": {
+      "industry": "Building Products & Equipment",
+      "isin": "SE0008321293",
+      "issuer": "NIBE Industrier AB",
+      "lei": "549300ZQH0FIF1P0MX67",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "NMAN.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "Nederman Holding Aktiebolag",
+      "lei": "54930030A8V6LH0G1Z92",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "NOBA.ST": {
+      "industry": "Banks - Diversified",
+      "isin": null,
+      "issuer": "NOBA Bank Group AB (publ)",
+      "lei": "21380057HUGFEAF25W84",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "NOBI.ST": {
+      "industry": "Furnishings, Fixtures & Appliances",
+      "isin": "SE0000949331",
+      "issuer": "Nobia AB",
+      "lei": "529900MZ8Y3QGPDF6815",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "NORION.ST": {
+      "industry": "Banks - Regional",
+      "isin": "SE0017831795",
+      "issuer": "Collector Bank AB",
+      "lei": "529900AGWAKUTYNETM62",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "NOTE.ST": {
+      "industry": "Electronic Components",
+      "isin": "SE0001161654",
+      "issuer": "NOTE AB (publ)",
+      "lei": "54930038JVQ3CMTEO084",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "NP3.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "NP3 Fastigheter AB",
+      "lei": "549300MGVITW8GYJHZ50",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "NREST.ST": {
+      "industry": "Restaurants",
+      "isin": null,
+      "issuer": "Nordrest Holding AB",
+      "lei": "549300WNKQRREHXMT018",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "NXTCL.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "NextCell Pharma AB",
+      "lei": "549300PBFGB5JYKXGA45",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "O33.F": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Glycorex Transplantation AB (publ)",
+      "lei": "549300BFHBYZ3X96EP25",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "OMA.F": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": null,
+      "issuer": "Vivesto AB",
+      "lei": "5493003TZPR4B7QO9L49",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ONCO.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0009414576",
+      "issuer": "Oncopeptides AB",
+      "lei": "549300J9WWQ5CBYQ1M77",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "OPTI.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "OptiCept Technologies AB",
+      "lei": "549300NRD3YRN5X6RL95",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ORRON.ST": {
+      "industry": "Utilities - Renewable",
+      "isin": "SE0000825820",
+      "issuer": "Orrön Energy AB",
+      "lei": "549300IULC8F8IGXKI15",
+      "sector": "Utilities",
+      "source": "Yahoo Finance"
+    },
+    "ORTI-B.ST": {
+      "industry": "Medical Instruments & Supplies",
+      "isin": null,
+      "issuer": "Ortivus Aktiebolag",
+      "lei": "549300AVDV7UC14MTH79",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "ORX.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": "SE0000736415",
+      "issuer": "Orexo AB",
+      "lei": "549300LJ5CCWDPTK9Z08",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "OSSD.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0012570448",
+      "issuer": "OssDsign AB",
+      "lei": "5493005SNS5NAYE2WL53",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "OVZON.ST": {
+      "industry": "Telecom Services",
+      "isin": "SE0010948711",
+      "issuer": "Ovzon AB (publ)",
+      "lei": "549300U82F1HQRSTYZ66",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "PACT.ST": {
+      "industry": "Information Technology Services",
+      "isin": "SE0015961222",
+      "issuer": "Proact IT Group AB",
+      "lei": "549300HMPIC1B86ZHC96",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "PCELL.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": "SE0006425815",
+      "issuer": "Powercell Sweden AB (publ)",
+      "lei": "54930075IJ7TGOK3VC02",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "PDX.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0008294953",
+      "issuer": "Paradox Interactive AB (publ)",
+      "lei": "529900QNSZUY53R5WW95",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "PEAB-B.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0000106205",
+      "issuer": "Peab AB",
+      "lei": "549300FQS4VD3153I854",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "PIERCE.ST": {
+      "industry": "Auto Parts",
+      "isin": null,
+      "issuer": "Pierce Group AB (publ)",
+      "lei": "54930082SM8KO7LCER77",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "PLAZ-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "Platzer Fastigheter Holding AB (publ)",
+      "lei": "5493009KPII4BZE70820",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "PLEJD.ST": {
+      "industry": "Electrical Equipment & Parts",
+      "isin": "SE0008014476",
+      "issuer": "Plejd AB",
+      "lei": "549300AOUXS7RTR3OV14",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "POLYG.ST": {
+      "industry": "Specialty Chemicals",
+      "isin": null,
+      "issuer": "Polygiene Group AB",
+      "lei": "549300C17W4NO12E4Q14",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "PREC.ST": {
+      "industry": "Security & Protection Services",
+      "isin": null,
+      "issuer": "Precise Biometrics AB",
+      "lei": "54930047Z8TEBJTKYX74",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "PREV-B.ST": {
+      "industry": "Information Technology Services",
+      "isin": null,
+      "issuer": "Prevas Aktiebolag",
+      "lei": "5493007FF9DNP5DUJQ78",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "PRIC-B.ST": {
+      "industry": "Business Equipment & Supplies",
+      "isin": null,
+      "issuer": "Pricer Aktiebolag",
+      "lei": "5493000MATG2DYK19F35",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "PROGEN.ST": {
+      "industry": "Diagnostics & Research",
+      "isin": null,
+      "issuer": "Prostatype Genomics AB",
+      "lei": "549300JO6MPCGPVHVU91",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "PUBLI.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "PPI Public Property Invest AB (publ)",
+      "lei": "636700M0RW88QPM7RG19",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "QBEN.ST": {
+      "industry": "Engineering & Construction",
+      "isin": null,
+      "issuer": "Qben Infra AB",
+      "lei": "63670040DI2BH2FUHG07",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "QIIWI.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": null,
+      "issuer": "Qiiwi Games AB (publ)",
+      "lei": "549300COFKF5IYO65Z50",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "QLIFE.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Qlife Holding AB",
+      "lei": "8945004IFHG6OZ3P8239",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "QLINEA.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0011527845",
+      "issuer": "Q-linea AB",
+      "lei": "549300BXVB4XRM8WSC73",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "QLIRO.ST": {
+      "industry": "Credit Services",
+      "isin": null,
+      "issuer": "Qliro AB",
+      "lei": "2138006QFV6OJMYQC847",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "RAKE.ST": {
+      "industry": "Advertising Agencies",
+      "isin": null,
+      "issuer": "Raketech Group Holding Limited",
+      "lei": "48510000OEBNE6ZZRY63",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "RATO-B.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0000111940",
+      "issuer": "Ratos AB",
+      "lei": "2138008KECUUB9VR4798",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "RAY-B.ST": {
+      "industry": "Health Information Services",
+      "isin": "SE0000135485",
+      "issuer": "RaySearch Laboratories AB (publ)",
+      "lei": "549300TYFVYGS0JFWM28",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "REALFI.ST": {
+      "industry": "Computer Hardware",
+      "isin": null,
+      "issuer": "Realfiction Holding AB",
+      "lei": "549300AZCIZU2QRKEZ19",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "REJL-B.ST": {
+      "industry": "Consulting Services",
+      "isin": "SE0000123671",
+      "issuer": "Rejlers AB (publ)",
+      "lei": "549300K5464VN6QLVB64",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "ROKO-B.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0023950795",
+      "issuer": "Röko AB (publ)",
+      "lei": "549300X76X1DK285JB13",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "RROS.ST": {
+      "industry": "Paper & Paper Products",
+      "isin": null,
+      "issuer": "Rottneros AB",
+      "lei": "213800DM8OBVX8QWUR14",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "RUSTA.ST": {
+      "industry": "Department Stores",
+      "isin": "SE0020848356",
+      "issuer": "Rusta AB (publ)",
+      "lei": "549300V512S3QMRNO618",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "RVRC.ST": {
+      "industry": "Apparel Retail",
+      "isin": "SE0015962485",
+      "issuer": "RVRC Holding AB",
+      "lei": "549300YU7003VHQV3J57",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "SAAB-B.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": "SE0000112385",
+      "issuer": "SAAB Aktiebolag",
+      "lei": "549300ZHO4JCQQI13M69",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SAGA-D.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0005127818",
+      "issuer": "AB Sagax",
+      "lei": "549300LJX28T6OM8DT95",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "SALT-B.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "SaltX Technology Holding AB (publ)",
+      "lei": "549300W31010S0FY9U64",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SAND.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": "SE0000667891",
+      "issuer": "Sandvik Aktiebolag",
+      "lei": "5299008ZUAXN43LVZF54",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SANION.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0005794617",
+      "issuer": "Saniona AB",
+      "lei": "549300XO4L9XNOCFCZ84",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SAVE.ST": {
+      "industry": "Capital Markets",
+      "isin": "SE0015192067",
+      "issuer": "Nordnet AB (publ)",
+      "lei": "549300D6WW5ZTWLZ4C08",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "SBB-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0009554454",
+      "issuer": "Samhällsbyggnadsbolaget i Norden AB",
+      "lei": "549300HX9MRFY47AH564",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "SCA-B.ST": {
+      "industry": "Paper & Paper Products",
+      "isin": null,
+      "issuer": "Aktiebolaget Volvo",
+      "lei": "549300HGV012CNC8JD22",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "SCIB.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "SciBase Holding AB (publ)",
+      "lei": "549300IY6ZWVN0V2P455",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SCST.ST": {
+      "industry": "Packaged Foods",
+      "isin": null,
+      "issuer": "Scandi Standard AB (publ)",
+      "lei": "5493006VHH78UQJVF844",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "SDIP-B.ST": {
+      "industry": "Conglomerates",
+      "isin": "SE0003756758",
+      "issuer": "Sdiptech AB (publ)",
+      "lei": "549300JBO7VTEGMRW310",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SEB-C.ST": {
+      "industry": "Banks - Regional",
+      "isin": "SE0000148884",
+      "issuer": "Skandinaviska Enskilda Banken AB",
+      "lei": "F3JS33DEI6XQ4ZBPTN86",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "SECARE.ST": {
+      "industry": "Packaged Foods",
+      "isin": "SE0015988167",
+      "issuer": "Swedencare AB (publ)",
+      "lei": "549300FZT7YIF6SWX789",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    },
+    "SECT-B.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0012853661",
+      "issuer": "SECTRA Aktiebolag",
+      "lei": "549300R9ZBT8YSFFK266",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SECU-B.ST": {
+      "industry": "Security & Protection Services",
+      "isin": "SE0000163594",
+      "issuer": "Securitas AB",
+      "lei": "635400TTYKE8EIWDS617",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SEDANA.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0015988373",
+      "issuer": "Sedana Medical AB (publ)",
+      "lei": "549300FQ3NJRI56LCX32",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SERT.ST": {
+      "industry": "Chemicals",
+      "isin": null,
+      "issuer": "Serstech AB",
+      "lei": "549300V74XQ05PK42789",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "SES.ST": {
+      "industry": "Waste Management",
+      "isin": null,
+      "issuer": "Scandinavian Enviro Systems AB",
+      "lei": "549300Y61O5J9OHX6M22",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SEYE.ST": {
+      "industry": "Software - Application",
+      "isin": "SE0009268279",
+      "issuer": "Smart Eye Aktiebolag (publ)",
+      "lei": "549300BUD7ZPFPKM6856",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "SEZI.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "Senzime AB (publ.)",
+      "lei": "549300JQF174JP0MM382",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SF.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": "SE0015346135",
+      "issuer": "Stillfront Group AB (publ)",
+      "lei": "529900SYKCO4GYBTIJ54",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "SGG.ST": {
+      "industry": "Scientific & Technical Instruments",
+      "isin": null,
+      "issuer": "Sensys Gatso Group AB",
+      "lei": "5493008GYHJL9PWTC395",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "SHB-B.ST": {
+      "industry": "Banks - Diversified",
+      "isin": "SE0007100599",
+      "issuer": "Svenska Handelsbanken AB",
+      "lei": "NHBDILHZTYCNBV5UYZ31",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "SHOT.ST": {
+      "industry": "Lodging",
+      "isin": "SE0007640156",
+      "issuer": "Scandic Hotels Group AB",
+      "lei": "529900JY9ZBGUXGRKQ86",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "SILEX.ST": {
+      "industry": "Semiconductor Equipment & Materials",
+      "isin": null,
+      "issuer": "Silex Microsystems AB",
+      "lei": "549300Y2GKW0KQ2I5O12",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "SINCH.ST": {
+      "industry": "Telecom Services",
+      "isin": "SE0007439112",
+      "issuer": "Sinch AB (publ)",
+      "lei": "549300UXY7QM6IDCGI12",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "SINT.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": null,
+      "issuer": "SinterCast Aktiebolag",
+      "lei": "549300365FORUXLUWL17",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SIVE.ST": {
+      "industry": "Semiconductors",
+      "isin": null,
+      "issuer": "WeSports Scandinavia AB",
+      "lei": "549300BWNI7ZPOHOHV76",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "SKA-B.ST": {
+      "industry": "Engineering & Construction",
+      "isin": "SE0000113250",
+      "issuer": "Skanska AB",
+      "lei": "549300UINV5RINHGMG07",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SKIS-B.ST": {
+      "industry": "Resorts & Casinos",
+      "isin": "SE0000241614",
+      "issuer": "SkiStar Aktiebolag",
+      "lei": "529900CD7HSJ1CZS7089",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "SLP-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": null,
+      "issuer": "Swedish Logistic Property AB",
+      "lei": "254900AWRHP1QNE6OQ19",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "SOBI.ST": {
+      "industry": "Drug Manufacturers - Specialty & Generic",
+      "isin": "SE0000872095",
+      "issuer": "Swedish Orphan Biovitrum AB (publ)",
+      "lei": "549300124Y3MQI87PT35",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SOLT.ST": {
+      "industry": "Solar",
+      "isin": null,
+      "issuer": "Soltech Energy Sweden AB (publ)",
+      "lei": "549300RFE1X384DWQW10",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "SPEC.ST": {
+      "industry": "Medical Devices",
+      "isin": null,
+      "issuer": "SpectraCure AB (publ)",
+      "lei": "549300U3BMSZ5VGYC283",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SPEONE.ST": {
+      "industry": "Software - Application",
+      "isin": null,
+      "issuer": "Spectrumone AB (publ)",
+      "lei": "5493006IXI2WQFYF2052",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "SPRINT.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Sprint Bioscience AB",
+      "lei": "5493006ED74WIIQOKC56",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SSAB-B.ST": {
+      "industry": "Steel",
+      "isin": "SE0000120669",
+      "issuer": "SSAB AB",
+      "lei": "529900329VS14ZIML164",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "STAR-B.ST": {
+      "industry": "Electronic Gaming & Multimedia",
+      "isin": null,
+      "issuer": "Starbreeze AB",
+      "lei": "213800T68IVZFR868L42",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "STOR-B.ST": {
+      "industry": "Conglomerates",
+      "isin": "SE0016797732",
+      "issuer": "Storskogen Group AB (publ)",
+      "lei": "549300DL3K4HLJ41KD24",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "STORY-B.ST": {
+      "industry": "Publishing",
+      "isin": "SE0007439443",
+      "issuer": "Storytel AB (publ)",
+      "lei": "549300I1FSPPI9HHU419",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "SUS.ST": {
+      "industry": "Health Information Services",
+      "isin": "SE0014428512",
+      "issuer": "Surgical Science Sweden AB",
+      "lei": "549300YROAI18G6JL885",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SVEAF.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0022243812",
+      "issuer": "Sveafastigheter AB (publ)",
+      "lei": "636700W1VM86O2G2AA36",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "SVED-B.ST": {
+      "industry": "Building Products & Equipment",
+      "isin": null,
+      "issuer": "Svedbergs Group AB",
+      "lei": "549300233PQ1UWNYVK79",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SVIK.ST": {
+      "industry": "Waste Management",
+      "isin": "SE0000653230",
+      "issuer": "Studsvik AB",
+      "lei": "549300MLJ046XFQNVH42",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SVOL-B.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0017161458",
+      "issuer": "Svolder Aktiebolag",
+      "lei": "5493006ZVS6SHCKH6I37",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "SWEC-B.ST": {
+      "industry": "Engineering & Construction",
+      "isin": null,
+      "issuer": "SWECO AB (publ)",
+      "lei": "549300Q4Y55VICYV6U90",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "SWED-A.ST": {
+      "industry": "Banks - Regional",
+      "isin": "SE0000242455",
+      "issuer": "Swedbank AB",
+      "lei": "M312WZV08Y7LYUC71685",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "SYNACT.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0008241491",
+      "issuer": "SynAct Pharma AB",
+      "lei": "549300RRYIEFEQ72N546",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "SYNSAM.ST": {
+      "industry": "Medical Instruments & Supplies",
+      "isin": "SE0016829709",
+      "issuer": "Synsam AB (publ)",
+      "lei": "5493000TMEGW9DHNOQ70",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "TEL2-B.ST": {
+      "industry": "Telecom Services",
+      "isin": "SE0005190238",
+      "issuer": "Tele2 AB",
+      "lei": "213800EKD193RVI9HL76",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "TELIA.ST": {
+      "industry": "Telecom Services",
+      "isin": "SE0000667925",
+      "issuer": "Telia Company AB",
+      "lei": "213800FSR9RNDUOTXO25",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "THULE.ST": {
+      "industry": "Leisure",
+      "isin": "SE0006422390",
+      "issuer": "Thule Group AB",
+      "lei": "549300XHHOGBOERKU333",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "TIGO": {
+      "industry": "Telecom Services",
+      "isin": "LU0038705702",
+      "issuer": "Millicom International Cellular S.A.",
+      "lei": "549300CTHC1CP86P2G96",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "TOBII.ST": {
+      "industry": "Computer Hardware",
+      "isin": "SE0002591420",
+      "issuer": "Tobii AB",
+      "lei": "54930045LD4XTJCBGS35",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "TRANS.ST": {
+      "industry": "Telecom Services",
+      "isin": null,
+      "issuer": "Transtema Group AB",
+      "lei": "549300XR2VLTQY3P8M69",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "TREL-B.ST": {
+      "industry": "Specialty Industrial Machinery",
+      "isin": "SE0000114837",
+      "issuer": "Trelleborg AB",
+      "lei": "213800XY16PAWG2PAD14",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "TROAX.ST": {
+      "industry": "Metal Fabrication",
+      "isin": "SE0012729366",
+      "issuer": "Troax Group AB (publ)",
+      "lei": "5493003TBEWGBIEG1X97",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "TRUE-B.ST": {
+      "industry": "Software - Application",
+      "isin": "SE0016787071",
+      "issuer": "Truecaller AB",
+      "lei": "549300TEYF1FA5G5GK26",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "UNIBAP.ST": {
+      "industry": "Electronic Components",
+      "isin": null,
+      "issuer": "Unibap Space Solutions AB (publ)",
+      "lei": "549300PP3RLB9ZEF2K25",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "VBG-B.ST": {
+      "industry": "Auto Parts",
+      "isin": null,
+      "issuer": "VBG GROUP AB (publ)",
+      "lei": "549300O1V2ZWY6W9GZ14",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "VEFAB.ST": {
+      "industry": "Asset Management",
+      "isin": null,
+      "issuer": "VEF AB (publ)",
+      "lei": "549300GLLHHE80RQ2Y24",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "VER.ST": {
+      "industry": "Software - Application",
+      "isin": "SE0018538068",
+      "issuer": "MGI - Media and Games Invest SE",
+      "lei": "391200UIIWMXRLGARB95",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "VICO.ST": {
+      "industry": "Biotechnology",
+      "isin": "SE0007577895",
+      "issuer": "Vicore Pharma Holding AB",
+      "lei": "549300KTNBPTZLF01130",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "VIMIAN.ST": {
+      "industry": "Diagnostics & Research",
+      "isin": null,
+      "issuer": "Vimian Group AB",
+      "lei": "549300OQ8R5TCAP0BS18",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "VISC.ST": {
+      "industry": "Other Industrial Metals & Mining",
+      "isin": "SE0021148160",
+      "issuer": "Gruvaktiebolaget Viscaria",
+      "lei": "5299004NWV90GIWSWQ04",
+      "sector": "Basic Materials",
+      "source": "Yahoo Finance"
+    },
+    "VIT-B.ST": {
+      "industry": "Software - Application",
+      "isin": "SE0007871363",
+      "issuer": "Vitec Software Group AB (publ)",
+      "lei": "5493005EB5RV1QHE6H94",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "VITR.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0011205202",
+      "issuer": "Vitrolife AB",
+      "lei": "5493001WDZMONMSPPR49",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "VNV.ST": {
+      "industry": "Asset Management",
+      "isin": "SE0014428835",
+      "issuer": "VNV Global AB (publ)",
+      "lei": "549300ONMNSTOBAU0S14",
+      "sector": "Financial Services",
+      "source": "Yahoo Finance"
+    },
+    "VOLCAR-B.ST": {
+      "industry": "Auto Manufacturers",
+      "isin": "SE0016844831",
+      "issuer": "Volvo Car AB",
+      "lei": "5299000EAMGGBEYP7J33",
+      "sector": "Consumer Cyclical",
+      "source": "Yahoo Finance"
+    },
+    "VOLO.ST": {
+      "industry": "Conglomerates",
+      "isin": "SE0009143662",
+      "issuer": "Volati AB",
+      "lei": "529900R2YHW43H9B4342",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "VPLAY-B.ST": {
+      "industry": "Entertainment",
+      "isin": "SE0012116390",
+      "issuer": "Viaplay Group AB (publ)",
+      "lei": "5493006E0IJD0DHJSR89",
+      "sector": "Communication Services",
+      "source": "Yahoo Finance"
+    },
+    "VSSAB-B.ST": {
+      "industry": "Marine Shipping",
+      "isin": null,
+      "issuer": "Viking Supply Ships AB",
+      "lei": "549300EE66H3WO5AYK71",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "VSURE.ST": {
+      "industry": "Security & Protection Services",
+      "isin": "GB00BVMN1558",
+      "issuer": "Verisure plc",
+      "lei": "636700ZY9PP0NGXTA943",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "W5.ST": {
+      "industry": "Aerospace & Defense",
+      "isin": null,
+      "issuer": "W5 Solutions AB (publ)",
+      "lei": "549300JKE3X3UFP08232",
+      "sector": "Industrials",
+      "source": "Yahoo Finance"
+    },
+    "WALL-B.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0017780133",
+      "issuer": "Wallenstam AB",
+      "lei": "21380081R2P9MKFQBD25",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "WAYS.ST": {
+      "industry": "Communication Equipment",
+      "isin": null,
+      "issuer": "Waystream Holding AB (publ)",
+      "lei": "549300BOC6GHWDSJ6X83",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "WIHL.ST": {
+      "industry": "Real Estate Services",
+      "isin": "SE0018012635",
+      "issuer": "Wihlborgs Fastigheter AB",
+      "lei": "549300RC1YDJPITF8X06",
+      "sector": "Real Estate",
+      "source": "Yahoo Finance"
+    },
+    "WPTG-B.ST": {
+      "industry": "Information Technology Services",
+      "isin": null,
+      "issuer": "White Pearl Technology Group AB",
+      "lei": "549300TBIFK8VYIJEM39",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "WYLD.ST": {
+      "industry": "Information Technology Services",
+      "isin": "SE0015812516",
+      "issuer": "Wyld Networks AB",
+      "lei": "984500E76A454BADAI39",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "XBRANE.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Xbrane Biopharma AB",
+      "lei": "5493008DKD05APTKQO39",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "XINT.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Xintela AB",
+      "lei": "549300SMDH1EOLCBQU68",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "XSPRAY.ST": {
+      "industry": "Biotechnology",
+      "isin": null,
+      "issuer": "Xspray Pharma AB (publ)",
+      "lei": "549300NGRQCNZ3X4L157",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "XVIVO.ST": {
+      "industry": "Medical Devices",
+      "isin": "SE0004840718",
+      "issuer": "Xvivo Perfusion Aktiebolag",
+      "lei": "549300G2464FYLS14B41",
+      "sector": "Healthcare",
+      "source": "Yahoo Finance"
+    },
+    "YUBICO.ST": {
+      "industry": "Software - Infrastructure",
+      "isin": "SE0015657788",
+      "issuer": "Yubico AB",
+      "lei": "549300I9RBIU9DW59H39",
+      "sector": "Technology",
+      "source": "Yahoo Finance"
+    },
+    "ZZ-B.ST": {
+      "industry": "Packaged Foods",
+      "isin": "SE0002480442",
+      "issuer": "ZinZino Holding AB",
+      "lei": "549300Z20D1BP4MA0040",
+      "sector": "Consumer Defensive",
+      "source": "Yahoo Finance"
+    }
+  },
+  "source": "Yahoo Finance",
+  "version": 1
 }
