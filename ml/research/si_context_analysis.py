@@ -66,22 +66,145 @@ def build_splits() -> list[dict[str, Any]]:
         WALK_FORWARD_WINDOWS,
         start=1,
     ):
+        train_end = pd.Timestamp(
+            window.train_end
+        )
+        validation_end = pd.Timestamp(
+            window.validation_end
+        )
+        test_end = pd.Timestamp(
+            window.test_end
+        )
+
         splits.append(
             {
                 "name": f"window_{index}",
-                "train_end": pd.Timestamp(
-                    window.train_end
-                ),
-                "validation_end": pd.Timestamp(
-                    window.validation_end
-                ),
-                "test_end": pd.Timestamp(
-                    window.test_end
-                ),
+                "train_end": train_end,
+                "validation_end": validation_end,
+                "test_end": test_end,
             }
         )
 
     return splits
+
+
+def evaluation_period(
+    split: dict[str, Any],
+    evaluation_name: str,
+) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """
+    Return the calendar interval represented by an evaluation.
+
+    Validation:
+        (train_end, validation_end]
+
+    Test:
+        (validation_end, test_end]
+    """
+    if evaluation_name == "validation":
+        return (
+            split["train_end"],
+            split["validation_end"],
+        )
+
+    if evaluation_name == "test":
+        return (
+            split["validation_end"],
+            split["test_end"],
+        )
+
+    raise ValueError(
+        f"Unknown evaluation name: {evaluation_name}"
+    )
+
+
+def periods_overlap(
+    start_a: pd.Timestamp,
+    end_a: pd.Timestamp,
+    start_b: pd.Timestamp,
+    end_b: pd.Timestamp,
+) -> bool:
+    """
+    Determine whether two half-open/closed calendar intervals
+    overlap in observations.
+
+    The actual masks use:
+        start < date <= end
+
+    so an identical boundary date is not considered part of
+    both intervals.
+    """
+    return (
+        start_a < end_b
+        and start_b < end_a
+    )
+
+
+def build_evaluation_registry(
+    splits: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Build a registry of every validation/test evaluation.
+
+    This makes overlapping calendar periods explicit. In the
+    current configuration, window_1/test and window_2/validation
+    cover the same 2025 calendar period and therefore are not
+    independent observations.
+    """
+    evaluations: list[dict[str, Any]] = []
+
+    for split in splits:
+        for evaluation_name in (
+            "validation",
+            "test",
+        ):
+            start, end = evaluation_period(
+                split,
+                evaluation_name,
+            )
+
+            evaluations.append(
+                {
+                    "split": split["name"],
+                    "evaluation": evaluation_name,
+                    "start_exclusive": str(
+                        start.date()
+                    ),
+                    "end_inclusive": str(
+                        end.date()
+                    ),
+                    "start": start,
+                    "end": end,
+                }
+            )
+
+    for current in evaluations:
+        overlaps: list[str] = []
+
+        for other in evaluations:
+            if (
+                current["split"] == other["split"]
+                and current["evaluation"]
+                == other["evaluation"]
+            ):
+                continue
+
+            if periods_overlap(
+                current["start"],
+                current["end"],
+                other["start"],
+                other["end"],
+            ):
+                overlaps.append(
+                    f"{other['split']}/"
+                    f"{other['evaluation']}"
+                )
+
+        current["overlaps_with"] = sorted(
+            overlaps
+        )
+
+    return evaluations
 
 
 def cross_sectional_tail_mask(
@@ -879,7 +1002,20 @@ def run_analysis() -> dict[str, Any]:
     interaction_rows: list[dict[str, Any]] = []
     split_status: list[dict[str, Any]] = []
 
-    for split in build_splits():
+    splits = build_splits()
+    evaluation_registry = build_evaluation_registry(
+        splits
+    )
+
+    registry_lookup = {
+        (
+            item["split"],
+            item["evaluation"],
+        ): item
+        for item in evaluation_registry
+    }
+
+    for split in splits:
         masks = build_evaluation_masks(
             frame,
             split,
@@ -896,6 +1032,20 @@ def run_analysis() -> dict[str, Any]:
         test_n = int(
             masks["test"].sum()
         )
+
+        validation_period = registry_lookup[
+            (
+                split["name"],
+                "validation",
+            )
+        ]
+
+        test_period = registry_lookup[
+            (
+                split["name"],
+                "test",
+            )
+        ]
 
         if test_n == 0:
             test_status = (
@@ -928,6 +1078,26 @@ def run_analysis() -> dict[str, Any]:
                 "train_rows": train_n,
                 "validation_rows": validation_n,
                 "test_rows": test_n,
+                "validation_start_exclusive": (
+                    validation_period[
+                        "start_exclusive"
+                    ]
+                ),
+                "validation_end_inclusive": (
+                    validation_period[
+                        "end_inclusive"
+                    ]
+                ),
+                "test_start_exclusive": (
+                    test_period[
+                        "start_exclusive"
+                    ]
+                ),
+                "test_end_inclusive": (
+                    test_period[
+                        "end_inclusive"
+                    ]
+                ),
                 "validation_status": (
                     validation_status
                 ),
@@ -937,6 +1107,16 @@ def run_analysis() -> dict[str, Any]:
                         DISCOVERY_END,
                         split["test_end"],
                     ).date()
+                ),
+                "validation_overlaps_with": (
+                    validation_period[
+                        "overlaps_with"
+                    ]
+                ),
+                "test_overlaps_with": (
+                    test_period[
+                        "overlaps_with"
+                    ]
                 ),
             }
         )
@@ -1013,6 +1193,27 @@ def run_analysis() -> dict[str, Any]:
         if row["test_status"] == "AVAILABLE"
     ]
 
+    independent_test_windows = []
+
+    seen_periods: set[
+        tuple[str, str]
+    ] = set()
+
+    for row in available_test_windows:
+        period = (
+            row["test_start_exclusive"],
+            row["test_end_inclusive"],
+        )
+
+        if period in seen_periods:
+            continue
+
+        seen_periods.add(period)
+
+        independent_test_windows.append(
+            row
+        )
+
     return {
         "analysis": (
             "momentum_conditioned_short_interest"
@@ -1064,9 +1265,23 @@ def run_analysis() -> dict[str, Any]:
                 )
             ),
         },
+        "evaluation_registry": [
+            {
+                key: value
+                for key, value in item.items()
+                if key not in {
+                    "start",
+                    "end",
+                }
+            }
+            for item in evaluation_registry
+        ],
         "split_status": split_status,
         "available_test_windows": (
             available_test_windows
+        ),
+        "independent_test_windows": (
+            independent_test_windows
         ),
         "rows": all_rows,
         "interaction_rows": interaction_rows,
@@ -1136,6 +1351,14 @@ def write_outputs(
         if row["evaluation"] == "test"
     ]
 
+    pd.DataFrame(
+        interaction_test_rows
+    ).to_csv(
+        OUTPUT_DIR
+        / "interaction_test_results.csv",
+        index=False,
+    )
+
     lines = [
         "# Momentum-conditioned Short Interest",
         "",
@@ -1148,8 +1371,8 @@ def write_outputs(
         "",
         "## Data availability",
         "",
-        "| Window | Train rows | Validation rows | Test rows | Validation status | Test status |",
-        "|---|---:|---:|---:|---|---|",
+        "| Window | Train rows | Validation rows | Test rows | Validation period | Test period | Validation status | Test status |",
+        "|---|---:|---:|---:|---|---|---|---|",
     ]
 
     for split in document[
@@ -1161,8 +1384,41 @@ def write_outputs(
             f"{split['train_rows']} | "
             f"{split['validation_rows']} | "
             f"{split['test_rows']} | "
+            f"({split['validation_start_exclusive']}, "
+            f"{split['validation_end_inclusive']}] | "
+            f"({split['test_start_exclusive']}, "
+            f"{split['test_end_inclusive']}] | "
             f"{split['validation_status']} | "
             f"{split['test_status']} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "### Walk-forward overlap",
+            "",
+            "Walk-forward windows can intentionally reuse a calendar "
+            "period in different roles. In the current configuration, "
+            "`window_1/test` and `window_2/validation` cover the same "
+            "2025 period. They therefore must not be treated as two "
+            "independent OOS samples.",
+            "",
+            "| Evaluation | Overlaps with |",
+            "|---|---|",
+        ]
+    )
+
+    for item in document[
+        "evaluation_registry"
+    ]:
+        overlaps = item[
+            "overlaps_with"
+        ]
+
+        lines.append(
+            "| "
+            f"{item['split']}/{item['evaluation']} | "
+            f"{', '.join(overlaps) if overlaps else 'none'} |"
         )
 
     lines.extend(
@@ -1175,16 +1431,26 @@ def write_outputs(
             "",
             "## OOS results",
             "",
-            "| Window | Eval | Prior tail | SI tail | N | High SI N | Other SI N | High SI event rate | Other event rate | Event lift | 5d return diff | 20d return diff |",
-            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Window | Eval | Period | Prior tail | SI tail | N | High SI N | Other SI N | High SI event rate | Other event rate | Event lift | 5d return diff | 20d return diff |",
+            "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
 
     for row in test_rows:
+        split_info = next(
+            item
+            for item in document[
+                "split_status"
+            ]
+            if item["name"] == row["split"]
+        )
+
         lines.append(
             "| "
             f"{row['split']} | "
             f"{row['evaluation']} | "
+            f"({split_info['test_start_exclusive']}, "
+            f"{split_info['test_end_inclusive']}] | "
             f"{row['prior_return_tail']:.3f} | "
             f"{row['si_tail']:.3f} | "
             f"{row['base_n']} | "
@@ -1267,6 +1533,11 @@ def write_outputs(
             "whether the SI effect differs between the high-momentum "
             "and other-momentum regimes.",
             "",
+            "A walk-forward evaluation can appear more than once "
+            "when the same calendar period changes role between "
+            "validation and test in successive windows. Such "
+            "appearances are not independent samples.",
+            "",
             "The configured walk-forward windows may extend beyond "
             "the frozen discovery cutoff. Such future portions are "
             "not evaluated until corresponding observations exist.",
@@ -1312,9 +1583,19 @@ def write_outputs(
                 "available_test_windows"
             ]
         ),
+        "independent_test_window_count": len(
+            document[
+                "independent_test_windows"
+            ]
+        ),
         "walk_forward_windows": (
             document[
                 "split_status"
+            ]
+        ),
+        "evaluation_registry": (
+            document[
+                "evaluation_registry"
             ]
         ),
     }
