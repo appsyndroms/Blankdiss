@@ -462,6 +462,301 @@ def analyse_condition(
     return row
 
 
+def analyse_interaction(
+    frame: pd.DataFrame,
+    target: np.ndarray,
+    si: pd.Series,
+    prior_return: pd.Series,
+    *,
+    prior_tail: float,
+    si_tail: float,
+    base_mask: np.ndarray,
+    split_name: str,
+    evaluation_name: str,
+) -> dict[str, Any]:
+    """
+    Measure the SI x prior-momentum interaction directly.
+
+    Four groups are compared:
+
+        A: high momentum + high SI
+        B: high momentum + other SI
+        C: other momentum + high SI
+        D: other momentum + other SI
+
+    Primary interaction statistic:
+
+        (A - B) - (C - D)
+
+    For the binary target this is the difference in SI event-rate
+    effects between the high-momentum and other-momentum regimes.
+
+    For forward returns it is the corresponding difference in
+    mean-return effects.
+    """
+
+    prior_values = pd.to_numeric(
+        prior_return,
+        errors="coerce",
+    ).to_numpy(
+        dtype=float
+    )
+
+    si_values = pd.to_numeric(
+        si,
+        errors="coerce",
+    ).to_numpy(
+        dtype=float
+    )
+
+    prior_mask = cross_sectional_tail_mask(
+        frame,
+        prior_return,
+        prior_tail,
+        direction="upper",
+    ).to_numpy()
+
+    si_mask = cross_sectional_tail_mask(
+        frame,
+        si,
+        si_tail,
+        direction="upper",
+    ).to_numpy()
+
+    valid_base = (
+        base_mask
+        & np.isfinite(target)
+        & np.isfinite(prior_values)
+        & np.isfinite(si_values)
+    )
+
+    high_momentum_high_si = (
+        valid_base
+        & prior_mask
+        & si_mask
+    )
+
+    high_momentum_other_si = (
+        valid_base
+        & prior_mask
+        & ~si_mask
+    )
+
+    other_momentum_high_si = (
+        valid_base
+        & ~prior_mask
+        & si_mask
+    )
+
+    other_momentum_other_si = (
+        valid_base
+        & ~prior_mask
+        & ~si_mask
+    )
+
+    masks = {
+        "high_momentum_high_si":
+            high_momentum_high_si,
+        "high_momentum_other_si":
+            high_momentum_other_si,
+        "other_momentum_high_si":
+            other_momentum_high_si,
+        "other_momentum_other_si":
+            other_momentum_other_si,
+    }
+
+    def group_values(
+        mask: np.ndarray,
+    ) -> np.ndarray:
+        return target[
+            mask
+            & np.isfinite(target)
+        ]
+
+    a = group_values(
+        high_momentum_high_si
+    )
+    b = group_values(
+        high_momentum_other_si
+    )
+    c = group_values(
+        other_momentum_high_si
+    )
+    d = group_values(
+        other_momentum_other_si
+    )
+
+    a_rate = event_rate(a)
+    b_rate = event_rate(b)
+    c_rate = event_rate(c)
+    d_rate = event_rate(d)
+
+    high_momentum_si_effect = None
+    other_momentum_si_effect = None
+    interaction = None
+
+    if (
+        a_rate is not None
+        and b_rate is not None
+    ):
+        high_momentum_si_effect = (
+            a_rate - b_rate
+        )
+
+    if (
+        c_rate is not None
+        and d_rate is not None
+    ):
+        other_momentum_si_effect = (
+            c_rate - d_rate
+        )
+
+    if (
+        high_momentum_si_effect is not None
+        and other_momentum_si_effect is not None
+    ):
+        interaction = (
+            high_momentum_si_effect
+            - other_momentum_si_effect
+        )
+
+    row: dict[str, Any] = {
+        "split": split_name,
+        "evaluation": evaluation_name,
+        "prior_return_tail": prior_tail,
+        "si_tail": si_tail,
+        "prior_return_signal": (
+            PRIOR_RETURN_SIGNAL_NAME
+        ),
+        "si_signal": SI_SIGNAL_NAME,
+        "target": TARGET_NAME,
+        "high_momentum_high_si_n": int(a.size),
+        "high_momentum_other_si_n": int(b.size),
+        "other_momentum_high_si_n": int(c.size),
+        "other_momentum_other_si_n": int(d.size),
+        "high_momentum_high_si_events": int(
+            a.sum()
+        ),
+        "high_momentum_other_si_events": int(
+            b.sum()
+        ),
+        "other_momentum_high_si_events": int(
+            c.sum()
+        ),
+        "other_momentum_other_si_events": int(
+            d.sum()
+        ),
+        "high_momentum_high_si_event_rate": a_rate,
+        "high_momentum_other_si_event_rate": b_rate,
+        "other_momentum_high_si_event_rate": c_rate,
+        "other_momentum_other_si_event_rate": d_rate,
+        "high_momentum_si_event_effect": (
+            high_momentum_si_effect
+        ),
+        "other_momentum_si_event_effect": (
+            other_momentum_si_effect
+        ),
+        "event_rate_interaction": interaction,
+    }
+
+    for horizon in FUTURE_RETURN_HORIZONS:
+        column = (
+            f"forward_return_{horizon}d"
+        )
+
+        if column not in frame.columns:
+            continue
+
+        returns = pd.to_numeric(
+            frame[column],
+            errors="coerce",
+        ).to_numpy(
+            dtype=float
+        )
+
+        group_returns = {}
+
+        for name, mask in masks.items():
+            group_returns[name] = returns[
+                mask
+                & np.isfinite(returns)
+            ]
+
+        high_a = group_returns[
+            "high_momentum_high_si"
+        ]
+        high_b = group_returns[
+            "high_momentum_other_si"
+        ]
+        other_c = group_returns[
+            "other_momentum_high_si"
+        ]
+        other_d = group_returns[
+            "other_momentum_other_si"
+        ]
+
+        high_effect = None
+        other_effect = None
+        interaction_return = None
+
+        if (
+            high_a.size > 0
+            and high_b.size > 0
+        ):
+            high_effect = (
+                float(high_a.mean())
+                - float(high_b.mean())
+            )
+
+        if (
+            other_c.size > 0
+            and other_d.size > 0
+        ):
+            other_effect = (
+                float(other_c.mean())
+                - float(other_d.mean())
+            )
+
+        if (
+            high_effect is not None
+            and other_effect is not None
+        ):
+            interaction_return = (
+                high_effect
+                - other_effect
+            )
+
+        row[
+            f"high_momentum_high_si_mean_return_{horizon}d"
+        ] = safe_mean(high_a)
+
+        row[
+            f"high_momentum_other_si_mean_return_{horizon}d"
+        ] = safe_mean(high_b)
+
+        row[
+            f"other_momentum_high_si_mean_return_{horizon}d"
+        ] = safe_mean(other_c)
+
+        row[
+            f"other_momentum_other_si_mean_return_{horizon}d"
+        ] = safe_mean(other_d)
+
+        row[
+            f"high_momentum_si_return_effect_{horizon}d"
+        ] = high_effect
+
+        row[
+            f"other_momentum_si_return_effect_{horizon}d"
+        ] = other_effect
+
+        row[
+            f"return_interaction_{horizon}d"
+        ] = interaction_return
+
+    return row
+
+
 def build_evaluation_masks(
     frame: pd.DataFrame,
     split: dict[str, Any],
@@ -565,8 +860,6 @@ def run_analysis() -> dict[str, Any]:
         dtype=float
     )
 
-    # Use Blankdiss' canonical signal definitions rather than
-    # assuming that signal names are physical feature columns.
     si = build_signal(
         frame,
         SI_SIGNAL_NAME,
@@ -583,6 +876,7 @@ def run_analysis() -> dict[str, Any]:
     )
 
     all_rows: list[dict[str, Any]] = []
+    interaction_rows: list[dict[str, Any]] = []
     split_status: list[dict[str, Any]] = []
 
     for split in build_splits():
@@ -695,6 +989,24 @@ def run_analysis() -> dict[str, Any]:
                         )
                     )
 
+                    interaction_rows.append(
+                        analyse_interaction(
+                            frame,
+                            target,
+                            si,
+                            prior_return,
+                            prior_tail=prior_tail,
+                            si_tail=si_tail,
+                            base_mask=mask,
+                            split_name=split[
+                                "name"
+                            ],
+                            evaluation_name=(
+                                evaluation_name
+                            ),
+                        )
+                    )
+
     available_test_windows = [
         row
         for row in split_status
@@ -735,6 +1047,11 @@ def run_analysis() -> dict[str, Any]:
                 "other SI-change within "
                 "the same prior-return tail"
             ),
+            "interaction": (
+                "difference-in-differences comparing "
+                "the SI effect in high-momentum "
+                "versus other-momentum regimes"
+            ),
             "signal_resolution": (
                 "canonical ml.research.signals "
                 "definitions"
@@ -752,6 +1069,7 @@ def run_analysis() -> dict[str, Any]:
             available_test_windows
         ),
         "rows": all_rows,
+        "interaction_rows": interaction_rows,
     }
 
 
@@ -799,6 +1117,24 @@ def write_outputs(
         / "test_results.csv",
         index=False,
     )
+
+    interaction_rows = document[
+        "interaction_rows"
+    ]
+
+    pd.DataFrame(
+        interaction_rows
+    ).to_csv(
+        OUTPUT_DIR
+        / "interaction_analysis.csv",
+        index=False,
+    )
+
+    interaction_test_rows = [
+        row
+        for row in interaction_rows
+        if row["evaluation"] == "test"
+    ]
 
     lines = [
         "# Momentum-conditioned Short Interest",
@@ -873,6 +1209,51 @@ def write_outputs(
     lines.extend(
         [
             "",
+            "## Direct interaction analysis",
+            "",
+            "The interaction statistic is:",
+            "",
+            "    (high momentum + high SI - high momentum + other SI)",
+            "    - (other momentum + high SI - other momentum + other SI)",
+            "",
+            "A positive event-rate interaction means that the SI "
+            "event-rate effect is larger in the high-momentum regime.",
+            "",
+            "| Window | Eval | Prior tail | SI tail | HM+HSI N | HM+OSI N | OM+HSI N | OM+OSI N | HM SI effect | OM SI effect | Event interaction | 5d return interaction | 20d return interaction |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+
+    for row in interaction_test_rows:
+        lines.append(
+            "| "
+            f"{row['split']} | "
+            f"{row['evaluation']} | "
+            f"{row['prior_return_tail']:.3f} | "
+            f"{row['si_tail']:.3f} | "
+            f"{row['high_momentum_high_si_n']} | "
+            f"{row['high_momentum_other_si_n']} | "
+            f"{row['other_momentum_high_si_n']} | "
+            f"{row['other_momentum_other_si_n']} | "
+            f"{_fmt(row['high_momentum_si_event_effect'])} | "
+            f"{_fmt(row['other_momentum_si_event_effect'])} | "
+            f"{_fmt(row['event_rate_interaction'])} | "
+            f"{_fmt(row.get('return_interaction_5d'))} | "
+            f"{_fmt(row.get('return_interaction_20d'))} |"
+        )
+
+    if not interaction_test_rows:
+        lines.extend(
+            [
+                "",
+                "No OOS interaction observations are available "
+                "before the frozen discovery cutoff.",
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
             "## Interpretation",
             "",
             "This analysis is descriptive and OOS. It does not "
@@ -881,6 +1262,10 @@ def write_outputs(
             "The main question is whether high SI change remains "
             "associated with negative subsequent returns after "
             "conditioning on a large prior price increase.",
+            "",
+            "The direct interaction analysis additionally tests "
+            "whether the SI effect differs between the high-momentum "
+            "and other-momentum regimes.",
             "",
             "The configured walk-forward windows may extend beyond "
             "the frozen discovery cutoff. Such future portions are "
@@ -915,6 +1300,12 @@ def write_outputs(
         "row_count": len(rows),
         "test_row_count": len(
             test_rows
+        ),
+        "interaction_row_count": len(
+            interaction_rows
+        ),
+        "interaction_test_row_count": len(
+            interaction_test_rows
         ),
         "available_test_window_count": len(
             document[
