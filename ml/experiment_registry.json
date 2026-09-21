@@ -46,14 +46,14 @@
     {
       "id": "si_conditional_model_comparison",
       "status": "active",
-      "question": "Tillför SI information utöver event-risk, och tillför kombinationen med tidigare avkastning ytterligare OOS-information?",
+      "question": "Tillför SI information utöver event-risk, och tillför SI × volatilitet ytterligare OOS-information?",
       "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
       "priority": 7
     },
     {
       "id": "sector_relative_return",
-      "status": "planned",
-      "question": "Är effekten specifik för aktien relativt sektor och marknad?",
+      "status": "active",
+      "question": "Är SI/event-risk-effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
       "priority": 8
     }
