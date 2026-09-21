@@ -1,19 +1,14 @@
 name: Blankdiss Research
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 concurrency:
   group: research-manual
   cancel-in-progress: false
-
 jobs:
   research:
     runs-on: ubuntu-latest
-
     env:
       DISCOVERY_CONFIG: |
         enabled: true
@@ -51,38 +46,31 @@ jobs:
           min_lift: 1.10
           max_return_difference: 0.0
           max_findings: 25
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Clean latest research results
         run: |
           rm -rf data/processed/ml/research/latest
           rm -rf data/processed/ml/research/discovery
-
+          rm -rf data/processed/ml/research/si_context
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
-
       - name: Fetch prices
         run: |
           python -u -m prices --start 2022-01-01
-
       - name: Feature source check
         run: |
           python -u -m analysis.feature_source_check
-
       - name: Check whether features changed
         id: feature_changes
         shell: bash
@@ -94,91 +82,75 @@ jobs:
             echo "FEATURES_CHANGED=true" >> "$GITHUB_ENV"
             echo "Feature dataset changed."
           fi
-
       - name: Build features
         if: env.FEATURES_CHANGED == 'true'
         run: |
           python -u -m ml.features
-
       - name: Inspect feature dataset
         run: |
           python -u -m ml.dataset
-
       - name: Validate sector map
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
           path = Path("data/analysis/sector_map.json")
-
           if not path.exists():
               raise SystemExit(
                   "sector_map.json saknas: "
                   "kör analysis/build_sector_map.py och committa den frysta mappningen."
               )
-
           with path.open(encoding="utf-8") as f:
               payload = json.load(f)
-
           if not isinstance(payload, dict):
               raise SystemExit(
                   "sector_map.json måste innehålla ett JSON-objekt."
               )
-
           instruments = payload.get("instruments")
-
           if not isinstance(instruments, dict):
               raise SystemExit(
                   "sector_map.json saknar 'instruments'. "
                   "Den nuvarande filen verkar vara en placeholder."
               )
-
           if not instruments:
               raise SystemExit(
                   "sector_map.json innehåller inga instrument."
               )
-
           missing_sector = [
               symbol
               for symbol, value in instruments.items()
               if not isinstance(value, dict)
               or not value.get("sector")
           ]
-
           if missing_sector:
               preview = ", ".join(missing_sector[:10])
               raise SystemExit(
                   f"sector_map.json innehåller instrument utan sektor "
                   f"({len(missing_sector)} st). Exempel: {preview}"
               )
-
           print(
               f"Sector map OK: {len(instruments)} instrument "
               f"med giltig sektormappning."
           )
           PY
-
       - name: Run Research Matrix
         run: |
           python -u -m ml.research.runner
-
       - name: Run Registered Experiments
         run: |
           python -u -m ml.experiment_registry_runner
-
       - name: Run Discovery
         run: |
           python -u -m ml.research.discovery.runner
-
       - name: Run Incremental SI Analysis
         run: |
           python -u -m ml.research.incremental_si_analysis
-
+      - name: Run Momentum-conditioned SI Analysis
+        run: |
+          python -u -m ml.research.si_context_analysis
       - name: Verify diagnostics
         run: |
           python -u -m ml.diagnostics.verify
-
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -191,8 +163,8 @@ jobs:
             data/processed/ml/research/*/report.md
             data/processed/ml/research/*/diagnostics.json
             data/processed/ml/research/*/diagnostic/*.json
+            data/processed/ml/research/si_context/**
             !data/processed/ml/research/incremental_si/**
-
       - name: Persist research results
         run: |
           git config user.name "github-actions[bot]"
@@ -201,6 +173,7 @@ jobs:
             data/processed/ml/research/latest \
             data/processed/ml/research/discovery \
             data/processed/ml/research/interaction \
+            data/processed/ml/research/si_context \
             2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No research result changes to commit."
