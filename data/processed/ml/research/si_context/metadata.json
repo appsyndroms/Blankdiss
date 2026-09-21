@@ -1,24 +1,37 @@
 {
   "analysis": "momentum_conditioned_short_interest",
-  "created_at_utc": "2026-09-21T15:21:50.891805+00:00",
+  "created_at_utc": "2026-09-21T16:13:31.136573+00:00",
   "discovery_end": "2025-12-19",
   "target": "down_10pct_5d",
   "prior_return_signal": "price_momentum_5d",
   "si_signal": "short_interest_change",
-  "row_count": 100,
-  "test_row_count": 50,
+  "row_count": 75,
+  "test_row_count": 25,
+  "available_test_window_count": 1,
   "walk_forward_windows": [
     {
       "name": "window_1",
       "train_end": "2023-12-31",
       "validation_end": "2024-12-31",
-      "test_end": "2025-12-31"
+      "test_end": "2025-12-31",
+      "train_rows": 68387,
+      "validation_rows": 45497,
+      "test_rows": 47958,
+      "validation_status": "AVAILABLE",
+      "test_status": "AVAILABLE",
+      "test_available_through": "2025-12-19"
     },
     {
       "name": "window_2",
       "train_end": "2024-12-31",
       "validation_end": "2025-12-31",
-      "test_end": "2026-12-31"
+      "test_end": "2026-12-31",
+      "train_rows": 113884,
+      "validation_rows": 47958,
+      "test_rows": 0,
+      "validation_status": "AVAILABLE",
+      "test_status": "NOT_AVAILABLE",
+      "test_available_through": "2025-12-19"
     }
   ]
 }

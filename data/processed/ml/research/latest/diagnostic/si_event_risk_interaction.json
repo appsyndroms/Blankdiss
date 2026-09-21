@@ -3,8 +3,8 @@
   "question": "Är effekten av förändrad blankning starkare vid extrem event-risk?",
   "module": "ml.diagnostics.experiments.fi_short_interest_event_risk_interaction_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-21T14:37:13.822115+00:00",
-  "finished_at_utc": "2026-09-21T14:37:17.734699+00:00",
+  "started_at_utc": "2026-09-21T15:37:17.410004+00:00",
+  "finished_at_utc": "2026-09-21T15:37:21.528057+00:00",
   "windows": [
     {
       "window": "window_1",

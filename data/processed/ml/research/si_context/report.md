@@ -5,7 +5,14 @@
 - SI signal: `short_interest_change`
 - Frozen cutoff: `2025-12-19`
 
-The primary comparison is high SI-change versus other SI-change observations among stocks in the same upper prior-return tail.
+## Data availability
+
+| Window | Train rows | Validation rows | Test rows | Validation status | Test status |
+|---|---:|---:|---:|---|---|
+| window_1 | 68387 | 45497 | 47958 | AVAILABLE | AVAILABLE |
+| window_2 | 113884 | 47958 | 0 | AVAILABLE | NOT_AVAILABLE |
+
+Only periods that exist before the frozen discovery cutoff are evaluated. A configured future test window with no observations is reported as `NOT_AVAILABLE`, not as a failed OOS test.
 
 ## OOS results
 
@@ -36,32 +43,11 @@ The primary comparison is high SI-change versus other SI-change observations amo
 | window_1 | test | 0.010 | 0.050 | 494 | 20 | 474 | 0.400000 | 0.160338 | 2.494737 | -0.098920 | -0.058270 |
 | window_1 | test | 0.010 | 0.025 | 494 | 15 | 479 | 0.400000 | 0.162839 | 2.456410 | -0.103998 | 0.011685 |
 | window_1 | test | 0.010 | 0.010 | 494 | 8 | 486 | 0.625000 | 0.162551 | 3.844937 | -0.151630 | 0.094040 |
-| window_2 | test | 0.200 | 0.200 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.200 | 0.100 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.200 | 0.050 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.200 | 0.025 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.200 | 0.010 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.100 | 0.200 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.100 | 0.100 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.100 | 0.050 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.100 | 0.025 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.100 | 0.010 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.050 | 0.200 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.050 | 0.100 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.050 | 0.050 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.050 | 0.025 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.050 | 0.010 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.025 | 0.200 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.025 | 0.100 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.025 | 0.050 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.025 | 0.025 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.025 | 0.010 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.010 | 0.200 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.010 | 0.100 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.010 | 0.050 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.010 | 0.025 | 0 | 0 | 0 |  |  |  |  |  |
-| window_2 | test | 0.010 | 0.010 | 0 | 0 | 0 |  |  |  |  |  |
 
-## Interpretation rule
+## Interpretation
 
-This analysis is descriptive and OOS. It does not select a trading rule automatically. The main question is whether high SI change remains associated with negative subsequent returns after conditioning on a large prior price increase.
+This analysis is descriptive and OOS. It does not select a trading rule automatically.
+
+The main question is whether high SI change remains associated with negative subsequent returns after conditioning on a large prior price increase.
+
+The configured walk-forward windows may extend beyond the frozen discovery cutoff. Such future portions are not evaluated until corresponding observations exist.
