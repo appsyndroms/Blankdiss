@@ -35,6 +35,40 @@
     "future_information_used_for_grouping": false,
     "discovery_cutoff": "2025-12-19"
   },
+  "evaluation_registry": [
+    {
+      "split": "window_1",
+      "evaluation": "validation",
+      "start_exclusive": "2023-12-31",
+      "end_inclusive": "2024-12-31",
+      "overlaps_with": []
+    },
+    {
+      "split": "window_1",
+      "evaluation": "test",
+      "start_exclusive": "2024-12-31",
+      "end_inclusive": "2025-12-31",
+      "overlaps_with": [
+        "window_2/validation"
+      ]
+    },
+    {
+      "split": "window_2",
+      "evaluation": "validation",
+      "start_exclusive": "2024-12-31",
+      "end_inclusive": "2025-12-31",
+      "overlaps_with": [
+        "window_1/test"
+      ]
+    },
+    {
+      "split": "window_2",
+      "evaluation": "test",
+      "start_exclusive": "2025-12-31",
+      "end_inclusive": "2026-12-31",
+      "overlaps_with": []
+    }
+  ],
   "split_status": [
     {
       "name": "window_1",
@@ -44,9 +78,17 @@
       "train_rows": 68387,
       "validation_rows": 45497,
       "test_rows": 47958,
+      "validation_start_exclusive": "2023-12-31",
+      "validation_end_inclusive": "2024-12-31",
+      "test_start_exclusive": "2024-12-31",
+      "test_end_inclusive": "2025-12-31",
       "validation_status": "AVAILABLE",
       "test_status": "AVAILABLE",
-      "test_available_through": "2025-12-19"
+      "test_available_through": "2025-12-19",
+      "validation_overlaps_with": [],
+      "test_overlaps_with": [
+        "window_2/validation"
+      ]
     },
     {
       "name": "window_2",
@@ -56,9 +98,17 @@
       "train_rows": 113884,
       "validation_rows": 47958,
       "test_rows": 0,
+      "validation_start_exclusive": "2024-12-31",
+      "validation_end_inclusive": "2025-12-31",
+      "test_start_exclusive": "2025-12-31",
+      "test_end_inclusive": "2026-12-31",
       "validation_status": "AVAILABLE",
       "test_status": "NOT_AVAILABLE",
-      "test_available_through": "2025-12-19"
+      "test_available_through": "2025-12-19",
+      "validation_overlaps_with": [
+        "window_1/test"
+      ],
+      "test_overlaps_with": []
     }
   ],
   "available_test_windows": [
@@ -70,9 +120,39 @@
       "train_rows": 68387,
       "validation_rows": 45497,
       "test_rows": 47958,
+      "validation_start_exclusive": "2023-12-31",
+      "validation_end_inclusive": "2024-12-31",
+      "test_start_exclusive": "2024-12-31",
+      "test_end_inclusive": "2025-12-31",
       "validation_status": "AVAILABLE",
       "test_status": "AVAILABLE",
-      "test_available_through": "2025-12-19"
+      "test_available_through": "2025-12-19",
+      "validation_overlaps_with": [],
+      "test_overlaps_with": [
+        "window_2/validation"
+      ]
+    }
+  ],
+  "independent_test_windows": [
+    {
+      "name": "window_1",
+      "train_end": "2023-12-31",
+      "validation_end": "2024-12-31",
+      "test_end": "2025-12-31",
+      "train_rows": 68387,
+      "validation_rows": 45497,
+      "test_rows": 47958,
+      "validation_start_exclusive": "2023-12-31",
+      "validation_end_inclusive": "2024-12-31",
+      "test_start_exclusive": "2024-12-31",
+      "test_end_inclusive": "2025-12-31",
+      "validation_status": "AVAILABLE",
+      "test_status": "AVAILABLE",
+      "test_available_through": "2025-12-19",
+      "validation_overlaps_with": [],
+      "test_overlaps_with": [
+        "window_2/validation"
+      ]
     }
   ],
   "rows": [
