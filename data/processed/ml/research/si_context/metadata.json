@@ -1,12 +1,14 @@
 {
   "analysis": "momentum_conditioned_short_interest",
-  "created_at_utc": "2026-09-21T16:13:31.136573+00:00",
+  "created_at_utc": "2026-09-21T17:04:24.522059+00:00",
   "discovery_end": "2025-12-19",
   "target": "down_10pct_5d",
   "prior_return_signal": "price_momentum_5d",
   "si_signal": "short_interest_change",
   "row_count": 75,
   "test_row_count": 25,
+  "interaction_row_count": 75,
+  "interaction_test_row_count": 25,
   "available_test_window_count": 1,
   "walk_forward_windows": [
     {

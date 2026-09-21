@@ -44,10 +44,49 @@ Only periods that exist before the frozen discovery cutoff are evaluated. A conf
 | window_1 | test | 0.010 | 0.025 | 494 | 15 | 479 | 0.400000 | 0.162839 | 2.456410 | -0.103998 | 0.011685 |
 | window_1 | test | 0.010 | 0.010 | 494 | 8 | 486 | 0.625000 | 0.162551 | 3.844937 | -0.151630 | 0.094040 |
 
+## Direct interaction analysis
+
+The interaction statistic is:
+
+    (high momentum + high SI - high momentum + other SI)
+    - (other momentum + high SI - other momentum + other SI)
+
+A positive event-rate interaction means that the SI event-rate effect is larger in the high-momentum regime.
+
+| Window | Eval | Prior tail | SI tail | HM+HSI N | HM+OSI N | OM+HSI N | OM+OSI N | HM SI effect | OM SI effect | Event interaction | 5d return interaction | 20d return interaction |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| window_1 | test | 0.200 | 0.200 | 199 | 5980 | 801 | 23241 | 0.049516 | 0.026364 | 0.023152 | -0.002618 | 0.027636 |
+| window_1 | test | 0.200 | 0.100 | 199 | 5980 | 801 | 23241 | 0.049516 | 0.026364 | 0.023152 | -0.002618 | 0.027636 |
+| window_1 | test | 0.200 | 0.050 | 195 | 5984 | 794 | 23248 | 0.051825 | 0.025612 | 0.026213 | -0.004035 | 0.028489 |
+| window_1 | test | 0.200 | 0.025 | 152 | 6027 | 625 | 23417 | 0.063941 | 0.029068 | 0.034873 | -0.001719 | 0.037681 |
+| window_1 | test | 0.200 | 0.010 | 88 | 6091 | 281 | 23761 | 0.109381 | 0.021503 | 0.087878 | -0.005173 | 0.038148 |
+| window_1 | test | 0.100 | 0.200 | 127 | 3042 | 873 | 26179 | 0.058892 | 0.025491 | 0.033401 | -0.004231 | 0.022790 |
+| window_1 | test | 0.100 | 0.100 | 127 | 3042 | 873 | 26179 | 0.058892 | 0.025491 | 0.033401 | -0.004231 | 0.022790 |
+| window_1 | test | 0.100 | 0.050 | 123 | 3046 | 866 | 26186 | 0.063610 | 0.024798 | 0.038812 | -0.006597 | 0.023364 |
+| window_1 | test | 0.100 | 0.025 | 98 | 3071 | 679 | 26373 | 0.080556 | 0.027989 | 0.052567 | -0.005815 | 0.035521 |
+| window_1 | test | 0.100 | 0.010 | 60 | 3109 | 309 | 26743 | 0.134003 | 0.022467 | 0.111536 | -0.007696 | 0.034521 |
+| window_1 | test | 0.050 | 0.200 | 75 | 1557 | 925 | 27664 | 0.092100 | 0.024176 | 0.067925 | -0.019231 | -0.000432 |
+| window_1 | test | 0.050 | 0.100 | 75 | 1557 | 925 | 27664 | 0.092100 | 0.024176 | 0.067925 | -0.019231 | -0.000432 |
+| window_1 | test | 0.050 | 0.050 | 72 | 1560 | 917 | 27672 | 0.100641 | 0.023588 | 0.077053 | -0.023386 | 0.002581 |
+| window_1 | test | 0.050 | 0.025 | 55 | 1577 | 722 | 27867 | 0.128564 | 0.027253 | 0.101311 | -0.023742 | 0.029643 |
+| window_1 | test | 0.050 | 0.010 | 37 | 1595 | 332 | 28257 | 0.189460 | 0.023365 | 0.166095 | -0.032043 | 0.012374 |
+| window_1 | test | 0.025 | 0.200 | 43 | 849 | 957 | 28372 | 0.122716 | 0.025300 | 0.097416 | -0.037961 | -0.020633 |
+| window_1 | test | 0.025 | 0.100 | 43 | 849 | 957 | 28372 | 0.122716 | 0.025300 | 0.097416 | -0.037961 | -0.020633 |
+| window_1 | test | 0.025 | 0.050 | 40 | 852 | 949 | 28380 | 0.142371 | 0.024750 | 0.117621 | -0.046996 | -0.017550 |
+| window_1 | test | 0.025 | 0.025 | 30 | 862 | 747 | 28582 | 0.166589 | 0.029463 | 0.137126 | -0.052896 | 0.024020 |
+| window_1 | test | 0.025 | 0.010 | 20 | 872 | 349 | 28980 | 0.266972 | 0.028014 | 0.238958 | -0.071299 | 0.018425 |
+| window_1 | test | 0.010 | 0.200 | 21 | 471 | 979 | 28750 | 0.219594 | 0.026160 | 0.193433 | -0.084834 | -0.038372 |
+| window_1 | test | 0.010 | 0.100 | 21 | 471 | 979 | 28750 | 0.219594 | 0.026160 | 0.193433 | -0.084834 | -0.038372 |
+| window_1 | test | 0.010 | 0.050 | 20 | 472 | 969 | 28760 | 0.238983 | 0.025771 | 0.213212 | -0.088222 | -0.035774 |
+| window_1 | test | 0.010 | 0.025 | 15 | 477 | 762 | 28967 | 0.236478 | 0.031303 | 0.205175 | -0.092682 | 0.030434 |
+| window_1 | test | 0.010 | 0.010 | 8 | 484 | 361 | 29368 | 0.461777 | 0.033375 | 0.428402 | -0.140697 | 0.109061 |
+
 ## Interpretation
 
 This analysis is descriptive and OOS. It does not select a trading rule automatically.
 
 The main question is whether high SI change remains associated with negative subsequent returns after conditioning on a large prior price increase.
+
+The direct interaction analysis additionally tests whether the SI effect differs between the high-momentum and other-momentum regimes.
 
 The configured walk-forward windows may extend beyond the frozen discovery cutoff. Such future portions are not evaluated until corresponding observations exist.
