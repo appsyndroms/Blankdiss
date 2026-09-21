@@ -1,4 +1,5 @@
 from __future__ import annotations
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -7,10 +8,11 @@ import pandas as pd
 from ml.config import TARGETS, WALK_FORWARD_WINDOWS
 from ml.dataset import build_target, load_features
 from ml.research.bootstrap import bootstrap_mean_difference
+from ml.research.signals import build_signal
 DISCOVERY_END = pd.Timestamp("2025-12-19")
 TARGET_NAME = "down_10pct_5d"
-SI_FEATURE = "short_interest_change"
-PRIOR_RETURN_FEATURE = "price_return_5d"
+SI_SIGNAL_NAME = "short_interest_change"
+PRIOR_RETURN_SIGNAL_NAME = "price_momentum_5d"
 SI_TAILS = (
     0.20,
     0.10,
@@ -73,10 +75,13 @@ def cross_sectional_tail_mask(
     """
     Creates a cross-sectional tail mask independently for each
     snapshot date.
-    This is deliberately based only on information available on
-    the snapshot date. It therefore does not use future returns
-    or future observations.
+    The grouping is performed only with information available
+    on the snapshot date.
     """
+    if not 0 < fraction <= 1:
+        raise ValueError(
+            f"Invalid tail fraction: {fraction}"
+        )
     if direction not in {
         "upper",
         "lower",
@@ -110,41 +115,26 @@ def cross_sectional_tail_mask(
         valid = local.notna()
         if not valid.any():
             continue
+        ranks = local.loc[
+            valid
+        ].rank(
+            method="average",
+            pct=True,
+        )
         if direction == "upper":
-            threshold = local.loc[
-                valid
-            ].quantile(
-                1.0 - fraction
-            )
             selected = (
-                local >= threshold
+                ranks
+                >= (1.0 - fraction)
             )
         else:
-            threshold = local.loc[
-                valid
-            ].quantile(
-                fraction
-            )
             selected = (
-                local <= threshold
+                ranks
+                <= fraction
             )
         result.loc[
             selected.index
-        ] = selected.fillna(
-            False
-        ).astype(bool)
+        ] = selected.astype(bool)
     return result
-def safe_mean(
-    values: np.ndarray,
-) -> float | None:
-    values = values[
-        np.isfinite(values)
-    ]
-    if values.size == 0:
-        return None
-    return float(
-        values.mean()
-    )
 def event_rate(
     target: np.ndarray,
 ) -> float | None:
@@ -156,6 +146,32 @@ def event_rate(
     return float(
         target.mean()
     )
+def safe_mean(
+    values: np.ndarray,
+) -> float | None:
+    values = values[
+        np.isfinite(values)
+    ]
+    if values.size == 0:
+        return None
+    return float(
+        values.mean()
+    )
+def stable_seed(
+    *parts: object,
+) -> int:
+    payload = "|".join(
+        str(part)
+        for part in parts
+    ).encode("utf-8")
+    digest = hashlib.sha256(
+        payload
+    ).digest()
+    return int.from_bytes(
+        digest[:8],
+        byteorder="little",
+        signed=False,
+    ) % (2**32 - 1)
 def analyse_condition(
     frame: pd.DataFrame,
     target: np.ndarray,
@@ -169,14 +185,13 @@ def analyse_condition(
     evaluation_name: str,
 ) -> dict[str, Any]:
     """
-    Compare high-SI-change stocks against other stocks that have
+    Compare high SI-change stocks against other stocks that have
     already experienced a large positive 5-day price move.
-    The key comparison is therefore:
+    The primary comparison is:
         strong prior return + high SI change
-        versus
-        strong prior return + not-high SI change
-    This directly tests whether SI adds information after conditioning
-    on prior momentum.
+    versus:
+        strong prior return + other SI change.
+    Both groups therefore come from the same prior-return regime.
     """
     prior_mask = cross_sectional_tail_mask(
         frame,
@@ -209,12 +224,18 @@ def analyse_condition(
     other_target = target[
         other_si
     ]
+    high_event_rate = event_rate(
+        high_target
+    )
+    other_event_rate = event_rate(
+        other_target
+    )
     target_difference = None
     target_ci_low = None
     target_ci_high = None
     if (
-        high_target.size
-        and other_target.size
+        high_target.size > 0
+        and other_target.size > 0
     ):
         target_difference = (
             float(
@@ -230,7 +251,7 @@ def analyse_condition(
         ) = bootstrap_mean_difference(
             high_target,
             other_target,
-            seed=_stable_seed(
+            seed=stable_seed(
                 split_name,
                 evaluation_name,
                 prior_tail,
@@ -243,8 +264,10 @@ def analyse_condition(
         "evaluation": evaluation_name,
         "prior_return_tail": prior_tail,
         "si_tail": si_tail,
-        "prior_return_feature": PRIOR_RETURN_FEATURE,
-        "si_feature": SI_FEATURE,
+        "prior_return_signal": (
+            PRIOR_RETURN_SIGNAL_NAME
+        ),
+        "si_signal": SI_SIGNAL_NAME,
         "target": TARGET_NAME,
         "base_n": int(base.sum()),
         "high_si_n": int(high_si.sum()),
@@ -255,42 +278,44 @@ def analyse_condition(
         "other_si_events": int(
             other_target.sum()
         ),
-        "high_si_event_rate": event_rate(
-            high_target
+        "high_si_event_rate": (
+            high_event_rate
         ),
-        "other_si_event_rate": event_rate(
-            other_target
+        "other_si_event_rate": (
+            other_event_rate
         ),
         "event_rate_difference": (
             (
-                event_rate(high_target)
-                - event_rate(other_target)
+                high_event_rate
+                - other_event_rate
             )
             if (
-                event_rate(high_target)
-                is not None
-                and event_rate(other_target)
-                is not None
+                high_event_rate is not None
+                and other_event_rate is not None
             )
             else None
         ),
         "event_rate_lift": (
             (
-                event_rate(high_target)
-                / event_rate(other_target)
+                high_event_rate
+                / other_event_rate
             )
             if (
-                event_rate(high_target)
-                is not None
-                and event_rate(other_target)
-                is not None
-                and event_rate(other_target) > 0
+                high_event_rate is not None
+                and other_event_rate is not None
+                and other_event_rate > 0
             )
             else None
         ),
-        "target_difference": target_difference,
-        "target_bootstrap_ci_low": target_ci_low,
-        "target_bootstrap_ci_high": target_ci_high,
+        "target_difference": (
+            target_difference
+        ),
+        "target_bootstrap_ci_low": (
+            target_ci_low
+        ),
+        "target_bootstrap_ci_high": (
+            target_ci_high
+        ),
     }
     for horizon in FUTURE_RETURN_HORIZONS:
         column = (
@@ -316,8 +341,8 @@ def analyse_condition(
         ci_low = None
         ci_high = None
         if (
-            high_returns.size
-            and other_returns.size
+            high_returns.size > 0
+            and other_returns.size > 0
         ):
             difference = (
                 float(
@@ -333,7 +358,7 @@ def analyse_condition(
             ) = bootstrap_mean_difference(
                 high_returns,
                 other_returns,
-                seed=_stable_seed(
+                seed=stable_seed(
                     split_name,
                     evaluation_name,
                     prior_tail,
@@ -361,22 +386,6 @@ def analyse_condition(
             f"return_ci_high_{horizon}d"
         ] = ci_high
     return row
-def _stable_seed(
-    *parts: object,
-) -> int:
-    import hashlib
-    payload = "|".join(
-        str(part)
-        for part in parts
-    ).encode("utf-8")
-    digest = hashlib.sha256(
-        payload
-    ).digest()
-    return int.from_bytes(
-        digest[:8],
-        byteorder="little",
-        signed=False,
-    ) % (2**32 - 1)
 def run_analysis() -> dict[str, Any]:
     print(
         "Loading features...",
@@ -401,21 +410,6 @@ def run_analysis() -> dict[str, Any]:
         f"{len(frame):,}",
         flush=True,
     )
-    required = {
-        "snapshot_date",
-        SI_FEATURE,
-        PRIOR_RETURN_FEATURE,
-    }
-    missing = sorted(
-        required
-        - set(frame.columns)
-    )
-    if missing:
-        raise KeyError(
-            "SI context analysis saknar "
-            "kolumner: "
-            + ", ".join(missing)
-        )
     target_cfg = target_config()
     target = build_target(
         frame,
@@ -423,19 +417,21 @@ def run_analysis() -> dict[str, Any]:
     ).to_numpy(
         dtype=float
     )
-    si = pd.to_numeric(
-        frame[SI_FEATURE],
-        errors="coerce",
+    # Use Blankdiss' canonical signal definitions rather than
+    # assuming that signal names are physical feature columns.
+    si = build_signal(
+        frame,
+        SI_SIGNAL_NAME,
     )
-    prior_return = pd.to_numeric(
-        frame[PRIOR_RETURN_FEATURE],
-        errors="coerce",
+    prior_return = build_signal(
+        frame,
+        PRIOR_RETURN_SIGNAL_NAME,
     )
-    all_rows: list[dict[str, Any]] = []
     print(
         "Running momentum-conditioned SI analysis...",
         flush=True,
     )
+    all_rows: list[dict[str, Any]] = []
     for split in build_splits():
         train_mask = (
             frame["snapshot_date"]
@@ -522,10 +518,10 @@ def run_analysis() -> dict[str, Any]:
             DISCOVERY_END.date()
         ),
         "target": TARGET_NAME,
-        "prior_return_feature": (
-            PRIOR_RETURN_FEATURE
+        "prior_return_signal": (
+            PRIOR_RETURN_SIGNAL_NAME
         ),
-        "si_feature": SI_FEATURE,
+        "si_signal": SI_SIGNAL_NAME,
         "prior_return_tails": list(
             PRIOR_RETURN_TAILS
         ),
@@ -547,6 +543,10 @@ def run_analysis() -> dict[str, Any]:
                 "high SI-change versus "
                 "other SI-change within "
                 "the same prior-return tail"
+            ),
+            "signal_resolution": (
+                "canonical ml.research.signals "
+                "definitions"
             ),
             "walk_forward": True,
             "future_information_used_for_grouping": False,
@@ -596,8 +596,8 @@ def write_outputs(
         "# Momentum-conditioned Short Interest",
         "",
         f"- Target: `{TARGET_NAME}`",
-        f"- Prior return: `{PRIOR_RETURN_FEATURE}`",
-        f"- SI signal: `{SI_FEATURE}`",
+        f"- Prior return signal: `{PRIOR_RETURN_SIGNAL_NAME}`",
+        f"- SI signal: `{SI_SIGNAL_NAME}`",
         f"- Frozen cutoff: `{DISCOVERY_END.date()}`",
         "",
         "The primary comparison is high SI-change versus "
@@ -656,10 +656,10 @@ def write_outputs(
             DISCOVERY_END.date()
         ),
         "target": TARGET_NAME,
-        "prior_return_feature": (
-            PRIOR_RETURN_FEATURE
+        "prior_return_signal": (
+            PRIOR_RETURN_SIGNAL_NAME
         ),
-        "si_feature": SI_FEATURE,
+        "si_signal": SI_SIGNAL_NAME,
         "row_count": len(rows),
         "test_row_count": len(
             test_rows
