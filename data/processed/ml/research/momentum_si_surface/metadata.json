@@ -1,0 +1,15 @@
+{
+  "analysis": "momentum_si_10x10_surface_permutation",
+  "created_at_utc": "2026-09-21T19:44:31.388118+00:00",
+  "discovery_end": "2025-12-19",
+  "test_start_exclusive": "2024-12-31",
+  "targets": [
+    "down_5pct_5d",
+    "down_7pct_5d",
+    "down_10pct_5d"
+  ],
+  "rows": 47958,
+  "permutations": 1000,
+  "min_cell_n": 50,
+  "random_state": 42
+}

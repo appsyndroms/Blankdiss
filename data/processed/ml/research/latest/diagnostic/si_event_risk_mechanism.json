@@ -3,8 +3,8 @@
   "question": "Är den låsta SI/event-risk-effekten tidsmässigt specifik, kvarstår den efter kontinuerlig kontroll för volatilitet och syns den även relativt sektor och marknad?",
   "module": "ml.diagnostics.experiments.si_event_risk_mechanism_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-21T18:45:27.492434+00:00",
-  "finished_at_utc": "2026-09-21T18:45:35.373031+00:00",
+  "started_at_utc": "2026-09-21T19:32:29.560132+00:00",
+  "finished_at_utc": "2026-09-21T19:32:37.802841+00:00",
   "windows": [
     {
       "window": "window_1",

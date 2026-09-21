@@ -1,0 +1,62 @@
+{
+  "analysis": "momentum_si_10x10_surface_permutation",
+  "discovery_end": "2025-12-19",
+  "test_start_exclusive": "2024-12-31",
+  "targets": [
+    "down_5pct_5d",
+    "down_7pct_5d",
+    "down_10pct_5d"
+  ],
+  "momentum_signal": "price_momentum_5d",
+  "si_signal": "short_interest_change",
+  "bins": 10,
+  "permutations": 1000,
+  "min_cell_n": 50,
+  "random_state": 42,
+  "summary": [
+    {
+      "target": "down_5pct_5d",
+      "test_period": "(2024-12-31, 2025-12-19]",
+      "n": 30262,
+      "observed_max_abs_incremental_pp": 10.479412754001704,
+      "max_abs_incremental_permutation_p": 0.000999000999000999,
+      "observed_high_high_incremental_pp": 2.817594002475965,
+      "high_high_one_sided_p": 0.11188811188811189,
+      "high_high_two_sided_p": 0.2017982017982018,
+      "permutations": 1000,
+      "min_cell_n": 50
+    },
+    {
+      "target": "down_7pct_5d",
+      "test_period": "(2024-12-31, 2025-12-19]",
+      "n": 30262,
+      "observed_max_abs_incremental_pp": 8.343759930092151,
+      "max_abs_incremental_permutation_p": 0.000999000999000999,
+      "observed_high_high_incremental_pp": 4.815762192535589,
+      "high_high_one_sided_p": 0.00999000999000999,
+      "high_high_two_sided_p": 0.012987012987012988,
+      "permutations": 1000,
+      "min_cell_n": 50
+    },
+    {
+      "target": "down_10pct_5d",
+      "test_period": "(2024-12-31, 2025-12-19]",
+      "n": 30262,
+      "observed_max_abs_incremental_pp": 7.305817047982205,
+      "max_abs_incremental_permutation_p": 0.000999000999000999,
+      "observed_high_high_incremental_pp": 2.732617575885675,
+      "high_high_one_sided_p": 0.03396603396603397,
+      "high_high_two_sided_p": 0.054945054945054944,
+      "permutations": 1000,
+      "min_cell_n": 50
+    }
+  ],
+  "method": {
+    "surface": "10x10 cross-sectional momentum decile x SI decile",
+    "permutation": "shuffle SI decile labels within each snapshot date",
+    "max_statistic": "maximum absolute cell event-rate difference versus its momentum-decile row baseline",
+    "high_high_statistic": "decile 10 momentum x decile 10 SI incremental event-rate difference versus momentum-decile-10 row baseline",
+    "multiple_testing": "maximum-cell permutation p-value accounts for searching across the complete 100-cell surface",
+    "independent_oos_note": "Only window_1/test calendar period in 2025 is used. window_2/validation covers the same calendar period and is not treated as independent."
+  }
+}
