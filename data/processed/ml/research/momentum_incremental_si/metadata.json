@@ -1,0 +1,34 @@
+{
+  "analysis": "momentum_incremental_short_interest",
+  "created_at_utc": "2026-09-21T18:55:53.236827+00:00",
+  "discovery_end": "2025-12-19",
+  "targets": [
+    "down_5pct_5d",
+    "down_7pct_5d",
+    "down_10pct_5d"
+  ],
+  "momentum_signal": "price_momentum_5d",
+  "si_signal": "short_interest_change",
+  "tail_row_count": 144,
+  "model_row_count": 27,
+  "walk_forward_windows": [
+    {
+      "window": "window_1",
+      "train_rows": 68387,
+      "validation_rows": 45497,
+      "test_rows": 47958,
+      "test_available": true,
+      "validation_period": "(2023-12-31, 2024-12-31]",
+      "test_period": "(2024-12-31, 2025-12-31]"
+    },
+    {
+      "window": "window_2",
+      "train_rows": 113884,
+      "validation_rows": 47958,
+      "test_rows": 0,
+      "test_available": false,
+      "validation_period": "(2024-12-31, 2025-12-31]",
+      "test_period": "(2025-12-31, 2026-12-31]"
+    }
+  ]
+}
