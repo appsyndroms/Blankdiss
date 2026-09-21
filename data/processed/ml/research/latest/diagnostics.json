@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-20T17:33:09.370094+00:00",
-  "research_run_timestamp": "20260920T170316Z",
+  "created_at_utc": "2026-09-21T11:31:34.215794+00:00",
+  "research_run_timestamp": "20260921T111545Z",
   "registered_experiments": 8,
-  "active_experiments": 7,
-  "completed": 7,
+  "active_experiments": 8,
+  "completed": 8,
   "failed": 0,
   "results": [
     {
@@ -40,6 +40,11 @@
       "experiment_id": "si_conditional_model_comparison",
       "status": "completed",
       "result_file": "diagnostic/si_conditional_model_comparison.json"
+    },
+    {
+      "experiment_id": "sector_relative_return",
+      "status": "completed",
+      "result_file": "diagnostic/sector_relative_return.json"
     }
   ]
 }
