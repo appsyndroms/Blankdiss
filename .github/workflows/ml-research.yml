@@ -32,12 +32,6 @@ jobs:
           - price_momentum_60d
           - distance_from_20d_high
           - distance_from_60d_high
-        tails:
-          - 0.20
-          - 0.10
-          - 0.05
-          - 0.025
-          - 0.01
         stress_directions:
           price_volatility_20d: upper
           price_momentum_5d: lower
@@ -45,6 +39,12 @@ jobs:
           price_momentum_60d: lower
           distance_from_20d_high: lower
           distance_from_60d_high: lower
+        tails:
+          - 0.20
+          - 0.10
+          - 0.05
+          - 0.025
+          - 0.01
         validation:
           min_rows_per_window: 20
           min_positive_windows: 2
@@ -72,6 +72,7 @@ jobs:
           rm -rf data/processed/ml/research/discovery
           rm -rf data/processed/ml/research/si_context
           rm -rf data/processed/ml/research/incremental_si
+          rm -rf data/processed/ml/research/momentum_incremental_si
 
       - name: Fetch FI aggregate
         run: |
@@ -181,6 +182,10 @@ jobs:
         run: |
           python -u -m ml.research.si_context_analysis
 
+      - name: Run Momentum Incremental SI Analysis
+        run: |
+          python -u -m ml.research.momentum_incremental_si_analysis
+
       - name: Verify diagnostics
         run: |
           python -u -m ml.diagnostics.verify
@@ -199,6 +204,7 @@ jobs:
             data/processed/ml/research/*/diagnostic/*.json
             data/processed/ml/research/si_context/**
             data/processed/ml/research/incremental_si/**
+            data/processed/ml/research/momentum_incremental_si/**
 
       - name: Persist research results
         run: |
@@ -211,6 +217,7 @@ jobs:
             data/processed/ml/research/interaction \
             data/processed/ml/research/si_context \
             data/processed/ml/research/incremental_si \
+            data/processed/ml/research/momentum_incremental_si \
             2>/dev/null || true
 
           if git diff --cached --quiet; then
