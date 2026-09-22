@@ -1,60 +1,48 @@
 name: ML Research
-
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * 1"
-
 jobs:
   research:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Run Discovery
         env:
           DISCOVERY_CONFIG: |
             enabled: true
             discovery_end_date: "2025-12-19"
-
             targets:
               - down_5pct_5d
               - down_7pct_5d
               - down_10pct_5d
-
             signals:
               - short_interest_level
               - short_interest_change
               - short_interest_acceleration
               - price_momentum_5d
-
             stress_features:
               - price_momentum_20d
               - price_momentum_60d
               - price_volatility_20d
-
             tails:
               - 0.20
               - 0.10
               - 0.05
-
             stress_directions:
               price_momentum_20d: upper
               price_momentum_60d: upper
               price_volatility_20d: upper
-
             validation:
               min_rows_per_window: 20
               min_positive_windows: 2
@@ -63,19 +51,15 @@ jobs:
               max_findings: 25
         run: |
           python -u -m ml.research.discovery.runner
-
       - name: Run Momentum × SI Surface Analysis
         run: |
           python -u -m ml.research.momentum_si_surface_analysis
-
       - name: Run Momentum × SI Surface Stability Analysis
         run: |
           python -u -m ml.research.momentum_si_surface_stability_analysis
-
       - name: Run Registered Experiments
         run: |
           python -u -m ml.experiment_registry_runner
-
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -84,6 +68,6 @@ jobs:
             data/processed/ml/research/discovery/**
             data/processed/ml/research/momentum_si_surface/**
             data/processed/ml/research/momentum_si_surface_stability/**
-            data/processed/ml/research/latest/diagnostics/**
+            data/processed/ml/research/latest/diagnostic/**
             data/processed/ml/research/latest/diagnostics.json
           if-no-files-found: warn
