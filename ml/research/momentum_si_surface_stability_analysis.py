@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,9 @@ from ml.dataset import build_target, load_features
 from ml.research.signals import build_signal
 
 
-OUTPUT_DIR = Path("data/processed/ml/research/momentum_si_surface_stability")
+OUTPUT_DIR = Path(
+    "data/processed/ml/research/momentum_si_surface_stability"
+)
 
 MIN_CELL_N = 50
 TOP_K = 5
@@ -20,93 +23,237 @@ N_DECILES = 10
 DATE_CUTOFF = pd.Timestamp("2025-12-19")
 HALF_SPLIT = pd.Timestamp("2025-06-30")
 
+TARGET_NAMES = (
+    "down_5pct_5d",
+    "down_7pct_5d",
+    "down_10pct_5d",
+)
 
-def _event_rate(values: pd.Series) -> float:
-    if len(values) == 0:
-        return float("nan")
-    return float(values.mean())
+MOMENTUM_SIGNAL_NAME = "price_momentum_5d"
+SI_SIGNAL_NAME = "short_interest_change"
 
 
-def _make_surface(
-    df: pd.DataFrame,
-    target: str,
-) -> pd.DataFrame:
-    work = df.copy()
+def get_target(name: str):
+    for target in TARGETS:
+        if target.name == name:
+            return target
 
-    work["momentum_decile"] = (
-        work.groupby("date")["momentum"]
-        .transform(
-            lambda x: pd.qcut(
-                x.rank(method="first"),
-                N_DECILES,
-                labels=False,
-                duplicates="drop",
-            )
-            + 1
-        )
+    raise ValueError(
+        f"Unknown target: {name}"
     )
 
-    work["si_decile"] = (
-        work.groupby("date")["short_interest"]
-        .transform(
-            lambda x: pd.qcut(
-                x.rank(method="first"),
-                N_DECILES,
-                labels=False,
-                duplicates="drop",
-            )
-            + 1
-        )
+
+def cross_sectional_deciles(
+    frame: pd.DataFrame,
+    values: pd.Series,
+) -> np.ndarray:
+    """
+    Assign each observation to one of ten cross-sectional
+    deciles independently for each snapshot date.
+
+    Decile 1 = lowest values.
+    Decile 10 = highest values.
+
+    Only information available on the same snapshot date
+    is used for the ranking.
+    """
+    result = np.full(
+        len(frame),
+        -1,
+        dtype=np.int8,
     )
 
-    work = work.dropna(
-        subset=[
-            "momentum_decile",
-            "si_decile",
-            target,
+    working = pd.DataFrame(
+        {
+            "snapshot_date": frame["snapshot_date"],
+            "value": pd.to_numeric(
+                values,
+                errors="coerce",
+            ),
+        },
+        index=frame.index,
+    )
+
+    for _, index in working.groupby(
+        "snapshot_date",
+        sort=False,
+    ).groups.items():
+        local = working.loc[
+            index,
+            "value",
         ]
-    )
 
-    momentum_baseline = (
-        work.groupby(
-            ["momentum_decile"],
-            observed=True,
-        )[target]
-        .mean()
-        .rename("momentum_baseline")
-    )
+        valid = local.notna()
 
-    surface = (
-        work.groupby(
-            ["momentum_decile", "si_decile"],
-            observed=True,
-        )[target]
-        .agg(
-            event_rate="mean",
-            n="size",
+        if not valid.any():
+            continue
+
+        ranks = local.loc[
+            valid
+        ].rank(
+            method="first",
+            pct=True,
+        ).to_numpy()
+
+        bins = (
+            np.ceil(
+                ranks * N_DECILES
+            ).astype(int)
+            - 1
         )
-        .reset_index()
+
+        bins = np.clip(
+            bins,
+            0,
+            N_DECILES - 1,
+        )
+
+        positions = (
+            frame.index.get_indexer(
+                local.loc[valid].index
+            )
+        )
+
+        result[
+            positions
+        ] = bins
+
+    return result
+
+
+def cell_surface(
+    momentum_bins: np.ndarray,
+    si_bins: np.ndarray,
+    target: np.ndarray,
+) -> pd.DataFrame:
+    """
+    Build a 10 x 10 momentum/SI surface.
+
+    The incremental effect is measured against the complete
+    momentum-decile row, i.e. the event rate among all SI
+    deciles within the same momentum decile.
+    """
+    rows: list[dict[str, Any]] = []
+
+    valid = (
+        (momentum_bins >= 0)
+        & (si_bins >= 0)
+        & np.isfinite(target)
     )
 
-    surface = surface.merge(
-        momentum_baseline.reset_index(),
-        on="momentum_decile",
-        how="left",
+    overall_rate = (
+        float(
+            target[valid].mean()
+        )
+        if valid.any()
+        else None
     )
 
-    surface["incremental_effect"] = (
-        surface["event_rate"]
-        - surface["momentum_baseline"]
-    )
+    for momentum_decile in range(
+        N_DECILES
+    ):
+        row_mask = (
+            valid
+            & (
+                momentum_bins
+                == momentum_decile
+            )
+        )
 
-    surface["lift"] = (
-        surface["event_rate"]
-        / surface["momentum_baseline"].replace(0, np.nan)
-    )
+        row_target = target[
+            row_mask
+        ]
 
-    surface["target"] = target
+        row_rate = (
+            float(
+                row_target.mean()
+            )
+            if len(row_target)
+            else None
+        )
 
-    return surface
+        for si_decile in range(
+            N_DECILES
+        ):
+            cell_mask = (
+                row_mask
+                & (
+                    si_bins
+                    == si_decile
+                )
+            )
+
+            cell_target = target[
+                cell_mask
+            ]
+
+            cell_rate = (
+                float(
+                    cell_target.mean()
+                )
+                if len(cell_target)
+                else None
+            )
+
+            incremental_difference = None
+
+            if (
+                cell_rate is not None
+                and row_rate is not None
+            ):
+                incremental_difference = (
+                    cell_rate
+                    - row_rate
+                )
+
+            incremental_lift = None
+
+            if (
+                cell_rate is not None
+                and row_rate is not None
+                and row_rate > 0
+            ):
+                incremental_lift = (
+                    cell_rate
+                    / row_rate
+                )
+
+            rows.append(
+                {
+                    "momentum_decile": (
+                        momentum_decile + 1
+                    ),
+                    "si_decile": (
+                        si_decile + 1
+                    ),
+                    "n": int(
+                        len(cell_target)
+                    ),
+                    "events": int(
+                        cell_target.sum()
+                    ),
+                    "event_rate": (
+                        cell_rate
+                    ),
+                    "momentum_row_n": int(
+                        row_mask.sum()
+                    ),
+                    "momentum_row_event_rate": (
+                        row_rate
+                    ),
+                    "incremental_vs_momentum_row": (
+                        incremental_difference
+                    ),
+                    "incremental_lift_vs_momentum_row": (
+                        incremental_lift
+                    ),
+                    "overall_event_rate": (
+                        overall_rate
+                    ),
+                }
+            )
+
+    return pd.DataFrame(rows)
 
 
 def _select_top_cells(
@@ -119,9 +266,11 @@ def _select_top_cells(
     if eligible.empty:
         return eligible
 
-    eligible["abs_effect"] = eligible[
-        "incremental_effect"
-    ].abs()
+    eligible["abs_effect"] = (
+        eligible[
+            "incremental_vs_momentum_row"
+        ].abs()
+    )
 
     return (
         eligible.sort_values(
@@ -136,7 +285,6 @@ def _select_top_cells(
 def _evaluate_cells(
     surface: pd.DataFrame,
     cells: pd.DataFrame,
-    half_name: str,
 ) -> pd.DataFrame:
     if cells.empty:
         return pd.DataFrame()
@@ -148,7 +296,7 @@ def _evaluate_cells(
         ]
     ].drop_duplicates()
 
-    result = surface.merge(
+    return surface.merge(
         keys,
         on=[
             "momentum_decile",
@@ -157,78 +305,64 @@ def _evaluate_cells(
         how="inner",
     )
 
-    result["evaluation_half"] = half_name
-
-    return result
-
 
 def _prepare_data() -> pd.DataFrame:
-    features = load_features()
+    features = load_features().copy()
 
-    if "date" not in features.columns:
+    if "snapshot_date" not in features.columns:
         raise ValueError(
-            "Feature data must contain a 'date' column."
+            "Feature data must contain a "
+            "'snapshot_date' column."
         )
 
-    features["date"] = pd.to_datetime(
-        features["date"]
+    features["snapshot_date"] = pd.to_datetime(
+        features["snapshot_date"],
+        errors="coerce",
     )
 
     features = features.loc[
-        features["date"] <= DATE_CUTOFF
+        features["snapshot_date"].notna()
     ].copy()
 
-    target_frames = []
+    features = features.loc[
+        features["snapshot_date"] <= DATE_CUTOFF
+    ].copy()
 
-    for target in TARGETS:
-        target_df = build_target(
+    momentum = build_signal(
+        features,
+        MOMENTUM_SIGNAL_NAME,
+    )
+
+    short_interest = build_signal(
+        features,
+        SI_SIGNAL_NAME,
+    )
+
+    features["momentum"] = momentum
+    features["short_interest"] = short_interest
+
+    target_frames: list[pd.Series] = []
+
+    for target_name in TARGET_NAMES:
+        target = build_target(
             features,
-            target,
+            get_target(target_name),
         )
 
-        if isinstance(target_df, pd.Series):
-            target_df = target_df.rename(target).to_frame()
-
-        if target not in target_df.columns:
-            if len(target_df.columns) == 1:
-                target_df = target_df.rename(
-                    columns={
-                        target_df.columns[0]: target
-                    }
-                )
-            else:
-                raise ValueError(
-                    f"Could not identify target column '{target}'."
-                )
-
         target_frames.append(
-            target_df[[target]]
+            target.rename(target_name)
         )
 
     data = features.copy()
 
-    for target_df in target_frames:
-        data = data.join(
-            target_df,
-            how="inner",
-        )
-
-    signal = build_signal(data)
-
-    if isinstance(signal, pd.Series):
-        data["momentum"] = signal
-    else:
-        if "momentum" not in signal.columns:
-            raise ValueError(
-                "build_signal() did not return a 'momentum' column."
-            )
-
-        data["momentum"] = signal["momentum"]
+    for target_series in target_frames:
+        data[target_series.name] = target_series
 
     required = [
-        "date",
+        "snapshot_date",
         "momentum",
         "short_interest",
+        *TARGET_NAMES,
     ]
 
     missing = [
@@ -239,18 +373,57 @@ def _prepare_data() -> pd.DataFrame:
 
     if missing:
         raise ValueError(
-            f"Missing required columns: {missing}"
+            "Missing required columns: "
+            f"{missing}"
         )
 
     data = data.dropna(
         subset=[
-            "date",
+            "snapshot_date",
             "momentum",
             "short_interest",
         ]
+    ).copy()
+
+    data = data.sort_values(
+        [
+            "snapshot_date",
+            "security_key",
+        ],
+        kind="mergesort",
+    ).reset_index(
+        drop=True
     )
 
     return data
+
+
+def _make_surface(
+    df: pd.DataFrame,
+    target_name: str,
+) -> pd.DataFrame:
+    momentum_bins = cross_sectional_deciles(
+        df,
+        df["momentum"],
+    )
+
+    si_bins = cross_sectional_deciles(
+        df,
+        df["short_interest"],
+    )
+
+    target = pd.to_numeric(
+        df[target_name],
+        errors="coerce",
+    ).to_numpy(
+        dtype=float
+    )
+
+    return cell_surface(
+        momentum_bins,
+        si_bins,
+        target,
+    )
 
 
 def _run_direction(
@@ -260,29 +433,38 @@ def _run_direction(
     eval_start: pd.Timestamp,
     eval_end: pd.Timestamp,
     direction: str,
-) -> tuple[list[dict], list[pd.DataFrame]]:
+) -> tuple[
+    list[dict[str, Any]],
+    list[pd.DataFrame],
+]:
     train = data.loc[
-        (data["date"] >= train_start)
-        & (data["date"] <= train_end)
+        (data["snapshot_date"] >= train_start)
+        & (data["snapshot_date"] <= train_end)
     ].copy()
 
     evaluation = data.loc[
-        (data["date"] >= eval_start)
-        & (data["date"] <= eval_end)
+        (data["snapshot_date"] >= eval_start)
+        & (data["snapshot_date"] <= eval_end)
     ].copy()
 
-    replication_rows: list[dict] = []
-    surface_frames: list[pd.DataFrame] = []
+    replication_rows: list[dict[str, Any]] = []
+    selected_surfaces: list[pd.DataFrame] = []
 
-    for target in TARGETS:
+    selection_half = (
+        "H1"
+        if direction == "H1_to_H2"
+        else "H2"
+    )
+
+    for target_name in TARGET_NAMES:
         train_surface = _make_surface(
             train,
-            target,
+            target_name,
         )
 
         eval_surface = _make_surface(
             evaluation,
-            target,
+            target_name,
         )
 
         selected = _select_top_cells(
@@ -295,114 +477,148 @@ def _run_direction(
         evaluated = _evaluate_cells(
             eval_surface,
             selected,
-            direction,
         )
 
         for _, selected_row in selected.iterrows():
             momentum_decile = int(
-                selected_row["momentum_decile"]
+                selected_row[
+                    "momentum_decile"
+                ]
             )
+
             si_decile = int(
-                selected_row["si_decile"]
+                selected_row[
+                    "si_decile"
+                ]
             )
 
             matching = evaluated.loc[
-                (evaluated["momentum_decile"] == momentum_decile)
+                (
+                    evaluated[
+                        "momentum_decile"
+                    ]
+                    == momentum_decile
+                )
                 & (
-                    evaluated["si_decile"]
+                    evaluated[
+                        "si_decile"
+                    ]
                     == si_decile
                 )
             ]
 
             if matching.empty:
-                eval_row = {
-                    "direction": direction,
-                    "target": target,
-                    "momentum_decile": momentum_decile,
-                    "si_decile": si_decile,
-                    "train_n": int(selected_row["n"]),
-                    "train_event_rate": float(
-                        selected_row["event_rate"]
-                    ),
-                    "train_momentum_baseline": float(
-                        selected_row[
-                            "momentum_baseline"
-                        ]
-                    ),
-                    "train_incremental_effect": float(
-                        selected_row[
-                            "incremental_effect"
-                        ]
-                    ),
-                    "eval_n": 0,
-                    "eval_event_rate": np.nan,
-                    "eval_momentum_baseline": np.nan,
-                    "eval_incremental_effect": np.nan,
-                    "eval_lift": np.nan,
-                }
-            else:
-                eval_row_raw = matching.iloc[0]
+                eval_n = 0
+                eval_event_rate = np.nan
+                eval_momentum_baseline = np.nan
+                eval_effect = np.nan
+                eval_lift = np.nan
 
-                eval_row = {
-                    "direction": direction,
-                    "target": target,
-                    "momentum_decile": momentum_decile,
-                    "si_decile": si_decile,
-                    "train_n": int(selected_row["n"]),
-                    "train_event_rate": float(
-                        selected_row["event_rate"]
-                    ),
-                    "train_momentum_baseline": float(
-                        selected_row[
-                            "momentum_baseline"
+            else:
+                eval_row = matching.iloc[0]
+
+                eval_n = int(
+                    eval_row["n"]
+                )
+
+                eval_event_rate = float(
+                    eval_row["event_rate"]
+                )
+
+                eval_momentum_baseline = float(
+                    eval_row[
+                        "momentum_row_event_rate"
+                    ]
+                )
+
+                eval_effect = float(
+                    eval_row[
+                        "incremental_vs_momentum_row"
+                    ]
+                )
+
+                eval_lift = (
+                    float(
+                        eval_row[
+                            "incremental_lift_vs_momentum_row"
                         ]
-                    ),
-                    "train_incremental_effect": float(
-                        selected_row[
-                            "incremental_effect"
-                        ]
-                    ),
-                    "eval_n": int(
-                        eval_row_raw["n"]
-                    ),
-                    "eval_event_rate": float(
-                        eval_row_raw["event_rate"]
-                    ),
-                    "eval_momentum_baseline": float(
-                        eval_row_raw[
-                            "momentum_baseline"
-                        ]
-                    ),
-                    "eval_incremental_effect": float(
-                        eval_row_raw[
-                            "incremental_effect"
-                        ]
-                    ),
-                    "eval_lift": float(
-                        eval_row_raw["lift"]
                     )
                     if pd.notna(
-                        eval_row_raw["lift"]
+                        eval_row[
+                            "incremental_lift_vs_momentum_row"
+                        ]
                     )
-                    else np.nan,
+                    else np.nan
+                )
+
+            replication_rows.append(
+                {
+                    "direction": direction,
+                    "target": target_name,
+                    "momentum_decile": momentum_decile,
+                    "si_decile": si_decile,
+                    "train_n": int(
+                        selected_row["n"]
+                    ),
+                    "train_event_rate": float(
+                        selected_row[
+                            "event_rate"
+                        ]
+                    ),
+                    "train_momentum_baseline": float(
+                        selected_row[
+                            "momentum_row_event_rate"
+                        ]
+                    ),
+                    "train_incremental_effect": float(
+                        selected_row[
+                            "incremental_vs_momentum_row"
+                        ]
+                    ),
+                    "train_lift": (
+                        float(
+                            selected_row[
+                                "incremental_lift_vs_momentum_row"
+                            ]
+                        )
+                        if pd.notna(
+                            selected_row[
+                                "incremental_lift_vs_momentum_row"
+                            ]
+                        )
+                        else np.nan
+                    ),
+                    "eval_n": eval_n,
+                    "eval_event_rate": eval_event_rate,
+                    "eval_momentum_baseline": (
+                        eval_momentum_baseline
+                    ),
+                    "eval_incremental_effect": (
+                        eval_effect
+                    ),
+                    "eval_lift": eval_lift,
                 }
+            )
 
-            replication_rows.append(eval_row)
-
+        selected = selected.copy()
         selected["direction"] = direction
         selected["selection_half"] = (
-            "H1"
-            if direction == "H1_to_H2"
-            else "H2"
+            selection_half
         )
-        surface_frames.append(selected)
 
-    return replication_rows, surface_frames
+        selected_surfaces.append(
+            selected
+        )
+
+    return (
+        replication_rows,
+        selected_surfaces,
+    )
 
 
 def _write_report(
     replication: pd.DataFrame,
-    metadata: dict,
+    metadata: dict[str, Any],
 ) -> None:
     lines = [
         "# Momentum × SI Surface Stability",
@@ -410,9 +626,9 @@ def _write_report(
         "## Purpose",
         "",
         (
-            "Tests whether the strongest Momentum × Short Interest "
-            "surface effects found in one half of 2025 replicate "
-            "in the other half."
+            "Tests whether the strongest Momentum × Short "
+            "Interest surface effects found in one half of "
+            "2025 replicate in the other half."
         ),
         "",
         "## Method",
@@ -424,12 +640,20 @@ def _write_report(
         f"- Minimum cell N: {MIN_CELL_N}",
         f"- Cells selected per target: {TOP_K}",
         (
-            "- Cell effect = cell event rate minus the complete "
-            "momentum-decile row event rate."
+            "- Momentum: price_momentum_5d "
+            "(cross-sectional deciles)"
         ),
         (
-            "- The same momentum/SI cell coordinates are evaluated "
-            "in the opposite half."
+            "- Short interest: short_interest_change "
+            "(cross-sectional deciles)"
+        ),
+        (
+            "- Cell effect = cell event rate minus the "
+            "complete momentum-decile row event rate."
+        ),
+        (
+            "- The same momentum/SI cell coordinates are "
+            "evaluated in the opposite half."
         ),
         "",
         "## Cross-half replication",
@@ -440,6 +664,7 @@ def _write_report(
         lines.append(
             "No eligible replication results were produced."
         )
+
     else:
         for direction in sorted(
             replication["direction"].unique()
@@ -455,16 +680,16 @@ def _write_report(
                 replication["direction"] == direction
             ]
 
-            for target in TARGETS:
+            for target_name in TARGET_NAMES:
                 target_rows = subset.loc[
-                    subset["target"] == target
+                    subset["target"] == target_name
                 ]
 
                 if target_rows.empty:
                     continue
 
                 lines.append(
-                    f"#### `{target}`"
+                    f"#### `{target_name}`"
                 )
                 lines.append("")
 
@@ -472,20 +697,31 @@ def _write_report(
                     train_effect = row[
                         "train_incremental_effect"
                     ]
+
                     eval_effect = row[
                         "eval_incremental_effect"
                     ]
 
+                    eval_effect_text = (
+                        f"{eval_effect:.4f}"
+                        if pd.notna(eval_effect)
+                        else "n/a"
+                    )
+
                     lines.append(
                         "- "
-                        f"Momentum {int(row['momentum_decile'])}, "
-                        f"SI {int(row['si_decile'])}: "
+                        f"Momentum "
+                        f"{int(row['momentum_decile'])}, "
+                        f"SI "
+                        f"{int(row['si_decile'])}: "
                         f"train effect "
                         f"{train_effect:.4f}, "
                         f"evaluation effect "
-                        f"{eval_effect:.4f}, "
-                        f"train N {int(row['train_n'])}, "
-                        f"evaluation N {int(row['eval_n'])}."
+                        f"{eval_effect_text}, "
+                        f"train N "
+                        f"{int(row['train_n'])}, "
+                        f"evaluation N "
+                        f"{int(row['eval_n'])}."
                     )
 
                 lines.append("")
@@ -495,23 +731,31 @@ def _write_report(
             "## Interpretation",
             "",
             (
-                "This is a temporal stability test, not a trading "
-                "strategy validation. A cell selected because of a "
-                "large effect in one half can only be considered "
-                "temporally stable if a similar effect is visible "
-                "at the identical coordinates in the other half."
+                "This is a temporal stability test, not a "
+                "trading strategy validation."
             ),
             "",
             (
-                "The analysis does not establish causality and does "
-                "not account for transaction costs, execution, "
-                "position sizing, or portfolio construction."
+                "A cell selected because of a large effect "
+                "in one half can only be considered "
+                "temporally stable if a similar effect is "
+                "visible at the identical coordinates in "
+                "the other half."
+            ),
+            "",
+            (
+                "The analysis does not establish causality "
+                "and does not account for transaction costs, "
+                "execution, position sizing, or portfolio "
+                "construction."
             ),
             "",
         ]
     )
 
-    (OUTPUT_DIR / "report.md").write_text(
+    (
+        OUTPUT_DIR / "report.md"
+    ).write_text(
         "\n".join(lines),
         encoding="utf-8",
     )
@@ -524,22 +768,37 @@ def main() -> None:
     )
 
     print(
-        "=== Momentum × SI Surface Stability Analysis ==="
+        "=== Momentum × SI Surface Stability Analysis ===",
+        flush=True,
     )
 
     data = _prepare_data()
 
     print(
-        f"Rows after preparation: {len(data):,}"
+        f"Rows after preparation: {len(data):,}",
+        flush=True,
     )
 
-    h1_start = pd.Timestamp("2025-01-01")
+    h1_start = pd.Timestamp(
+        "2025-01-01"
+    )
+
     h1_end = HALF_SPLIT
-    h2_start = HALF_SPLIT + pd.Timedelta(days=1)
+
+    h2_start = (
+        HALF_SPLIT
+        + pd.Timedelta(days=1)
+    )
+
     h2_end = DATE_CUTOFF
 
-    all_replication = []
-    all_surfaces = []
+    all_replication: list[
+        dict[str, Any]
+    ] = []
+
+    all_surfaces: list[
+        pd.DataFrame
+    ] = []
 
     rows, surfaces = _run_direction(
         data,
@@ -578,12 +837,14 @@ def main() -> None:
         selected_surfaces = pd.DataFrame()
 
     replication.to_csv(
-        OUTPUT_DIR / "cross_half_replication.csv",
+        OUTPUT_DIR
+        / "cross_half_replication.csv",
         index=False,
     )
 
     selected_surfaces.to_csv(
-        OUTPUT_DIR / "surface_h1_h2.csv",
+        OUTPUT_DIR
+        / "surface_h1_h2.csv",
         index=False,
     )
 
@@ -597,11 +858,21 @@ def main() -> None:
         "half_split": str(
             HALF_SPLIT.date()
         ),
-        "n_rows": int(len(data)),
+        "n_rows": int(
+            len(data)
+        ),
         "n_deciles": N_DECILES,
         "min_cell_n": MIN_CELL_N,
         "top_k": TOP_K,
-        "targets": list(TARGETS),
+        "targets": list(
+            TARGET_NAMES
+        ),
+        "momentum_signal": (
+            MOMENTUM_SIGNAL_NAME
+        ),
+        "si_signal": (
+            SI_SIGNAL_NAME
+        ),
         "h1_start": str(
             h1_start.date()
         ),
@@ -622,7 +893,7 @@ def main() -> None:
         json.dumps(
             metadata,
             indent=2,
-            default=str,
+            ensure_ascii=False,
         ),
         encoding="utf-8",
     )
@@ -640,7 +911,7 @@ def main() -> None:
         json.dumps(
             results,
             indent=2,
-            default=str,
+            ensure_ascii=False,
         ),
         encoding="utf-8",
     )
@@ -651,13 +922,20 @@ def main() -> None:
     )
 
     print(
-        f"Replication rows: {len(replication):,}"
+        f"Replication rows: "
+        f"{len(replication):,}",
+        flush=True,
     )
 
     print(
-        "Results written to:"
+        "Results written to:",
+        flush=True,
     )
-    print(OUTPUT_DIR)
+
+    print(
+        OUTPUT_DIR,
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
