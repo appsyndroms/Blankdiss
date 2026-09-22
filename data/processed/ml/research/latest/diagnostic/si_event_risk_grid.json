@@ -3,8 +3,8 @@
   "question": "Vilka kombinationer av event-risk, SI-förändring, horisont och nedgångsmål visar robust interaktion i discovery-fasen?",
   "module": "ml.diagnostics.experiments.si_event_risk_grid_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-22T16:00:21.902082+00:00",
-  "finished_at_utc": "2026-09-22T16:26:52.638759+00:00",
+  "started_at_utc": "2026-09-22T17:56:10.244875+00:00",
+  "finished_at_utc": "2026-09-22T18:18:08.863268+00:00",
   "windows": [
     {
       "window": "window_1",

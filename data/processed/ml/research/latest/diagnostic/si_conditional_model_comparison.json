@@ -3,8 +3,8 @@
   "question": "Tillför SI information utöver event-risk, och tillför SI × volatilitet ytterligare OOS-information?",
   "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-22T16:27:21.807095+00:00",
-  "finished_at_utc": "2026-09-22T16:27:26.199797+00:00",
+  "started_at_utc": "2026-09-22T18:18:36.514559+00:00",
+  "finished_at_utc": "2026-09-22T18:18:41.052746+00:00",
   "windows": [
     {
       "window": "window_1",
