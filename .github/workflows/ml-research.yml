@@ -24,6 +24,43 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Discovery
+        env:
+          DISCOVERY_CONFIG: |
+            enabled: true
+            discovery_end_date: "2025-12-19"
+
+            targets:
+              - down_5pct_5d
+              - down_7pct_5d
+              - down_10pct_5d
+
+            signals:
+              - short_interest_level
+              - short_interest_change
+              - short_interest_acceleration
+              - price_momentum_5d
+
+            stress_features:
+              - price_momentum_20d
+              - price_momentum_60d
+              - price_volatility_20d
+
+            tails:
+              - 0.20
+              - 0.10
+              - 0.05
+
+            stress_directions:
+              price_momentum_20d: upper
+              price_momentum_60d: upper
+              price_volatility_20d: upper
+
+            validation:
+              min_rows_per_window: 20
+              min_positive_windows: 2
+              min_lift: 1.10
+              max_return_difference: 0.0
+              max_findings: 25
         run: |
           python -u -m ml.research.discovery.runner
 
