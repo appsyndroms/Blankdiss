@@ -1,15 +1,11 @@
 from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any
-
 import numpy as np
 import pandas as pd
-
 from .base import ExperimentResult
 from ml.research.signals import build_signal
-
 
 # ============================================================================
 # MOMENTUM × SI CELL CONTEXT
@@ -51,34 +47,24 @@ SI_CHANGE_BUCKETS = (
 def _numeric(frame: pd.DataFrame, column: str) -> pd.Series:
     if column not in frame.columns:
         return pd.Series(index=frame.index, dtype=float)
-
-    return pd.to_numeric(
-        frame[column],
-        errors="coerce",
-    )
+    return pd.to_numeric(frame[column], errors="coerce")
 
 
 def _numeric_mean(frame: pd.DataFrame, column: str) -> float:
     values = _numeric(frame, column).dropna()
-
     return float(values.mean()) if not values.empty else float("nan")
 
 
 def _numeric_median(frame: pd.DataFrame, column: str) -> float:
     values = _numeric(frame, column).dropna()
-
     return float(values.median()) if not values.empty else float("nan")
 
 
 def _event_rate(frame: pd.DataFrame) -> float:
     values = _numeric(frame, "forward_return_5d").dropna()
-
     if values.empty:
         return float("nan")
-
-    return float(
-        (values <= EVENT_THRESHOLD).mean()
-    )
+    return float((values <= EVENT_THRESHOLD).mean())
 
 
 def _cross_sectional_deciles(
@@ -86,25 +72,13 @@ def _cross_sectional_deciles(
     column: str,
 ) -> pd.Series:
     """Assign 0-9 deciles independently for each snapshot date."""
-
     values = _numeric(frame, column)
-
-    ranks = values.groupby(
-        frame["snapshot_date"]
-    ).rank(
+    ranks = values.groupby(frame["snapshot_date"]).rank(
         method="first",
         pct=True,
     )
-
-    deciles = np.ceil(
-        ranks * 10
-    ).astype("Int64") - 1
-
-    deciles = deciles.clip(
-        lower=0,
-        upper=9,
-    )
-
+    deciles = np.ceil(ranks * 10).astype("Int64") - 1
+    deciles = deciles.clip(lower=0, upper=9)
     return deciles.fillna(-1).astype(int)
 
 
@@ -234,9 +208,7 @@ def _delta_pp(
     if not np.isfinite(focal_rate) or not np.isfinite(control_rate):
         return float("nan")
 
-    return float(
-        focal_rate - control_rate
-    )
+    return float(focal_rate - control_rate)
 
 
 def _event_risk_cutoffs(
@@ -245,27 +217,19 @@ def _event_risk_cutoffs(
     """
     Calculate event-risk cutoffs cross-sectionally from the available
     frame.
-
     The cutoffs are descriptive here; this experiment does not fit
     another model. If event_score is absent, no bands are generated.
     """
     if "event_score" not in frame.columns:
         return {}
 
-    values = _numeric(
-        frame,
-        "event_score",
-    ).dropna()
+    values = _numeric(frame, "event_score").dropna()
 
     if values.empty:
         return {}
 
     return {
-        name: float(
-            values.quantile(
-                1.0 - upper
-            )
-        )
+        name: float(values.quantile(1.0 - upper))
         for name, _, upper in EVENT_RISK_BANDS
     }
 
@@ -282,40 +246,18 @@ def _event_risk_band(
             index=frame.index,
         )
 
-    values = _numeric(
-        frame,
-        "event_score",
-    )
+    values = _numeric(frame, "event_score")
 
     if lower == 0.0:
-        cutoff = float(
-            values.quantile(
-                1.0 - upper
-            )
-        )
-
+        cutoff = float(values.quantile(1.0 - upper))
         return values >= cutoff
 
     if upper == 1.0:
-        cutoff = float(
-            values.quantile(
-                1.0 - lower
-            )
-        )
-
+        cutoff = float(values.quantile(1.0 - lower))
         return values < cutoff
 
-    upper_cut = float(
-        values.quantile(
-            1.0 - upper
-        )
-    )
-
-    lower_cut = float(
-        values.quantile(
-            1.0 - lower
-        )
-    )
+    upper_cut = float(values.quantile(1.0 - upper))
+    lower_cut = float(values.quantile(1.0 - lower))
 
     return (
         (values >= upper_cut)
@@ -333,9 +275,7 @@ def _add_si_change_buckets(
         "short_interest_change",
     )
 
-    positive = change[
-        change > 0
-    ].dropna()
+    positive = change[change > 0].dropna()
 
     if positive.empty:
         extreme_cutoff = float("inf")
@@ -387,9 +327,7 @@ def _cell_context_rows(
             si_decile,
         )
 
-        focal = frame.loc[
-            focal_mask
-        ].copy()
+        focal = frame.loc[focal_mask].copy()
 
         momentum_control_mask = _momentum_control_mask(
             frame,
@@ -436,7 +374,6 @@ def _conditional_rows(
     """
     Compare each locked cell against the same momentum decile while
     controlling for event-risk band.
-
     This is deliberately descriptive. It answers:
         Does SI still matter inside the same momentum + risk regime?
     """
@@ -490,9 +427,7 @@ def _conditional_rows(
                     "event_rate": _event_rate(
                         focal
                     ),
-                    "control_n": int(
-                        len(control)
-                    ),
+                    "control_n": int(len(control)),
                     "control_event_rate": _event_rate(
                         control
                     ),
@@ -521,16 +456,11 @@ def _nine_by_ten_si_change_rows(
 ) -> list[dict]:
     """
     Mechanism follow-up for the 9x10 cell.
-
     The purpose is to determine whether 9x10 is driven by the
     SI-decile label itself or by unusually large actual SI changes.
     """
     focal = frame.loc[
-        _cell_mask(
-            frame,
-            9,
-            10,
-        )
+        _cell_mask(frame, 9, 10)
     ].copy()
 
     if focal.empty:
@@ -658,16 +588,13 @@ def run_momentum_si_cell_context(
 ) -> ExperimentResult:
     """
     Locked Momentum × SI follow-up.
-
     Main questions:
     1. Does each locked cell have elevated event risk?
     2. Does the elevation remain against the same momentum decile?
     3. Does it remain within the same event-risk regime?
     4. For 9x10, is the effect actually driven by extreme SI changes?
     """
-    frame = _prepare_frame(
-        context.test
-    )
+    frame = _prepare_frame(context.test)
 
     result = ExperimentResult(
         name="momentum_si_cell_context",
@@ -703,9 +630,7 @@ def run_momentum_si_cell_context(
 
     result.add_table(
         "momentum_event_risk_control",
-        pd.DataFrame(
-            conditional
-        ),
+        pd.DataFrame(conditional),
     )
 
     # ------------------------------------------------------------------
@@ -762,7 +687,6 @@ def run_momentum_si_cell_context(
                     local,
                     column,
                 )
-
                 row[f"{column}_median"] = _numeric_median(
                     local,
                     column,
@@ -778,7 +702,6 @@ def run_momentum_si_cell_context(
                         local,
                         column,
                     )
-
                     row[f"{column}_median"] = _numeric_median(
                         local,
                         column,
@@ -788,9 +711,7 @@ def run_momentum_si_cell_context(
 
         result.add_table(
             "cell_price_context",
-            pd.DataFrame(
-                context_rows
-            ),
+            pd.DataFrame(context_rows),
         )
 
     # ------------------------------------------------------------------
@@ -873,21 +794,10 @@ MOMENTUM_DECILE = 9
 SI_LEVEL_DECILE = 10
 SI_CHANGE_TOP_FRACTION = 0.20
 
-DISCOVERY_END = pd.Timestamp(
-    "2024-12-31"
-)
-
-LOCK_START = pd.Timestamp(
-    "2025-01-01"
-)
-
-LOCK_END = pd.Timestamp(
-    "2025-12-31"
-)
-
-OOS_START = pd.Timestamp(
-    "2026-01-01"
-)
+DISCOVERY_END = pd.Timestamp("2024-12-31")
+LOCK_START = pd.Timestamp("2025-01-01")
+LOCK_END = pd.Timestamp("2025-12-31")
+OOS_START = pd.Timestamp("2026-01-01")
 
 MIN_GROUP_N = 20
 
@@ -944,7 +854,6 @@ def _incremental_cross_sectional_deciles(
 ) -> pd.Series:
     """
     Assign 1..10 deciles independently for every snapshot date.
-
     Decile 1 = lowest.
     Decile 10 = highest.
     """
@@ -978,17 +887,11 @@ def _high_si_change_mask(
 ) -> pd.Series:
     """
     Locked SI-change definition.
-
     High SI change means the top 20% of positive SI changes
     within each snapshot date.
-
     This is a cross-sectional rule and therefore does not
     estimate a threshold from 2025 or 2026.
     """
-    # IMPORTANT:
-    # Use the already normalized signal created by
-    # _incremental_prepare(). The raw feature may use another
-    # underlying column name and is resolved by build_signal().
     change = _incremental_numeric(
         frame,
         "si_change",
@@ -1083,7 +986,7 @@ def _incremental_prepare(
     # B = outside high regime + high SI change
     # C = high regime + low SI change
     # D = high regime + high SI change
-    #
+
     # np.select requires boolean ndarrays. Explicit conversion here
     # also handles pandas nullable boolean values safely.
     result["group"] = np.select(
@@ -1626,11 +1529,9 @@ def _sector_relative(
 ) -> pd.DataFrame:
     """
     Sector-relative return for the same four groups.
-
     Benchmark:
         equal-weight sector mean excluding the stock itself,
         separately for every snapshot date.
-
     If the frozen sector map is unavailable, report that explicitly.
     """
     sector_map = _load_sector_map()
@@ -1913,12 +1814,10 @@ def run_momentum_si_incremental_locked_oos(
 ) -> ExperimentResult:
     """
     Locked Momentum × SI incremental OOS analysis.
-
     Hypothesis:
         När en aktie har hög momentum + mycket hög short interest,
         är en ytterligare ökning av short interest associerad med
         högre risk för större nedgång?
-
     The hypothesis, regime and SI-change definition are fixed.
     No parameter selection or optimization is performed against
     the final 2026 OOS period.
