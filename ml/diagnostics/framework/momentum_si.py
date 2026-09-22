@@ -14,8 +14,6 @@ from ml.research.signals import build_signal
 from .base import ExperimentResult
 
 
-DATE_CUTOFF = pd.Timestamp("2025-12-19")
-
 TARGET_NAMES = (
     "down_5pct_5d",
     "down_7pct_5d",
@@ -277,10 +275,6 @@ def _prepare_frame(
 
     result = result.loc[
         result["snapshot_date"].notna()
-    ].copy()
-
-    result = result.loc[
-        result["snapshot_date"] <= DATE_CUTOFF
     ].copy()
 
     result["momentum"] = pd.to_numeric(
@@ -773,12 +767,25 @@ def build_half_breakdown(
 ) -> pd.DataFrame:
     working = frame.copy()
 
-    working["half"] = np.where(
-        working["snapshot_date"]
-        <= pd.Timestamp("2025-06-30"),
-        "H1",
-        "H2",
-    )
+    min_date = working["snapshot_date"].min()
+    max_date = working["snapshot_date"].max()
+
+    if pd.isna(min_date) or pd.isna(max_date):
+        working["half"] = pd.Series(
+            index=working.index,
+            dtype="object",
+        )
+    else:
+        midpoint = (
+            min_date
+            + (max_date - min_date) / 2
+        )
+
+        working["half"] = np.where(
+            working["snapshot_date"] <= midpoint,
+            "H1",
+            "H2",
+        )
 
     momentum_bins = cross_sectional_deciles(
         working,
@@ -924,11 +931,6 @@ def run_momentum_si_cell_context(
     result.add_metric(
         "half_result_rows",
         int(len(half_breakdown)),
-    )
-
-    result.add_metadata(
-        "date_cutoff",
-        str(DATE_CUTOFF.date()),
     )
 
     result.add_metadata(
