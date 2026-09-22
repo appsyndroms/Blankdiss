@@ -70,6 +70,13 @@
       "question": "När en aktie har hög momentum + mycket hög short interest, är en ytterligare ökning av short interest associerad med högre risk för större nedgång?",
       "module": "ml.diagnostics.experiments.momentum_si_incremental_locked_oos_diagnostic",
       "priority": 10
+    },
+    {
+      "id": "si_change_mechanism",
+      "status": "active",
+      "question": "Vad händer efter en ovanligt stor positiv förändring i short interest, och hur varierar sambandet med tidigare momentum och SI-nivå?",
+      "module": "ml.diagnostics.experiments.si_change_mechanism_diagnostic",
+      "priority": 11
     }
   ]
 }
