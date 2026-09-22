@@ -3,8 +3,8 @@
   "question": "När en aktie har hög momentum + mycket hög short interest, är en ytterligare ökning av short interest associerad med högre risk för större nedgång?",
   "module": "ml.diagnostics.experiments.momentum_si_incremental_locked_oos_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-22T18:18:44.580776+00:00",
-  "finished_at_utc": "2026-09-22T18:18:48.090331+00:00",
+  "started_at_utc": "2026-09-22T19:02:52.235766+00:00",
+  "finished_at_utc": "2026-09-22T19:02:55.719190+00:00",
   "windows": [
     {
       "window": "window_1",
