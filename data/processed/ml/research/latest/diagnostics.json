@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-22T13:00:13.869877+00:00",
+  "created_at_utc": "2026-09-22T16:27:33.331103+00:00",
   "research_run_timestamp": "20260921T190553Z",
-  "registered_experiments": 9,
-  "active_experiments": 9,
-  "completed": 9,
+  "registered_experiments": 10,
+  "active_experiments": 10,
+  "completed": 10,
   "failed": 0,
   "results": [
     {
@@ -50,6 +50,11 @@
       "experiment_id": "momentum_si_cell_context",
       "status": "completed",
       "result_file": "diagnostic/momentum_si_cell_context.json"
+    },
+    {
+      "experiment_id": "momentum_si_incremental_locked_oos",
+      "status": "completed",
+      "result_file": "diagnostic/momentum_si_incremental_locked_oos.json"
     }
   ]
 }

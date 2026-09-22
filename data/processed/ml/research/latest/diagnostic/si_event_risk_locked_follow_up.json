@@ -3,8 +3,8 @@
   "question": "Kvarstår den låsta hypotesen att hög event-risk kombinerat med stor positiv SI-förändring ger högre kortsiktig downside-risk?",
   "module": "ml.diagnostics.experiments.si_event_risk_locked_follow_up_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-22T12:59:31.046806+00:00",
-  "finished_at_utc": "2026-09-22T12:59:55.346657+00:00",
+  "started_at_utc": "2026-09-22T16:26:52.804184+00:00",
+  "finished_at_utc": "2026-09-22T16:27:14.222936+00:00",
   "windows": [
     {
       "window": "window_1",
