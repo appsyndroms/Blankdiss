@@ -27,9 +27,9 @@ SI_CHANGE_SIGNAL_NAME = "short_interest_change"
 SI_LEVEL_COLUMN = "short_interest_pct"
 
 MOMENTUM_COLUMNS = (
-    "price_momentum_5d",
-    "price_momentum_20d",
-    "price_momentum_60d",
+    "price_return_5d",
+    "price_return_20d",
+    "price_return_60d",
 )
 
 CONTEXT_COLUMNS = (
@@ -59,6 +59,12 @@ FOCUS_CELLS = (
     (9, 10),
     (7, 10),
 )
+
+SIGNAL_TO_FEATURE_COLUMN = {
+    "price_momentum_5d": "price_return_5d",
+    "price_momentum_20d": "price_return_20d",
+    "price_momentum_60d": "price_return_60d",
+}
 
 
 def get_target(name: str):
@@ -526,10 +532,10 @@ def describe_cell(
         "events": target_stats["events"],
         "event_rate": target_stats["event_rate"],
         "mean_momentum_5d": safe_mean(
-            cell["price_momentum_5d"]
+            cell["momentum"]
         ),
         "median_momentum_5d": safe_median(
-            cell["price_momentum_5d"]
+            cell["momentum"]
         ),
         "mean_si_change": safe_mean(
             cell["si_change"]
@@ -546,14 +552,19 @@ def describe_cell(
     }
 
     for column in context_columns:
-        if column not in cell.columns:
+        actual_column = SIGNAL_TO_FEATURE_COLUMN.get(
+            column,
+            column,
+        )
+
+        if actual_column not in cell.columns:
             continue
 
         row[f"mean_{column}"] = safe_mean(
-            cell[column]
+            cell[actual_column]
         )
         row[f"median_{column}"] = safe_median(
-            cell[column]
+            cell[actual_column]
         )
 
     for horizon in horizons:
