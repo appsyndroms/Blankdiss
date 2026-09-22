@@ -81,21 +81,3 @@ jobs:
             data/processed/ml/research/momentum_si_surface/**
             data/processed/ml/research/momentum_si_surface_stability/**
           if-no-files-found: warn
-
-      - name: Commit research results
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add \
-            data/processed/ml/research/discovery \
-            data/processed/ml/research/momentum_si_surface \
-            data/processed/ml/research/momentum_si_surface_stability
-
-          if git diff --cached --quiet; then
-            echo "No research result changes to commit."
-          else
-            git commit -m "Update ML research results"
-            git push
-          fi
