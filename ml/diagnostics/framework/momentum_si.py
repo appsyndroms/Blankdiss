@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ml.config import TARGETS
+from ml.dataset import build_target
 from ml.research.signals import build_signal
 
 from .base import ExperimentResult
@@ -85,40 +86,26 @@ def load_sector_map() -> dict[str, str]:
             "sector_map.json must contain a JSON object."
         )
 
-    instruments = payload.get(
-        "instruments"
-    )
+    instruments = payload.get("instruments")
 
-    if not isinstance(
-        instruments,
-        dict,
-    ):
+    if not isinstance(instruments, dict):
         return {}
 
     mapping: dict[str, str] = {}
 
     for symbol, item in instruments.items():
-        if not isinstance(
-            item,
-            dict,
-        ):
+        if not isinstance(item, dict):
             continue
 
-        sector = item.get(
-            "sector"
-        )
+        sector = item.get("sector")
 
         if sector is None:
             continue
 
-        sector = str(
-            sector
-        ).strip()
+        sector = str(sector).strip()
 
         if sector:
-            mapping[
-                str(symbol)
-            ] = sector
+            mapping[str(symbol)] = sector
 
     return mapping
 
@@ -129,7 +116,7 @@ def cross_sectional_deciles(
 ) -> np.ndarray:
     """
     Assign cross-sectional deciles independently per
-    snapshot date.
+    snapshot_date.
 
     0 = lowest decile
     9 = highest decile
@@ -176,9 +163,7 @@ def cross_sectional_deciles(
         ).to_numpy()
 
         bins = (
-            np.ceil(
-                ranks * 10
-            ).astype(int)
+            np.ceil(ranks * 10).astype(int)
             - 1
         )
 
@@ -188,17 +173,11 @@ def cross_sectional_deciles(
             9,
         )
 
-        positions = (
-            frame.index.get_indexer(
-                local.loc[
-                    valid
-                ].index
-            )
+        positions = frame.index.get_indexer(
+            local.loc[valid].index
         )
 
-        result[
-            positions
-        ] = bins
+        result[positions] = bins
 
     return result
 
@@ -214,9 +193,7 @@ def safe_mean(
     if values.empty:
         return None
 
-    return float(
-        values.mean()
-    )
+    return float(values.mean())
 
 
 def safe_median(
@@ -230,9 +207,7 @@ def safe_median(
     if values.empty:
         return None
 
-    return float(
-        values.median()
-    )
+    return float(values.median())
 
 
 def event_statistics(
@@ -250,20 +225,12 @@ def event_statistics(
             "event_rate": None,
         }
 
-    events = (
-        numeric > 0
-    )
+    events = numeric > 0
 
     return {
-        "n": int(
-            len(numeric)
-        ),
-        "events": int(
-            events.sum()
-        ),
-        "event_rate": float(
-            events.mean()
-        ),
+        "n": int(len(numeric)),
+        "events": int(events.sum()),
+        "event_rate": float(events.mean()),
     }
 
 
@@ -278,9 +245,7 @@ def _ensure_targets(
 
         result[target_name] = build_target(
             result,
-            get_target(
-                target_name
-            ),
+            get_target(target_name),
         )
 
     return result
@@ -309,35 +274,28 @@ def _prepare_frame(
     ].copy()
 
     result = result.loc[
-        result["snapshot_date"]
-        <= DATE_CUTOFF
+        result["snapshot_date"] <= DATE_CUTOFF
     ].copy()
 
-    momentum = build_signal(
-        result,
-        MOMENTUM_SIGNAL_NAME,
-    )
-
-    si_change = build_signal(
-        result,
-        SI_CHANGE_SIGNAL_NAME,
-    )
-
     result["momentum"] = pd.to_numeric(
-        momentum,
+        build_signal(
+            result,
+            MOMENTUM_SIGNAL_NAME,
+        ),
         errors="coerce",
     )
 
     result["si_change"] = pd.to_numeric(
-        si_change,
+        build_signal(
+            result,
+            SI_CHANGE_SIGNAL_NAME,
+        ),
         errors="coerce",
     )
 
     if SI_LEVEL_COLUMN in result.columns:
         result["si_level"] = pd.to_numeric(
-            result[
-                SI_LEVEL_COLUMN
-            ],
+            result[SI_LEVEL_COLUMN],
             errors="coerce",
         )
     else:
@@ -353,9 +311,7 @@ def _prepare_frame(
                 errors="coerce",
             )
 
-    result = _ensure_targets(
-        result
-    )
+    result = _ensure_targets(result)
 
     symbol_column = (
         "yahoo_symbol"
@@ -365,9 +321,7 @@ def _prepare_frame(
 
     if symbol_column in result.columns:
         result["sector"] = (
-            result[
-                symbol_column
-            ]
+            result[symbol_column]
             .astype(str)
             .map(sector_map)
         )
@@ -379,14 +333,12 @@ def _prepare_frame(
 
 def add_relative_returns(
     frame: pd.DataFrame,
+    horizons: tuple[int, ...],
 ) -> pd.DataFrame:
     """
     Calculate sector- and market-relative forward returns.
 
     Benchmarks exclude the stock itself.
-
-    The original row index is preserved so that downstream
-    cell selection remains aligned with the source frame.
     """
 
     result = frame.copy()
@@ -403,12 +355,10 @@ def add_relative_returns(
         symbol_column,
     }
 
-    if not required.issubset(
-        result.columns
-    ):
+    if not required.issubset(result.columns):
         return result
 
-    for horizon in FORWARD_RETURN_HORIZONS:
+    for horizon in horizons:
         return_column = (
             f"forward_return_{horizon}d"
         )
@@ -425,14 +375,8 @@ def add_relative_returns(
             ]
         ].copy()
 
-        working["_original_index"] = (
-            working.index
-        )
-
         working["_return"] = pd.to_numeric(
-            working[
-                return_column
-            ],
+            working[return_column],
             errors="coerce",
         )
 
@@ -457,14 +401,8 @@ def add_relative_returns(
                 as_index=False,
             )
             .agg(
-                sector=(
-                    "sector",
-                    "first",
-                ),
-                _return=(
-                    "_return",
-                    "first",
-                ),
+                sector=("sector", "first"),
+                _return=("_return", "first"),
             )
         )
 
@@ -508,13 +446,9 @@ def add_relative_returns(
             sector_count > 1,
             (
                 sector_sum
-                - stock_returns[
-                    "_return"
-                ]
+                - stock_returns["_return"]
             )
-            / (
-                sector_count - 1
-            ),
+            / (sector_count - 1),
             np.nan,
         )
 
@@ -524,36 +458,24 @@ def add_relative_returns(
             market_count > 1,
             (
                 market_sum
-                - stock_returns[
-                    "_return"
-                ]
+                - stock_returns["_return"]
             )
-            / (
-                market_count - 1
-            ),
+            / (market_count - 1),
             np.nan,
         )
 
         stock_returns[
             f"_sector_relative_{horizon}d"
         ] = (
-            stock_returns[
-                "_return"
-            ]
-            - stock_returns[
-                "_sector_mean_ex_self"
-            ]
+            stock_returns["_return"]
+            - stock_returns["_sector_mean_ex_self"]
         )
 
         stock_returns[
             f"_market_relative_{horizon}d"
         ] = (
-            stock_returns[
-                "_return"
-            ]
-            - stock_returns[
-                "_market_mean_ex_self"
-            ]
+            stock_returns["_return"]
+            - stock_returns["_market_mean_ex_self"]
         )
 
         relative = stock_returns[
@@ -584,110 +506,57 @@ def describe_cell(
     momentum_decile: int,
     si_decile: int,
     target_name: str,
+    horizons: tuple[int, ...],
+    context_columns: tuple[str, ...],
 ) -> dict[str, Any]:
     cell = frame.loc[
-        (
-            momentum_bins
-            == momentum_decile - 1
-        )
-        & (
-            si_bins
-            == si_decile - 1
-        )
+        (momentum_bins == momentum_decile - 1)
+        & (si_bins == si_decile - 1)
     ].copy()
 
-    target = pd.to_numeric(
-        cell[
-            target_name
-        ],
-        errors="coerce",
-    )
-
     target_stats = event_statistics(
-        target
+        cell[target_name]
     )
 
     row: dict[str, Any] = {
         "target": target_name,
         "momentum_decile": momentum_decile,
         "si_decile": si_decile,
-        "n": int(
-            len(cell)
-        ),
-        "events": target_stats[
-            "events"
-        ],
-        "event_rate": target_stats[
-            "event_rate"
-        ],
+        "n": int(len(cell)),
+        "events": target_stats["events"],
+        "event_rate": target_stats["event_rate"],
         "mean_momentum_5d": safe_mean(
-            cell.get(
-                "price_momentum_5d",
-                pd.Series(
-                    dtype=float
-                ),
-            )
+            cell["price_momentum_5d"]
         ),
         "median_momentum_5d": safe_median(
-            cell.get(
-                "price_momentum_5d",
-                pd.Series(
-                    dtype=float
-                ),
-            )
+            cell["price_momentum_5d"]
         ),
         "mean_si_change": safe_mean(
-            cell[
-                "si_change"
-            ]
+            cell["si_change"]
         ),
         "median_si_change": safe_median(
-            cell[
-                "si_change"
-            ]
+            cell["si_change"]
         ),
         "mean_si_level": safe_mean(
-            cell[
-                "si_level"
-            ]
+            cell["si_level"]
         ),
         "median_si_level": safe_median(
-            cell[
-                "si_level"
-            ]
+            cell["si_level"]
         ),
     }
 
-    for column in (
-        "price_momentum_20d",
-        "price_momentum_60d",
-        "price_volatility_20d",
-        "price_distance_from_20d_high",
-        "price_distance_from_60d_high",
-    ):
-        row[
-            f"mean_{column}"
-        ] = safe_mean(
-            cell.get(
-                column,
-                pd.Series(
-                    dtype=float
-                ),
-            )
+    for column in context_columns:
+        if column not in cell.columns:
+            continue
+
+        row[f"mean_{column}"] = safe_mean(
+            cell[column]
+        )
+        row[f"median_{column}"] = safe_median(
+            cell[column]
         )
 
-        row[
-            f"median_{column}"
-        ] = safe_median(
-            cell.get(
-                column,
-                pd.Series(
-                    dtype=float
-                ),
-            )
-        )
-
-    for horizon in FORWARD_RETURN_HORIZONS:
+    for horizon in horizons:
         return_column = (
             f"forward_return_{horizon}d"
         )
@@ -696,17 +565,13 @@ def describe_cell(
             row[
                 f"mean_forward_return_{horizon}d"
             ] = safe_mean(
-                cell[
-                    return_column
-                ]
+                cell[return_column]
             )
 
             row[
                 f"median_forward_return_{horizon}d"
             ] = safe_median(
-                cell[
-                    return_column
-                ]
+                cell[return_column]
             )
 
         sector_column = (
@@ -717,17 +582,13 @@ def describe_cell(
             row[
                 f"mean_sector_relative_return_{horizon}d"
             ] = safe_mean(
-                cell[
-                    sector_column
-                ]
+                cell[sector_column]
             )
 
             row[
                 f"median_sector_relative_return_{horizon}d"
             ] = safe_median(
-                cell[
-                    sector_column
-                ]
+                cell[sector_column]
             )
 
         market_column = (
@@ -738,54 +599,38 @@ def describe_cell(
             row[
                 f"mean_market_relative_return_{horizon}d"
             ] = safe_mean(
-                cell[
-                    market_column
-                ]
+                cell[market_column]
             )
 
             row[
                 f"median_market_relative_return_{horizon}d"
             ] = safe_median(
-                cell[
-                    market_column
-                ]
+                cell[market_column]
             )
 
     if "sector" in cell.columns:
         sector_counts = (
-            cell[
-                "sector"
-            ]
+            cell["sector"]
             .dropna()
             .astype(str)
             .value_counts()
         )
 
-        row[
-            "sector_mapped_n"
-        ] = int(
+        row["sector_mapped_n"] = int(
             sector_counts.sum()
         )
 
-        row[
-            "sector_count"
-        ] = int(
+        row["sector_count"] = int(
             len(sector_counts)
         )
 
-        row[
-            "top_sector"
-        ] = (
-            str(
-                sector_counts.index[0]
-            )
+        row["top_sector"] = (
+            str(sector_counts.index[0])
             if len(sector_counts)
             else None
         )
 
-        row[
-            "top_sector_fraction"
-        ] = (
+        row["top_sector_fraction"] = (
             float(
                 sector_counts.iloc[0]
                 / sector_counts.sum()
@@ -802,6 +647,7 @@ def build_cell_context(
     *,
     focus_cells: tuple[tuple[int, int], ...],
     horizons: tuple[int, ...],
+    context_columns: tuple[str, ...],
 ) -> pd.DataFrame:
     momentum_bins = cross_sectional_deciles(
         frame,
@@ -825,18 +671,19 @@ def build_cell_context(
                     momentum_decile,
                     si_decile,
                     target_name,
+                    horizons,
+                    context_columns,
                 )
             )
 
-    return pd.DataFrame(
-        rows
-    )
+    return pd.DataFrame(rows)
 
 
 def build_sector_breakdown(
     frame: pd.DataFrame,
     *,
     focus_cells: tuple[tuple[int, int], ...],
+    horizons: tuple[int, ...],
 ) -> pd.DataFrame:
     if "sector" not in frame.columns:
         return pd.DataFrame()
@@ -854,71 +701,44 @@ def build_sector_breakdown(
     rows: list[dict[str, Any]] = []
 
     for momentum_decile, si_decile in focus_cells:
-        cell_mask = (
-            (
-                momentum_bins
-                == momentum_decile - 1
-            )
-            & (
-                si_bins
-                == si_decile - 1
-            )
+        mask = (
+            (momentum_bins == momentum_decile - 1)
+            & (si_bins == si_decile - 1)
         )
 
-        cell = frame.loc[
-            cell_mask
-        ].copy()
+        cell = frame.loc[mask].copy()
 
         if cell.empty:
             continue
 
-        grouped = (
-            cell.dropna(
-                subset=[
-                    "sector"
-                ]
-            )
-            .groupby(
-                "sector",
-                sort=True,
-            )
-        )
-
-        for sector, sector_frame in grouped:
+        for sector, sector_frame in (
+            cell.dropna(subset=["sector"])
+            .groupby("sector", sort=True)
+        ):
             if len(sector_frame) < MIN_CELL_N:
                 continue
 
             row: dict[str, Any] = {
                 "momentum_decile": momentum_decile,
                 "si_decile": si_decile,
-                "sector": str(
-                    sector
-                ),
-                "n": int(
-                    len(sector_frame)
-                ),
+                "sector": str(sector),
+                "n": int(len(sector_frame)),
             }
 
             for target_name in TARGET_NAMES:
                 stats = event_statistics(
-                    sector_frame[
-                        target_name
-                    ]
+                    sector_frame[target_name]
                 )
 
                 row[
                     f"{target_name}_event_rate"
-                ] = stats[
-                    "event_rate"
-                ]
+                ] = stats["event_rate"]
 
                 row[
                     f"{target_name}_events"
-                ] = stats[
-                    "events"
-                ]
+                ] = stats["events"]
 
-            for horizon in FORWARD_RETURN_HORIZONS:
+            for horizon in horizons:
                 column = (
                     f"forward_return_{horizon}d"
                 )
@@ -927,18 +747,12 @@ def build_sector_breakdown(
                     row[
                         f"mean_forward_return_{horizon}d"
                     ] = safe_mean(
-                        sector_frame[
-                            column
-                        ]
+                        sector_frame[column]
                     )
 
-            rows.append(
-                row
-            )
+            rows.append(row)
 
-    return pd.DataFrame(
-        rows
-    )
+    return pd.DataFrame(rows)
 
 
 def build_half_breakdown(
@@ -949,12 +763,8 @@ def build_half_breakdown(
     working = frame.copy()
 
     working["half"] = np.where(
-        working[
-            "snapshot_date"
-        ]
-        <= pd.Timestamp(
-            "2025-06-30"
-        ),
+        working["snapshot_date"]
+        <= pd.Timestamp("2025-06-30"),
         "H1",
         "H2",
     )
@@ -972,70 +782,40 @@ def build_half_breakdown(
     rows: list[dict[str, Any]] = []
 
     for momentum_decile, si_decile in focus_cells:
-        for half in (
-            "H1",
-            "H2",
-        ):
+        for half in ("H1", "H2"):
             mask = (
-                (
-                    momentum_bins
-                    == momentum_decile - 1
-                )
-                & (
-                    si_bins
-                    == si_decile - 1
-                )
-                & (
-                    working[
-                        "half"
-                    ]
-                    == half
-                )
+                (momentum_bins == momentum_decile - 1)
+                & (si_bins == si_decile - 1)
+                & (working["half"] == half)
             )
 
-            cell = working.loc[
-                mask
-            ]
+            cell = working.loc[mask]
 
             row: dict[str, Any] = {
                 "half": half,
                 "momentum_decile": momentum_decile,
                 "si_decile": si_decile,
-                "n": int(
-                    len(cell)
-                ),
+                "n": int(len(cell)),
                 "mean_si_change": safe_mean(
-                    cell[
-                        "si_change"
-                    ]
+                    cell["si_change"]
                 ),
                 "median_si_change": safe_median(
-                    cell[
-                        "si_change"
-                    ]
+                    cell["si_change"]
                 ),
             }
 
             for target_name in TARGET_NAMES:
                 stats = event_statistics(
-                    cell[
-                        target_name
-                    ]
+                    cell[target_name]
                 )
 
                 row[
                     f"{target_name}_event_rate"
-                ] = stats[
-                    "event_rate"
-                ]
+                ] = stats["event_rate"]
 
-            rows.append(
-                row
-            )
+            rows.append(row)
 
-    return pd.DataFrame(
-        rows
-    )
+    return pd.DataFrame(rows)
 
 
 def run_momentum_si_cell_context(
@@ -1046,11 +826,8 @@ def run_momentum_si_cell_context(
     context_columns: tuple[str, ...] = CONTEXT_COLUMNS,
 ) -> ExperimentResult:
     """
-    Run the original Momentum × SI cell-context diagnostic
-    inside the diagnostic framework.
-
-    The experiment remains descriptive and uses only the
-    pre-specified focus cells. No new cells are searched for.
+    Kör Momentum × SI cell-context-diagnostiken
+    genom diagnostic-frameworket.
     """
 
     sector_map = load_sector_map()
@@ -1061,18 +838,21 @@ def run_momentum_si_cell_context(
     )
 
     frame = add_relative_returns(
-        frame
+        frame,
+        horizons,
     )
 
     cell_context = build_cell_context(
         frame,
         focus_cells=focus_cells,
         horizons=horizons,
+        context_columns=context_columns,
     )
 
     sector_breakdown = build_sector_breakdown(
         frame,
         focus_cells=focus_cells,
+        horizons=horizons,
     )
 
     half_breakdown = build_half_breakdown(
@@ -1107,58 +887,42 @@ def run_momentum_si_cell_context(
 
     result.add_metric(
         "test_rows",
-        int(
-            len(frame)
-        ),
+        int(len(frame)),
     )
 
     result.add_metric(
         "focus_cell_count",
-        int(
-            len(focus_cells)
-        ),
+        int(len(focus_cells)),
     )
 
     result.add_metric(
         "sector_map_size",
-        int(
-            len(sector_map)
-        ),
+        int(len(sector_map)),
     )
 
     result.add_metric(
         "cell_result_rows",
-        int(
-            len(cell_context)
-        ),
+        int(len(cell_context)),
     )
 
     result.add_metric(
         "sector_result_rows",
-        int(
-            len(sector_breakdown)
-        ),
+        int(len(sector_breakdown)),
     )
 
     result.add_metric(
         "half_result_rows",
-        int(
-            len(half_breakdown)
-        ),
+        int(len(half_breakdown)),
     )
 
     result.add_metadata(
         "date_cutoff",
-        str(
-            DATE_CUTOFF.date()
-        ),
+        str(DATE_CUTOFF.date()),
     )
 
     result.add_metadata(
         "targets",
-        list(
-            TARGET_NAMES
-        ),
+        list(TARGET_NAMES),
     )
 
     result.add_metadata(
@@ -1179,16 +943,12 @@ def run_momentum_si_cell_context(
 
     result.add_metadata(
         "forward_return_horizons",
-        list(
-            horizons
-        ),
+        list(horizons),
     )
 
     result.add_metadata(
         "context_columns",
-        list(
-            context_columns
-        ),
+        list(context_columns),
     )
 
     result.add_metadata(
