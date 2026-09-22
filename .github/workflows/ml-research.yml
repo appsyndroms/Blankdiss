@@ -72,6 +72,10 @@ jobs:
         run: |
           python -u -m ml.research.momentum_si_surface_stability_analysis
 
+      - name: Run Registered Experiments
+        run: |
+          python -u -m ml.experiment_registry_runner
+
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -80,4 +84,6 @@ jobs:
             data/processed/ml/research/discovery/**
             data/processed/ml/research/momentum_si_surface/**
             data/processed/ml/research/momentum_si_surface_stability/**
+            data/processed/ml/research/latest/diagnostics/**
+            data/processed/ml/research/latest/diagnostics.json
           if-no-files-found: warn
