@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-22T19:02:55.750410+00:00",
+  "created_at_utc": "2026-09-22T20:04:24.325164+00:00",
   "research_run_timestamp": "20260921T190553Z",
-  "registered_experiments": 10,
-  "active_experiments": 10,
-  "completed": 10,
+  "registered_experiments": 11,
+  "active_experiments": 11,
+  "completed": 11,
   "failed": 0,
   "results": [
     {
@@ -55,6 +55,11 @@
       "experiment_id": "momentum_si_incremental_locked_oos",
       "status": "completed",
       "result_file": "diagnostic/momentum_si_incremental_locked_oos.json"
+    },
+    {
+      "experiment_id": "si_change_mechanism",
+      "status": "completed",
+      "result_file": "diagnostic/si_change_mechanism.json"
     }
   ]
 }
