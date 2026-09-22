@@ -1,231 +1,60 @@
-name: Blankdiss Research
+name: ML Research
 
 on:
   workflow_dispatch:
-
-permissions:
-  contents: write
-
-concurrency:
-  group: research-manual
-  cancel-in-progress: false
+  schedule:
+    - cron: "0 3 * * 1"
 
 jobs:
   research:
     runs-on: ubuntu-latest
 
-    env:
-      DISCOVERY_CONFIG: |
-        enabled: true
-        discovery_end_date: "2025-12-19"
-        targets:
-          - down_5pct_5d
-          - down_7pct_5d
-          - down_10pct_5d
-        signals:
-          - short_interest_change
-          - short_interest_level
-        stress_features:
-          - price_volatility_20d
-          - price_momentum_5d
-          - price_momentum_20d
-          - price_momentum_60d
-          - distance_from_20d_high
-          - distance_from_60d_high
-        stress_directions:
-          price_volatility_20d: upper
-          price_momentum_5d: lower
-          price_momentum_20d: lower
-          price_momentum_60d: lower
-          distance_from_20d_high: lower
-          distance_from_60d_high: lower
-        tails:
-          - 0.20
-          - 0.10
-          - 0.05
-          - 0.025
-          - 0.01
-        validation:
-          min_rows_per_window: 20
-          min_positive_windows: 2
-          min_lift: 1.10
-          max_return_difference: 0.0
-          max_findings: 25
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Clean latest research results
-        run: |
-          rm -rf data/processed/ml/research/latest
-          rm -rf data/processed/ml/research/discovery
-          rm -rf data/processed/ml/research/si_context
-          rm -rf data/processed/ml/research/incremental_si
-          rm -rf data/processed/ml/research/momentum_incremental_si
-          rm -rf data/processed/ml/research/momentum_si_surface
-
-      - name: Fetch FI aggregate
-        run: |
-          python -u -m fi
-
-      - name: Fetch prices
-        run: |
-          python -u -m prices --start 2022-01-01
-
-      - name: Feature source check
-        run: |
-          python -u -m analysis.feature_source_check
-
-      - name: Check whether features changed
-        id: feature_changes
-        shell: bash
-        run: |
-          if git diff --quiet -- data/processed/ml/features; then
-            echo "FEATURES_CHANGED=false" >> "$GITHUB_ENV"
-            echo "Feature dataset unchanged."
-          else
-            echo "FEATURES_CHANGED=true" >> "$GITHUB_ENV"
-            echo "Feature dataset changed."
-          fi
-
-      - name: Build features
-        if: env.FEATURES_CHANGED == 'true'
-        run: |
-          python -u -m ml.features
-
-      - name: Inspect feature dataset
-        run: |
-          python -u -m ml.dataset
-
-      - name: Validate sector map
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path("data/analysis/sector_map.json")
-
-          if not path.exists():
-              raise SystemExit(
-                  "sector_map.json saknas: "
-                  "kör analysis/build_sector_map.py och committa den frysta mappningen."
-              )
-
-          with path.open(encoding="utf-8") as f:
-              payload = json.load(f)
-
-          if not isinstance(payload, dict):
-              raise SystemExit(
-                  "sector_map.json måste innehålla ett JSON-objekt."
-              )
-
-          instruments = payload.get("instruments")
-
-          if not isinstance(instruments, dict):
-              raise SystemExit(
-                  "sector_map.json saknar 'instruments'. "
-                  "Den nuvarande filen verkar vara en placeholder."
-              )
-
-          if not instruments:
-              raise SystemExit(
-                  "sector_map.json innehåller inga instrument."
-              )
-
-          missing_sector = [
-              symbol
-              for symbol, value in instruments.items()
-              if not isinstance(value, dict)
-              or not value.get("sector")
-          ]
-
-          if missing_sector:
-              preview = ", ".join(missing_sector[:10])
-              raise SystemExit(
-                  f"sector_map.json innehåller instrument utan sektor "
-                  f"({len(missing_sector)} st). Exempel: {preview}"
-              )
-
-          print(
-              f"Sector map OK: {len(instruments)} instrument "
-              f"med giltig sektormappning."
-          )
-          PY
-
-      - name: Run Research Matrix
-        run: |
-          python -u -m ml.research.runner
-
-      - name: Run Registered Experiments
-        run: |
-          python -u -m ml.experiment_registry_runner
-
       - name: Run Discovery
         run: |
           python -u -m ml.research.discovery.runner
-
-      - name: Run Incremental SI Analysis
-        run: |
-          python -u -m ml.research.incremental_si_analysis
-
-      - name: Run Momentum-conditioned SI Analysis
-        run: |
-          python -u -m ml.research.si_context_analysis
-
-      - name: Run Momentum Incremental SI Analysis
-        run: |
-          python -u -m ml.research.momentum_incremental_si_analysis
 
       - name: Run Momentum × SI Surface Analysis
         run: |
           python -u -m ml.research.momentum_si_surface_analysis
 
-      - name: Verify diagnostics
+      - name: Run Momentum × SI Surface Stability Analysis
         run: |
-          python -u -m ml.diagnostics.verify
+          python -u -m ml.research.momentum_si_surface_stability_analysis
 
       - name: Upload research artifacts
         uses: actions/upload-artifact@v4
         with:
           name: blankdiss-research-${{ github.run_id }}
-          if-no-files-found: error
           path: |
-            data/processed/ml/research/*/results.jsonl
-            data/processed/ml/research/*/pooled.json
-            data/processed/ml/research/*/metadata.json
-            data/processed/ml/research/*/report.md
-            data/processed/ml/research/*/diagnostics.json
-            data/processed/ml/research/*/diagnostic/*.json
-            data/processed/ml/research/si_context/**
-            data/processed/ml/research/incremental_si/**
-            data/processed/ml/research/momentum_incremental_si/**
+            data/processed/ml/research/discovery/**
             data/processed/ml/research/momentum_si_surface/**
+            data/processed/ml/research/momentum_si_surface_stability/**
+          if-no-files-found: warn
 
-      - name: Persist research results
+      - name: Commit research results
+        if: github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -A -- \
-            data/processed/ml/research/latest \
+          git add \
             data/processed/ml/research/discovery \
-            data/processed/ml/research/interaction \
-            data/processed/ml/research/si_context \
-            data/processed/ml/research/incremental_si \
-            data/processed/ml/research/momentum_incremental_si \
             data/processed/ml/research/momentum_si_surface \
-            2>/dev/null || true
+            data/processed/ml/research/momentum_si_surface_stability
 
           if git diff --cached --quiet; then
             echo "No research result changes to commit."
