@@ -63,6 +63,13 @@
       "question": "Har de tidigare identifierade momentum × SI-cellerna en särskild pris- och riskkontext?",
       "module": "ml.diagnostics.experiments.momentum_si_cell_context_diagnostic",
       "priority": 9
+    },
+    {
+      "id": "momentum_si_incremental_locked_oos",
+      "status": "active",
+      "question": "När en aktie har hög momentum + mycket hög short interest, är en ytterligare ökning av short interest associerad med högre risk för större nedgång?",
+      "module": "ml.diagnostics.experiments.momentum_si_incremental_locked_oos_diagnostic",
+      "priority": 10
     }
   ]
 }
