@@ -56,6 +56,13 @@
       "question": "Är SI/event-risk-effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
       "priority": 8
+    },
+    {
+      "id": "momentum_si_cell_context",
+      "status": "active",
+      "question": "Har de tidigare identifierade momentum × SI-cellerna en särskild pris- och riskkontext?",
+      "module": "ml.diagnostics.experiments.momentum_si_cell_context_diagnostic",
+      "priority": 9
     }
   ]
 }
