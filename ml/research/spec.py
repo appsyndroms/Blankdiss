@@ -7,10 +7,19 @@ from typing import Any
 import yaml
 
 
-VALID_MODES = {"scan", "deep"}
+VALID_MODES = {
+    "scan",
+    "deep",
+}
+
 VALID_ANALYSIS_TYPES = {
     "interaction",
     "tail",
+}
+
+VALID_DIRECTIONS = {
+    "upper",
+    "lower",
 }
 
 
@@ -23,7 +32,7 @@ class SignalSpec:
 
 @dataclass(frozen=True)
 class AnalysisSpec:
-    type: str = "interaction"
+    type: str = "tail"
     bootstrap: bool = False
     bootstrap_iterations: int = 2000
 
@@ -120,7 +129,7 @@ def load_spec(
             f"Research spec saknar signals: {path}"
         )
 
-    signals = []
+    signals: list[SignalSpec] = []
 
     for item in raw_signals:
         if not isinstance(item, dict):
@@ -135,10 +144,18 @@ def load_spec(
                 f"Signal saknar name i {path}"
             )
 
-        direction = item.get(
-            "direction",
-            "upper",
-        )
+        direction = str(
+            item.get(
+                "direction",
+                "upper",
+            )
+        ).lower()
+
+        if direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Ogiltig direction '{direction}' "
+                f"för signal '{name}'."
+            )
 
         bins = _tuple_floats(
             item.get(
@@ -162,7 +179,7 @@ def load_spec(
         signals.append(
             SignalSpec(
                 name=str(name),
-                direction=str(direction),
+                direction=direction,
                 bins=bins,
             )
         )
@@ -185,32 +202,50 @@ def load_spec(
         {},
     )
 
-    analysis = AnalysisSpec(
-        type=str(
-            raw_analysis.get(
-                "type",
-                "interaction",
-            )
-        ),
-        bootstrap=bool(
-            raw_analysis.get(
-                "bootstrap",
-                False,
-            )
-        ),
-        bootstrap_iterations=int(
-            raw_analysis.get(
-                "bootstrap_iterations",
-                2000,
-            )
-        ),
-    )
+    if not isinstance(raw_analysis, dict):
+        raise ValueError(
+            f"analysis måste vara ett objekt: {path}"
+        )
 
-    if analysis.type not in VALID_ANALYSIS_TYPES:
+    analysis_type = str(
+        raw_analysis.get(
+            "type",
+            "tail",
+        )
+    ).lower()
+
+    if analysis_type not in VALID_ANALYSIS_TYPES:
         raise ValueError(
             f"Okänd analysis.type "
-            f"'{analysis.type}' i {path}"
+            f"'{analysis_type}' i {path}"
         )
+
+    bootstrap = bool(
+        raw_analysis.get(
+            "bootstrap",
+            False,
+        )
+    )
+
+    bootstrap_iterations = int(
+        raw_analysis.get(
+            "bootstrap_iterations",
+            2000,
+        )
+    )
+
+    if bootstrap_iterations < 1:
+        raise ValueError(
+            "bootstrap_iterations måste vara > 0."
+        )
+
+    analysis = AnalysisSpec(
+        type=analysis_type,
+        bootstrap=bootstrap,
+        bootstrap_iterations=(
+            bootstrap_iterations
+        ),
+    )
 
     windows = tuple(
         str(window)
@@ -223,6 +258,11 @@ def load_spec(
         )
     )
 
+    if not windows:
+        raise ValueError(
+            "Research spec måste ha minst ett window."
+        )
+
     splits = tuple(
         str(split)
         for split in payload.get(
@@ -230,6 +270,21 @@ def load_spec(
             ("test",),
         )
     )
+
+    if not splits:
+        raise ValueError(
+            "Research spec måste ha minst ett split."
+        )
+
+    metadata = payload.get(
+        "metadata",
+        {},
+    )
+
+    if not isinstance(metadata, dict):
+        raise ValueError(
+            f"metadata måste vara ett objekt: {path}"
+        )
 
     return ResearchSpec(
         id=str(spec_id),
@@ -240,10 +295,5 @@ def load_spec(
         mode=mode,
         windows=windows,
         splits=splits,
-        metadata=dict(
-            payload.get(
-                "metadata",
-                {},
-            )
-        ),
+        metadata=dict(metadata),
     )
