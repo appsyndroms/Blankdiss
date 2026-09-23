@@ -98,6 +98,13 @@
       "question": "Har förändringen i short interest egen information om framtida downside-risk efter kontroll för tidigare momentum och SI-nivå?",
       "module": "ml.diagnostics.experiments.si_change_continuous_controls_diagnostic",
       "priority": 14
+    },
+    {
+      "id": "si_event_risk_signal_anatomy",
+      "status": "active",
+      "question": "Är den låsta SI × event-risk-signalen specifik för aktuell SI-förändring, vilken pris- och SI-kontext föregår signalen och hur snabbt kommer den efterföljande downside-rörelsen?",
+      "module": "ml.diagnostics.experiments.si_event_risk_signal_anatomy_diagnostic",
+      "priority": 15
     }
   ]
 }
