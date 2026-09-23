@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-23T08:33:03.511674+00:00",
+  "created_at_utc": "2026-09-23T09:36:40.666920+00:00",
   "research_run_timestamp": "20260921T190553Z",
-  "registered_experiments": 12,
-  "active_experiments": 12,
-  "completed": 12,
+  "registered_experiments": 13,
+  "active_experiments": 13,
+  "completed": 13,
   "failed": 0,
   "results": [
     {
@@ -30,6 +30,11 @@
       "experiment_id": "si_event_risk_locked_follow_up",
       "status": "completed",
       "result_file": "diagnostic/si_event_risk_locked_follow_up.json"
+    },
+    {
+      "experiment_id": "si_event_risk_locked_oos_confirmation",
+      "status": "completed",
+      "result_file": "diagnostic/si_event_risk_locked_oos_confirmation.json"
     },
     {
       "experiment_id": "si_event_risk_mechanism",
