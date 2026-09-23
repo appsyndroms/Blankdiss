@@ -3,8 +3,8 @@
   "question": "Är den låsta SI × event-risk-signalen specifik för aktuell SI-förändring, vilken pris- och SI-kontext föregår signalen och hur snabbt kommer den efterföljande downside-rörelsen?",
   "module": "ml.diagnostics.experiments.si_event_risk_signal_anatomy_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T13:43:42.604035+00:00",
-  "finished_at_utc": "2026-09-23T13:43:45.861535+00:00",
+  "started_at_utc": "2026-09-23T14:25:56.775480+00:00",
+  "finished_at_utc": "2026-09-23T14:25:59.840000+00:00",
   "windows": [
     {
       "window": "window_1",
