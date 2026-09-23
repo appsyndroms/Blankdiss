@@ -3,8 +3,8 @@
   "question": "Är den låsta SI/event-risk-effekten tidsmässigt specifik, kvarstår den efter kontinuerlig kontroll för volatilitet och syns den även relativt sektor och marknad?",
   "module": "ml.diagnostics.experiments.si_event_risk_mechanism_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-22T20:04:02.576825+00:00",
-  "finished_at_utc": "2026-09-22T20:04:10.371563+00:00",
+  "started_at_utc": "2026-09-23T08:32:40.321226+00:00",
+  "finished_at_utc": "2026-09-23T08:32:47.386955+00:00",
   "windows": [
     {
       "window": "window_1",
@@ -97,8 +97,8 @@
               "pretest_auc": 0.732445625764061,
               "test_auc": 0.7425236746574343,
               "coefficient_event_score": 0.6708618991181939,
-              "coefficient_si_change": 0.007801508311523677,
-              "coefficient_volatility_20d": 0.03671493846786638,
+              "coefficient_si_change": 0.0078015083115236675,
+              "coefficient_volatility_20d": 0.036714938467866304,
               "n_train": 43444,
               "n_pretest": 71689,
               "n_test": 30784
@@ -204,9 +204,9 @@
               "event_validation_auc": 0.7489820224965117,
               "pretest_auc": 0.7359947686625832,
               "test_auc": 0.7580777337111715,
-              "coefficient_event_score": 0.6703583414557909,
-              "coefficient_si_change": 0.012990459788824037,
-              "coefficient_volatility_20d": 0.04463285967440148,
+              "coefficient_event_score": 0.6703583414557907,
+              "coefficient_si_change": 0.012990459788824038,
+              "coefficient_volatility_20d": 0.04463285967440171,
               "n_train": 71689,
               "n_pretest": 102606,
               "n_test": 25458

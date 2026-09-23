@@ -3,8 +3,8 @@
   "question": "Vad händer efter en ovanligt stor positiv förändring i short interest, och hur varierar sambandet med tidigare momentum och SI-nivå?",
   "module": "ml.diagnostics.experiments.si_change_mechanism_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-22T20:04:21.885714+00:00",
-  "finished_at_utc": "2026-09-22T20:04:24.274114+00:00",
+  "started_at_utc": "2026-09-23T08:32:58.712306+00:00",
+  "finished_at_utc": "2026-09-23T08:33:00.590274+00:00",
   "windows": [
     {
       "window": "window_1",
