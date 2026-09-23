@@ -3,8 +3,8 @@
   "question": "Är SI/event-risk-effekten specifik för aktien relativt sektor och marknad?",
   "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T09:36:26.290701+00:00",
-  "finished_at_utc": "2026-09-23T09:36:29.236703+00:00",
+  "started_at_utc": "2026-09-23T11:26:02.509320+00:00",
+  "finished_at_utc": "2026-09-23T11:26:05.006172+00:00",
   "windows": [
     {
       "window": "window_1",

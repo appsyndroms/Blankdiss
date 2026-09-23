@@ -3,8 +3,8 @@
   "question": "Har de tidigare identifierade momentum × SI-cellerna en särskild pris- och riskkontext?",
   "module": "ml.diagnostics.experiments.momentum_si_cell_context_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T09:36:29.258751+00:00",
-  "finished_at_utc": "2026-09-23T09:36:30.355394+00:00",
+  "started_at_utc": "2026-09-23T11:26:05.021810+00:00",
+  "finished_at_utc": "2026-09-23T11:26:05.967248+00:00",
   "windows": [
     {
       "window": "window_1",
