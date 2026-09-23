@@ -7,21 +7,29 @@ import pandas as pd
 from ml.dataset import load_features
 from ml.research.cache import (
     ResearchCache,
+    ResearchRequirement,
     build_research_cache,
 )
-from ml.research.experiments import Experiment
 
 
 @dataclass
 class ResearchSession:
+    """
+    Gemensam context för en hel research-körning.
+
+    Alla specs som körs tillsammans delar samma DataFrame
+    och samma ResearchCache.
+    """
+
     frame: pd.DataFrame
     cache: ResearchCache
 
 
-def _required_experiments(
+def _required_requirements(
     specs,
-) -> list[Experiment]:
-    experiments: list[Experiment] = []
+) -> list[ResearchRequirement]:
+    requirements: list[ResearchRequirement] = []
+
     seen: set[tuple] = set()
 
     for spec in specs:
@@ -40,15 +48,8 @@ def _required_experiments(
 
                     seen.add(key)
 
-                    experiments.append(
-                        Experiment(
-                            experiment_id=(
-                                f"spec_cache__"
-                                f"{signal.name}__"
-                                f"{signal.direction}__"
-                                f"{fraction}__"
-                                f"{target_name}"
-                            ),
+                    requirements.append(
+                        ResearchRequirement(
                             signal_name=signal.name,
                             target_name=target_name,
                             tail_fraction=fraction,
@@ -56,7 +57,7 @@ def _required_experiments(
                         )
                     )
 
-    return experiments
+    return requirements
 
 
 def build_session(
@@ -74,13 +75,13 @@ def build_session(
         flush=True,
     )
 
-    experiments = _required_experiments(
+    requirements = _required_requirements(
         specs
     )
 
     print(
-        f"Cache requirements: "
-        f"{len(experiments):,}",
+        "Cache requirements: "
+        f"{len(requirements):,}",
         flush=True,
     )
 
@@ -91,7 +92,7 @@ def build_session(
 
     cache = build_research_cache(
         frame,
-        experiments,
+        requirements,
     )
 
     print(
