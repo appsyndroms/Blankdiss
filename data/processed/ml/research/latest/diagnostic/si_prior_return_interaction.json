@@ -3,8 +3,8 @@
   "question": "Är sambandet mellan stor ökning i short interest och efterföljande kursutveckling starkare när aktien redan har stigit?",
   "module": "ml.diagnostics.experiments.si_prior_return_interaction_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T10:56:53.998499+00:00",
-  "finished_at_utc": "2026-09-23T10:57:02.732064+00:00",
+  "started_at_utc": "2026-09-23T11:47:02.306522+00:00",
+  "finished_at_utc": "2026-09-23T11:47:11.222146+00:00",
   "windows": [
     {
       "window": "window_1",

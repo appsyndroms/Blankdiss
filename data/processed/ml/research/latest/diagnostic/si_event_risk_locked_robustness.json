@@ -3,8 +3,8 @@
   "question": "Är den redan låsta SI × event-risk-signalen temporalt stabil, har den en kontinuerlig SI-gradient och är den spridd över flera bolag?",
   "module": "ml.diagnostics.experiments.si_event_risk_locked_robustness_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T11:25:47.967591+00:00",
-  "finished_at_utc": "2026-09-23T11:25:50.257691+00:00",
+  "started_at_utc": "2026-09-23T12:16:24.264118+00:00",
+  "finished_at_utc": "2026-09-23T12:16:26.661039+00:00",
   "windows": [
     {
       "window": "window_1",
@@ -13,7 +13,7 @@
       "test_end": "2025-12-31",
       "result": {
         "name": "si_event_risk_locked_robustness",
-        "description": "Robusthetsanalys av den redan låsta SI × event-risk-signalen. Testperioden används endast för temporal split, SI-gradient, avkastningsprofil och koncentrationskontroll.",
+        "description": "Robusthetsanalys av den redan låsta SI × event-risk-signalen. Testperioden används endast för temporal split, SI-gradient, avkastningsprofil och koncentrationskontroll. SI-gradienten beräknas över hela high-event-risk-populationen.",
         "metrics": {
           "analysis_type": "locked_oos_robustness",
           "parameter_selection": "inherited_locked_configuration",
@@ -111,42 +111,56 @@
           ],
           "si_gradient": [
             {
+              "group": "below_0pct",
+              "n": 282,
+              "mean_return_1d": 0.0006522156708915704,
+              "median_return_1d": -0.0005160273442525,
+              "mean_return_5d": 0.004819406886668094,
+              "median_return_5d": -0.0066792922092795,
+              "mean_return_20d": 0.010432996321215414,
+              "median_return_20d": -0.00408390803966,
+              "down_3pct_rate": 0.15602836879432624,
+              "down_5pct_rate": 0.06382978723404255,
+              "down_7pct_rate": 0.028368794326241134,
+              "down_10pct_rate": 0.0070921985815602835,
+              "si_change_lower": NaN,
+              "si_change_upper": 0.0
+            },
+            {
               "group": "0_to_25pct",
-              "n": 0,
+              "n": 6663,
+              "mean_return_1d": 0.0004600030609992491,
+              "median_return_1d": -0.0018939225178150002,
+              "mean_return_5d": 0.0027995073095486607,
+              "median_return_5d": -0.005714297391931001,
+              "mean_return_20d": 0.003809326766181521,
+              "median_return_20d": -0.017777760823567003,
+              "down_3pct_rate": 0.15128320576316975,
+              "down_5pct_rate": 0.061984091250187605,
+              "down_7pct_rate": 0.02806543598979439,
+              "down_10pct_rate": 0.013057181449797388,
               "si_change_lower": 0.0,
-              "si_change_upper": 0.25,
-              "mean_return_1d": NaN,
-              "median_return_1d": NaN,
-              "mean_return_5d": NaN,
-              "median_return_5d": NaN,
-              "mean_return_20d": NaN,
-              "median_return_20d": NaN,
-              "down_3pct_rate": NaN,
-              "down_5pct_rate": NaN,
-              "down_7pct_rate": NaN,
-              "down_10pct_rate": NaN
+              "si_change_upper": 0.25
             },
             {
               "group": "25_to_50pct",
-              "n": 1,
+              "n": 15,
+              "mean_return_1d": 0.013309975524074607,
+              "median_return_1d": -0.018333394593659,
+              "mean_return_5d": 0.0271960732363552,
+              "median_return_5d": 0.0,
+              "mean_return_20d": 0.1828850496441022,
+              "median_return_20d": -0.007914859060393001,
+              "down_3pct_rate": 0.26666666666666666,
+              "down_5pct_rate": 0.06666666666666667,
+              "down_7pct_rate": 0.06666666666666667,
+              "down_10pct_rate": 0.06666666666666667,
               "si_change_lower": 0.25,
-              "si_change_upper": 0.5,
-              "mean_return_1d": 0.28846161781683705,
-              "median_return_1d": 0.28846161781683705,
-              "mean_return_5d": 0.197115433110289,
-              "median_return_5d": 0.197115433110289,
-              "mean_return_20d": 0.538461617816837,
-              "median_return_20d": 0.538461617816837,
-              "down_3pct_rate": 0.0,
-              "down_5pct_rate": 0.0,
-              "down_7pct_rate": 0.0,
-              "down_10pct_rate": 0.0
+              "si_change_upper": 0.5
             },
             {
               "group": "50_to_75pct",
               "n": 74,
-              "si_change_lower": 0.5,
-              "si_change_upper": 0.75,
               "mean_return_1d": -0.0043835782942472845,
               "median_return_1d": -0.002922950898757,
               "mean_return_5d": -0.017235166304968096,
@@ -156,13 +170,13 @@
               "down_3pct_rate": 0.20270270270270271,
               "down_5pct_rate": 0.06756756756756757,
               "down_7pct_rate": 0.06756756756756757,
-              "down_10pct_rate": 0.013513513513513514
+              "down_10pct_rate": 0.013513513513513514,
+              "si_change_lower": 0.5,
+              "si_change_upper": 0.75
             },
             {
               "group": "75_to_100pct",
               "n": 3,
-              "si_change_lower": 0.75,
-              "si_change_upper": 1.0,
               "mean_return_1d": -0.022182201824633336,
               "median_return_1d": -0.029223802752286,
               "mean_return_5d": -0.04365497175151434,
@@ -172,13 +186,13 @@
               "down_3pct_rate": 0.3333333333333333,
               "down_5pct_rate": 0.0,
               "down_7pct_rate": 0.0,
-              "down_10pct_rate": 0.0
+              "down_10pct_rate": 0.0,
+              "si_change_lower": 0.75,
+              "si_change_upper": 1.0
             },
             {
               "group": "over_100pct",
               "n": 10,
-              "si_change_lower": 1.0,
-              "si_change_upper": Infinity,
               "mean_return_1d": -0.0101421521757639,
               "median_return_1d": 0.026687351163504,
               "mean_return_5d": -0.0741742453578002,
@@ -188,7 +202,9 @@
               "down_3pct_rate": 0.3,
               "down_5pct_rate": 0.2,
               "down_7pct_rate": 0.2,
-              "down_10pct_rate": 0.2
+              "down_10pct_rate": 0.2,
+              "si_change_lower": 1.0,
+              "si_change_upper": NaN
             }
           ],
           "concentration": [
@@ -210,7 +226,7 @@
       "test_end": "2026-12-31",
       "result": {
         "name": "si_event_risk_locked_robustness",
-        "description": "Robusthetsanalys av den redan låsta SI × event-risk-signalen. Testperioden används endast för temporal split, SI-gradient, avkastningsprofil och koncentrationskontroll.",
+        "description": "Robusthetsanalys av den redan låsta SI × event-risk-signalen. Testperioden används endast för temporal split, SI-gradient, avkastningsprofil och koncentrationskontroll. SI-gradienten beräknas över hela high-event-risk-populationen.",
         "metrics": {
           "analysis_type": "locked_oos_robustness",
           "parameter_selection": "inherited_locked_configuration",
@@ -308,42 +324,56 @@
           ],
           "si_gradient": [
             {
+              "group": "below_0pct",
+              "n": 453,
+              "mean_return_1d": -0.0024144836106321874,
+              "median_return_1d": -0.0029850480001820004,
+              "mean_return_5d": -0.004129483680195058,
+              "median_return_5d": -0.0043668122270740005,
+              "mean_return_20d": -0.0003307352963299678,
+              "median_return_20d": -0.006064142124485501,
+              "down_3pct_rate": 0.17660044150110377,
+              "down_5pct_rate": 0.052980132450331126,
+              "down_7pct_rate": 0.024282560706401765,
+              "down_10pct_rate": 0.013245033112582781,
+              "si_change_lower": NaN,
+              "si_change_upper": 0.0
+            },
+            {
               "group": "0_to_25pct",
-              "n": 0,
+              "n": 5738,
+              "mean_return_1d": 0.0001809400994505813,
+              "median_return_1d": -0.0017529129620950002,
+              "mean_return_5d": -0.00025170242338706106,
+              "median_return_5d": -0.0046282015448010005,
+              "mean_return_20d": 0.011328583881428279,
+              "median_return_20d": -0.010344845125044001,
+              "down_3pct_rate": 0.15650052283025445,
+              "down_5pct_rate": 0.059602649006622516,
+              "down_7pct_rate": 0.026664342976646917,
+              "down_10pct_rate": 0.01028232833739979,
               "si_change_lower": 0.0,
-              "si_change_upper": 0.25,
-              "mean_return_1d": NaN,
-              "median_return_1d": NaN,
-              "mean_return_5d": NaN,
-              "median_return_5d": NaN,
-              "mean_return_20d": NaN,
-              "median_return_20d": NaN,
-              "down_3pct_rate": NaN,
-              "down_5pct_rate": NaN,
-              "down_7pct_rate": NaN,
-              "down_10pct_rate": NaN
+              "si_change_upper": 0.25
             },
             {
               "group": "25_to_50pct",
-              "n": 4,
+              "n": 44,
+              "mean_return_1d": -0.004744765120514365,
+              "median_return_1d": -0.0060637300930905,
+              "mean_return_5d": -0.01552192302083777,
+              "median_return_5d": -0.0232436260753955,
+              "mean_return_20d": -0.02141103735159965,
+              "median_return_20d": -0.05879087529901501,
+              "down_3pct_rate": 0.29545454545454547,
+              "down_5pct_rate": 0.18181818181818182,
+              "down_7pct_rate": 0.09090909090909091,
+              "down_10pct_rate": 0.022727272727272728,
               "si_change_lower": 0.25,
-              "si_change_upper": 0.5,
-              "mean_return_1d": 0.028224283933106505,
-              "median_return_1d": 0.030402065049514503,
-              "mean_return_5d": -0.03568157137427725,
-              "median_return_5d": -0.016459067697783502,
-              "mean_return_20d": -0.043369065177378756,
-              "median_return_20d": -0.10102311309756151,
-              "down_3pct_rate": 0.25,
-              "down_5pct_rate": 0.0,
-              "down_7pct_rate": 0.0,
-              "down_10pct_rate": 0.0
+              "si_change_upper": 0.5
             },
             {
               "group": "50_to_75pct",
               "n": 91,
-              "si_change_lower": 0.5,
-              "si_change_upper": 0.75,
               "mean_return_1d": -0.0031492700684019022,
               "median_return_1d": -0.0030817345598510002,
               "mean_return_5d": -0.0009013788732318442,
@@ -353,13 +383,13 @@
               "down_3pct_rate": 0.1978021978021978,
               "down_5pct_rate": 0.0989010989010989,
               "down_7pct_rate": 0.08791208791208792,
-              "down_10pct_rate": 0.02197802197802198
+              "down_10pct_rate": 0.02197802197802198,
+              "si_change_lower": 0.5,
+              "si_change_upper": 0.75
             },
             {
               "group": "75_to_100pct",
               "n": 10,
-              "si_change_lower": 0.75,
-              "si_change_upper": 1.0,
               "mean_return_1d": 0.009759329470004798,
               "median_return_1d": -0.006262667987576501,
               "mean_return_5d": 0.017822735986115102,
@@ -369,13 +399,13 @@
               "down_3pct_rate": 0.2,
               "down_5pct_rate": 0.1,
               "down_7pct_rate": 0.0,
-              "down_10pct_rate": 0.0
+              "down_10pct_rate": 0.0,
+              "si_change_lower": 0.75,
+              "si_change_upper": 1.0
             },
             {
               "group": "over_100pct",
               "n": 6,
-              "si_change_lower": 1.0,
-              "si_change_upper": Infinity,
               "mean_return_1d": -0.014853367562474165,
               "median_return_1d": -0.027035600392101004,
               "mean_return_5d": -0.060821680808370665,
@@ -385,7 +415,9 @@
               "down_3pct_rate": 0.5,
               "down_5pct_rate": 0.3333333333333333,
               "down_7pct_rate": 0.3333333333333333,
-              "down_10pct_rate": 0.0
+              "down_10pct_rate": 0.0,
+              "si_change_lower": 1.0,
+              "si_change_upper": NaN
             }
           ],
           "concentration": [
