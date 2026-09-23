@@ -3,8 +3,8 @@
   "question": "Vad skiljer hög SI-förändring från låg SI-förändring inom hög event-risk när 20-dagars momentum inte är negativt?",
   "module": "ml.diagnostics.experiments.si_event_risk_positive_momentum_context_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T17:19:15.441064+00:00",
-  "finished_at_utc": "2026-09-23T17:19:17.759781+00:00",
+  "started_at_utc": "2026-09-23T18:03:48.005594+00:00",
+  "finished_at_utc": "2026-09-23T18:03:51.404570+00:00",
   "windows": [
     {
       "window": "window_1",
@@ -186,7 +186,7 @@
             {
               "group": "C_high_event_low_si_negative_momentum",
               "n": 3708,
-              "mean_event_score": 0.6208383091009098,
+              "mean_event_score": 0.6208383091009096,
               "median_event_score": 0.5778995329894179,
               "mean_short_interest_pct_change": -0.007344004340748779,
               "median_short_interest_pct_change": 0.0,
@@ -358,7 +358,7 @@
               "n": 3259,
               "event_score_mean": 0.6503842406875064,
               "event_score_median": 0.5988960713310333,
-              "event_score_p25": 0.5142612850829892,
+              "event_score_p25": 0.5142612850829891,
               "event_score_p75": 0.7692730754874394,
               "si_change_mean_pp": -0.0067871485943775105,
               "si_change_median_pp": 0.0,

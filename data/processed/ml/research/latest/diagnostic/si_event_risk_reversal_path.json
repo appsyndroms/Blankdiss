@@ -3,8 +3,8 @@
   "question": "Har B-signalen en karakteristisk prisbana där positivt kortsiktigt momentum uppstår efter längre svaghet, och skiljer detta B från D?",
   "module": "ml.diagnostics.experiments.si_event_risk_reversal_path_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T17:19:17.773997+00:00",
-  "finished_at_utc": "2026-09-23T17:19:20.317291+00:00",
+  "started_at_utc": "2026-09-23T18:03:51.430012+00:00",
+  "finished_at_utc": "2026-09-23T18:03:55.597508+00:00",
   "windows": [
     {
       "window": "window_1",
@@ -399,20 +399,20 @@
               "si_change_median_pp": 0.5500000000000002,
               "si_level_mean": 3.724615384615385,
               "si_level_median": 3.045,
-              "event_score_si_change_correlation": 0.3642888938887789
+              "event_score_si_change_correlation": 0.364288893888779
             },
             {
               "group": "D_high_event_low_si_nonnegative_momentum",
               "n": 3259,
               "event_score_mean": 0.6503842406875064,
               "event_score_median": 0.5988960713310333,
-              "event_score_p25": 0.5142612850829892,
+              "event_score_p25": 0.5142612850829891,
               "event_score_p75": 0.7692730754874394,
               "si_change_mean_pp": -0.0067871485943775105,
               "si_change_median_pp": 0.0,
               "si_level_mean": 1.795544645596809,
               "si_level_median": 1.0,
-              "event_score_si_change_correlation": -0.010750984462946322
+              "event_score_si_change_correlation": -0.010750984462946383
             }
           ],
           "outcomes": [

@@ -1,0 +1,1098 @@
+{
+  "experiment_id": "si_event_risk_b_outcome_anatomy",
+  "question": "När B-signalen uppstår, vad skiljer de B-observationer som senare får stor positiv, neutral eller negativ avkastning?",
+  "module": "ml.diagnostics.experiments.si_event_risk_b_outcome_anatomy_diagnostic",
+  "status": "completed",
+  "started_at_utc": "2026-09-23T18:03:55.630917+00:00",
+  "finished_at_utc": "2026-09-23T18:03:59.204298+00:00",
+  "windows": [
+    {
+      "window": "window_1",
+      "train_end": "2023-12-31",
+      "validation_end": "2024-12-31",
+      "test_end": "2025-12-31",
+      "result": {
+        "name": "si_event_risk_b_outcome_anatomy",
+        "description": "Deskriptiv anatomianalys av B-cellen från den låsta SI × event-risk-signalen. Analysen delar B efter fasta forward-return-intervall och jämför endast information som fanns vid signalögonblicket.",
+        "metrics": {
+          "analysis_type": "locked_B_outcome_anatomy",
+          "parameter_selection": "inherited_locked_configuration",
+          "is_discovery_grid": false,
+          "uses_test_for_parameter_selection": false,
+          "outcome_bucket_thresholds": {
+            "down": "<= -5%",
+            "neutral": "> -5% and < +5%",
+            "up": ">= +5%"
+          },
+          "forward_horizons": [
+            "5d",
+            "20d",
+            "60d"
+          ],
+          "horizon_days": 1,
+          "event_threshold": 0.07,
+          "downside_target": -0.07,
+          "risk_cutoff": 0.25,
+          "si_change_cutoff": 0.25,
+          "event_model": "volatility_20d",
+          "event_features": [
+            "price_volatility_20d"
+          ],
+          "event_validation_auc": 0.7789381843342765,
+          "risk_threshold": 0.472053292944446,
+          "si_change_threshold": 0.46999999999999975,
+          "B_definition": "B_high_event_high_si_nonnegative_momentum",
+          "D_definition": "D_high_event_low_si_nonnegative_momentum",
+          "pre_signal_columns_checked": [
+            "price_return_5d",
+            "price_return_20d",
+            "price_return_60d",
+            "return_acceleration_5d_vs_20d",
+            "return_acceleration_20d_vs_60d",
+            "price_distance_from_5d_high",
+            "price_distance_from_10d_high",
+            "price_distance_from_20d_high",
+            "price_distance_from_60d_high",
+            "short_interest_pct",
+            "short_interest_pct_change",
+            "event_score"
+          ],
+          "test_rows": 49023,
+          "B_rows": 26,
+          "research_question": "När B-signalen uppstår, vad skiljer de B-observationer som senare får stor positiv, neutral eller negativ avkastning?",
+          "interpretation_guardrail": "Outcome buckets are descriptive post-signal groupings and are not used to select parameters, thresholds or trading rules.",
+          "pretest_rows_used_for_thresholds": 113884
+        },
+        "metadata": {
+          "rows": 202240,
+          "train_rows": 68387,
+          "validation_rows": 45497,
+          "pretest_rows": 113884,
+          "test_rows": 49023,
+          "date_column": "snapshot_date",
+          "train_end": "2023-12-31",
+          "validation_end": "2024-12-31",
+          "test_end": "2025-12-31"
+        },
+        "tables": {
+          "B_outcome_distribution": [
+            {
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 10,
+              "share": 0.38461538461538464
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 11,
+              "share": 0.4230769230769231
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 5,
+              "share": 0.19230769230769232
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "insufficient_forward_data",
+              "n": 0,
+              "share": 0.0
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 10,
+              "share": 0.38461538461538464
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 6,
+              "share": 0.23076923076923078
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 10,
+              "share": 0.38461538461538464
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "insufficient_forward_data",
+              "n": 0,
+              "share": 0.0
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 14,
+              "share": 0.5384615384615384
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 4,
+              "share": 0.15384615384615385
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 8,
+              "share": 0.3076923076923077
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "insufficient_forward_data",
+              "n": 0,
+              "share": 0.0
+            }
+          ],
+          "B_outcome_anatomy": [
+            {
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 10,
+              "mean_price_return_5d": 0.9277811924741778,
+              "median_price_return_5d": 0.044258349029978,
+              "mean_price_return_20d": 0.6469008498932503,
+              "median_price_return_20d": 0.184837336012892,
+              "mean_price_return_60d": 0.3688525873933144,
+              "median_price_return_60d": -0.18405421888556853,
+              "mean_return_acceleration_5d_vs_20d": 0.28088034258092737,
+              "median_return_acceleration_5d_vs_20d": -0.023304619642375506,
+              "mean_return_acceleration_20d_vs_60d": 0.27804826249993586,
+              "median_return_acceleration_20d_vs_60d": 0.29376888579930455,
+              "mean_price_distance_from_20d_high": -0.06716332362969281,
+              "median_price_distance_from_20d_high": -0.0523025677253815,
+              "mean_price_distance_from_60d_high": -0.24837805268751673,
+              "median_price_distance_from_60d_high": -0.234508459876193,
+              "mean_short_interest_pct": 3.807,
+              "median_short_interest_pct": 2.585,
+              "mean_short_interest_pct_change": 0.852,
+              "median_short_interest_pct_change": 0.6100000000000001,
+              "mean_event_score": 0.7494466725826913,
+              "median_event_score": 0.7006636771922133
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 11,
+              "mean_price_return_5d": 0.04270859922807682,
+              "median_price_return_5d": 0.032812476158142,
+              "mean_price_return_20d": 0.09282428681914463,
+              "median_price_return_20d": 0.057513884719144,
+              "mean_price_return_60d": 0.035928147189690444,
+              "median_price_return_60d": 0.009593662401352001,
+              "mean_return_acceleration_5d_vs_20d": -0.05011568759106782,
+              "median_return_acceleration_5d_vs_20d": -0.009707975807256998,
+              "mean_return_acceleration_20d_vs_60d": 0.05689613962945419,
+              "median_return_acceleration_20d_vs_60d": 0.08869882880017502,
+              "mean_price_distance_from_20d_high": -0.04353518428733546,
+              "median_price_distance_from_20d_high": -0.042803639707077006,
+              "mean_price_distance_from_60d_high": -0.11687246109794373,
+              "median_price_distance_from_60d_high": -0.10280842842273201,
+              "mean_short_interest_pct": 3.825454545454545,
+              "median_short_interest_pct": 3.7800000000000002,
+              "mean_short_interest_pct_change": 0.6127272727272728,
+              "median_short_interest_pct_change": 0.5499999999999998,
+              "mean_event_score": 0.5220711998116693,
+              "median_event_score": 0.5024225403603716
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 5,
+              "mean_price_return_5d": 0.010670228526470803,
+              "median_price_return_5d": 0.019498521406401,
+              "mean_price_return_20d": 0.13876066740419202,
+              "median_price_return_20d": 0.08161156373421001,
+              "mean_price_return_60d": -0.2008607403306552,
+              "median_price_return_60d": -0.281400103889629,
+              "mean_return_acceleration_5d_vs_20d": -0.12809043887772123,
+              "median_return_acceleration_5d_vs_20d": -0.078712818845523,
+              "mean_return_acceleration_20d_vs_60d": 0.3396214077348472,
+              "median_return_acceleration_20d_vs_60d": 0.363011667623839,
+              "mean_price_distance_from_20d_high": -0.05807221414800601,
+              "median_price_distance_from_20d_high": -0.053448346452109004,
+              "mean_price_distance_from_60d_high": -0.2791359097505068,
+              "median_price_distance_from_60d_high": -0.29778669522615303,
+              "mean_short_interest_pct": 3.338,
+              "median_short_interest_pct": 1.55,
+              "mean_short_interest_pct_change": 0.8480000000000001,
+              "median_short_interest_pct_change": 0.51,
+              "mean_event_score": 0.5768997827353649,
+              "median_event_score": 0.5325469908987954
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 10,
+              "mean_price_return_5d": 0.6431762282466614,
+              "median_price_return_5d": 0.035078126126663,
+              "mean_price_return_20d": 0.5760348196602626,
+              "median_price_return_20d": 0.163190363173151,
+              "mean_price_return_60d": 0.188298041269468,
+              "median_price_return_60d": 0.028801156408437504,
+              "mean_return_acceleration_5d_vs_20d": 0.0671414085863988,
+              "median_return_acceleration_5d_vs_20d": -0.060813058804194006,
+              "mean_return_acceleration_20d_vs_60d": 0.3877367783907947,
+              "median_return_acceleration_20d_vs_60d": 0.24153146600719413,
+              "mean_price_distance_from_20d_high": -0.05733097751182301,
+              "median_price_distance_from_20d_high": -0.0581715395327545,
+              "mean_price_distance_from_60d_high": -0.1823213012813859,
+              "median_price_distance_from_60d_high": -0.1607942043731255,
+              "mean_short_interest_pct": 3.7060000000000004,
+              "median_short_interest_pct": 3.135,
+              "mean_short_interest_pct_change": 0.9690000000000001,
+              "median_short_interest_pct_change": 0.8,
+              "mean_event_score": 0.676646802095989,
+              "median_event_score": 0.5447097506213496
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 6,
+              "mean_price_return_5d": 0.5503539971674701,
+              "median_price_return_5d": 0.09514283381272101,
+              "mean_price_return_20d": 0.27012278260304934,
+              "median_price_return_20d": 0.184837336012892,
+              "mean_price_return_60d": 0.4454752003817066,
+              "median_price_return_60d": -0.015036250387663,
+              "mean_return_acceleration_5d_vs_20d": 0.28023121456442085,
+              "median_return_acceleration_5d_vs_20d": -0.019301755147103004,
+              "mean_return_acceleration_20d_vs_60d": -0.1753524177786572,
+              "median_return_acceleration_20d_vs_60d": 0.23019357110851252,
+              "mean_price_distance_from_20d_high": -0.07194871576167701,
+              "median_price_distance_from_20d_high": -0.043712327403261,
+              "mean_price_distance_from_60d_high": -0.16046691121150736,
+              "median_price_distance_from_60d_high": -0.140557946850146,
+              "mean_short_interest_pct": 2.4133333333333336,
+              "median_short_interest_pct": 1.9849999999999999,
+              "mean_short_interest_pct_change": 0.7016666666666668,
+              "median_short_interest_pct_change": 0.54,
+              "mean_event_score": 0.650335679622916,
+              "median_event_score": 0.5280379867778531
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 10,
+              "mean_price_return_5d": 0.006707139341154,
+              "median_price_return_5d": 0.023632113256995,
+              "mean_price_return_20d": 0.08027940987431312,
+              "median_price_return_20d": 0.039775618054601,
+              "mean_price_return_60d": -0.14763998236184572,
+              "median_price_return_60d": -0.18981743086920103,
+              "mean_return_acceleration_5d_vs_20d": -0.0735722705331591,
+              "median_return_acceleration_5d_vs_20d": -0.043380314337817506,
+              "mean_return_acceleration_20d_vs_60d": 0.2279193922361588,
+              "median_return_acceleration_20d_vs_60d": 0.23191708114532,
+              "mean_price_distance_from_20d_high": -0.04358792645093561,
+              "median_price_distance_from_20d_high": -0.041559577306417,
+              "mean_price_distance_from_60d_high": -0.23790426676221793,
+              "median_price_distance_from_60d_high": -0.2506734890398085,
+              "mean_short_interest_pct": 4.529999999999999,
+              "median_short_interest_pct": 4.800000000000001,
+              "mean_short_interest_pct_change": 0.5599999999999999,
+              "median_short_interest_pct_change": 0.515,
+              "mean_event_score": 0.5453266738734714,
+              "median_event_score": 0.5176933275445472
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 14,
+              "mean_price_return_5d": 0.6711767399120424,
+              "median_price_return_5d": 0.0335417801461865,
+              "mean_price_return_20d": 0.5203168106793923,
+              "median_price_return_20d": 0.19231959385498354,
+              "mean_price_return_60d": 0.09984572255039943,
+              "median_price_return_60d": 0.019285741347139004,
+              "mean_return_acceleration_5d_vs_20d": 0.1508599292326502,
+              "median_return_acceleration_5d_vs_20d": -0.070188338760096,
+              "mean_return_acceleration_20d_vs_60d": 0.42047108812899275,
+              "median_return_acceleration_20d_vs_60d": 0.24153146600719413,
+              "mean_price_distance_from_20d_high": -0.06700032476928766,
+              "median_price_distance_from_20d_high": -0.04618448671313,
+              "mean_price_distance_from_60d_high": -0.2081554147022819,
+              "median_price_distance_from_60d_high": -0.1607942043731255,
+              "mean_short_interest_pct": 4.138571428571429,
+              "median_short_interest_pct": 3.5700000000000003,
+              "mean_short_interest_pct_change": 0.9457142857142858,
+              "median_short_interest_pct_change": 0.77,
+              "mean_event_score": 0.6723296721958436,
+              "median_event_score": 0.5421939699121757
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 4,
+              "mean_price_return_5d": 0.047535838443732506,
+              "median_price_return_5d": 0.0420500123609195,
+              "mean_price_return_20d": 0.07994852277517,
+              "median_price_return_20d": 0.039775618054601,
+              "mean_price_return_60d": 0.6344329482479047,
+              "median_price_return_60d": 0.0073521800515875015,
+              "mean_return_acceleration_5d_vs_20d": -0.03241268433143751,
+              "median_return_acceleration_5d_vs_20d": -0.035286989755951,
+              "mean_return_acceleration_20d_vs_60d": -0.5544844254727347,
+              "median_return_acceleration_20d_vs_60d": 0.028500996505862502,
+              "mean_price_distance_from_20d_high": -0.02394327779699975,
+              "median_price_distance_from_20d_high": -0.021401819853538503,
+              "mean_price_distance_from_60d_high": -0.1719142091711115,
+              "median_price_distance_from_60d_high": -0.12193710771818851,
+              "mean_short_interest_pct": 5.18,
+              "median_short_interest_pct": 6.11,
+              "mean_short_interest_pct_change": 0.5375,
+              "median_short_interest_pct_change": 0.5349999999999999,
+              "mean_event_score": 0.5943286989071289,
+              "median_event_score": 0.5170020706917412
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 8,
+              "mean_price_return_5d": 0.026792493292431496,
+              "median_price_return_5d": 0.021786290675983002,
+              "mean_price_return_20d": 0.07245619379398538,
+              "median_price_return_20d": 0.06739558746662751,
+              "mean_price_return_60d": -0.10701751466634352,
+              "median_price_return_60d": -0.17323903060050552,
+              "mean_return_acceleration_5d_vs_20d": -0.04566370050155388,
+              "median_return_acceleration_5d_vs_20d": 0.0020865851062285,
+              "mean_return_acceleration_20d_vs_60d": 0.1794737084603289,
+              "median_return_acceleration_20d_vs_60d": 0.2545047987883165,
+              "mean_price_distance_from_20d_high": -0.05088795952995276,
+              "median_price_distance_from_20d_high": -0.0540746070973315,
+              "mean_price_distance_from_60d_high": -0.19540306314858616,
+              "median_price_distance_from_60d_high": -0.2373707007117195,
+              "mean_short_interest_pct": 2.2725,
+              "median_short_interest_pct": 1.855,
+              "mean_short_interest_pct_change": 0.5137499999999999,
+              "median_short_interest_pct_change": 0.5099999999999999,
+              "mean_event_score": 0.5414773288827217,
+              "median_event_score": 0.5218780506403062
+            }
+          ],
+          "B_outcome_vs_D": [
+            {
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n_B": 10,
+              "n_D": 1282,
+              "share_B": 0.38461538461538464,
+              "share_D": 0.3933722000613685
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n_B": 6,
+              "n_D": 974,
+              "share_B": 0.23076923076923078,
+              "share_D": 0.2988646824179196
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n_B": 10,
+              "n_D": 1003,
+              "share_B": 0.38461538461538464,
+              "share_D": 0.3077631175207119
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n_B": 10,
+              "n_D": 793,
+              "share_B": 0.38461538461538464,
+              "share_D": 0.2433261736729058
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n_B": 11,
+              "n_D": 1750,
+              "share_B": 0.4230769230769231,
+              "share_D": 0.5369745320650506
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n_B": 5,
+              "n_D": 716,
+              "share_B": 0.19230769230769232,
+              "share_D": 0.21969929426204357
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n_B": 14,
+              "n_D": 1565,
+              "share_B": 0.5384615384615384,
+              "share_D": 0.480208652961031
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n_B": 4,
+              "n_D": 551,
+              "share_B": 0.15384615384615385,
+              "share_D": 0.16907026695305308
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n_B": 8,
+              "n_D": 1143,
+              "share_B": 0.3076923076923077,
+              "share_D": 0.3507210800859159
+            }
+          ],
+          "B_outcome_yearly": [
+            {
+              "year": 2025,
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 10,
+              "share": 0.38461538461538464
+            },
+            {
+              "year": 2025,
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 11,
+              "share": 0.4230769230769231
+            },
+            {
+              "year": 2025,
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 5,
+              "share": 0.19230769230769232
+            },
+            {
+              "year": 2025,
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 10,
+              "share": 0.38461538461538464
+            },
+            {
+              "year": 2025,
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 6,
+              "share": 0.23076923076923078
+            },
+            {
+              "year": 2025,
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 10,
+              "share": 0.38461538461538464
+            },
+            {
+              "year": 2025,
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 14,
+              "share": 0.5384615384615384
+            },
+            {
+              "year": 2025,
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 4,
+              "share": 0.15384615384615385
+            },
+            {
+              "year": 2025,
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 8,
+              "share": 0.3076923076923077
+            }
+          ],
+          "B_outcome_quantiles": [
+            {
+              "horizon": "5d",
+              "n": 26,
+              "p10": -0.1902047296125755,
+              "p25": -0.1031344122307745,
+              "median": -0.0091631775370625,
+              "p75": 0.04087797035939525,
+              "p90": 0.07646346220441,
+              "mean": -0.04111144566472192
+            },
+            {
+              "horizon": "20d",
+              "n": 26,
+              "p10": -0.20206945007357352,
+              "p25": -0.09494572831167225,
+              "median": 0.009756234278917001,
+              "p75": 0.08418185123325751,
+              "p90": 0.11785757815023001,
+              "mean": -0.017772563848443463
+            },
+            {
+              "horizon": "60d",
+              "n": 26,
+              "p10": -0.650882787389352,
+              "p25": -0.34666742245944004,
+              "median": -0.0841480177281555,
+              "p75": 0.061550265712311,
+              "p90": 0.18854818166411702,
+              "mean": -0.14199658390564787
+            }
+          ]
+        }
+      }
+    },
+    {
+      "window": "window_2",
+      "train_end": "2024-12-31",
+      "validation_end": "2025-12-31",
+      "test_end": "2026-12-31",
+      "result": {
+        "name": "si_event_risk_b_outcome_anatomy",
+        "description": "Deskriptiv anatomianalys av B-cellen från den låsta SI × event-risk-signalen. Analysen delar B efter fasta forward-return-intervall och jämför endast information som fanns vid signalögonblicket.",
+        "metrics": {
+          "analysis_type": "locked_B_outcome_anatomy",
+          "parameter_selection": "inherited_locked_configuration",
+          "is_discovery_grid": false,
+          "uses_test_for_parameter_selection": false,
+          "outcome_bucket_thresholds": {
+            "down": "<= -5%",
+            "neutral": "> -5% and < +5%",
+            "up": ">= +5%"
+          },
+          "forward_horizons": [
+            "5d",
+            "20d",
+            "60d"
+          ],
+          "horizon_days": 1,
+          "event_threshold": 0.07,
+          "downside_target": -0.07,
+          "risk_cutoff": 0.25,
+          "si_change_cutoff": 0.25,
+          "event_model": "volatility_20d",
+          "event_features": [
+            "price_volatility_20d"
+          ],
+          "event_validation_auc": 0.7489820224965117,
+          "risk_threshold": 0.47348326268644625,
+          "si_change_threshold": 0.46999999999999975,
+          "B_definition": "B_high_event_high_si_nonnegative_momentum",
+          "D_definition": "D_high_event_low_si_nonnegative_momentum",
+          "pre_signal_columns_checked": [
+            "price_return_5d",
+            "price_return_20d",
+            "price_return_60d",
+            "return_acceleration_5d_vs_20d",
+            "return_acceleration_20d_vs_60d",
+            "price_distance_from_5d_high",
+            "price_distance_from_10d_high",
+            "price_distance_from_20d_high",
+            "price_distance_from_60d_high",
+            "short_interest_pct",
+            "short_interest_pct_change",
+            "event_score"
+          ],
+          "test_rows": 39333,
+          "B_rows": 38,
+          "research_question": "När B-signalen uppstår, vad skiljer de B-observationer som senare får stor positiv, neutral eller negativ avkastning?",
+          "interpretation_guardrail": "Outcome buckets are descriptive post-signal groupings and are not used to select parameters, thresholds or trading rules.",
+          "pretest_rows_used_for_thresholds": 162907
+        },
+        "metadata": {
+          "rows": 202240,
+          "train_rows": 113884,
+          "validation_rows": 49023,
+          "pretest_rows": 162907,
+          "test_rows": 39333,
+          "date_column": "snapshot_date",
+          "train_end": "2024-12-31",
+          "validation_end": "2025-12-31",
+          "test_end": "2026-12-31"
+        },
+        "tables": {
+          "B_outcome_distribution": [
+            {
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 11,
+              "share": 0.2894736842105263
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 16,
+              "share": 0.42105263157894735
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 11,
+              "share": 0.2894736842105263
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "insufficient_forward_data",
+              "n": 0,
+              "share": 0.0
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 14,
+              "share": 0.3684210526315789
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 11,
+              "share": 0.2894736842105263
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 12,
+              "share": 0.3157894736842105
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "insufficient_forward_data",
+              "n": 1,
+              "share": 0.02631578947368421
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 12,
+              "share": 0.3157894736842105
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 5,
+              "share": 0.13157894736842105
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 13,
+              "share": 0.34210526315789475
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "insufficient_forward_data",
+              "n": 8,
+              "share": 0.21052631578947367
+            }
+          ],
+          "B_outcome_anatomy": [
+            {
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 11,
+              "mean_price_return_5d": 0.07497685084309563,
+              "median_price_return_5d": 0.021086006344624,
+              "mean_price_return_20d": 0.1087269163035574,
+              "median_price_return_20d": 0.10919083710338001,
+              "mean_price_return_60d": -0.11286504390541753,
+              "median_price_return_60d": -0.144687244836417,
+              "mean_return_acceleration_5d_vs_20d": -0.03375006546046173,
+              "median_return_acceleration_5d_vs_20d": -0.06350700133112601,
+              "mean_return_acceleration_20d_vs_60d": 0.22159196020897493,
+              "median_return_acceleration_20d_vs_60d": 0.277064770861556,
+              "mean_price_distance_from_20d_high": -0.03893229253475054,
+              "median_price_distance_from_20d_high": -0.032826801853038004,
+              "mean_price_distance_from_60d_high": -0.21937041172029004,
+              "median_price_distance_from_60d_high": -0.24801190185564903,
+              "mean_short_interest_pct": 3.0690909090909098,
+              "median_short_interest_pct": 2.63,
+              "mean_short_interest_pct_change": 0.5363636363636364,
+              "median_short_interest_pct_change": 0.5099999999999998,
+              "mean_event_score": 0.5756343368951082,
+              "median_event_score": 0.5144332859042713
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 16,
+              "mean_price_return_5d": 0.032040290663554565,
+              "median_price_return_5d": 0.0024752727665985,
+              "mean_price_return_20d": 0.11551067847617501,
+              "median_price_return_20d": 0.09348946996059651,
+              "mean_price_return_60d": 0.016059625241013942,
+              "median_price_return_60d": 0.0161946185589685,
+              "mean_return_acceleration_5d_vs_20d": -0.08347038781262045,
+              "median_return_acceleration_5d_vs_20d": -0.09116821929671552,
+              "mean_return_acceleration_20d_vs_60d": 0.09945105323516107,
+              "median_return_acceleration_20d_vs_60d": 0.050230005484011506,
+              "mean_price_distance_from_20d_high": -0.08647548031486857,
+              "median_price_distance_from_20d_high": -0.079435471565492,
+              "mean_price_distance_from_60d_high": -0.15098205842362875,
+              "median_price_distance_from_60d_high": -0.104776831055514,
+              "mean_short_interest_pct": 6.795624999999999,
+              "median_short_interest_pct": 3.76,
+              "mean_short_interest_pct_change": 0.5787500000000002,
+              "median_short_interest_pct_change": 0.5150000000000008,
+              "mean_event_score": 0.6119098478518664,
+              "median_event_score": 0.5599043663819858
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 11,
+              "mean_price_return_5d": 0.05508688008637026,
+              "median_price_return_5d": 0.05441275303695001,
+              "mean_price_return_20d": 0.1466012896967791,
+              "median_price_return_20d": 0.10782444311059401,
+              "mean_price_return_60d": -0.04963336998077083,
+              "median_price_return_60d": -0.055782292164912005,
+              "mean_return_acceleration_5d_vs_20d": -0.09151440961040884,
+              "median_return_acceleration_5d_vs_20d": -0.07655304212656902,
+              "mean_return_acceleration_20d_vs_60d": 0.19623465967754994,
+              "median_return_acceleration_20d_vs_60d": 0.22689521528158502,
+              "mean_price_distance_from_20d_high": -0.03490155488377301,
+              "median_price_distance_from_20d_high": -0.014492753623188002,
+              "mean_price_distance_from_60d_high": -0.2027751992366783,
+              "median_price_distance_from_60d_high": -0.147227550196274,
+              "mean_short_interest_pct": 5.416363636363638,
+              "median_short_interest_pct": 6.04,
+              "mean_short_interest_pct_change": 0.5818181818181819,
+              "median_short_interest_pct_change": 0.5499999999999998,
+              "mean_event_score": 0.6014854834918455,
+              "median_event_score": 0.6115520861613859
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 14,
+              "mean_price_return_5d": 0.055763705999334716,
+              "median_price_return_5d": 0.019188514136708003,
+              "mean_price_return_20d": 0.10315181687852273,
+              "median_price_return_20d": 0.10662588711530602,
+              "mean_price_return_60d": -0.02459659701678572,
+              "median_price_return_60d": -0.034853263329747,
+              "mean_return_acceleration_5d_vs_20d": -0.047388110879188004,
+              "median_return_acceleration_5d_vs_20d": -0.08422642865057851,
+              "mean_return_acceleration_20d_vs_60d": 0.12774841389530844,
+              "median_return_acceleration_20d_vs_60d": 0.139491068437757,
+              "mean_price_distance_from_20d_high": -0.05821916453748143,
+              "median_price_distance_from_20d_high": -0.049283957818529005,
+              "mean_price_distance_from_60d_high": -0.13933965959338154,
+              "median_price_distance_from_60d_high": -0.12076688749762551,
+              "mean_short_interest_pct": 3.6671428571428573,
+              "median_short_interest_pct": 3.4450000000000003,
+              "mean_short_interest_pct_change": 0.5792857142857143,
+              "median_short_interest_pct_change": 0.5350000000000001,
+              "mean_event_score": 0.587307253159713,
+              "median_event_score": 0.5276128556318936
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 11,
+              "mean_price_return_5d": 0.04018588127414873,
+              "median_price_return_5d": 0.008378180091492,
+              "mean_price_return_20d": 0.09847718514653282,
+              "median_price_return_20d": 0.08565735401811,
+              "mean_price_return_60d": -0.15606130749621364,
+              "median_price_return_60d": -0.105996361920348,
+              "mean_return_acceleration_5d_vs_20d": -0.0582913038723841,
+              "median_return_acceleration_5d_vs_20d": -0.04858568376806101,
+              "mean_return_acceleration_20d_vs_60d": 0.25453849264274647,
+              "median_return_acceleration_20d_vs_60d": 0.18761038542699804,
+              "mean_price_distance_from_20d_high": -0.09036259746151327,
+              "median_price_distance_from_20d_high": -0.06585076752999,
+              "mean_price_distance_from_60d_high": -0.2545884279348656,
+              "median_price_distance_from_60d_high": -0.163879598662207,
+              "mean_short_interest_pct": 8.203636363636365,
+              "median_short_interest_pct": 4.23,
+              "mean_short_interest_pct_change": 0.5581818181818184,
+              "median_short_interest_pct_change": 0.5,
+              "mean_event_score": 0.6176478809734268,
+              "median_event_score": 0.6203513069998435
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 12,
+              "mean_price_return_5d": 0.06762651639221816,
+              "median_price_return_5d": 0.036008631710933006,
+              "mean_price_return_20d": 0.16419053364447864,
+              "median_price_return_20d": 0.11073040508687101,
+              "mean_price_return_60d": -0.03541497876207767,
+              "median_price_return_60d": -0.06577562600228151,
+              "mean_return_acceleration_5d_vs_20d": -0.09656401725226053,
+              "median_return_acceleration_5d_vs_20d": -0.09116821929671552,
+              "mean_return_acceleration_20d_vs_60d": 0.19960551240655636,
+              "median_return_acceleration_20d_vs_60d": 0.19113051415181304,
+              "mean_price_distance_from_20d_high": -0.02465117059736067,
+              "median_price_distance_from_20d_high": -0.008324748625375501,
+              "mean_price_distance_from_60d_high": -0.18476480248682559,
+              "median_price_distance_from_60d_high": -0.11869532044888101,
+              "mean_short_interest_pct": 4.519166666666667,
+              "median_short_interest_pct": 3.84,
+              "mean_short_interest_pct_change": 0.5650000000000002,
+              "median_short_interest_pct_change": 0.5050000000000006,
+              "mean_event_score": 0.5988641505712655,
+              "median_event_score": 0.573989837329407
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 12,
+              "mean_price_return_5d": 0.04059947951213442,
+              "median_price_return_5d": 0.009391768233956,
+              "mean_price_return_20d": 0.13617575311921568,
+              "median_price_return_20d": 0.11497966640020751,
+              "mean_price_return_60d": 0.01214138244785333,
+              "median_price_return_60d": -0.020525520181775503,
+              "mean_return_acceleration_5d_vs_20d": -0.09557627360708126,
+              "median_return_acceleration_5d_vs_20d": -0.08841534189886002,
+              "mean_return_acceleration_20d_vs_60d": 0.12403437067136235,
+              "median_return_acceleration_20d_vs_60d": 0.135251249602869,
+              "mean_price_distance_from_20d_high": -0.04874102041642208,
+              "median_price_distance_from_20d_high": -0.025876454001473502,
+              "mean_price_distance_from_60d_high": -0.11174376641972267,
+              "median_price_distance_from_60d_high": -0.11869532044888101,
+              "mean_short_interest_pct": 4.388333333333334,
+              "median_short_interest_pct": 3.535,
+              "mean_short_interest_pct_change": 0.5658333333333334,
+              "median_short_interest_pct_change": 0.5099999999999998,
+              "mean_event_score": 0.5459520986413319,
+              "median_event_score": 0.5117817952673696
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 5,
+              "mean_price_return_5d": 0.08960625960964361,
+              "median_price_return_5d": 0.133333333333333,
+              "mean_price_return_20d": 0.0809345703265202,
+              "median_price_return_20d": 0.03804607402757,
+              "mean_price_return_60d": -0.13052136534605624,
+              "median_price_return_60d": -0.17300383373432401,
+              "mean_return_acceleration_5d_vs_20d": 0.008671689283123401,
+              "median_return_acceleration_5d_vs_20d": 0.095957332811904,
+              "mean_return_acceleration_20d_vs_60d": 0.21145593567257642,
+              "median_return_acceleration_20d_vs_60d": 0.26124466245551103,
+              "mean_price_distance_from_20d_high": -0.0591178437120326,
+              "median_price_distance_from_20d_high": -0.06957927653956801,
+              "mean_price_distance_from_60d_high": -0.2014844514163338,
+              "median_price_distance_from_60d_high": -0.22319858842794102,
+              "mean_short_interest_pct": 3.7059999999999995,
+              "median_short_interest_pct": 3.84,
+              "mean_short_interest_pct_change": 0.562,
+              "median_short_interest_pct_change": 0.5,
+              "mean_event_score": 0.6338088066512583,
+              "median_event_score": 0.5543808420301107
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 13,
+              "mean_price_return_5d": 0.07104682405195516,
+              "median_price_return_5d": 0.016230797092849,
+              "mean_price_return_20d": 0.10799022761386208,
+              "median_price_return_20d": 0.09637683370838901,
+              "mean_price_return_60d": -0.09075418300800522,
+              "median_price_return_60d": -0.055782292164912005,
+              "mean_return_acceleration_5d_vs_20d": -0.03694340356190692,
+              "median_return_acceleration_5d_vs_20d": -0.06234383399451801,
+              "mean_return_acceleration_20d_vs_60d": 0.19874441062186735,
+              "median_return_acceleration_20d_vs_60d": 0.12101636584811501,
+              "mean_price_distance_from_20d_high": -0.036662783943813615,
+              "median_price_distance_from_20d_high": -0.03291137309014,
+              "mean_price_distance_from_60d_high": -0.23125901112198977,
+              "median_price_distance_from_60d_high": -0.24801190185564903,
+              "mean_short_interest_pct": 3.6923076923076925,
+              "median_short_interest_pct": 2.15,
+              "mean_short_interest_pct_change": 0.5684615384615385,
+              "median_short_interest_pct_change": 0.5300000000000002,
+              "mean_event_score": 0.5989523629468471,
+              "median_event_score": 0.5721815214210465
+            }
+          ],
+          "B_outcome_vs_D": [
+            {
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n_B": 14,
+              "n_D": 1000,
+              "share_B": 0.3684210526315789,
+              "share_D": 0.3286230693394676
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n_B": 11,
+              "n_D": 921,
+              "share_B": 0.2894736842105263,
+              "share_D": 0.3026618468616497
+            },
+            {
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n_B": 12,
+              "n_D": 918,
+              "share_B": 0.3157894736842105,
+              "share_D": 0.3016759776536313
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n_B": 11,
+              "n_D": 708,
+              "share_B": 0.2894736842105263,
+              "share_D": 0.23266513309234307
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n_B": 16,
+              "n_D": 1715,
+              "share_B": 0.42105263157894735,
+              "share_D": 0.563588563917187
+            },
+            {
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n_B": 11,
+              "n_D": 620,
+              "share_B": 0.2894736842105263,
+              "share_D": 0.20374630299046992
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n_B": 12,
+              "n_D": 815,
+              "share_B": 0.3157894736842105,
+              "share_D": 0.26782780151166613
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n_B": 5,
+              "n_D": 339,
+              "share_B": 0.13157894736842105,
+              "share_D": 0.11140322050607952
+            },
+            {
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n_B": 13,
+              "n_D": 973,
+              "share_B": 0.34210526315789475,
+              "share_D": 0.319750246467302
+            }
+          ],
+          "B_outcome_yearly": [
+            {
+              "year": 2026,
+              "horizon": "5d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 11,
+              "share": 0.2894736842105263
+            },
+            {
+              "year": 2026,
+              "horizon": "5d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 16,
+              "share": 0.42105263157894735
+            },
+            {
+              "year": 2026,
+              "horizon": "5d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 11,
+              "share": 0.2894736842105263
+            },
+            {
+              "year": 2026,
+              "horizon": "20d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 14,
+              "share": 0.3684210526315789
+            },
+            {
+              "year": 2026,
+              "horizon": "20d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 11,
+              "share": 0.2894736842105263
+            },
+            {
+              "year": 2026,
+              "horizon": "20d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 12,
+              "share": 0.3157894736842105
+            },
+            {
+              "year": 2026,
+              "horizon": "60d",
+              "outcome_bucket": "down_le_minus_5pct",
+              "n": 12,
+              "share": 0.3157894736842105
+            },
+            {
+              "year": 2026,
+              "horizon": "60d",
+              "outcome_bucket": "neutral_minus_5_to_plus_5pct",
+              "n": 5,
+              "share": 0.13157894736842105
+            },
+            {
+              "year": 2026,
+              "horizon": "60d",
+              "outcome_bucket": "up_ge_plus_5pct",
+              "n": 13,
+              "share": 0.34210526315789475
+            }
+          ],
+          "B_outcome_quantiles": [
+            {
+              "horizon": "5d",
+              "n": 38,
+              "p10": -0.11880731188436981,
+              "p25": -0.05218633344867325,
+              "median": -0.0062388677534075,
+              "p75": 0.08656012544869551,
+              "p90": 0.11586342121559295,
+              "mean": 0.0029084673644458174
+            },
+            {
+              "horizon": "20d",
+              "n": 37,
+              "p10": -0.1962130720928652,
+              "p25": -0.132198930267035,
+              "median": -0.018397566743762,
+              "p75": 0.083848814504186,
+              "p90": 0.1819739419254346,
+              "mean": -0.008618753334434109
+            },
+            {
+              "horizon": "60d",
+              "n": 30,
+              "p10": -0.2540834544490917,
+              "p25": -0.1587305105250865,
+              "median": 0.007156276078887001,
+              "p75": 0.26832737072871105,
+              "p90": 0.4170937744035569,
+              "mean": 0.07275466607926244
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
