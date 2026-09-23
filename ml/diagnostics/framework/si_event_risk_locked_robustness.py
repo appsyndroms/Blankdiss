@@ -21,6 +21,7 @@ LOCKED_HORIZON = 1
 LOCKED_EVENT_THRESHOLD = 0.07
 
 SI_CHANGE_BANDS = (
+    ("below_0pct", float("-inf"), 0.0),
     ("0_to_25pct", 0.0, 0.25),
     ("25_to_50pct", 0.25, 0.50),
     ("50_to_75pct", 0.50, 0.75),
@@ -169,8 +170,17 @@ def _si_gradient_rows(
             label,
         )
 
-        row["si_change_lower"] = lower
-        row["si_change_upper"] = upper
+        row["si_change_lower"] = (
+            lower
+            if np.isfinite(lower)
+            else None
+        )
+
+        row["si_change_upper"] = (
+            upper
+            if np.isfinite(upper)
+            else None
+        )
 
         rows.append(row)
 
@@ -488,8 +498,12 @@ def run_locked_robustness(
         test
     )
 
+    high_risk = test[
+        test["high_event_risk"]
+    ].copy()
+
     gradient_rows = _si_gradient_rows(
-        signal
+        high_risk
     )
 
     concentration = _concentration(
@@ -509,7 +523,9 @@ def run_locked_robustness(
             "Testperioden används endast för "
             "temporal split, SI-gradient, "
             "avkastningsprofil och "
-            "koncentrationskontroll."
+            "koncentrationskontroll. "
+            "SI-gradienten beräknas över hela "
+            "high-event-risk-populationen."
         ),
     )
 
