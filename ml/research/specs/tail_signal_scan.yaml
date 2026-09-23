@@ -1,0 +1,109 @@
+id: tail_signal_scan
+
+question: >
+  Vilka enskilda signaler har en tydlig relation till
+  framtida event-risk och framtida avkastning?
+
+mode: scan
+
+signals:
+  - name: short_interest_level
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: short_interest_acceleration
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_momentum_5d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_momentum_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_momentum_60d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: distance_from_20d_high
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: distance_from_60d_high
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+targets:
+  - up_5pct_5d
+  - down_5pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: tail
+  bootstrap: false
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - test
+
+metadata:
+  stage: migration
+  purpose: broad_signal_scan
