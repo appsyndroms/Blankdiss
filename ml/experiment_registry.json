@@ -126,6 +126,13 @@
       "question": "Har B-signalen en karakteristisk prisbana där positivt kortsiktigt momentum uppstår efter längre svaghet, och skiljer detta B från D?",
       "module": "ml.diagnostics.experiments.si_event_risk_reversal_path_diagnostic",
       "priority": 18
+    },
+    {
+      "id": "si_event_risk_b_outcome_anatomy",
+      "status": "active",
+      "question": "När B-signalen uppstår, vad skiljer de B-observationer som senare får stor positiv, neutral eller negativ avkastning?",
+      "module": "ml.diagnostics.experiments.si_event_risk_b_outcome_anatomy_diagnostic",
+      "priority": 19
     }
   ]
 }
