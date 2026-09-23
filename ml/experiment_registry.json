@@ -119,6 +119,13 @@
       "question": "Vad skiljer hög SI-förändring från låg SI-förändring inom hög event-risk när 20-dagars momentum inte är negativt?",
       "module": "ml.diagnostics.experiments.si_event_risk_positive_momentum_context_diagnostic",
       "priority": 17
+    },
+    {
+      "id": "si_event_risk_reversal_path",
+      "status": "active",
+      "question": "Har B-signalen en karakteristisk prisbana där positivt kortsiktigt momentum uppstår efter längre svaghet, och skiljer detta B från D?",
+      "module": "ml.diagnostics.experiments.si_event_risk_reversal_path_diagnostic",
+      "priority": 18
     }
   ]
 }
