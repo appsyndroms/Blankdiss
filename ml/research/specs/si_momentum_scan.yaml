@@ -1,0 +1,32 @@
+id: si_momentum_downside_scan
+
+question: >
+  Är hög förändring i short interest särskilt associerad
+  med downside-risk när tidigare momentum är högt?
+
+mode: scan
+
+signals:
+  - name: short_interest_change
+    direction: upper
+
+  - name: price_momentum_20d
+    direction: upper
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: interaction
+
+  bins:
+    - 0.80
+    - 0.90
+
+  bootstrap: false
+
+windows:
+  - window_1
+  - window_2
