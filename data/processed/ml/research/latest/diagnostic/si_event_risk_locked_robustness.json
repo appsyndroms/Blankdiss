@@ -3,8 +3,8 @@
   "question": "Är den redan låsta SI × event-risk-signalen temporalt stabil, har den en kontinuerlig SI-gradient och är den spridd över flera bolag?",
   "module": "ml.diagnostics.experiments.si_event_risk_locked_robustness_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T14:25:29.502918+00:00",
-  "finished_at_utc": "2026-09-23T14:25:31.863148+00:00",
+  "started_at_utc": "2026-09-23T15:27:34.615609+00:00",
+  "finished_at_utc": "2026-09-23T15:27:37.144184+00:00",
   "windows": [
     {
       "window": "window_1",

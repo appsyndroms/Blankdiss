@@ -3,8 +3,8 @@
   "question": "Har förändringen i short interest egen information om framtida downside-risk efter kontroll för tidigare momentum och SI-nivå?",
   "module": "ml.diagnostics.experiments.si_change_continuous_controls_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T14:25:53.611414+00:00",
-  "finished_at_utc": "2026-09-23T14:25:56.735626+00:00",
+  "started_at_utc": "2026-09-23T15:27:59.263330+00:00",
+  "finished_at_utc": "2026-09-23T15:28:02.740724+00:00",
   "windows": [
     {
       "window": "window_1",

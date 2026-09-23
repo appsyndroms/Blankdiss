@@ -3,8 +3,8 @@
   "question": "Reproduceras den förutbestämda SI × event-risk-interaktionen i helt låsta OOS-perioder utan parameter- eller targetoptimering på testdata?",
   "module": "ml.diagnostics.experiments.si_event_risk_locked_oos_confirmation_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T14:25:26.146985+00:00",
-  "finished_at_utc": "2026-09-23T14:25:29.483550+00:00",
+  "started_at_utc": "2026-09-23T15:27:31.224290+00:00",
+  "finished_at_utc": "2026-09-23T15:27:34.598825+00:00",
   "windows": [
     {
       "window": "window_1",
