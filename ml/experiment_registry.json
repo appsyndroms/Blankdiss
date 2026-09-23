@@ -105,6 +105,13 @@
       "question": "Är den låsta SI × event-risk-signalen specifik för aktuell SI-förändring, vilken pris- och SI-kontext föregår signalen och hur snabbt kommer den efterföljande downside-rörelsen?",
       "module": "ml.diagnostics.experiments.si_event_risk_signal_anatomy_diagnostic",
       "priority": 15
+    },
+    {
+      "id": "si_event_risk_momentum_split",
+      "status": "active",
+      "question": "Är SI × event-risk-signalen fortfarande informativ inom redan fallande aktier, och finns samma SI-effekt när tidigare momentum inte är negativt?",
+      "module": "ml.diagnostics.experiments.si_event_risk_momentum_split_diagnostic",
+      "priority": 16
     }
   ]
 }
