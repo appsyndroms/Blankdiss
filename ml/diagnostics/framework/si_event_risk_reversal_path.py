@@ -38,6 +38,16 @@ PRICE_RETURN_COLUMNS = (
     "price_return_60d",
 )
 
+FORWARD_RETURN_COLUMNS = (
+    "forward_return_1d",
+    "forward_return_3d",
+    "forward_return_5d",
+    "forward_return_10d",
+    "forward_return_20d",
+    "forward_return_30d",
+    "forward_return_60d",
+)
+
 DISTANCE_COLUMNS = (
     "price_distance_from_5d_high",
     "price_distance_from_10d_high",
@@ -152,10 +162,11 @@ def _return_difference(
 def _downside_rate(
     frame: pd.DataFrame,
     threshold: float,
+    column: str = "forward_return_1d",
 ) -> float:
     values = _safe_values(
         frame,
-        "forward_return_1d",
+        column,
     ).dropna()
 
     if values.empty:
@@ -570,7 +581,10 @@ def _risk_and_si_relationship(
                         "short_interest_pct_change",
                     ]
                 ]
-                .apply(pd.to_numeric, errors="coerce")
+                .apply(
+                    pd.to_numeric,
+                    errors="coerce",
+                )
                 .corr()
                 .iloc[0, 1]
             )
@@ -736,60 +750,543 @@ def _outcomes(
             == PRIMARY_GROUPS[1]
         )
 
+        result = {
+            "group": "B_minus_D",
+            "n": int(b["n"]),
+        }
+
+        difference_columns = (
+            "mean_forward_return_1d",
+            "median_forward_return_1d",
+            "down_3pct_1d_rate",
+            "down_5pct_1d_rate",
+            "down_7pct_1d_rate",
+            "down_10pct_1d_rate",
+            "mean_min_return_5d",
+            "median_min_return_5d",
+            "mean_max_return_5d",
+            "median_max_return_5d",
+        )
+
+        for column in difference_columns:
+            result[column] = (
+                b[column]
+                - d[column]
+            )
+
+        rows.append(result)
+
+    return pd.DataFrame(rows)
+
+
+def _forward_path_by_group(
+    test: pd.DataFrame,
+) -> pd.DataFrame:
+    rows: list[dict] = []
+
+    for group in TRAJECTORY_GROUPS:
+        frame = test[
+            test["context_group"]
+            == group
+        ].copy()
+
+        row = {
+            "group": group,
+            "n": int(len(frame)),
+        }
+
+        for column in FORWARD_RETURN_COLUMNS:
+            values = _safe_values(
+                frame,
+                column,
+            ).dropna()
+
+            if values.empty:
+                continue
+
+            horizon = column.replace(
+                "forward_return_",
+                "",
+            )
+
+            row[
+                f"n_{horizon}"
+            ] = int(len(values))
+
+            row[
+                f"mean_{horizon}"
+            ] = float(values.mean())
+
+            row[
+                f"median_{horizon}"
+            ] = float(values.median())
+
+            row[
+                f"p25_{horizon}"
+            ] = float(
+                values.quantile(0.25)
+            )
+
+            row[
+                f"p75_{horizon}"
+            ] = float(
+                values.quantile(0.75)
+            )
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def _forward_path_B_minus_D(
+    test: pd.DataFrame,
+) -> pd.DataFrame:
+    b = test[
+        test["context_group"]
+        == PRIMARY_GROUPS[0]
+    ].copy()
+
+    d = test[
+        test["context_group"]
+        == PRIMARY_GROUPS[1]
+    ].copy()
+
+    rows: list[dict] = []
+
+    for column in FORWARD_RETURN_COLUMNS:
+        b_values = _safe_values(
+            b,
+            column,
+        ).dropna()
+
+        d_values = _safe_values(
+            d,
+            column,
+        ).dropna()
+
+        if (
+            b_values.empty
+            and d_values.empty
+        ):
+            continue
+
+        b_mean = (
+            float(b_values.mean())
+            if not b_values.empty
+            else float("nan")
+        )
+
+        d_mean = (
+            float(d_values.mean())
+            if not d_values.empty
+            else float("nan")
+        )
+
+        b_median = (
+            float(b_values.median())
+            if not b_values.empty
+            else float("nan")
+        )
+
+        d_median = (
+            float(d_values.median())
+            if not d_values.empty
+            else float("nan")
+        )
+
+        horizon = column.replace(
+            "forward_return_",
+            "",
+        )
+
         rows.append(
             {
-                "group": "B_minus_D",
-                "n": int(b["n"]),
-                "mean_forward_return_1d": (
-                    b[
-                        "mean_forward_return_1d"
-                    ]
-                    - d[
-                        "mean_forward_return_1d"
-                    ]
+                "horizon": horizon,
+                "B_n": int(len(b_values)),
+                "D_n": int(len(d_values)),
+                "B_mean": b_mean,
+                "D_mean": d_mean,
+                "B_minus_D_mean": (
+                    b_mean - d_mean
+                    if np.isfinite(b_mean)
+                    and np.isfinite(d_mean)
+                    else float("nan")
                 ),
-                "median_forward_return_1d": (
-                    b[
-                        "median_forward_return_1d"
-                    ]
-                    - d[
-                        "median_forward_return_1d"
-                    ]
-                ),
-                "down_3pct_1d_rate": (
-                    b["down_3pct_1d_rate"]
-                    - d["down_3pct_1d_rate"]
-                ),
-                "down_5pct_1d_rate": (
-                    b["down_5pct_1d_rate"]
-                    - d["down_5pct_1d_rate"]
-                ),
-                "down_7pct_1d_rate": (
-                    b["down_7pct_1d_rate"]
-                    - d["down_7pct_1d_rate"]
-                ),
-                "down_10pct_1d_rate": (
-                    b["down_10pct_1d_rate"]
-                    - d["down_10pct_1d_rate"]
-                ),
-                "mean_min_return_5d": (
-                    b["mean_min_return_5d"]
-                    - d["mean_min_return_5d"]
-                ),
-                "median_min_return_5d": (
-                    b["median_min_return_5d"]
-                    - d["median_min_return_5d"]
-                ),
-                "mean_max_return_5d": (
-                    b["mean_max_return_5d"]
-                    - d["mean_max_return_5d"]
-                ),
-                "median_max_return_5d": (
-                    b["median_max_return_5d"]
-                    - d["median_max_return_5d"]
+                "B_median": b_median,
+                "D_median": d_median,
+                "B_minus_D_median": (
+                    b_median - d_median
+                    if np.isfinite(b_median)
+                    and np.isfinite(d_median)
+                    else float("nan")
                 ),
             }
         )
+
+    return pd.DataFrame(rows)
+
+
+def _yearly_group_outcomes(
+    test: pd.DataFrame,
+) -> pd.DataFrame:
+    if "snapshot_date" not in test.columns:
+        return pd.DataFrame()
+
+    local = test.copy()
+
+    local["_signal_year"] = pd.to_datetime(
+        local["snapshot_date"],
+        errors="coerce",
+    ).dt.year
+
+    local = local[
+        local["_signal_year"].notna()
+    ].copy()
+
+    if local.empty:
+        return pd.DataFrame()
+
+    local["_signal_year"] = (
+        local["_signal_year"]
+        .astype(int)
+    )
+
+    rows: list[dict] = []
+
+    for year in sorted(
+        local["_signal_year"].unique()
+    ):
+        year_frame = local[
+            local["_signal_year"]
+            == year
+        ]
+
+        for group in TRAJECTORY_GROUPS:
+            frame = year_frame[
+                year_frame["context_group"]
+                == group
+            ].copy()
+
+            row = {
+                "year": int(year),
+                "group": group,
+                "n": int(len(frame)),
+            }
+
+            for column in FORWARD_RETURN_COLUMNS:
+                if column not in frame.columns:
+                    continue
+
+                horizon = column.replace(
+                    "forward_return_",
+                    "",
+                )
+
+                row[
+                    f"mean_{horizon}"
+                ] = _safe_mean(
+                    frame,
+                    column,
+                )
+
+                row[
+                    f"median_{horizon}"
+                ] = _safe_median(
+                    frame,
+                    column,
+                )
+
+            row[
+                "down_5pct_1d_rate"
+            ] = _downside_rate(
+                frame,
+                -0.05,
+                "forward_return_1d",
+            )
+
+            row[
+                "down_locked_target_1d_rate"
+            ] = _downside_rate(
+                frame,
+                LOCKED_DOWNSIDE_TARGET,
+                "forward_return_1d",
+            )
+
+            row[
+                "mean_min_return_5d"
+            ] = _safe_mean(
+                frame,
+                "min_return_5d",
+            )
+
+            row[
+                "median_min_return_5d"
+            ] = _safe_median(
+                frame,
+                "min_return_5d",
+            )
+
+            row[
+                "mean_max_return_5d"
+            ] = _safe_mean(
+                frame,
+                "max_return_5d",
+            )
+
+            row[
+                "median_max_return_5d"
+            ] = _safe_median(
+                frame,
+                "max_return_5d",
+            )
+
+            rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def _yearly_B_minus_D(
+    test: pd.DataFrame,
+) -> pd.DataFrame:
+    if "snapshot_date" not in test.columns:
+        return pd.DataFrame()
+
+    local = test.copy()
+
+    local["_signal_year"] = pd.to_datetime(
+        local["snapshot_date"],
+        errors="coerce",
+    ).dt.year
+
+    local = local[
+        local["_signal_year"].notna()
+    ].copy()
+
+    if local.empty:
+        return pd.DataFrame()
+
+    local["_signal_year"] = (
+        local["_signal_year"]
+        .astype(int)
+    )
+
+    rows: list[dict] = []
+
+    for year in sorted(
+        local["_signal_year"].unique()
+    ):
+        year_frame = local[
+            local["_signal_year"]
+            == year
+        ]
+
+        b = year_frame[
+            year_frame["context_group"]
+            == PRIMARY_GROUPS[0]
+        ].copy()
+
+        d = year_frame[
+            year_frame["context_group"]
+            == PRIMARY_GROUPS[1]
+        ].copy()
+
+        row = {
+            "year": int(year),
+            "B_n": int(len(b)),
+            "D_n": int(len(d)),
+        }
+
+        for column in FORWARD_RETURN_COLUMNS:
+            b_values = _safe_values(
+                b,
+                column,
+            ).dropna()
+
+            d_values = _safe_values(
+                d,
+                column,
+            ).dropna()
+
+            horizon = column.replace(
+                "forward_return_",
+                "",
+            )
+
+            b_mean = (
+                float(b_values.mean())
+                if not b_values.empty
+                else float("nan")
+            )
+
+            d_mean = (
+                float(d_values.mean())
+                if not d_values.empty
+                else float("nan")
+            )
+
+            row[
+                f"B_mean_{horizon}"
+            ] = b_mean
+
+            row[
+                f"D_mean_{horizon}"
+            ] = d_mean
+
+            row[
+                f"B_minus_D_mean_{horizon}"
+            ] = (
+                b_mean - d_mean
+                if np.isfinite(b_mean)
+                and np.isfinite(d_mean)
+                else float("nan")
+            )
+
+        b_trajectory = b[
+            "trajectory_type"
+        ] if "trajectory_type" in b.columns else pd.Series(
+            dtype=object,
+        )
+
+        d_trajectory = d[
+            "trajectory_type"
+        ] if "trajectory_type" in d.columns else pd.Series(
+            dtype=object,
+        )
+
+        for trajectory_type in (
+            "recovery",
+            "persistent_uptrend",
+            "persistent_downtrend",
+            "other",
+        ):
+            b_share = (
+                float(
+                    (
+                        b_trajectory
+                        == trajectory_type
+                    ).mean()
+                )
+                if len(b_trajectory) > 0
+                else float("nan")
+            )
+
+            d_share = (
+                float(
+                    (
+                        d_trajectory
+                        == trajectory_type
+                    ).mean()
+                )
+                if len(d_trajectory) > 0
+                else float("nan")
+            )
+
+            row[
+                f"B_{trajectory_type}_share"
+            ] = b_share
+
+            row[
+                f"D_{trajectory_type}_share"
+            ] = d_share
+
+            row[
+                f"B_minus_D_{trajectory_type}_share"
+            ] = (
+                b_share - d_share
+                if np.isfinite(b_share)
+                and np.isfinite(d_share)
+                else float("nan")
+            )
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def _yearly_trajectory_distribution(
+    test: pd.DataFrame,
+) -> pd.DataFrame:
+    if "snapshot_date" not in test.columns:
+        return pd.DataFrame()
+
+    local = test.copy()
+
+    local["_signal_year"] = pd.to_datetime(
+        local["snapshot_date"],
+        errors="coerce",
+    ).dt.year
+
+    local = local[
+        local["_signal_year"].notna()
+    ].copy()
+
+    if local.empty:
+        return pd.DataFrame()
+
+    local["_signal_year"] = (
+        local["_signal_year"]
+        .astype(int)
+    )
+
+    rows: list[dict] = []
+
+    for year in sorted(
+        local["_signal_year"].unique()
+    ):
+        year_frame = local[
+            local["_signal_year"]
+            == year
+        ]
+
+        for group in TRAJECTORY_GROUPS:
+            frame = year_frame[
+                year_frame["context_group"]
+                == group
+            ]
+
+            total = len(frame)
+
+            counts = (
+                frame["trajectory_type"]
+                .value_counts()
+                if "trajectory_type"
+                in frame.columns
+                else pd.Series(
+                    dtype=int
+                )
+            )
+
+            for trajectory_type in (
+                "recovery",
+                "persistent_uptrend",
+                "persistent_downtrend",
+                "other",
+                "insufficient_history",
+            ):
+                count = int(
+                    counts.get(
+                        trajectory_type,
+                        0,
+                    )
+                )
+
+                rows.append(
+                    {
+                        "year": int(year),
+                        "group": group,
+                        "trajectory_type": (
+                            trajectory_type
+                        ),
+                        "n": count,
+                        "share": (
+                            float(
+                                count / total
+                            )
+                            if total > 0
+                            else float("nan")
+                        ),
+                    }
+                )
 
     return pd.DataFrame(rows)
 
@@ -1012,6 +1509,41 @@ def run_reversal_path(
         ),
     )
 
+    result.add_table(
+        "forward_path_by_group",
+        _forward_path_by_group(
+            test
+        ),
+    )
+
+    result.add_table(
+        "forward_path_B_minus_D",
+        _forward_path_B_minus_D(
+            test
+        ),
+    )
+
+    result.add_table(
+        "yearly_group_outcomes",
+        _yearly_group_outcomes(
+            test
+        ),
+    )
+
+    result.add_table(
+        "yearly_B_minus_D",
+        _yearly_B_minus_D(
+            test
+        ),
+    )
+
+    result.add_table(
+        "yearly_trajectory_distribution",
+        _yearly_trajectory_distribution(
+            test
+        ),
+    )
+
     result.add_metric(
         "price_return_columns_checked",
         list(
@@ -1020,10 +1552,27 @@ def run_reversal_path(
     )
 
     result.add_metric(
+        "forward_return_columns_checked",
+        list(
+            FORWARD_RETURN_COLUMNS
+        ),
+    )
+
+    result.add_metric(
         "distance_columns_checked",
         list(
             DISTANCE_COLUMNS
         ),
+    )
+
+    result.add_metric(
+        "yearly_breakdown",
+        True,
+    )
+
+    result.add_metric(
+        "yearly_breakdown_grouping",
+        "snapshot_date_year",
     )
 
     result.add_metric(
