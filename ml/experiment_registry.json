@@ -37,53 +37,60 @@
       "priority": 5
     },
     {
+      "id": "si_event_risk_locked_oos_confirmation",
+      "status": "active",
+      "question": "Reproduceras den förutbestämda SI × event-risk-interaktionen i helt låsta OOS-perioder utan parameter- eller targetoptimering på testdata?",
+      "module": "ml.diagnostics.experiments.si_event_risk_locked_oos_confirmation_diagnostic",
+      "priority": 6
+    },
+    {
       "id": "si_event_risk_mechanism",
       "status": "active",
       "question": "Är den låsta SI/event-risk-effekten tidsmässigt specifik, kvarstår den efter kontinuerlig kontroll för volatilitet och syns den även relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.si_event_risk_mechanism_diagnostic",
-      "priority": 6
+      "priority": 7
     },
     {
       "id": "si_conditional_model_comparison",
       "status": "active",
       "question": "Tillför SI information utöver event-risk, och tillför SI × volatilitet ytterligare OOS-information?",
       "module": "ml.diagnostics.experiments.si_conditional_model_comparison_diagnostic",
-      "priority": 7
+      "priority": 8
     },
     {
       "id": "sector_relative_return",
       "status": "active",
       "question": "Är SI/event-risk-effekten specifik för aktien relativt sektor och marknad?",
       "module": "ml.diagnostics.experiments.sector_relative_diagnostic",
-      "priority": 8
+      "priority": 9
     },
     {
       "id": "momentum_si_cell_context",
       "status": "active",
       "question": "Har de tidigare identifierade momentum × SI-cellerna en särskild pris- och riskkontext?",
       "module": "ml.diagnostics.experiments.momentum_si_cell_context_diagnostic",
-      "priority": 9
+      "priority": 10
     },
     {
       "id": "momentum_si_incremental_locked_oos",
       "status": "active",
       "question": "När en aktie har hög momentum + mycket hög short interest, är en ytterligare ökning av short interest associerad med högre risk för större nedgång?",
       "module": "ml.diagnostics.experiments.momentum_si_incremental_locked_oos_diagnostic",
-      "priority": 10
+      "priority": 11
     },
     {
       "id": "si_change_mechanism",
       "status": "active",
       "question": "Vad händer efter en ovanligt stor positiv förändring i short interest, och hur varierar sambandet med tidigare momentum och SI-nivå?",
       "module": "ml.diagnostics.experiments.si_change_mechanism_diagnostic",
-      "priority": 11
+      "priority": 12
     },
     {
       "id": "si_change_continuous_controls",
       "status": "active",
       "question": "Har förändringen i short interest egen information om framtida downside-risk efter kontroll för tidigare momentum och SI-nivå?",
       "module": "ml.diagnostics.experiments.si_change_continuous_controls_diagnostic",
-      "priority": 12
+      "priority": 13
     }
   ]
 }
