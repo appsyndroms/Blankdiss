@@ -1,9 +1,9 @@
 {
-  "created_at_utc": "2026-09-23T12:58:02.275486+00:00",
+  "created_at_utc": "2026-09-23T13:43:49.169459+00:00",
   "research_run_timestamp": "20260921T190553Z",
-  "registered_experiments": 15,
-  "active_experiments": 15,
-  "completed": 15,
+  "registered_experiments": 16,
+  "active_experiments": 16,
+  "completed": 16,
   "failed": 0,
   "results": [
     {
@@ -80,6 +80,11 @@
       "experiment_id": "si_event_risk_signal_anatomy",
       "status": "completed",
       "result_file": "diagnostic/si_event_risk_signal_anatomy.json"
+    },
+    {
+      "experiment_id": "si_event_risk_momentum_split",
+      "status": "completed",
+      "result_file": "diagnostic/si_event_risk_momentum_split.json"
     }
   ]
 }
