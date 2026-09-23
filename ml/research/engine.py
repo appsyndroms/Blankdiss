@@ -8,9 +8,7 @@ import numpy as np
 from ml.research.bootstrap import (
     bootstrap_mean_difference,
 )
-from ml.research.cache import (
-    ResearchCache,
-)
+from ml.research.cache import ResearchCache
 from ml.research.spec import (
     ResearchSpec,
     SignalSpec,
@@ -101,12 +99,8 @@ def _binary_metrics(
     return {
         "n": n,
         "events": event_count,
-        "event_rate": float(
-            event_rate
-        ),
-        "baseline_event_rate": (
-            baseline_rate
-        ),
+        "event_rate": float(event_rate),
+        "baseline_event_rate": baseline_rate,
         "lift": (
             float(lift)
             if lift is not None
@@ -169,10 +163,10 @@ def _return_metrics(
         np.median(selected_values)
     )
 
-    difference = None
+    return_difference = None
 
     if rest_values.size:
-        difference = float(
+        return_difference = float(
             mean_return
             - rest_values.mean()
         )
@@ -198,13 +192,11 @@ def _return_metrics(
         ),
         "mean_return": mean_return,
         "median_return": median_return,
-        "return_difference": difference,
-        "bootstrap_ci_low": (
-            ci_low
+        "return_difference": (
+            return_difference
         ),
-        "bootstrap_ci_high": (
-            ci_high
-        ),
+        "bootstrap_ci_low": ci_low,
+        "bootstrap_ci_high": ci_high,
     }
 
 
@@ -421,8 +413,8 @@ def run_spec(
     results: list[dict[str, Any]] = []
 
     bootstrap = (
-        spec.analysis.bootstrap
-        and spec.mode == "deep"
+        spec.mode == "deep"
+        and spec.analysis.bootstrap
     )
 
     if spec.analysis.type == "tail":
@@ -451,8 +443,7 @@ def run_spec(
     elif spec.analysis.type == "interaction":
         if len(spec.signals) != 2:
             raise ValueError(
-                "interaction kräver exakt "
-                "två signaler."
+                "interaction kräver exakt två signaler."
             )
 
         x, y = spec.signals
@@ -480,6 +471,12 @@ def run_spec(
                                     spec_id=spec.id,
                                 )
                             )
+
+    else:
+        raise ValueError(
+            f"Unsupported analysis type: "
+            f"{spec.analysis.type}"
+        )
 
     return {
         "id": spec.id,
