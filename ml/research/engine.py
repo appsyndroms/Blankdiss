@@ -1,429 +1,490 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+import hashlib
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
-from ml.config import TARGETS
-from ml.research.bootstrap import bootstrap_mean_ci
+from ml.research.bootstrap import (
+    bootstrap_mean_difference,
+)
 from ml.research.cache import (
     ResearchCache,
-    build_research_cache,
 )
-from ml.research.experiments import Experiment
-from ml.research.spec import ResearchSpec
-from ml.research.signals import (
-    build_signal,
-    tail_mask,
+from ml.research.spec import (
+    ResearchSpec,
+    SignalSpec,
 )
 
 
-def _target_map():
-    return {
-        target.name: target
-        for target in TARGETS
-    }
+def _stable_seed(
+    *parts: object,
+) -> int:
+    payload = "|".join(
+        str(part)
+        for part in parts
+    ).encode("utf-8")
+
+    digest = hashlib.sha256(
+        payload
+    ).digest()
+
+    return int.from_bytes(
+        digest[:8],
+        byteorder="little",
+        signed=False,
+    ) % (2**32 - 1)
 
 
-def _build_cache_for_spec(
-    frame: pd.DataFrame,
-    spec: ResearchSpec,
-) -> ResearchCache:
-    """
-    Bygg en minimal ResearchCache för en research-spec.
-
-    Vi använder den befintliga cachemotorn.
-    """
-    experiments: list[Experiment] = []
-
-    for signal in spec.signals:
-        for target in spec.targets:
-            experiments.append(
-                Experiment(
-                    experiment_id=(
-                        f"{spec.id}__"
-                        f"{signal.name}__"
-                        f"{target}"
-                    ),
-                    signal_name=signal.name,
-                    target_name=target,
-                    tail_fraction=0.20,
-                    tail_direction=signal.direction,
-                )
-            )
-
-    return build_research_cache(
-        frame,
-        experiments,
+def _tail_key(
+    signal: SignalSpec,
+    fraction: float,
+) -> str:
+    return (
+        f"{signal.name}|"
+        f"{signal.direction}|"
+        f"{fraction}"
     )
 
 
-def _quantile_thresholds(
-    values: np.ndarray,
-    quantiles: tuple[float, ...],
-) -> dict[float, float]:
-    valid = values[
-        np.isfinite(values)
-    ]
-
-    if valid.size == 0:
-        return {
-            q: float("nan")
-            for q in quantiles
-        }
-
-    return {
-        q: float(
-            np.quantile(
-                valid,
-                q,
-            )
-        )
-        for q in quantiles
-    }
-
-
-def _bucket(
-    values: np.ndarray,
-    thresholds: dict[float, float],
-) -> np.ndarray:
-    result = np.full(
-        values.shape,
-        "LOW",
-        dtype=object,
-    )
-
-    valid = np.isfinite(values)
-
-    ordered = sorted(
-        thresholds.items(),
-        key=lambda item: item[1],
-    )
-
-    for q, threshold in ordered:
-        label = f"Q{int(q * 100):02d}"
-        result[
-            valid
-            & (values >= threshold)
-        ] = label
-
-    result[~valid] = "UNKNOWN"
-
-    return result
-
-
-def _event_metrics(
+def _binary_metrics(
     target: np.ndarray,
-    mask: np.ndarray,
+    selected: np.ndarray,
 ) -> dict[str, Any]:
-    valid = (
-        np.isfinite(target)
-        & mask
-    )
+    valid = np.isfinite(target)
 
-    if not np.any(valid):
+    if not valid.any():
         return {
             "n": 0,
             "events": 0,
             "event_rate": None,
-            "baseline_rate": None,
+            "baseline_event_rate": None,
             "lift": None,
         }
 
     y = target[valid]
+    selection = selected[valid]
 
-    event = y > 0
+    events = y > 0
+
+    baseline_rate = float(
+        events.mean()
+    )
 
     n = int(
-        event.size
+        selection.sum()
     )
 
-    events = int(
-        event.sum()
+    if n == 0:
+        return {
+            "n": 0,
+            "events": 0,
+            "event_rate": None,
+            "baseline_event_rate": baseline_rate,
+            "lift": None,
+        }
+
+    event_count = int(
+        events[selection].sum()
     )
 
-    rate = (
-        events / n
-        if n
-        else None
-    )
-
-    baseline_mask = np.isfinite(target)
-
-    baseline = target[
-        baseline_mask
-    ]
-
-    baseline_rate = (
-        float(
-            (baseline > 0).mean()
-        )
-        if baseline.size
-        else None
+    event_rate = (
+        event_count / n
     )
 
     lift = (
-        rate / baseline_rate
-        if (
-            rate is not None
-            and baseline_rate
-            and baseline_rate > 0
-        )
+        event_rate / baseline_rate
+        if baseline_rate > 0
         else None
     )
 
     return {
         "n": n,
-        "events": events,
-        "event_rate": rate,
-        "baseline_rate": baseline_rate,
-        "lift": lift,
+        "events": event_count,
+        "event_rate": float(
+            event_rate
+        ),
+        "baseline_event_rate": (
+            baseline_rate
+        ),
+        "lift": (
+            float(lift)
+            if lift is not None
+            else None
+        ),
     }
 
 
 def _return_metrics(
     returns: np.ndarray | None,
-    mask: np.ndarray,
+    selected: np.ndarray,
     *,
     bootstrap: bool,
+    bootstrap_iterations: int,
     seed: int,
 ) -> dict[str, Any]:
     if returns is None:
-        return {}
-
-    valid = (
-        np.isfinite(returns)
-        & mask
-    )
-
-    values = returns[valid]
-
-    if values.size == 0:
         return {
             "return_n": 0,
             "mean_return": None,
             "median_return": None,
+            "return_difference": None,
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
         }
 
-    result = {
+    selected_valid = (
+        selected
+        & np.isfinite(returns)
+    )
+
+    rest_valid = (
+        ~selected
+        & np.isfinite(returns)
+    )
+
+    selected_values = returns[
+        selected_valid
+    ]
+
+    rest_values = returns[
+        rest_valid
+    ]
+
+    if selected_values.size == 0:
+        return {
+            "return_n": 0,
+            "mean_return": None,
+            "median_return": None,
+            "return_difference": None,
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
+        }
+
+    mean_return = float(
+        selected_values.mean()
+    )
+
+    median_return = float(
+        np.median(selected_values)
+    )
+
+    difference = None
+
+    if rest_values.size:
+        difference = float(
+            mean_return
+            - rest_values.mean()
+        )
+
+    ci_low = None
+    ci_high = None
+
+    if bootstrap:
+        ci_low, ci_high = (
+            bootstrap_mean_difference(
+                selected_values,
+                rest_values,
+                iterations=(
+                    bootstrap_iterations
+                ),
+                seed=seed,
+            )
+        )
+
+    return {
         "return_n": int(
-            values.size
+            selected_values.size
         ),
-        "mean_return": float(
-            np.mean(values)
+        "mean_return": mean_return,
+        "median_return": median_return,
+        "return_difference": difference,
+        "bootstrap_ci_low": (
+            ci_low
         ),
-        "median_return": float(
-            np.median(values)
+        "bootstrap_ci_high": (
+            ci_high
         ),
     }
 
-    if bootstrap:
-        low, high = bootstrap_mean_ci(
-            values,
-            seed=seed,
-        )
 
-        result.update(
-            {
-                "bootstrap_ci_low": low,
-                "bootstrap_ci_high": high,
-            }
-        )
-
-    return result
-
-
-def _analyse_interaction(
+def _analyse_tail(
     cache: ResearchCache,
-    spec: ResearchSpec,
-    window_name: str,
+    signal: SignalSpec,
     target_name: str,
-) -> list[dict[str, Any]]:
-    if len(spec.signals) != 2:
-        raise ValueError(
-            "interaction kräver exakt två signaler."
-        )
-
-    x_spec, y_spec = spec.signals
-
-    x = cache.signals[x_spec.name]
-    y = cache.signals[y_spec.name]
-
-    window_mask = cache.window_masks[
-        window_name
-    ]["test"]
+    fraction: float,
+    window_name: str,
+    split_name: str,
+    *,
+    bootstrap: bool,
+    bootstrap_iterations: int,
+    spec_id: str,
+) -> dict[str, Any]:
+    signal_values = cache.signals[
+        signal.name
+    ]
 
     target = cache.targets[
         target_name
     ]
 
+    window_mask = cache.window_masks[
+        window_name
+    ][split_name]
+
+    selected = cache.tail_masks[
+        _tail_key(
+            signal,
+            fraction,
+        )
+    ]
+
+    valid = (
+        window_mask
+        & selected
+        & np.isfinite(signal_values)
+        & np.isfinite(target)
+    )
+
     target_config = cache.target_configs[
         target_name
     ]
 
-    returns = cache.returns.get(
-        getattr(
-            target_config,
-            "return_column",
-            None,
+    return_column = getattr(
+        target_config,
+        "return_column",
+        None,
+    )
+
+    returns = (
+        cache.returns.get(
+            return_column
         )
+        if return_column
+        else None
     )
 
-    pretest_mask = cache.window_masks[
+    metrics = _binary_metrics(
+        target[window_mask],
+        selected[window_mask],
+    )
+
+    seed = _stable_seed(
+        spec_id,
+        signal.name,
+        target_name,
+        fraction,
+        window_name,
+        split_name,
+    )
+
+    return_metrics = _return_metrics(
+        returns,
+        window_mask & selected,
+        bootstrap=bootstrap,
+        bootstrap_iterations=(
+            bootstrap_iterations
+        ),
+        seed=seed,
+    )
+
+    return {
+        "analysis": "tail",
+        "signal": signal.name,
+        "direction": signal.direction,
+        "fraction": fraction,
+        "target": target_name,
+        "window": window_name,
+        "split": split_name,
+        "n_valid": int(
+            valid.sum()
+        ),
+        **metrics,
+        **return_metrics,
+    }
+
+
+def _analyse_interaction(
+    cache: ResearchCache,
+    x: SignalSpec,
+    y: SignalSpec,
+    target_name: str,
+    x_fraction: float,
+    y_fraction: float,
+    window_name: str,
+    split_name: str,
+    *,
+    bootstrap: bool,
+    bootstrap_iterations: int,
+    spec_id: str,
+) -> dict[str, Any]:
+    target = cache.targets[
+        target_name
+    ]
+
+    window_mask = cache.window_masks[
         window_name
-    ]["train"] | cache.window_masks[
-        window_name
-    ]["validation"]
+    ][split_name]
 
-    x_thresholds = _quantile_thresholds(
-        x[pretest_mask],
-        spec.analysis.bins,
+    x_mask = cache.tail_masks[
+        _tail_key(
+            x,
+            x_fraction,
+        )
+    ]
+
+    y_mask = cache.tail_masks[
+        _tail_key(
+            y,
+            y_fraction,
+        )
+    ]
+
+    selected = (
+        x_mask
+        & y_mask
     )
 
-    y_thresholds = _quantile_thresholds(
-        y[pretest_mask],
-        spec.analysis.bins,
+    valid = (
+        window_mask
+        & selected
+        & np.isfinite(target)
     )
 
-    x_bucket = _bucket(
-        x,
-        x_thresholds,
+    target_config = cache.target_configs[
+        target_name
+    ]
+
+    return_column = getattr(
+        target_config,
+        "return_column",
+        None,
     )
 
-    y_bucket = _bucket(
-        y,
-        y_thresholds,
+    returns = (
+        cache.returns.get(
+            return_column
+        )
+        if return_column
+        else None
     )
 
-    rows: list[dict[str, Any]] = []
+    metrics = _binary_metrics(
+        target[window_mask],
+        selected[window_mask],
+    )
 
-    for xb in sorted(
-        set(x_bucket[window_mask])
-    ):
-        for yb in sorted(
-            set(y_bucket[window_mask])
-        ):
-            cell_mask = (
-                window_mask
-                & (x_bucket == xb)
-                & (y_bucket == yb)
-            )
+    seed = _stable_seed(
+        spec_id,
+        x.name,
+        y.name,
+        target_name,
+        x_fraction,
+        y_fraction,
+        window_name,
+        split_name,
+    )
 
-            metrics = _event_metrics(
-                target,
-                cell_mask,
-            )
+    return_metrics = _return_metrics(
+        returns,
+        window_mask & selected,
+        bootstrap=bootstrap,
+        bootstrap_iterations=(
+            bootstrap_iterations
+        ),
+        seed=seed,
+    )
 
-            metrics.update(
-                _return_metrics(
-                    returns,
-                    cell_mask,
-                    bootstrap=(
-                        spec.analysis.bootstrap
-                    ),
-                    seed=(
-                        hash(
-                            (
-                                spec.id,
-                                window_name,
-                                target_name,
-                                xb,
-                                yb,
-                            )
-                        )
-                        & 0xFFFFFFFF
-                    ),
-                )
-            )
-
-            rows.append(
-                {
-                    "research_id": spec.id,
-                    "window": window_name,
-                    "target": target_name,
-                    "x": x_spec.name,
-                    "y": y_spec.name,
-                    "x_bucket": xb,
-                    "y_bucket": yb,
-                    **metrics,
-                }
-            )
-
-    return rows
+    return {
+        "analysis": "interaction",
+        "signal_x": x.name,
+        "direction_x": x.direction,
+        "fraction_x": x_fraction,
+        "signal_y": y.name,
+        "direction_y": y.direction,
+        "fraction_y": y_fraction,
+        "target": target_name,
+        "window": window_name,
+        "split": split_name,
+        "n_valid": int(
+            valid.sum()
+        ),
+        **metrics,
+        **return_metrics,
+    }
 
 
 def run_spec(
-    frame: pd.DataFrame,
+    cache: ResearchCache,
     spec: ResearchSpec,
 ) -> dict[str, Any]:
-    """
-    Kör en deklarativ research specification.
-
-    SCAN:
-        snabb, utan bootstrap.
-
-    DEEP:
-        samma analys men med bootstrap om
-        spec.analysis.bootstrap=True.
-    """
-    if spec.mode not in {
-        "scan",
-        "deep",
-    }:
-        raise ValueError(
-            f"Okänt research mode: {spec.mode}"
-        )
-
-    cache = _build_cache_for_spec(
-        frame,
-        spec,
-    )
-
     results: list[dict[str, Any]] = []
 
-    for window_name in spec.windows:
-        if window_name not in cache.window_masks:
+    bootstrap = (
+        spec.analysis.bootstrap
+        and spec.mode == "deep"
+    )
+
+    if spec.analysis.type == "tail":
+        for signal in spec.signals:
+            for target_name in spec.targets:
+                for fraction in signal.bins:
+                    for window_name in spec.windows:
+                        for split_name in spec.splits:
+                            results.append(
+                                _analyse_tail(
+                                    cache,
+                                    signal,
+                                    target_name,
+                                    fraction,
+                                    window_name,
+                                    split_name,
+                                    bootstrap=bootstrap,
+                                    bootstrap_iterations=(
+                                        spec.analysis
+                                        .bootstrap_iterations
+                                    ),
+                                    spec_id=spec.id,
+                                )
+                            )
+
+    elif spec.analysis.type == "interaction":
+        if len(spec.signals) != 2:
             raise ValueError(
-                f"Okänt walk-forward-fönster: "
-                f"{window_name}"
+                "interaction kräver exakt "
+                "två signaler."
             )
 
-        for target_name in spec.targets:
-            if spec.analysis.type == "interaction":
-                results.extend(
-                    _analyse_interaction(
-                        cache,
-                        spec,
-                        window_name,
-                        target_name,
-                    )
-                )
+        x, y = spec.signals
 
-            else:
-                raise ValueError(
-                    "Okänd analysis type: "
-                    f"{spec.analysis.type}"
-                )
+        for target_name in spec.targets:
+            for x_fraction in x.bins:
+                for y_fraction in y.bins:
+                    for window_name in spec.windows:
+                        for split_name in spec.splits:
+                            results.append(
+                                _analyse_interaction(
+                                    cache,
+                                    x,
+                                    y,
+                                    target_name,
+                                    x_fraction,
+                                    y_fraction,
+                                    window_name,
+                                    split_name,
+                                    bootstrap=bootstrap,
+                                    bootstrap_iterations=(
+                                        spec.analysis
+                                        .bootstrap_iterations
+                                    ),
+                                    spec_id=spec.id,
+                                )
+                            )
 
     return {
         "id": spec.id,
         "question": spec.question,
         "mode": spec.mode,
-        "analysis": asdict(
-            spec.analysis
-        ),
-        "signals": [
-            asdict(signal)
-            for signal in spec.signals
-        ],
-        "targets": list(
-            spec.targets
-        ),
-        "windows": list(
-            spec.windows
-        ),
-        "results": results,
         "metadata": spec.metadata,
+        "results": results,
     }
