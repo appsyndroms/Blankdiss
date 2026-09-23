@@ -3,8 +3,8 @@
   "question": "Är SI × event-risk-signalen fortfarande informativ inom redan fallande aktier, och finns samma SI-effekt när tidigare momentum inte är negativt?",
   "module": "ml.diagnostics.experiments.si_event_risk_momentum_split_diagnostic",
   "status": "completed",
-  "started_at_utc": "2026-09-23T15:28:05.973410+00:00",
-  "finished_at_utc": "2026-09-23T15:28:09.012116+00:00",
+  "started_at_utc": "2026-09-23T17:19:13.066978+00:00",
+  "finished_at_utc": "2026-09-23T17:19:15.428687+00:00",
   "windows": [
     {
       "window": "window_1",
@@ -126,7 +126,7 @@
               "median_price_return_20d": -0.1282887406820575,
               "mean_price_return_60d": -0.14377555554422833,
               "median_price_return_60d": -0.171007403130422,
-              "mean_event_score": 0.6208383091009096,
+              "mean_event_score": 0.6208383091009098,
               "mean_forward_return_1d": 0.00031539255164999056,
               "median_forward_return_1d": -0.0017064592240030002,
               "down_3pct_1d_rate": 0.14536138079827401,
