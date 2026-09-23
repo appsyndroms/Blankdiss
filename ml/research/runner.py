@@ -1,22 +1,23 @@
 from __future__ import annotations
 
+import argparse
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ml.config import WALK_FORWARD_WINDOWS
-from ml.dataset import load_features
-from ml.research.aggregation import pool_results
-from ml.research.cache import build_research_cache
-from ml.research.evaluator import evaluate_experiment
-from ml.research.experiments import build_experiment_matrix
-from ml.research.reporting import (
-    write_json,
-    write_jsonl,
-    write_markdown_report,
-)
+from ml.research.engine import run_spec
+from ml.research.session import build_session
+from ml.research.spec import load_spec
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+DEFAULT_SPEC_DIR = (
+    ROOT
+    / "ml"
+    / "research"
+    / "specs"
+)
 
 OUTPUT_DIR = (
     ROOT
@@ -24,140 +25,80 @@ OUTPUT_DIR = (
     / "processed"
     / "ml"
     / "research"
+    / "spec_runs"
 )
 
 
-def _window_name(index: int) -> str:
-    return f"window_{index + 1}"
-
-
-def run() -> None:
-    print(
-        "Loading features...",
-        flush=True,
-    )
-
-    frame = load_features()
-
-    print(
-        f"Loaded {len(frame):,} feature rows",
-        flush=True,
-    )
-
-    experiments = build_experiment_matrix()
-
-    print(
-        f"Experiments: {len(experiments):,}",
-        flush=True,
-    )
-
-    signal_names = sorted(
-        {
-            experiment.signal_name
-            for experiment in experiments
-        }
-    )
-
-    target_names = sorted(
-        {
-            experiment.target_name
-            for experiment in experiments
-        }
-    )
-
-    print(
-        f"Signals: {len(signal_names):,}",
-        flush=True,
-    )
-
-    print(
-        f"Targets: {len(target_names):,}",
-        flush=True,
-    )
-
-    print(
-        "Building research cache...",
-        flush=True,
-    )
-
-    cache = build_research_cache(
-        frame,
-        experiments,
-    )
-
-    print(
-        "Research cache ready.",
-        flush=True,
-    )
-
-    results: list[dict] = []
-
-    for window_index, window in enumerate(
-        WALK_FORWARD_WINDOWS
-    ):
-        window_name = _window_name(
-            window_index
-        )
-
-        train_end = window.train_end
-        validation_end = window.validation_end
-        test_end = window.test_end
-
-        print(
-            f"\n{window_name}: "
-            f"train <= {train_end}, "
-            f"validation <= {validation_end}, "
-            f"test <= {test_end}",
-            flush=True,
-        )
-
-        for split_name in (
-            "train",
-            "validation",
-            "test",
-        ):
-            split_results = []
-
-            for experiment in experiments:
-                result = evaluate_experiment(
-                    frame=frame,
-                    cache=cache,
-                    experiment=experiment,
-                    window_name=window_name,
-                    split_name=split_name,
-                )
-
-                split_results.append(
-                    result
-                )
-
-            results.extend(
-                split_results
-            )
-
-            print(
-                f"  {split_name}: "
-                f"{len(split_results):,} experiments",
-                flush=True,
-            )
-
-    print(
-        f"\nSplit results: {len(results):,}",
-        flush=True,
-    )
-
-    pooled = pool_results(
-        results
-    )
-
-    print(
-        f"Pooled experiments: {len(pooled):,}",
-        flush=True,
-    )
-
-    OUTPUT_DIR.mkdir(
+def _write_json(
+    path: Path,
+    payload,
+) -> None:
+    path.parent.mkdir(
         parents=True,
         exist_ok=True,
+    )
+
+    path.write_text(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _find_specs(
+    spec_dir: Path,
+) -> list[Path]:
+    return sorted(
+        spec_dir.glob("*.yaml")
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "specs",
+        nargs="*",
+        help=(
+            "Spec-filer. Om inga anges "
+            "körs alla YAML-filer i specs/."
+        ),
+    )
+
+    args = parser.parse_args()
+
+    if args.specs:
+        spec_paths = [
+            Path(path)
+            for path in args.specs
+        ]
+    else:
+        spec_paths = _find_specs(
+            DEFAULT_SPEC_DIR
+        )
+
+    if not spec_paths:
+        raise SystemExit(
+            "Hittade inga research specs."
+        )
+
+    specs = [
+        load_spec(path)
+        for path in spec_paths
+    ]
+
+    print(
+        f"Research specs: {len(specs):,}",
+        flush=True,
+    )
+
+    session = build_session(
+        specs
     )
 
     run_timestamp = datetime.now(
@@ -171,97 +112,71 @@ def run() -> None:
         / run_timestamp
     )
 
-    run_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    metadata = {
-        "created_at_utc": run_timestamp,
+    manifest = {
+        "created_at_utc": (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        ),
         "feature_rows": int(
-            len(frame)
+            len(session.frame)
         ),
-        "experiments": int(
-            len(experiments)
-        ),
-        "signals": signal_names,
-        "targets": target_names,
-        "walk_forward_windows": [
-            {
-                "train_end": str(
-                    window.train_end
-                ),
-                "validation_end": str(
-                    window.validation_end
-                ),
-                "test_end": str(
-                    window.test_end
-                ),
-            }
-            for window
-            in WALK_FORWARD_WINDOWS
-        ],
+        "specs": [],
     }
 
-    write_jsonl(
-        run_dir / "results.jsonl",
-        results,
+    for spec in specs:
+        print(
+            f"Running: {spec.id}",
+            flush=True,
+        )
+
+        result = run_spec(
+            session.cache,
+            spec,
+        )
+
+        result_path = (
+            run_dir
+            / f"{spec.id}.json"
+        )
+
+        _write_json(
+            result_path,
+            result,
+        )
+
+        manifest["specs"].append(
+            {
+                "id": spec.id,
+                "mode": spec.mode,
+                "result": str(
+                    result_path.relative_to(
+                        ROOT
+                    )
+                ),
+                "rows": len(
+                    result["results"]
+                ),
+            }
+        )
+
+        print(
+            f"Completed: {spec.id} "
+            f"({len(result['results']):,} cells)",
+            flush=True,
+        )
+
+    _write_json(
+        run_dir / "manifest.json",
+        manifest,
     )
 
-    write_json(
-        run_dir / "pooled.json",
-        pooled,
-    )
-
-    write_json(
-        run_dir / "metadata.json",
-        metadata,
-    )
-
-    write_markdown_report(
-        run_dir / "report.md",
-        results,
-        pooled,
-        metadata,
-    )
-
-    latest_dir = (
-        OUTPUT_DIR
-        / "latest"
-    )
-
-    latest_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    write_jsonl(
-        latest_dir / "results.jsonl",
-        results,
-    )
-
-    write_json(
-        latest_dir / "pooled.json",
-        pooled,
-    )
-
-    write_json(
-        latest_dir / "metadata.json",
-        metadata,
-    )
-
-    write_markdown_report(
-        latest_dir / "report.md",
-        results,
-        pooled,
-        metadata,
-    )
-
+    print()
     print(
-        f"\nResearch complete: {run_dir}",
+        f"Research complete: {run_dir}",
         flush=True,
     )
 
 
 if __name__ == "__main__":
-    run()
+    main()
