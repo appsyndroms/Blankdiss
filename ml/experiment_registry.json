@@ -112,6 +112,13 @@
       "question": "Är SI × event-risk-signalen fortfarande informativ inom redan fallande aktier, och finns samma SI-effekt när tidigare momentum inte är negativt?",
       "module": "ml.diagnostics.experiments.si_event_risk_momentum_split_diagnostic",
       "priority": 16
+    },
+    {
+      "id": "si_event_risk_positive_momentum_context",
+      "status": "active",
+      "question": "Vad skiljer hög SI-förändring från låg SI-förändring inom hög event-risk när 20-dagars momentum inte är negativt?",
+      "module": "ml.diagnostics.experiments.si_event_risk_positive_momentum_context_diagnostic",
+      "priority": 17
     }
   ]
 }
