@@ -77,6 +77,13 @@
       "question": "Vad händer efter en ovanligt stor positiv förändring i short interest, och hur varierar sambandet med tidigare momentum och SI-nivå?",
       "module": "ml.diagnostics.experiments.si_change_mechanism_diagnostic",
       "priority": 11
+    },
+    {
+      "id": "si_change_continuous_controls",
+      "status": "active",
+      "question": "Har förändringen i short interest egen information om framtida downside-risk efter kontroll för tidigare momentum och SI-nivå?",
+      "module": "ml.diagnostics.experiments.si_change_continuous_controls_diagnostic",
+      "priority": 12
     }
   ]
 }
