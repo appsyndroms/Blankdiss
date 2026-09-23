@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 from ml.research.engine import run_spec
+from ml.research.reporting import (
+    write_json,
+)
 from ml.research.session import build_session
 from ml.research.spec import load_spec
 
@@ -29,27 +31,6 @@ OUTPUT_DIR = (
 )
 
 
-def _write_json(
-    path: Path,
-    payload,
-) -> None:
-    path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    path.write_text(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            indent=2,
-            default=str,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-
 def _find_specs(
     spec_dir: Path,
 ) -> list[Path]:
@@ -59,14 +40,18 @@ def _find_specs(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Blankdiss declarative research runner."
+        )
+    )
 
     parser.add_argument(
         "specs",
         nargs="*",
         help=(
-            "Spec-filer. Om inga anges "
-            "körs alla YAML-filer i specs/."
+            "Spec-filer. Om inga anges körs "
+            "alla YAML-filer i specs/."
         ),
     )
 
@@ -140,7 +125,7 @@ def main() -> None:
             / f"{spec.id}.json"
         )
 
-        _write_json(
+        write_json(
             result_path,
             result,
         )
@@ -149,6 +134,7 @@ def main() -> None:
             {
                 "id": spec.id,
                 "mode": spec.mode,
+                "question": spec.question,
                 "result": str(
                     result_path.relative_to(
                         ROOT
@@ -166,7 +152,7 @@ def main() -> None:
             flush=True,
         )
 
-    _write_json(
+    write_json(
         run_dir / "manifest.json",
         manifest,
     )
