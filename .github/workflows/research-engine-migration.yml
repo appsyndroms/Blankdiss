@@ -36,11 +36,11 @@ jobs:
         run: |
           python -m ml.research.custom.fi_short_interest_event_risk_interaction_migration
 
-      - name: Run existing SI event-risk grid migration
-        env:
-          PYTHONPATH: .
-        run: |
-          python -m ml.research.discovery.si_event_risk_grid_migration
+      # - name: Run existing SI event-risk grid migration
+      #   env:
+      #     PYTHONPATH: .
+      #   run: |
+      #     python -m ml.research.discovery.si_event_risk_grid_migration
 
       - name: Run migration comparator for FI event-risk interaction
         env:
