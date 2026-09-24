@@ -2,9 +2,9 @@ Blankdiss Research Engine
 
 ml/research/ är Blankdiss generiska forskningsmotor.
 
-Målet är att göra nya researchhypoteser billiga att formulera och köra.
+Målet är att göra nya forskningshypoteser billiga att formulera, köra och iterera.
 
-Grundprincipen är:
+Grundflödet är:
 
 hypotes
    ↓
@@ -12,32 +12,35 @@ YAML research spec
    ↓
 SCAN
    ↓
-intressant signal/interaktion
+intressant resultat
    ↓
 DEEP
    ↓
-robusthetsanalys / specialanalys
+robusthet / specialanalys
+   ↓
+OOS-resultat
+
+⸻
 
 Arkitektur
 
-ml/
-└── research/
-    ├── README.md
-    ├── bootstrap.py
-    ├── cache.py
-    ├── engine.py
-    ├── reporting.py
-    ├── runner.py
-    ├── session.py
-    ├── signals.py
-    ├── spec.py
-    │
-    ├── specs/
-    │   ├── README.md
-    │   └── *.yaml
-    │
-    └── custom/
-        └── README.md
+ml/research/
+├── spec.py
+├── session.py
+├── cache.py
+├── signals.py
+├── engine.py
+├── runner.py
+├── reporting.py
+├── bootstrap.py
+│
+├── specs/
+│   └── *.yaml
+│
+└── custom/
+    └── *.py
+
+⸻
 
 spec.py
 
@@ -47,59 +50,88 @@ En spec beskriver:
 
 * forskningsfråga
 * signaler
-* tail-riktning
-* tail-fraktioner
+* signalriktning
+* tail fractions
 * targets
-* analysis-typ
-* walk-forward-fönster
-* SCAN/DEEP
+* analys
+* mode
+* windows
+* splits
 * metadata
 
-Nya vanliga hypoteser ska normalt börja som YAML.
+Vanliga hypoteser ska normalt börja här.
+
+⸻
 
 session.py
 
-Bygger en gemensam ResearchSession.
+Skapar en gemensam ResearchSession.
 
 Sessionen:
 
-1. läser feature-datasetet en gång
-2. identifierar vilka signaler/targets som behövs
-3. bygger en gemensam ResearchCache
+1. laddar feature-datasetet
+2. identifierar gemensamma krav från alla specs
+3. bygger ResearchCache
+4. återanvänder samma data mellan analyser
 
-Alla specs som körs i samma runner delar denna cache.
+Det gör att flera hypoteser kan köras utan att samma dyra förberedelser upprepas.
 
-Detta är centralt för prestandan.
+⸻
 
 cache.py
 
-Innehåller återanvändbara NumPy-arrayer:
+Cachelagret innehåller återanvändbara komponenter:
 
 * signaler
 * targets
 * forward returns
 * tail masks
 * walk-forward masks
-* target-konfigurationer
 
-Dyra operationer ska göras här en gång per session, inte en gång per hypotes.
+Princip:
+
+1 × data preparation
+N × research hypotheses
+
+inte:
+
+N × data preparation
+N × research hypotheses
+
+⸻
+
+signals.py
+
+Innehåller standardiserade signaldefinitioner.
+
+Exempel:
+
+* short_interest_level
+* short_interest_change
+* short_interest_acceleration
+* price_momentum_5d
+* price_momentum_20d
+* price_momentum_60d
+* price_volatility_20d
+* distance_from_20d_high
+* distance_from_60d_high
+
+Nya återanvändbara signaler ska läggas här.
+
+⸻
 
 engine.py
 
 Den generiska analysmotorn.
 
-Nuvarande generiska analysformer:
+Nuvarande analysformer:
 
-* tail
-* interaction
+tail
+interaction
 
-tail analyserar en signal ensam.
+Engine ansvarar för standardiserade mått såsom:
 
-interaction analyserar kombinationen av två signaler.
-
-Motorn beräknar bland annat:
-
-* antal observationer
+* observation count
 * event count
 * event rate
 * baseline event rate
@@ -107,17 +139,29 @@ Motorn beräknar bland annat:
 * mean return
 * median return
 * return difference
-* bootstrap CI i DEEP-läge
+* bootstrap CI i DEEP
+
+Analyslogik som återkommer mellan hypoteser ska flyttas hit.
+
+⸻
 
 runner.py
 
-Kör en eller flera YAML-specar.
+Runnern orkestrerar hela research-körningen.
 
-Utan argument körs alla specs i:
+YAML specs
+    ↓
+ResearchSession
+    ↓
+ResearchCache
+    ↓
+Engine
+    ↓
+Results
+    ↓
+Manifest
 
-ml/research/specs/
-
-En session byggs först och därefter körs alla specs mot samma cache.
+Alla specs i samma körning delar session och cache.
 
 Exempel:
 
@@ -126,130 +170,237 @@ python -m ml.research.runner
 En specifik spec:
 
 python -m ml.research.runner \
-  ml/research/specs/si_momentum_scan.yaml
+  ml/research/specs/my_hypothesis.yaml
 
-Flera specs:
-
-python -m ml.research.runner \
-  ml/research/specs/si_momentum_scan.yaml \
-  ml/research/specs/tail_signal_scan.yaml
-
-SCAN och DEEP
+⸻
 
 SCAN
 
-SCAN ska vara billigt.
+SCAN är första filtret.
 
-Syftet är att svara på:
+Syftet är:
 
-Finns det någonting här som är värt att undersöka vidare?
+Hitta hypoteser som förtjänar mer analys.
 
-SCAN använder därför normalt:
+SCAN ska vara:
 
-* hela tillgängliga signalmatrisen
-* flera tail-fraktioner
-* flera targets
-* walk-forward-test
-* enkla effektmått
+* bred
+* snabb
+* billig
+* reproducerbar
 
-Bootstrap och andra dyra analyser ska normalt vara avstängda.
+Typiskt:
+
+många signaler
+×
+flera tails
+×
+flera targets
+×
+OOS windows
+
+Dyra analyser ska normalt vänta.
+
+⸻
 
 DEEP
 
-DEEP körs först när en SCAN producerat en intressant hypotes.
-
-DEEP kan aktivera:
-
-* bootstrap
-* robusthetskontroller
-* alternativa cutoffs
-* fler tidsperioder
-* placebo-/kontrollanalyser
-* specialiserad analys
-
-Principen är:
-
-Gör inte en dyr analys av något som först borde ha screenats bort.
-
-När ska Python skrivas?
-
-Python ska normalt inte behövas för en ny vanlig hypotes.
-
-Börja med YAML om frågan kan uttryckas som:
-
-* en signal
-* en tail
-* två signaler
-* ett target
-* ett antal cutoffs
-* ett walk-forward-fönster
-
-Python läggs till först när frågan kräver något som den generiska motorn inte kan uttrycka.
+DEEP används när SCAN visar något som är värt att undersöka.
 
 Exempel:
 
-* specialiserad 2×2-interaktion
-* conditional regression
-* permutationstest
-* event-sekvensanalys
-* path dependence
-* ovanlig gruppering
-* komplex mekanismanalys
+* bootstrap
+* confidence intervals
+* alternativa cutoffs
+* robusthetskontroller
+* placebo
+* kontrollgrupper
+* fler tidsperioder
+* specialiserad analys
 
-Sådana analyser hör hemma i:
+Princip:
+
+Gör inte en dyr analys av något som först borde ha screenats bort.
+
+⸻
+
+Research specs
+
+Research specs finns under:
+
+ml/research/specs/
+
+En vanlig spec kan exempelvis definiera:
+
+id: example_scan
+question: >
+  Hypotesen som ska testas.
+mode: scan
+signals:
+  - name: short_interest_change
+    direction: upper
+    bins: [0.20, 0.10, 0.05, 0.01]
+targets:
+  - down_5pct_5d
+analysis:
+  type: tail
+  bootstrap: false
+windows:
+  - window_1
+  - window_2
+splits:
+  - test
+
+Specen beskriver vad som ska testas.
+
+Engine beskriver hur den generiska analysen genomförs.
+
+⸻
+
+Custom research
+
+All research passar inte YAML.
+
+Specialiserad research som fortfarande hör hemma i Research-lagret placeras under:
 
 ml/research/custom/
 
+Exempel:
+
+* permutationstest
+* path dependence
+* komplexa event-sekvenser
+* specialiserad regression
+* ovanlig gruppering
+* avancerad mekanismanalys
+
+Custom-kod ska fortfarande återanvända Research Engine där det är möjligt.
+
+⸻
+
+Research kontra Diagnostics
+
+Tumregel:
+
+Kan frågan beskrivas deklarativt?
+        │
+       JA
+        ↓
+     Research
+        │
+       NEJ
+        ↓
+ custom / Diagnostics
+
+Diagnostics används när analysen kräver ett mer specialiserat experimentframework.
+
+⸻
+
+Walk-forward och OOS
+
+Research ska respektera walk-forward-gränser.
+
+Grundprincip:
+
+TRAIN
+   ↓
+VALIDATION
+   ↓
+MODEL SELECTION
+   ↓
+REFIT
+   ↓
+OOS TEST
+
+Testperioden får inte användas för att optimera hypotesen.
+
+Det gäller även:
+
+* thresholds
+* feature selection
+* modellval
+* cutoffs
+* population definitions
+
+⸻
+
 Resultat
 
-Research-resultat skrivs under:
+Resultat skrivs under:
 
 data/processed/ml/research/spec_runs/
 
-Varje körning får en timestamp:
+Exempel:
 
 spec_runs/
-└── 20260923T183000Z/
+└── 20260924T123456Z/
     ├── manifest.json
-    ├── si_momentum_downside_scan.json
-    └── tail_signal_scan.json
+    ├── hypothesis_a.json
+    └── hypothesis_b.json
 
-manifest.json beskriver hela körningen.
+Resultat ska vara maskinläsbara.
 
-Migration från legacy
+Den normala kedjan är:
 
-Den gamla experimentarkitekturen tas inte bort direkt.
+Research
+   ↓
+JSON / artifacts
+   ↓
+AI / human analysis
+   ↓
+Next hypothesis
 
-Följande komponenter betraktas som legacy:
+⸻
 
-* ml/research/experiments.py
-* ml/experiment_registry.json
-* ml/experiment_registry_runner.py
-* tunna wrappers under ml/diagnostics/experiments/
+När ny Python behövs
 
-De får finnas kvar under migrationen.
+Skriv inte en ny experimentklass bara för att testa en vanlig hypotes.
 
-En legacy-komponent tas bort först när:
+Börja med YAML.
 
-1. dess relevanta analys är reproducerad i den nya motorn eller custom/
-2. resultat har jämförts
-3. ingen workflow längre behöver komponenten
-4. inga andra moduler importerar den
+Ny Python är motiverad när analysen kräver verkligt ny logik.
+
+Om samma logik sedan används av flera analyser ska den flyttas från custom till Engine.
+
+⸻
 
 Designprincip
 
-Research-koden ska optimeras för:
+Research Engine är optimerad för:
 
-idé → test
+idé → information
 
 inte:
 
 idé
-→ ny Python-fil
-→ ny experimentklass
-→ registry
-→ wrapper
-→ workflow
-→ körning
+ ↓
+ny Python-fil
+ ↓
+ny klass
+ ↓
+registry
+ ↓
+wrapper
+ ↓
+workflow
+ ↓
+körning
 
-Det deklarativa formatet är därför standardvägen för nya researchfrågor.
+Den deklarativa vägen är standard.
+
+⸻
+
+Migration status
+
+Den gamla experiment-/registry-arkitekturen är inte en del av den slutliga Research Engine.
+
+Efter migreringen ska:
+
+* generiska experiment vara YAML
+* gemensam logik finnas i Engine
+* specialiserad Research finnas i custom/
+* Diagnostics endast innehålla verkligt specialiserade analyser
+* legacy-filer vara borttagna
+* död kod vara borttagen
+
+Det finns ingen anledning att behålla en gammal implementation parallellt när den nya funktionaliteten är verifierad.
