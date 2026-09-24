@@ -35,6 +35,10 @@ jobs:
         run: |
           python -m ml.research.custom.si_prior_return_interaction_migration
 
+      - name: Run FI short-interest event-risk interaction migration comparator
+        run: |
+          python -m ml.research.custom.fi_short_interest_event_risk_interaction_migration
+
       - name: Upload migration comparisons
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,4 +52,9 @@ jobs:
             data/processed/ml/research/migration/si_prior_return_interaction_window_2_analysis.csv
             data/processed/ml/research/migration/si_prior_return_interaction_window_2_thresholds.csv
             data/processed/ml/research/migration/si_prior_return_interaction_migration.md
+            data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_window_1.csv
+            data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_window_1_metrics.csv
+            data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_window_2.csv
+            data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_window_2_metrics.csv
+            data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_migration.md
           if-no-files-found: warn
