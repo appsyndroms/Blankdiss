@@ -43,6 +43,9 @@ jobs:
           path: |
             data/processed/ml/research/migration/old_new_generic_comparison.csv
             data/processed/ml/research/migration/old_new_generic_comparison.md
-            data/processed/ml/research/migration/si_prior_return_interaction_comparison.csv
-            data/processed/ml/research/migration/si_prior_return_interaction_comparison.md
+            data/processed/ml/research/migration/si_prior_return_interaction_window_1_analysis.csv
+            data/processed/ml/research/migration/si_prior_return_interaction_window_1_thresholds.csv
+            data/processed/ml/research/migration/si_prior_return_interaction_window_2_analysis.csv
+            data/processed/ml/research/migration/si_prior_return_interaction_window_2_thresholds.csv
+            data/processed/ml/research/migration/si_prior_return_interaction_migration.md
           if-no-files-found: warn
