@@ -2,133 +2,128 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 
-NUMERIC_TOLERANCE = 1e-9
+DEFAULT_TOLERANCE = 1e-9
 
 
-@dataclass
-class ComparisonResult:
-    analysis: str
-    status: str
-    differences: list[dict[str, Any]]
-    old: dict[str, Any]
-    new: dict[str, Any]
-
-    @property
-    def equivalent(self) -> bool:
-        return self.status == "equivalent"
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "analysis": self.analysis,
-            "status": self.status,
-            "equivalent": self.equivalent,
-            "differences": self.differences,
-            "old": self.old,
-            "new": self.new,
-        }
+@dataclass(frozen=True)
+class Comparison:
+    field: str
+    old: Any
+    new: Any
+    equal: bool
+    reason: str | None = None
 
 
-def compare_scalar(
-    name: str,
+def _values_equal(
     old: Any,
     new: Any,
     *,
-    tolerance: float = NUMERIC_TOLERANCE,
-) -> dict[str, Any] | None:
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> bool:
     if old is None or new is None:
-        if old == new:
-            return None
+        return old == new
 
-        return {
-            "field": name,
-            "old": old,
-            "new": new,
-            "reason": "value_changed",
-        }
+    if isinstance(old, bool) or isinstance(new, bool):
+        return old == new
 
     if isinstance(old, (int, float)) and isinstance(new, (int, float)):
-        difference = abs(float(old) - float(new))
+        if isinstance(old, float) and math.isnan(old):
+            return isinstance(new, float) and math.isnan(new)
 
-        if difference <= tolerance:
-            return None
+        if isinstance(new, float) and math.isnan(new):
+            return False
 
-        return {
-            "field": name,
-            "old": old,
-            "new": new,
-            "reason": "numeric_difference",
-            "absolute_difference": difference,
-        }
+        return abs(float(old) - float(new)) <= tolerance
 
-    if old == new:
-        return None
+    if isinstance(old, dict) and isinstance(new, dict):
+        return old == new
 
-    return {
-        "field": name,
-        "old": old,
-        "new": new,
-        "reason": "value_changed",
-    }
+    if isinstance(old, (list, tuple)) and isinstance(
+        new,
+        (list, tuple),
+    ):
+        return old == new
+
+    return old == new
+
+
+def _comparison(
+    field: str,
+    old: Any,
+    new: Any,
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> Comparison:
+    equal = _values_equal(
+        old,
+        new,
+        tolerance=tolerance,
+    )
+
+    if equal:
+        reason = None
+    elif old is None or new is None:
+        reason = "missing_or_added_value"
+    elif isinstance(old, (int, float)) and isinstance(
+        new,
+        (int, float),
+    ):
+        reason = "numeric_difference"
+    else:
+        reason = "value_difference"
+
+    return Comparison(
+        field=field,
+        old=old,
+        new=new,
+        equal=equal,
+        reason=reason,
+    )
 
 
 def compare_mapping(
     old: dict[str, Any],
     new: dict[str, Any],
     *,
-    fields: list[str] | None = None,
-    tolerance: float = NUMERIC_TOLERANCE,
-) -> list[dict[str, Any]]:
-    if fields is None:
-        fields = sorted(set(old) | set(new))
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
+    """
+    Compare two mappings field by field.
 
-    differences: list[dict[str, Any]] = []
+    The result deliberately includes equal comparisons. This makes the
+    comparator useful for migration verification: a successful
+    comparison is explicit rather than represented by an empty list.
+    """
+    fields = sorted(set(old) | set(new))
 
-    for field in fields:
-        difference = compare_scalar(
+    return [
+        _comparison(
             field,
             old.get(field),
             new.get(field),
             tolerance=tolerance,
         )
-
-        if difference is not None:
-            differences.append(difference)
-
-    return differences
-
-
-def compare_sequence(
-    name: str,
-    old: Any,
-    new: Any,
-) -> dict[str, Any] | None:
-    if old == new:
-        return None
-
-    return {
-        "field": name,
-        "old": old,
-        "new": new,
-        "reason": "sequence_changed",
-    }
+        for field in fields
+    ]
 
 
 def compare_semantics(
     old: dict[str, Any],
     new: dict[str, Any],
-) -> list[dict[str, Any]]:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Compare semantic properties of two analysis results.
+    Compare fields that define what an analysis means.
 
-    These fields describe what was actually analyzed rather than the
-    resulting numerical metrics. They are important during migration
-    because an analysis can produce plausible-looking results while
-    silently changing its population, target, tail, window, or model.
+    Supports both top-level result fields and the metadata structure
+    used by the migration artifacts.
     """
     fields = [
         "target",
@@ -155,376 +150,443 @@ def compare_semantics(
         "models",
     ]
 
-    differences: list[dict[str, Any]] = []
+    comparisons: list[Comparison] = []
+
+    old_metadata = old.get("metadata", {})
+    new_metadata = new.get("metadata", {})
+
+    if not isinstance(old_metadata, dict):
+        old_metadata = {}
+
+    if not isinstance(new_metadata, dict):
+        new_metadata = {}
 
     for field in fields:
-        old_value = old.get(field)
-        new_value = new.get(field)
+        old_value = (
+            old[field]
+            if field in old
+            else old_metadata.get(field)
+        )
 
-        if isinstance(old_value, list) and isinstance(new_value, list):
-            difference = compare_sequence(
-                field,
-                old_value,
-                new_value,
+        new_value = (
+            new[field]
+            if field in new
+            else new_metadata.get(field)
+        )
+
+        if field in old or field in new or (
+            field in old_metadata or field in new_metadata
+        ):
+            comparisons.append(
+                _comparison(
+                    field,
+                    old_value,
+                    new_value,
+                    tolerance=tolerance,
+                )
             )
-        else:
-            difference = compare_scalar(
-                field,
-                old_value,
-                new_value,
-            )
 
-        if difference is not None:
-            differences.append(difference)
-
-    return differences
+    return comparisons
 
 
 def compare_population(
     old: dict[str, Any],
     new: dict[str, Any],
-) -> list[dict[str, Any]]:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Compare the population represented by two analysis results.
+    Compare the analyzed population.
+
+    Population fields are normally stored under metadata, but
+    top-level fields are also supported.
     """
     fields = [
-        "n",
-        "rows",
         "feature_rows",
-        "input_rows",
+        "eligible_rows",
         "analysis_rows",
+        "rows",
+        "n",
         "event_count",
         "event_rate",
         "baseline_event_rate",
-        "discovery_end",
     ]
 
-    return compare_mapping(
-        old,
-        new,
-        fields=fields,
-        tolerance=NUMERIC_TOLERANCE,
-    )
+    comparisons: list[Comparison] = []
+
+    old_metadata = old.get("metadata", {})
+    new_metadata = new.get("metadata", {})
+
+    if not isinstance(old_metadata, dict):
+        old_metadata = {}
+
+    if not isinstance(new_metadata, dict):
+        new_metadata = {}
+
+    for field in fields:
+        old_value = (
+            old[field]
+            if field in old
+            else old_metadata.get(field)
+        )
+
+        new_value = (
+            new[field]
+            if field in new
+            else new_metadata.get(field)
+        )
+
+        if field in old or field in new or (
+            field in old_metadata or field in new_metadata
+        ):
+            comparisons.append(
+                _comparison(
+                    field,
+                    old_value,
+                    new_value,
+                    tolerance=tolerance,
+                )
+            )
+
+    return comparisons
 
 
 def compare_metrics(
     old: dict[str, Any],
     new: dict[str, Any],
-) -> list[dict[str, Any]]:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Compare common research metrics.
+    Compare numerical research metrics.
     """
     fields = [
+        "event_rate",
         "baseline",
         "baseline_rate",
-        "event_rate",
         "lift",
         "mean_return",
         "median_return",
         "return_difference",
         "mean_return_difference",
         "roc_auc",
+        "auc",
         "brier",
         "log_loss",
         "spearman",
+        "additive_interaction",
+        "relative_risk_interaction",
+        "risk_ratio_interaction",
+        "multiplicative_interaction",
     ]
 
-    return compare_mapping(
-        old,
-        new,
-        fields=fields,
-        tolerance=NUMERIC_TOLERANCE,
-    )
+    comparisons: list[Comparison] = []
+
+    old_metrics = old.get("metrics", {})
+    new_metrics = new.get("metrics", {})
+
+    if not isinstance(old_metrics, dict):
+        old_metrics = {}
+
+    if not isinstance(new_metrics, dict):
+        new_metrics = {}
+
+    for field in fields:
+        old_value = (
+            old[field]
+            if field in old
+            else old_metrics.get(field)
+        )
+
+        new_value = (
+            new[field]
+            if field in new
+            else new_metrics.get(field)
+        )
+
+        if field in old or field in new or (
+            field in old_metrics or field in new_metrics
+        ):
+            comparisons.append(
+                _comparison(
+                    field,
+                    old_value,
+                    new_value,
+                    tolerance=tolerance,
+                )
+            )
+
+    return comparisons
 
 
 def compare_interaction_cells(
     old: dict[str, Any],
     new: dict[str, Any],
-) -> list[dict[str, Any]]:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Compare 2x2 interaction cells when present.
+    Compare the four cells of a 2x2 interaction analysis.
     """
-    old_cells = old.get("cells")
-    new_cells = new.get("cells")
+    old_cells = old.get("cells", {})
+    new_cells = new.get("cells", {})
 
-    if old_cells is None and new_cells is None:
-        return []
+    if not isinstance(old_cells, dict):
+        old_cells = {}
 
-    if not isinstance(old_cells, dict) or not isinstance(new_cells, dict):
-        return [
-            {
-                "field": "cells",
-                "old": old_cells,
-                "new": new_cells,
-                "reason": "interaction_cells_structure_changed",
-            }
-        ]
+    if not isinstance(new_cells, dict):
+        new_cells = {}
 
-    differences: list[dict[str, Any]] = []
+    comparisons: list[Comparison] = []
 
-    for cell in ("00", "01", "10", "11"):
+    for cell in ("11", "10", "01", "00"):
         old_cell = old_cells.get(cell)
         new_cell = new_cells.get(cell)
 
-        if old_cell is None or new_cell is None:
-            if old_cell != new_cell:
-                differences.append(
-                    {
-                        "field": f"cells.{cell}",
-                        "old": old_cell,
-                        "new": new_cell,
-                        "reason": "cell_added_or_removed",
-                    }
-                )
-
-            continue
-
-        if isinstance(old_cell, dict) and isinstance(new_cell, dict):
-            cell_differences = compare_mapping(
-                old_cell,
-                new_cell,
-                tolerance=NUMERIC_TOLERANCE,
+        if isinstance(old_cell, dict) and isinstance(
+            new_cell,
+            dict,
+        ):
+            fields = sorted(
+                set(old_cell) | set(new_cell)
             )
 
-            for difference in cell_differences:
-                differences.append(
-                    {
-                        **difference,
-                        "field": (
-                            f"cells.{cell}."
-                            f"{difference['field']}"
-                        ),
-                    }
+            for field in fields:
+                comparisons.append(
+                    _comparison(
+                        f"cells.{cell}.{field}",
+                        old_cell.get(field),
+                        new_cell.get(field),
+                        tolerance=tolerance,
+                    )
                 )
         else:
-            difference = compare_scalar(
-                f"cells.{cell}",
-                old_cell,
-                new_cell,
+            comparisons.append(
+                _comparison(
+                    f"cells.{cell}",
+                    old_cell,
+                    new_cell,
+                    tolerance=tolerance,
+                )
             )
 
-            if difference is not None:
-                differences.append(difference)
-
-    return differences
+    return comparisons
 
 
 def compare_interaction_analysis(
     old: dict[str, Any],
     new: dict[str, Any],
-) -> ComparisonResult:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Compare an interaction analysis.
+    Compare a complete interaction analysis.
     """
-    differences: list[dict[str, Any]] = []
+    comparisons: list[Comparison] = []
 
-    differences.extend(compare_semantics(old, new))
-    differences.extend(compare_population(old, new))
-    differences.extend(compare_metrics(old, new))
-    differences.extend(compare_interaction_cells(old, new))
-
-    fields = [
-        "interaction",
-        "interaction_effect",
-        "risk_ratio_interaction",
-        "additive_interaction",
-        "multiplicative_interaction",
-    ]
-
-    for field in fields:
-        difference = compare_scalar(
-            field,
-            old.get(field),
-            new.get(field),
+    comparisons.extend(
+        compare_semantics(
+            old,
+            new,
+            tolerance=tolerance,
         )
-
-        if difference is not None:
-            differences.append(difference)
-
-    return ComparisonResult(
-        analysis="interaction",
-        status="equivalent" if not differences else "different",
-        differences=differences,
-        old=old,
-        new=new,
     )
 
-
-def _compare_nested_analysis(
-    differences: list[dict[str, Any]],
-    old: dict[str, Any],
-    new: dict[str, Any],
-    field: str,
-) -> None:
-    old_value = old.get(field)
-    new_value = new.get(field)
-
-    if old_value is None and new_value is None:
-        return
-
-    if old_value is None or new_value is None:
-        differences.append(
-            {
-                "field": field,
-                "old": old_value,
-                "new": new_value,
-                "reason": "analysis_added_or_removed",
-            }
+    comparisons.extend(
+        compare_population(
+            old,
+            new,
+            tolerance=tolerance,
         )
+    )
 
-        return
-
-    if isinstance(old_value, dict) and isinstance(new_value, dict):
-        nested_differences = compare_mapping(
-            old_value,
-            new_value,
-            tolerance=NUMERIC_TOLERANCE,
+    comparisons.extend(
+        compare_metrics(
+            old,
+            new,
+            tolerance=tolerance,
         )
+    )
 
-        for difference in nested_differences:
-            differences.append(
-                {
-                    **difference,
-                    "field": (
-                        f"{field}.{difference['field']}"
-                    ),
-                }
+    comparisons.extend(
+        compare_interaction_cells(
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
+
+    old_bootstrap = old.get("bootstrap", {})
+    new_bootstrap = new.get("bootstrap", {})
+
+    if not isinstance(old_bootstrap, dict):
+        old_bootstrap = {}
+
+    if not isinstance(new_bootstrap, dict):
+        new_bootstrap = {}
+
+    for field in (
+        "iterations",
+        "seed",
+    ):
+        if field in old_bootstrap or field in new_bootstrap:
+            comparisons.append(
+                _comparison(
+                    f"bootstrap.{field}",
+                    old_bootstrap.get(field),
+                    new_bootstrap.get(field),
+                    tolerance=tolerance,
+                )
             )
 
-        return
+    return comparisons
 
-    if isinstance(old_value, list) and isinstance(new_value, list):
-        if len(old_value) != len(new_value):
-            differences.append(
-                {
-                    "field": f"{field}.length",
-                    "old": len(old_value),
-                    "new": len(new_value),
-                    "reason": "row_count_changed",
-                }
+
+def _compare_nested(
+    old: Any,
+    new: Any,
+    prefix: str,
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
+    """
+    Recursively compare nested dictionaries and lists.
+    """
+    comparisons: list[Comparison] = []
+
+    if isinstance(old, dict) and isinstance(new, dict):
+        fields = sorted(set(old) | set(new))
+
+        for field in fields:
+            child_prefix = (
+                f"{prefix}.{field}"
+                if prefix
+                else field
             )
 
-        for index, (old_row, new_row) in enumerate(
-            zip(old_value, new_value)
-        ):
-            if isinstance(old_row, dict) and isinstance(new_row, dict):
-                row_differences = compare_mapping(
-                    old_row,
-                    new_row,
-                    tolerance=NUMERIC_TOLERANCE,
+            comparisons.extend(
+                _compare_nested(
+                    old.get(field),
+                    new.get(field),
+                    child_prefix,
+                    tolerance=tolerance,
                 )
+            )
 
-                for difference in row_differences:
-                    differences.append(
-                        {
-                            **difference,
-                            "field": (
-                                f"{field}[{index}]."
-                                f"{difference['field']}"
-                            ),
-                        }
-                    )
+        return comparisons
 
-            elif old_row != new_row:
-                differences.append(
-                    {
-                        "field": f"{field}[{index}]",
-                        "old": old_row,
-                        "new": new_row,
-                        "reason": "row_changed",
-                    }
-                )
-
-        return
-
-    if old_value != new_value:
-        differences.append(
-            {
-                "field": field,
-                "old": old_value,
-                "new": new_value,
-                "reason": "analysis_changed",
-            }
+    if isinstance(old, list) and isinstance(new, list):
+        max_length = max(
+            len(old),
+            len(new),
         )
+
+        for index in range(max_length):
+            child_prefix = f"{prefix}[{index}]"
+
+            old_value = (
+                old[index]
+                if index < len(old)
+                else None
+            )
+
+            new_value = (
+                new[index]
+                if index < len(new)
+                else None
+            )
+
+            comparisons.extend(
+                _compare_nested(
+                    old_value,
+                    new_value,
+                    child_prefix,
+                    tolerance=tolerance,
+                )
+            )
+
+        return comparisons
+
+    comparisons.append(
+        _comparison(
+            prefix,
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
+
+    return comparisons
 
 
 def compare_incremental_si_analysis(
     old: dict[str, Any],
     new: dict[str, Any],
-) -> ComparisonResult:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Compare the legacy and migrated incremental SI analysis.
+    Compare the incremental SI analysis.
 
-    The analysis contains more than a simple tail metric. It may include:
-
-    - SI decile analysis
-    - volatility conditioning
-    - conditional rank analysis
-    - walk-forward models
-    - volatility-only model
-    - volatility + SI model
-    - volatility + SI interaction model
+    This analysis contains several nested result structures, so the
+    comparison deliberately walks the complete relevant result tree.
     """
-    differences: list[dict[str, Any]] = []
+    comparisons: list[Comparison] = []
 
-    differences.extend(compare_semantics(old, new))
-    differences.extend(compare_population(old, new))
-    differences.extend(compare_metrics(old, new))
+    comparisons.extend(
+        compare_semantics(
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
 
-    for field in (
-        "min_model_rows",
-        "volatility_groups",
-        "si_deciles",
-        "model_features",
-        "models",
-    ):
-        old_value = old.get(field)
-        new_value = new.get(field)
+    comparisons.extend(
+        compare_population(
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
 
-        if isinstance(old_value, list) and isinstance(new_value, list):
-            difference = compare_sequence(
-                field,
-                old_value,
-                new_value,
-            )
-        else:
-            difference = compare_scalar(
-                field,
-                old_value,
-                new_value,
-            )
-
-        if difference is not None:
-            differences.append(difference)
+    comparisons.extend(
+        compare_metrics(
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
 
     for field in (
         "decile_analysis",
         "conditional_rank_analysis",
         "walk_forward_models",
     ):
-        _compare_nested_analysis(
-            differences,
-            old,
-            new,
-            field,
-        )
+        old_value = old.get(field)
+        new_value = new.get(field)
 
-    return ComparisonResult(
-        analysis="incremental_si_analysis",
-        status="equivalent" if not differences else "different",
-        differences=differences,
-        old=old,
-        new=new,
-    )
+        if old_value is not None or new_value is not None:
+            comparisons.extend(
+                _compare_nested(
+                    old_value,
+                    new_value,
+                    field,
+                    tolerance=tolerance,
+                )
+            )
+
+    return comparisons
 
 
 def compare_analysis(
     analysis: str,
     old: dict[str, Any],
     new: dict[str, Any],
-) -> ComparisonResult:
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     """
-    Dispatch to an analysis-specific comparator.
+    Dispatch comparison according to analysis type.
     """
     normalized = analysis.lower().strip()
 
@@ -536,6 +598,7 @@ def compare_analysis(
         return compare_interaction_analysis(
             old,
             new,
+            tolerance=tolerance,
         )
 
     if normalized in {
@@ -546,21 +609,36 @@ def compare_analysis(
         return compare_incremental_si_analysis(
             old,
             new,
+            tolerance=tolerance,
         )
 
-    differences: list[dict[str, Any]] = []
+    comparisons: list[Comparison] = []
 
-    differences.extend(compare_semantics(old, new))
-    differences.extend(compare_population(old, new))
-    differences.extend(compare_metrics(old, new))
-
-    return ComparisonResult(
-        analysis=analysis,
-        status="equivalent" if not differences else "different",
-        differences=differences,
-        old=old,
-        new=new,
+    comparisons.extend(
+        compare_semantics(
+            old,
+            new,
+            tolerance=tolerance,
+        )
     )
+
+    comparisons.extend(
+        compare_population(
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
+
+    comparisons.extend(
+        compare_metrics(
+            old,
+            new,
+            tolerance=tolerance,
+        )
+    )
+
+    return comparisons
 
 
 def _load_json(
@@ -586,10 +664,9 @@ def compare_files(
     analysis: str,
     old_path: str | Path,
     new_path: str | Path,
-) -> ComparisonResult:
-    """
-    Load two JSON result files and compare them.
-    """
+    *,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> list[Comparison]:
     old = _load_json(old_path)
     new = _load_json(new_path)
 
@@ -597,7 +674,20 @@ def compare_files(
         analysis,
         old,
         new,
+        tolerance=tolerance,
     )
+
+
+def _comparison_to_dict(
+    comparison: Comparison,
+) -> dict[str, Any]:
+    return {
+        "field": comparison.field,
+        "old": comparison.old,
+        "new": comparison.new,
+        "equal": comparison.equal,
+        "reason": comparison.reason,
+    }
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -632,6 +722,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path for comparison JSON.",
     )
 
+    parser.add_argument(
+        "--tolerance",
+        type=float,
+        default=DEFAULT_TOLERANCE,
+        help=(
+            "Absolute numeric comparison tolerance. "
+            f"Default: {DEFAULT_TOLERANCE}"
+        ),
+    )
+
     return parser
 
 
@@ -639,10 +739,11 @@ def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
 
-    result = compare_files(
+    comparisons = compare_files(
         analysis=args.analysis,
         old_path=args.old,
         new_path=args.new,
+        tolerance=args.tolerance,
     )
 
     output_path = Path(args.output)
@@ -652,40 +753,51 @@ def main() -> int:
         exist_ok=True,
     )
 
+    output = {
+        "analysis": args.analysis,
+        "equivalent": all(
+            comparison.equal
+            for comparison in comparisons
+        ),
+        "comparisons": [
+            _comparison_to_dict(comparison)
+            for comparison in comparisons
+        ],
+    }
+
     with output_path.open(
         "w",
         encoding="utf-8",
     ) as handle:
         json.dump(
-            result.to_dict(),
+            output,
             handle,
             indent=2,
             ensure_ascii=False,
             default=str,
         )
 
-    print(
-        f"Migration comparison: "
-        f"{args.analysis} -> {result.status}"
+    equal_count = sum(
+        comparison.equal
+        for comparison in comparisons
     )
 
-    if result.differences:
-        print(
-            f"Differences found: "
-            f"{len(result.differences)}"
-        )
+    difference_count = len(comparisons) - equal_count
 
-        for difference in result.differences:
-            print(
-                f"- {difference.get('field')}: "
-                f"{difference.get('reason')}"
-            )
-    else:
-        print(
-            "No semantic differences found."
-        )
+    print(
+        f"Migration comparison: {args.analysis}"
+    )
+    print(
+        f"Comparisons: {len(comparisons)}"
+    )
+    print(
+        f"Equal: {equal_count}"
+    )
+    print(
+        f"Different: {difference_count}"
+    )
 
-    return 0
+    return 0 if difference_count == 0 else 1
 
 
 if __name__ == "__main__":
