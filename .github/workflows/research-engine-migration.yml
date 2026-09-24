@@ -1,29 +1,41 @@
 name: Research Engine Migration Check
+
 on:
   workflow_dispatch:
+
 jobs:
   migration-check:
-    name: Old vs New Generic Evaluator
+    name: Research Engine Migration
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run migration comparator
+
+      - name: Run generic migration comparator
         run: |
           python -m ml.research.migration_comparator
-      - name: Run migration regression tests
+
+      - name: Run generic migration regression tests
         run: |
           pytest -q tests/ml/research/test_migration_comparator.py
-      - name: Upload migration comparison
+
+      - name: Run SI prior-return interaction migration comparator
+        run: |
+          python -m ml.research.custom.si_prior_return_interaction_migration
+
+      - name: Upload migration comparisons
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -31,4 +43,6 @@ jobs:
           path: |
             data/processed/ml/research/migration/old_new_generic_comparison.csv
             data/processed/ml/research/migration/old_new_generic_comparison.md
+            data/processed/ml/research/migration/si_prior_return_interaction_comparison.csv
+            data/processed/ml/research/migration/si_prior_return_interaction_comparison.md
           if-no-files-found: warn
