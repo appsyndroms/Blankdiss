@@ -14,6 +14,7 @@ from ml.diagnostics.experiments.si_prior_return_interaction_diagnostic import (
 )
 from ml.diagnostics.framework.context import ExperimentContext
 from ml.research.custom.si_prior_return_interaction import (
+    add_si_change,
     run as run_new,
 )
 
@@ -203,17 +204,13 @@ def _run_new(
         test_end=test_end,
     )
 
-    # The new run() returns the main analysis table.
     # Reconstruct the threshold table exactly as the old
     # implementation does, so it can also be compared.
-    from ml.research.custom.si_prior_return_interaction import (
-        _build_results,
-        add_si_change,
-    )
-
-    data = add_si_change(
-        frame
-    )
+    #
+    # Important:
+    # add_si_change() must be applied independently to pretest
+    # and test, because that is what the old diagnostic does.
+    data = frame.copy()
 
     data["snapshot_date"] = pd.to_datetime(
         data["snapshot_date"],
@@ -234,6 +231,18 @@ def _run_new(
         test["snapshot_date"]
         <= pd.Timestamp(test_end)
     ].copy()
+
+    pretest = add_si_change(
+        pretest
+    )
+
+    test = add_si_change(
+        test
+    )
+
+    from ml.research.custom.si_prior_return_interaction import (
+        _build_results,
+    )
 
     _, thresholds = _build_results(
         pretest,
@@ -443,22 +452,48 @@ def _write_report(
                 [
                     "### Analysis failures",
                     "",
-                    analysis.loc[
-                        analysis["status"] == "FAIL"
-                    ].to_markdown(
-                        index=False
-                    ),
+                ]
+            )
+
+            analysis_failures = analysis.loc[
+                analysis["status"] == "FAIL"
+            ]
+
+            if analysis_failures.empty:
+                report_lines.append(
+                    "None."
+                )
+            else:
+                report_lines.append(
+                    _dataframe_to_markdown(
+                        analysis_failures
+                    )
+                )
+
+            report_lines.extend(
+                [
                     "",
                     "### Threshold failures",
                     "",
-                    thresholds.loc[
-                        thresholds["status"] == "FAIL"
-                    ].to_markdown(
-                        index=False
-                    ),
-                    "",
                 ]
             )
+
+            threshold_failures = thresholds.loc[
+                thresholds["status"] == "FAIL"
+            ]
+
+            if threshold_failures.empty:
+                report_lines.append(
+                    "None."
+                )
+            else:
+                report_lines.append(
+                    _dataframe_to_markdown(
+                        threshold_failures
+                    )
+                )
+
+            report_lines.append("")
 
     report_lines.extend(
         [
@@ -484,6 +519,72 @@ def _write_report(
     )
 
     return overall_pass
+
+
+def _dataframe_to_markdown(
+    frame: pd.DataFrame,
+) -> str:
+    """
+    Render a DataFrame as Markdown without requiring the optional
+    pandas/tabulate dependency.
+
+    The migration report must not be able to fail after the actual
+    migration comparison has completed simply because tabulate is
+    unavailable in CI.
+    """
+    if frame.empty:
+        return "None."
+
+    columns = list(frame.columns)
+
+    def _format(value: Any) -> str:
+        if pd.isna(value):
+            return ""
+
+        text = str(value)
+
+        return (
+            text
+            .replace("\\", "\\\\")
+            .replace("|", "\\|")
+            .replace("\n", " ")
+        )
+
+    header = (
+        "| "
+        + " | ".join(columns)
+        + " |"
+    )
+
+    separator = (
+        "| "
+        + " | ".join(
+            "---"
+            for _ in columns
+        )
+        + " |"
+    )
+
+    rows = [
+        "| "
+        + " | ".join(
+            _format(value)
+            for value in row
+        )
+        + " |"
+        for row in frame.itertuples(
+            index=False,
+            name=None,
+        )
+    ]
+
+    return "\n".join(
+        [
+            header,
+            separator,
+            *rows,
+        ]
+    )
 
 
 def main() -> None:
