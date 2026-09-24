@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 from ml.research.bootstrap import bootstrap_mean_ci
-from ml.research.cache import ResearchCache, get_tail_mask_key
+from ml.research.cache import ResearchCache, _tail_key
 from ml.research.experiments import Experiment
 def _stable_seed(*parts: object) -> int:
     """
     Stable seed across Python processes/runs.
-    Python's built-in hash() is intentionally randomized between processes,
-    so it must not be used for reproducible bootstrap seeds.
+    Python's built-in hash() is intentionally randomized between
+    processes, so it must not be used for reproducible bootstrap seeds.
     """
     payload = "|".join(
         str(part)
@@ -67,7 +67,9 @@ def _binary_metrics(
     y = target[valid].astype(float)
     selection = selected[valid]
     events = y > 0
-    n = int(selection.sum())
+    n = int(
+        selection.sum()
+    )
     selected_events = int(
         events[selection].sum()
     )
@@ -156,17 +158,64 @@ def _return_metrics(
             else None
         ),
     }
+def _return_metrics_without_bootstrap(
+    returns: np.ndarray | None,
+    selected: np.ndarray,
+) -> dict[str, Any]:
+    """
+    Calculate the old evaluator's return metrics without bootstrap.
+    Used by the migration comparison because bootstrap semantics are
+    intentionally not compared between the old evaluator and the new
+    Research Engine.
+    """
+    if returns is None:
+        return {
+            "return_n": 0,
+            "mean_return": None,
+            "median_return": None,
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
+        }
+    valid = (
+        np.isfinite(returns)
+        & selected
+    )
+    values = returns[valid]
+    if values.size == 0:
+        return {
+            "return_n": 0,
+            "mean_return": None,
+            "median_return": None,
+            "bootstrap_ci_low": None,
+            "bootstrap_ci_high": None,
+        }
+    return {
+        "return_n": int(values.size),
+        "mean_return": float(
+            np.mean(values)
+        ),
+        "median_return": float(
+            np.median(values)
+        ),
+        "bootstrap_ci_low": None,
+        "bootstrap_ci_high": None,
+    }
 def evaluate_experiment(
     frame: pd.DataFrame,
     cache: ResearchCache,
     experiment: Experiment,
     window_name: str,
     split_name: str,
+    *,
+    bootstrap: bool = True,
 ) -> dict[str, Any]:
     """
     Evaluate one experiment on one walk-forward split.
     The DataFrame is kept in the signature for API compatibility and
     metadata access, but the hot path operates on cached NumPy arrays.
+    bootstrap=False is used by the migration comparator because the
+    old and new implementations intentionally use different bootstrap
+    definitions.
     """
     signal = cache.signals[
         experiment.signal_name
@@ -177,8 +226,10 @@ def evaluate_experiment(
     window_mask = cache.window_masks[
         window_name
     ][split_name]
-    tail_key = get_tail_mask_key(
-        experiment
+    tail_key = _tail_key(
+        experiment.signal_name,
+        experiment.tail_direction,
+        experiment.tail_fraction,
     )
     selected = cache.tail_masks[
         tail_key
@@ -189,7 +240,6 @@ def evaluate_experiment(
         & np.isfinite(signal)
         & np.isfinite(target)
     )
-    n = int(mask.sum())
     target_config = cache.target_configs[
         experiment.target_name
     ]
@@ -218,16 +268,22 @@ def evaluate_experiment(
         target[window_mask],
         selected[window_mask],
     )
-    seed = _stable_seed(
-        experiment.experiment_id,
-        window_name,
-        split_name,
-    )
-    returns_metrics = _return_metrics(
-        returns,
-        window_mask & selected,
-        seed=seed,
-    )
+    if bootstrap:
+        seed = _stable_seed(
+            experiment.experiment_id,
+            window_name,
+            split_name,
+        )
+        returns_metrics = _return_metrics(
+            returns,
+            window_mask & selected,
+            seed=seed,
+        )
+    else:
+        returns_metrics = _return_metrics_without_bootstrap(
+            returns,
+            window_mask & selected,
+        )
     result: dict[str, Any] = {
         "experiment_id": (
             experiment.experiment_id
@@ -264,5 +320,9 @@ def evaluate_experiment(
         )
         if window_mask.any()
         else None
+    )
+    # Kept for compatibility with the existing evaluator structure.
+    result["n_valid"] = int(
+        mask.sum()
     )
     return result
