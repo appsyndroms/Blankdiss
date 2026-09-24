@@ -3,8 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ml.research.bootstrap import bootstrap_mean_difference
-
 
 HORIZONS = (
     1,
@@ -35,6 +33,117 @@ def _numeric(
     )
 
 
+def _summary(
+    frame: pd.DataFrame,
+    column: str,
+) -> dict[str, float | int]:
+    values = _numeric(
+        frame,
+        column,
+    ).dropna()
+
+    if values.empty:
+        return {
+            "n": 0,
+            "mean": float("nan"),
+            "median": float("nan"),
+            "positive_rate": float("nan"),
+        }
+
+    return {
+        "n": int(len(values)),
+        "mean": float(values.mean()),
+        "median": float(values.median()),
+        "positive_rate": float(
+            (values > 0).mean()
+        ),
+    }
+
+
+def _bootstrap_mean_difference(
+    first: pd.Series,
+    second: pd.Series,
+    *,
+    iterations: int = 2000,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """
+    Bootstrap 95% CI for:
+
+        mean(first) - mean(second)
+
+    This intentionally preserves the bootstrap semantics of the
+    original diagnostic.
+    """
+    first = pd.to_numeric(
+        first,
+        errors="coerce",
+    ).dropna()
+
+    second = pd.to_numeric(
+        second,
+        errors="coerce",
+    ).dropna()
+
+    if first.empty or second.empty:
+        return (
+            float("nan"),
+            float("nan"),
+            float("nan"),
+        )
+
+    first_values = first.to_numpy(
+        dtype=float
+    )
+
+    second_values = second.to_numpy(
+        dtype=float
+    )
+
+    observed = float(
+        first_values.mean()
+        - second_values.mean()
+    )
+
+    rng = np.random.default_rng(
+        seed
+    )
+
+    bootstrap = np.empty(
+        iterations,
+        dtype=float,
+    )
+
+    for index in range(iterations):
+        first_sample = rng.choice(
+            first_values,
+            size=len(first_values),
+            replace=True,
+        )
+
+        second_sample = rng.choice(
+            second_values,
+            size=len(second_values),
+            replace=True,
+        )
+
+        bootstrap[index] = (
+            first_sample.mean()
+            - second_sample.mean()
+        )
+
+    low, high = np.quantile(
+        bootstrap,
+        [0.025, 0.975],
+    )
+
+    return (
+        observed,
+        float(low),
+        float(high),
+    )
+
+
 def add_si_change(
     frame: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -51,7 +160,8 @@ def add_si_change(
 
     if "short_interest_pct" not in result.columns:
         raise KeyError(
-            "SI-dynamik saknar 'short_interest_pct'."
+            "SI-dynamik saknar "
+            "'short_interest_pct'."
         )
 
     symbol_column = (
@@ -75,7 +185,7 @@ def add_si_change(
     if missing:
         raise KeyError(
             "SI-dynamik saknar kolumner: "
-            + ", ".join(sorted(missing))
+            + ", ".join(missing)
         )
 
     result["snapshot_date"] = pd.to_datetime(
@@ -165,33 +275,6 @@ def _build_prior_groups(
     return result
 
 
-def _summary(
-    frame: pd.DataFrame,
-    column: str,
-) -> dict[str, float | int]:
-    values = _numeric(
-        frame,
-        column,
-    ).dropna()
-
-    if values.empty:
-        return {
-            "n": 0,
-            "mean": float("nan"),
-            "median": float("nan"),
-            "positive_rate": float("nan"),
-        }
-
-    return {
-        "n": int(len(values)),
-        "mean": float(values.mean()),
-        "median": float(values.median()),
-        "positive_rate": float(
-            (values > 0).mean()
-        ),
-    }
-
-
 def _build_results(
     pretest: pd.DataFrame,
     test: pd.DataFrame,
@@ -199,7 +282,10 @@ def _build_results(
     prior_column: str,
     si_change_cutoffs: tuple[float, ...],
     horizons: tuple[int, ...],
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+]:
     positive_prior = _numeric(
         pretest,
         prior_column,
@@ -239,7 +325,8 @@ def _build_results(
     )
 
     frame = frame[
-        frame["prior_return_group"] != "missing"
+        frame["prior_return_group"]
+        != "missing"
     ].copy()
 
     rows: list[dict] = []
@@ -250,7 +337,9 @@ def _build_results(
             float("nan"),
         )
 
-        if not np.isfinite(threshold):
+        if not np.isfinite(
+            threshold
+        ):
             continue
 
         change = _numeric(
@@ -281,98 +370,147 @@ def _build_results(
             prior_frame = grouped[
                 grouped["prior_return_group"]
                 == prior_group
-            ].copy()
+            ]
+
+            high = prior_frame[
+                prior_frame["high_si_change"]
+            ]
+
+            other = prior_frame[
+                ~prior_frame["high_si_change"]
+            ]
 
             for horizon in horizons:
                 return_column = (
                     f"forward_return_{horizon}d"
                 )
 
-                if return_column not in prior_frame:
+                if (
+                    return_column
+                    not in prior_frame.columns
+                ):
                     continue
 
-                high = prior_frame[
-                    prior_frame["high_si_change"]
-                ]
-
-                other = prior_frame[
-                    ~prior_frame["high_si_change"]
-                ]
-
-                high_values = _numeric(
+                high_summary = _summary(
                     high,
                     return_column,
-                ).dropna()
+                )
 
-                other_values = _numeric(
+                other_summary = _summary(
                     other,
                     return_column,
-                ).dropna()
+                )
 
-                if high_values.empty:
-                    continue
+                (
+                    delta,
+                    ci_low,
+                    ci_high,
+                ) = _bootstrap_mean_difference(
+                    high[return_column],
+                    other[return_column],
+                )
 
-                row = {
-                    "prior_return_group": prior_group,
-                    "si_change_cutoff": cutoff,
-                    "si_change_threshold": threshold,
-                    "horizon": horizon,
-                    "high_si_change_n": int(
-                        len(high_values)
-                    ),
-                    "other_positive_si_change_n": int(
-                        len(other_values)
-                    ),
-                    "high_si_change_mean_return": float(
-                        high_values.mean()
-                    ),
-                    "other_positive_si_change_mean_return": (
-                        float(other_values.mean())
-                        if not other_values.empty
-                        else float("nan")
-                    ),
-                }
+                rows.append(
+                    {
+                        "prior_return_column": (
+                            prior_column
+                        ),
+                        "prior_group": (
+                            prior_group
+                        ),
+                        "prior_moderate_threshold": (
+                            moderate_threshold
+                        ),
+                        "prior_strong_threshold": (
+                            strong_threshold
+                        ),
+                        "si_change_cutoff": (
+                            cutoff
+                        ),
+                        "si_change_threshold": (
+                            threshold
+                        ),
+                        "horizon_days": (
+                            horizon
+                        ),
+                        "high_si_n": (
+                            high_summary["n"]
+                        ),
+                        "other_positive_n": (
+                            other_summary["n"]
+                        ),
+                        "high_si_mean_return": (
+                            high_summary["mean"]
+                        ),
+                        "other_positive_mean_return": (
+                            other_summary["mean"]
+                        ),
+                        "mean_return_delta": (
+                            delta
+                        ),
+                        "mean_return_ci_low": (
+                            ci_low
+                        ),
+                        "mean_return_ci_high": (
+                            ci_high
+                        ),
+                        "high_si_median_return": (
+                            high_summary["median"]
+                        ),
+                        "other_positive_median_return": (
+                            other_summary["median"]
+                        ),
+                        "high_si_positive_rate": (
+                            high_summary["positive_rate"]
+                        ),
+                        "other_positive_rate": (
+                            other_summary["positive_rate"]
+                        ),
+                    }
+                )
 
-                if not other_values.empty:
-                    bootstrap = bootstrap_mean_difference(
-                        high_values.to_numpy(),
-                        other_values.to_numpy(),
+    result = pd.DataFrame(
+        rows
+    )
+
+    thresholds_result = pd.DataFrame(
+        [
+            {
+                "prior_return_column": (
+                    prior_column
+                ),
+                "positive_prior_median": (
+                    moderate_threshold
+                ),
+                "positive_prior_p80": (
+                    strong_threshold
+                ),
+                "si_change_top10_threshold": (
+                    thresholds.get(
+                        0.10,
+                        float("nan"),
                     )
-
-                    row.update(
-                        {
-                            "mean_return_difference": (
-                                float(
-                                    high_values.mean()
-                                    - other_values.mean()
-                                )
-                            ),
-                            "bootstrap_ci_low": (
-                                bootstrap[0]
-                            ),
-                            "bootstrap_ci_high": (
-                                bootstrap[1]
-                            ),
-                        }
+                ),
+                "si_change_top20_threshold": (
+                    thresholds.get(
+                        0.20,
+                        float("nan"),
                     )
-                else:
-                    row.update(
-                        {
-                            "mean_return_difference": float(
-                                "nan"
-                            ),
-                            "bootstrap_ci_low": float(
-                                "nan"
-                            ),
-                            "bootstrap_ci_high": float(
-                                "nan"
-                            ),
-                        }
+                ),
+                "si_change_top30_threshold": (
+                    thresholds.get(
+                        0.30,
+                        float("nan"),
                     )
+                ),
+            }
+        ]
+    )
 
-                rows.append(row)
-
-    return pd.DataFrame(rows), frame
+    return (
+        result,
+        thresholds_result,
+    )
 
 
 def run(
@@ -381,7 +519,9 @@ def run(
     pretest_end: str | pd.Timestamp,
     test_end: str | pd.Timestamp | None = None,
     prior_column: str = "price_return_5d",
-    si_change_cutoffs: tuple[float, ...] = SI_CHANGE_CUTOFFS,
+    si_change_cutoffs: tuple[float, ...] = (
+        SI_CHANGE_CUTOFFS
+    ),
     horizons: tuple[int, ...] = HORIZONS,
 ) -> pd.DataFrame:
     """
@@ -390,28 +530,37 @@ def run(
     SI-change thresholds are calculated exclusively from pretest data.
     The actual interaction analysis is performed on the test period.
     """
-    data = add_si_change(frame)
+    data = add_si_change(
+        frame
+    )
 
     data["snapshot_date"] = pd.to_datetime(
         data["snapshot_date"],
         errors="coerce",
     )
 
-    pretest_end = pd.Timestamp(pretest_end)
+    pretest_end = pd.Timestamp(
+        pretest_end
+    )
 
     pretest = data[
-        data["snapshot_date"] <= pretest_end
+        data["snapshot_date"]
+        <= pretest_end
     ].copy()
 
     test = data[
-        data["snapshot_date"] > pretest_end
+        data["snapshot_date"]
+        > pretest_end
     ].copy()
 
     if test_end is not None:
-        test_end = pd.Timestamp(test_end)
+        test_end = pd.Timestamp(
+            test_end
+        )
 
         test = test[
-            test["snapshot_date"] <= test_end
+            test["snapshot_date"]
+            <= test_end
         ].copy()
 
     results, _ = _build_results(
