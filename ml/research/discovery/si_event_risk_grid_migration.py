@@ -4,6 +4,7 @@ import argparse
 import math
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -13,9 +14,8 @@ from ml.diagnostics.experiments.si_event_risk_grid_diagnostic import (
     SIEventRiskGridExperiment,
 )
 from ml.diagnostics.framework.context import ExperimentContext
-from ml.research.discovery.si_event_risk_grid import (
-    run as run_new,
-)
+from ml.diagnostics.framework import event_risk_grid as old_event_risk_grid
+from ml.research.discovery import si_event_risk_grid as new_event_risk_grid
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +28,14 @@ DEFAULT_OUTPUT_DIR = (
     / "research"
     / "migration"
 )
+
+# The migration check verifies that old and new implementations
+# produce the same result using the same bootstrap algorithm.
+#
+# Production discovery still uses 2,000 iterations.
+# The migration comparator deliberately uses fewer iterations
+# because it runs the complete discovery grid twice per window.
+MIGRATION_BOOTSTRAP_ITERATIONS = 200
 
 TABLE_NAME = "interaction_grid"
 
@@ -257,7 +265,7 @@ def _run_new(
     pd.DataFrame,
     dict[str, Any],
 ]:
-    return run_new(
+    return new_event_risk_grid.run(
         frame,
         train_end=train_end,
         validation_end=validation_end,
@@ -280,6 +288,11 @@ def _compare_window(
     print("=" * 80)
     print(f"WINDOW: {window_name}")
     print("=" * 80)
+
+    print(
+        "Bootstrap iterations: "
+        f"{MIGRATION_BOOTSTRAP_ITERATIONS}"
+    )
 
     print("Running old diagnostic...")
 
@@ -425,8 +438,21 @@ def _write_report(
     lines = [
         "# SI Event Risk Grid Migration",
         "",
-        "Numerical comparison between the old discovery-grid "
-        "diagnostic and the new research/discovery implementation.",
+        (
+            "Numerical comparison between the old "
+            "discovery-grid diagnostic and the new "
+            "research/discovery implementation."
+        ),
+        "",
+        (
+            "Migration bootstrap iterations: "
+            f"{MIGRATION_BOOTSTRAP_ITERATIONS}"
+        ),
+        "",
+        (
+            "Production discovery remains configured "
+            "for 2,000 bootstrap iterations."
+        ),
         "",
     ]
 
@@ -542,8 +568,9 @@ def _write_report(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Compare the old SI event-risk discovery grid "
-            "with the new research/discovery implementation."
+            "Compare the old SI event-risk discovery "
+            "grid with the new research/discovery "
+            "implementation."
         )
     )
 
@@ -571,45 +598,62 @@ def main() -> None:
         ],
     ] = {}
 
-    for index, window in enumerate(
-        WALK_FORWARD_WINDOWS,
-        start=1,
+    # The old and new implementations both look up
+    # BOOTSTRAP_ITERATIONS at call time.
+    #
+    # Patch both modules for this migration run only.
+    # The production value remains 2,000.
+    with (
+        patch.object(
+            old_event_risk_grid,
+            "BOOTSTRAP_ITERATIONS",
+            MIGRATION_BOOTSTRAP_ITERATIONS,
+        ),
+        patch.object(
+            new_event_risk_grid,
+            "BOOTSTRAP_ITERATIONS",
+            MIGRATION_BOOTSTRAP_ITERATIONS,
+        ),
     ):
-        window_name = (
-            f"window_{index}"
-        )
-
-        comparisons[window_name] = (
-            _compare_window(
-                frame,
-                window_name=window_name,
-                train_end=window.train_end,
-                validation_end=window.validation_end,
-                test_end=window.test_end,
+        for index, window in enumerate(
+            WALK_FORWARD_WINDOWS,
+            start=1,
+        ):
+            window_name = (
+                f"window_{index}"
             )
-        )
 
-        analysis, metrics = (
-            comparisons[window_name]
-        )
+            comparisons[window_name] = (
+                _compare_window(
+                    frame,
+                    window_name=window_name,
+                    train_end=window.train_end,
+                    validation_end=window.validation_end,
+                    test_end=window.test_end,
+                )
+            )
 
-        analysis.to_csv(
-            args.output_dir
-            / (
-                "si_event_risk_grid_"
-                f"{window_name}.csv"
-            ),
-            index=False,
-        )
+            analysis, metrics = (
+                comparisons[window_name]
+            )
 
-        metrics.to_csv(
-            args.output_dir
-            / (
-                "si_event_risk_grid_"
-                f"{window_name}_metrics.csv"
-            ),
-            index=False,
-        )
+            analysis.to_csv(
+                args.output_dir
+                / (
+                    "si_event_risk_grid_"
+                    f"{window_name}.csv"
+                ),
+                index=False,
+            )
+
+            metrics.to_csv(
+                args.output_dir
+                / (
+                    "si_event_risk_grid_"
+                    f"{window_name}_metrics.csv"
+                ),
+                index=False,
+            )
 
     overall_pass = _write_report(
         args.output_dir,
