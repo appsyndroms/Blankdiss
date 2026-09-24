@@ -2,136 +2,353 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
-from ml.dataset import load_features
-from ml.research.cache import (
-    ResearchCache,
-    ResearchRequirement,
-    build_research_cache,
-)
+from ml.config import TARGETS, WALK_FORWARD_WINDOWS
+from ml.dataset import build_target
+from ml.research.signals import build_signal
+
+
+@dataclass(frozen=True)
+class ResearchRequirement:
+    signal_name: str
+    target_name: str
+    tail_fraction: float
+    tail_direction: str
 
 
 @dataclass
-class ResearchSession:
+class ResearchCache:
+    signals: dict[str, np.ndarray]
+    signal_ranks: dict[str, np.ndarray]
+    targets: dict[str, np.ndarray]
+    returns: dict[str, np.ndarray]
+    tail_masks: dict[str, np.ndarray]
+    window_masks: dict[str, dict[str, np.ndarray]]
+    target_configs: dict[str, object]
+
+
+def _tail_key(
+    signal_name: str,
+    direction: str,
+    fraction: float,
+) -> str:
+    return (
+        f"{signal_name}|"
+        f"{direction}|"
+        f"{fraction}"
+    )
+
+
+def _build_signal_rank(
+    frame: pd.DataFrame,
+    signal: pd.Series,
+) -> np.ndarray:
     """
-    Gemensam context för en hel research-körning.
+    Beräknar cross-sectional percentile-rank en gång per signal.
 
-    Alla specs som körs tillsammans delar samma DataFrame
-    och samma ResearchCache.
+    Rankningen sker inom varje snapshot_date.
+
+    Därefter kan alla tails för samma signal byggas genom
+    enkla jämförelser mot rank-arrayen.
     """
+    valid = signal.notna()
 
-    frame: pd.DataFrame
-    cache: ResearchCache
-
-
-def _required_requirements(
-    specs,
-) -> list[ResearchRequirement]:
-    requirements: list[ResearchRequirement] = []
-
-    seen: set[tuple] = set()
-
-    for spec in specs:
-        for signal in spec.signals:
-            for target_name in spec.targets:
-                for fraction in signal.bins:
-                    key = (
-                        signal.name,
-                        target_name,
-                        fraction,
-                        signal.direction,
-                    )
-
-                    if key in seen:
-                        continue
-
-                    seen.add(key)
-
-                    requirements.append(
-                        ResearchRequirement(
-                            signal_name=signal.name,
-                            target_name=target_name,
-                            tail_fraction=fraction,
-                            tail_direction=signal.direction,
-                        )
-                    )
-
-    return requirements
-
-
-def build_session(
-    specs,
-) -> ResearchSession:
-    print(
-        "Loading features...",
-        flush=True,
+    ranks = pd.Series(
+        np.nan,
+        index=frame.index,
+        dtype=float,
     )
 
-    frame = load_features()
-
-    print(
-        f"Loaded {len(frame):,} feature rows",
-        flush=True,
-    )
-
-    requirements = _required_requirements(
-        specs
-    )
-
-    unique_signals = {
-        signal.name
-        for spec in specs
-        for signal in spec.signals
-    }
-
-    unique_targets = {
-        target
-        for spec in specs
-        for target in spec.targets
-    }
-
-    unique_tails = {
-        (
-            signal.name,
-            signal.direction,
-            fraction,
+    if not valid.any():
+        return ranks.to_numpy(
+            dtype=float,
+            na_value=np.nan,
         )
-        for spec in specs
-        for signal in spec.signals
-        for fraction in signal.bins
+
+    working = pd.DataFrame(
+        {
+            "snapshot_date": (
+                frame.loc[
+                    valid,
+                    "snapshot_date",
+                ]
+            ),
+            "signal": signal.loc[valid],
+        },
+        index=frame.index[valid],
+    )
+
+    ranks.loc[valid] = (
+        working
+        .groupby(
+            "snapshot_date",
+            sort=False,
+        )["signal"]
+        .rank(
+            pct=True,
+            method="average",
+        )
+    )
+
+    return ranks.to_numpy(
+        dtype=float,
+        na_value=np.nan,
+    )
+
+
+def _build_window_masks(
+    frame: pd.DataFrame,
+) -> dict[str, dict[str, np.ndarray]]:
+    dates = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+
+    result: dict[
+        str,
+        dict[str, np.ndarray],
+    ] = {}
+
+    for index, window in enumerate(
+        WALK_FORWARD_WINDOWS,
+        start=1,
+    ):
+        train_end = pd.Timestamp(
+            window.train_end
+        )
+        validation_end = pd.Timestamp(
+            window.validation_end
+        )
+        test_end = pd.Timestamp(
+            window.test_end
+        )
+
+        result[f"window_{index}"] = {
+            "test": (
+                (dates > validation_end)
+                & (dates <= test_end)
+            ).to_numpy()
+        }
+
+    return result
+
+
+def build_research_cache(
+    frame: pd.DataFrame,
+    requirements: list[ResearchRequirement],
+) -> ResearchCache:
+    if frame.empty:
+        raise ValueError(
+            "Research cache kan inte byggas från ett tomt dataset."
+        )
+
+    if "snapshot_date" not in frame.columns:
+        raise ValueError(
+            "Research cache kräver snapshot_date."
+        )
+
+    target_configs = {
+        target.name: target
+        for target in TARGETS
     }
 
-    print(
-        "Cache requirements: "
-        f"{len(requirements):,} logical combinations",
-        flush=True,
+    required_signal_names = sorted(
+        {
+            requirement.signal_name
+            for requirement in requirements
+        }
     )
 
-    print(
-        "Unique cache work: "
-        f"{len(unique_signals):,} signals, "
-        f"{len(unique_targets):,} targets, "
-        f"{len(unique_tails):,} tails",
-        flush=True,
+    required_target_names = sorted(
+        {
+            requirement.target_name
+            for requirement in requirements
+        }
     )
 
-    print(
-        "Building shared research cache...",
-        flush=True,
+    unknown_targets = (
+        set(required_target_names)
+        - set(target_configs)
     )
 
-    cache = build_research_cache(
-        frame,
-        requirements,
+    if unknown_targets:
+        raise ValueError(
+            "Okända research targets: "
+            + ", ".join(
+                sorted(unknown_targets)
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Signals
+    # ---------------------------------------------------------
+
+    signals: dict[str, np.ndarray] = {}
+    signal_ranks: dict[str, np.ndarray] = {}
+
+    for signal_name in required_signal_names:
+        print(
+            f"  Building signal: {signal_name}",
+            flush=True,
+        )
+
+        series = build_signal(
+            frame,
+            signal_name,
+        )
+
+        values = series.to_numpy(
+            dtype=float,
+            na_value=np.nan,
+        )
+
+        signals[signal_name] = values
+
+        print(
+            f"  Ranking signal: {signal_name}",
+            flush=True,
+        )
+
+        signal_ranks[signal_name] = (
+            _build_signal_rank(
+                frame,
+                series,
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Targets
+    # ---------------------------------------------------------
+
+    targets: dict[str, np.ndarray] = {}
+    returns: dict[str, np.ndarray] = {}
+
+    for target_name in required_target_names:
+        print(
+            f"  Building target: {target_name}",
+            flush=True,
+        )
+
+        target_config = target_configs[
+            target_name
+        ]
+
+        target_series = build_target(
+            frame,
+            target_config,
+        )
+
+        targets[target_name] = (
+            target_series.to_numpy(
+                dtype=float,
+                na_value=np.nan,
+            )
+        )
+
+        return_column = (
+            target_config.return_column
+        )
+
+        if return_column not in returns:
+            returns[return_column] = (
+                pd.to_numeric(
+                    frame[return_column],
+                    errors="coerce",
+                )
+                .replace(
+                    [np.inf, -np.inf],
+                    np.nan,
+                )
+                .to_numpy(
+                    dtype=float,
+                    na_value=np.nan,
+                )
+            )
+
+    # ---------------------------------------------------------
+    # Tail masks
+    #
+    # Viktigt:
+    # rankningen ovan har redan gjorts en gång per signal.
+    # Här är varje tail bara en billig numpy-jämförelse.
+    # ---------------------------------------------------------
+
+    tail_masks: dict[
+        str,
+        np.ndarray,
+    ] = {}
+
+    unique_tail_requirements = {
+        (
+            requirement.signal_name,
+            requirement.tail_direction,
+            requirement.tail_fraction,
+        )
+        for requirement in requirements
+    }
+
+    for (
+        signal_name,
+        direction,
+        fraction,
+    ) in sorted(unique_tail_requirements):
+        rank = signal_ranks[
+            signal_name
+        ]
+
+        if direction == "upper":
+            mask = (
+                rank >= (1.0 - fraction)
+            )
+
+        elif direction == "lower":
+            mask = (
+                rank <= fraction
+            )
+
+        else:
+            raise ValueError(
+                f"Ogiltig tail-riktning: {direction}"
+            )
+
+        # NaN-ranks blir False.
+        mask = (
+            np.isfinite(rank)
+            & mask
+        )
+
+        tail_masks[
+            _tail_key(
+                signal_name,
+                direction,
+                fraction,
+            )
+        ] = mask
+
+        print(
+            "  Built tail: "
+            f"{signal_name} "
+            f"{direction} "
+            f"{fraction}",
+            flush=True,
+        )
+
+    # ---------------------------------------------------------
+    # Windows
+    # ---------------------------------------------------------
+
+    window_masks = _build_window_masks(
+        frame
     )
 
-    print(
-        "Shared research cache ready.",
-        flush=True,
-    )
-
-    return ResearchSession(
-        frame=frame,
-        cache=cache,
+    return ResearchCache(
+        signals=signals,
+        signal_ranks=signal_ranks,
+        targets=targets,
+        returns=returns,
+        tail_masks=tail_masks,
+        window_masks=window_masks,
+        target_configs=target_configs,
     )
