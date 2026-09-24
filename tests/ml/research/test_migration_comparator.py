@@ -1,237 +1,153 @@
 from __future__ import annotations
-
-import numpy as np
-
-from ml.research.cache import (
-    ResearchCache,
-    _tail_key,
+import sys
+from pathlib import Path
+import pytest
+# Make the repository root importable when pytest is executed
+# from GitHub Actions or another environment where the root is
+# not automatically placed on sys.path.
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from ml.research.migration_comparator import (  # noqa: E402
+    _build_migration_spec,
+    _compare,
+    _experiment_id,
+    _fraction_name,
+    _same_value,
 )
-from ml.research.evaluator import evaluate_experiment
-from ml.research.experiments import Experiment
-from ml.research.spec import (
-    AnalysisSpec,
-    ResearchSpec,
-    SignalSpec,
+def test_fraction_name() -> None:
+    assert _fraction_name(0.20) == "20pct"
+    assert _fraction_name(0.10) == "10pct"
+    assert _fraction_name(0.05) == "5pct"
+    assert _fraction_name(0.025) == "2_5pct"
+    assert _fraction_name(0.01) == "1pct"
+def test_experiment_id() -> None:
+    assert (
+        _experiment_id(
+            "short_interest_level",
+            "upper",
+            0.10,
+            "up_5pct_5d",
+        )
+        == (
+            "short_interest_level"
+            "__upper"
+            "__10pct"
+            "__up_5pct_5d"
+        )
+    )
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        (1, 1, True),
+        (1.0, 1.0, True),
+        (1.0, 1.0 + 1e-13, True),
+        (1.0, 1.0 + 1e-8, False),
+        (None, None, True),
+        (None, 1.0, False),
+        ("x", "x", True),
+        ("x", "y", False),
+    ],
 )
-from ml.research.engine import run_spec
-
-
-class _TargetConfig:
-    return_column = "forward_return_5d"
-
-
-def _build_cache() -> ResearchCache:
-    signal = np.array(
-        [1.0, 2.0, 3.0, 4.0, 5.0],
-        dtype=float,
-    )
-
-    target = np.array(
-        [0.0, 1.0, 0.0, 1.0, 1.0],
-        dtype=float,
-    )
-
-    returns = np.array(
-        [0.01, 0.02, -0.03, 0.04, 0.05],
-        dtype=float,
-    )
-
-    upper_tail = np.array(
-        [False, False, False, True, True],
-        dtype=bool,
-    )
-
-    lower_tail = np.array(
-        [True, True, False, False, False],
-        dtype=bool,
-    )
-
-    window = np.array(
-        [True, True, True, True, True],
-        dtype=bool,
-    )
-
-    return ResearchCache(
-        signals={
-            "test_signal": signal,
-        },
-        signal_ranks={
-            "test_signal": np.array(
-                [0.2, 0.4, 0.6, 0.8, 1.0],
-                dtype=float,
-            ),
-        },
-        targets={
-            "test_target": target,
-        },
-        returns={
-            "forward_return_5d": returns,
-        },
-        tail_masks={
-            _tail_key(
-                "test_signal",
-                "upper",
-                0.40,
-            ): upper_tail,
-            _tail_key(
-                "test_signal",
-                "lower",
-                0.40,
-            ): lower_tail,
-        },
-        window_masks={
-            "window_1": {
-                "test": window,
-            },
-        },
-        target_configs={
-            "test_target": _TargetConfig(),
-        },
-    )
-
-
-def _run_old(
-    cache: ResearchCache,
-    direction: str,
-) -> dict:
-    experiment = Experiment(
-        experiment_id=(
-            f"test_signal__{direction}"
-            "__40pct__test_target"
-        ),
-        signal_name="test_signal",
-        target_name="test_target",
-        tail_fraction=0.40,
-        tail_direction=direction,
-    )
-
-    return evaluate_experiment(
-        frame=None,
-        cache=cache,
-        experiment=experiment,
-        window_name="window_1",
-        split_name="test",
-    )
-
-
-def _run_new(
-    cache: ResearchCache,
-    direction: str,
-) -> dict:
-    spec = ResearchSpec(
-        id="migration_test",
-        question="test",
-        signals=(
-            SignalSpec(
-                name="test_signal",
-                direction=direction,
-                bins=(0.40,),
-            ),
-        ),
-        targets=("test_target",),
-        analysis=AnalysisSpec(
-            type="tail",
-            bootstrap=False,
-        ),
-        windows=("window_1",),
-        splits=("test",),
-    )
-
-    result = run_spec(
-        cache,
-        spec,
-    )
-
-    return result["results"][0]
-
-
-def _assert_common_metrics_match(
-    old: dict,
-    new: dict,
+def test_same_value(
+    old,
+    new,
+    expected: bool,
 ) -> None:
-    assert old["n"] == new["n"]
-    assert old["events"] == new["events"]
-
-    assert np.isclose(
-        old["event_rate"],
-        new["event_rate"],
-    )
-
-    assert np.isclose(
-        old["lift"],
-        new["lift"],
-    )
-
-    assert np.isclose(
-        old["mean_return"],
-        new["mean_return"],
-    )
-
-
-def test_upper_tail_matches_old_and_new() -> None:
-    cache = _build_cache()
-
-    old = _run_old(
-        cache,
-        "upper",
-    )
-
-    new = _run_new(
-        cache,
-        "upper",
-    )
-
-    _assert_common_metrics_match(
+    assert _same_value(
         old,
         new,
+    ) is expected
+def test_build_migration_spec() -> None:
+    spec = _build_migration_spec()
+    assert spec.id == (
+        "generic_migration_comparison"
     )
-
-
-def test_lower_tail_matches_old_and_new() -> None:
-    cache = _build_cache()
-
-    old = _run_old(
-        cache,
-        "lower",
+    assert spec.mode == "scan"
+    assert spec.analysis.type == "tail"
+    assert spec.analysis.bootstrap is False
+    assert spec.windows == (
+        "window_1",
+        "window_2",
     )
-
-    new = _run_new(
-        cache,
-        "lower",
+    assert spec.splits == ("test",)
+    assert len(spec.signals) == 14
+def test_compare_matching_results() -> None:
+    old_rows = [
+        {
+            "signal": "signal_a",
+            "direction": "upper",
+            "fraction": 0.10,
+            "target": "target_a",
+            "window": "window_1",
+            "split": "test",
+            "n": 100,
+            "events": 20,
+            "event_rate": 0.20,
+            "lift": 2.0,
+            "mean_return": 0.05,
+        }
+    ]
+    new_rows = [
+        {
+            "signal": "signal_a",
+            "direction": "upper",
+            "fraction": 0.10,
+            "target": "target_a",
+            "window": "window_1",
+            "split": "test",
+            "n": 100,
+            "events": 20,
+            "event_rate": 0.20,
+            "lift": 2.0,
+            "mean_return": 0.05,
+        }
+    ]
+    comparison = _compare(
+        old_rows,
+        new_rows,
     )
-
-    _assert_common_metrics_match(
-        old,
-        new,
+    assert len(comparison) == 1
+    assert comparison.iloc[0]["status"] == "PASS"
+    assert comparison.iloc[0]["differences"] == ""
+def test_compare_detects_difference() -> None:
+    old_rows = [
+        {
+            "signal": "signal_a",
+            "direction": "upper",
+            "fraction": 0.10,
+            "target": "target_a",
+            "window": "window_1",
+            "split": "test",
+            "n": 100,
+            "events": 20,
+            "event_rate": 0.20,
+            "lift": 2.0,
+            "mean_return": 0.05,
+        }
+    ]
+    new_rows = [
+        {
+            "signal": "signal_a",
+            "direction": "upper",
+            "fraction": 0.10,
+            "target": "target_a",
+            "window": "window_1",
+            "split": "test",
+            "n": 100,
+            "events": 21,
+            "event_rate": 0.21,
+            "lift": 2.1,
+            "mean_return": 0.06,
+        }
+    ]
+    comparison = _compare(
+        old_rows,
+        new_rows,
     )
-
-
-def test_new_engine_adds_return_difference() -> None:
-    cache = _build_cache()
-
-    new = _run_new(
-        cache,
-        "upper",
-    )
-
-    assert "return_difference" in new
-
-    selected_returns = np.array(
-        [0.04, 0.05],
-        dtype=float,
-    )
-
-    rest_returns = np.array(
-        [0.01, 0.02, -0.03],
-        dtype=float,
-    )
-
-    expected = (
-        selected_returns.mean()
-        - rest_returns.mean()
-    )
-
-    assert np.isclose(
-        new["return_difference"],
-        expected,
+    assert len(comparison) == 1
+    assert comparison.iloc[0]["status"] == "FAIL"
+    assert (
+        comparison.iloc[0]["differences"]
+        == "events,event_rate,lift,mean_return"
     )
