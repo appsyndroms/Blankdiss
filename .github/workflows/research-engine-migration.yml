@@ -30,11 +30,43 @@ jobs:
         run: |
           python -m pytest -q tests/ml/research/test_migration_comparator.py
 
+      - name: Run existing SI prior-return migration
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m ml.research.custom.si_prior_return_interaction_migration
+
       - name: Run existing FI short-interest event-risk migration
         env:
           PYTHONPATH: .
         run: |
           python -m ml.research.custom.fi_short_interest_event_risk_interaction_migration
+
+      - name: Run existing SI event-risk grid migration
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m ml.research.discovery.si_event_risk_grid_migration
+
+      - name: Run migration comparator
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m ml.research.migration_comparator \
+            --analysis si_prior_return_interaction \
+            --old data/processed/ml/research/migration/si_prior_return_interaction_old.json \
+            --new data/processed/ml/research/migration/si_prior_return_interaction_new.json \
+            --output data/processed/ml/research/migration/si_prior_return_interaction_comparison.json
+
+      - name: Run migration comparator for FI event-risk interaction
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m ml.research.migration_comparator \
+            --analysis fi_short_interest_event_risk_interaction \
+            --old data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_old.json \
+            --new data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_new.json \
+            --output data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_comparison.json
 
       - name: Run migration comparator for SI event-risk grid
         env:
