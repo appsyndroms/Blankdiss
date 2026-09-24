@@ -529,10 +529,14 @@ def run(
 
     SI-change thresholds are calculated exclusively from pretest data.
     The actual interaction analysis is performed on the test period.
+
+    Important:
+    The old diagnostic calculates SI change separately inside the
+    pretest and test slices. We preserve that behavior here so the
+    first test observation for a security does not inherit an SI
+    change from the final pretest observation.
     """
-    data = add_si_change(
-        frame
-    )
+    data = frame.copy()
 
     data["snapshot_date"] = pd.to_datetime(
         data["snapshot_date"],
@@ -562,6 +566,16 @@ def run(
             test["snapshot_date"]
             <= test_end
         ].copy()
+
+    # Preserve the old diagnostic's exact window semantics:
+    # SI change is calculated independently within pretest and test.
+    pretest = add_si_change(
+        pretest
+    )
+
+    test = add_si_change(
+        test
+    )
 
     results, _ = _build_results(
         pretest,
