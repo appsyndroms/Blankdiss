@@ -7,12 +7,11 @@ permissions:
   contents: read
 
 jobs:
-  migration-comparison:
-    name: Research Engine migration comparison
+  migration:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -26,49 +25,64 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run migration comparator tests
+        env:
+          PYTHONPATH: .
         run: |
-          pytest -q tests/ml/research/test_migration_comparator.py
+          python -m pytest -q tests/ml/research/test_migration_comparator.py
 
-      - name: Run SI prior return migration
+      - name: Run existing SI prior-return migration
+        env:
+          PYTHONPATH: .
         run: |
           python -m ml.research.custom.si_prior_return_interaction_migration
 
-      - name: Run FI short interest event risk migration
+      - name: Run existing FI short-interest event-risk migration
+        env:
+          PYTHONPATH: .
         run: |
           python -m ml.research.custom.fi_short_interest_event_risk_interaction_migration
 
-      - name: Run SI event risk grid migration
+      - name: Run existing SI event-risk grid migration
+        env:
+          PYTHONPATH: .
         run: |
           python -m ml.research.discovery.si_event_risk_grid_migration
 
-      - name: Run interaction analysis migration
-        run: |
-          python -m ml.research.custom.si_volatility_interaction_migration
-
-      - name: Run incremental SI migration
-        run: |
-          python -m ml.research.custom.incremental_si_analysis_migration
-
-      - name: Compare SI volatility interaction
+      - name: Run migration comparator
+        env:
+          PYTHONPATH: .
         run: |
           python -m ml.research.migration_comparator \
-            --analysis si_volatility_interaction \
-            --old data/processed/ml/research/migration/legacy/si_volatility_interaction.json \
-            --new data/processed/ml/research/migration/new/si_volatility_interaction.json \
-            --output data/processed/ml/research/migration/comparison/si_volatility_interaction.json
+            --analysis si_prior_return_interaction \
+            --old data/processed/ml/research/migration/si_prior_return_interaction_old.json \
+            --new data/processed/ml/research/migration/si_prior_return_interaction_new.json \
+            --output data/processed/ml/research/migration/si_prior_return_interaction_comparison.json
 
-      - name: Compare incremental SI
+      - name: Run migration comparator for FI event-risk interaction
+        env:
+          PYTHONPATH: .
         run: |
           python -m ml.research.migration_comparator \
-            --analysis incremental_si \
-            --old data/processed/ml/research/migration/legacy/incremental_si.json \
-            --new data/processed/ml/research/migration/new/incremental_si.json \
-            --output data/processed/ml/research/migration/comparison/incremental_si.json
+            --analysis fi_short_interest_event_risk_interaction \
+            --old data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_old.json \
+            --new data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_new.json \
+            --output data/processed/ml/research/migration/fi_short_interest_event_risk_interaction_comparison.json
 
-      - name: Upload migration comparison artifacts
+      - name: Run migration comparator for SI event-risk grid
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m ml.research.migration_comparator \
+            --analysis si_event_risk_grid \
+            --old data/processed/ml/research/migration/si_event_risk_grid_old.json \
+            --new data/processed/ml/research/migration/si_event_risk_grid_new.json \
+            --output data/processed/ml/research/migration/si_event_risk_grid_comparison.json
+
+      - name: Upload migration artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: research-engine-migration-comparison
-          path: data/processed/ml/research/migration/
-          if-no-files-found: warn
+          name: research-engine-migration
+          path: |
+            data/processed/ml/research/migration/
+          if-no-files-found: ignore
