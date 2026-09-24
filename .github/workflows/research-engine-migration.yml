@@ -30,12 +30,6 @@ jobs:
         run: |
           python -m pytest -q tests/ml/research/test_migration_comparator.py
 
-      - name: Run existing SI prior-return migration
-        env:
-          PYTHONPATH: .
-        run: |
-          python -m ml.research.custom.si_prior_return_interaction_migration
-
       - name: Run existing FI short-interest event-risk migration
         env:
           PYTHONPATH: .
