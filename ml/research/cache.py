@@ -7,7 +7,7 @@ import pandas as pd
 
 from ml.config import TARGETS, WALK_FORWARD_WINDOWS
 from ml.dataset import build_target
-from ml.research.signals import build_signal, tail_mask
+from ml.research.signals import build_signal
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,7 @@ class ResearchRequirement:
 @dataclass
 class ResearchCache:
     signals: dict[str, np.ndarray]
+    signal_ranks: dict[str, np.ndarray]
     targets: dict[str, np.ndarray]
     returns: dict[str, np.ndarray]
     tail_masks: dict[str, np.ndarray]
@@ -37,6 +38,63 @@ def _tail_key(
         f"{signal_name}|"
         f"{direction}|"
         f"{fraction}"
+    )
+
+
+def _build_signal_rank(
+    frame: pd.DataFrame,
+    signal: pd.Series,
+) -> np.ndarray:
+    """
+    Beräknar cross-sectional percentile-rank en gång per signal.
+
+    Rankningen sker inom varje snapshot_date.
+
+    Därefter kan alla tails för samma signal byggas genom
+    enkla jämförelser mot rank-arrayen.
+    """
+    valid = signal.notna()
+
+    ranks = pd.Series(
+        np.nan,
+        index=frame.index,
+        dtype=float,
+    )
+
+    if not valid.any():
+        return ranks.to_numpy(
+            dtype=float,
+            na_value=np.nan,
+        )
+
+    working = pd.DataFrame(
+        {
+            "snapshot_date": (
+                frame.loc[
+                    valid,
+                    "snapshot_date",
+                ]
+            ),
+            "signal": signal.loc[valid],
+        },
+        index=frame.index[valid],
+    )
+
+    ranks.loc[valid] = (
+        working
+        .groupby(
+            "snapshot_date",
+            sort=False,
+        )["signal"]
+        .rank(
+            pct=True,
+            method="average",
+        )
+    )
+
+    return ranks.to_numpy(
+        dtype=float,
+        na_value=np.nan,
     )
 
 
@@ -67,13 +125,11 @@ def _build_window_masks(
             window.test_end
         )
 
-        test_mask = (
-            (dates > validation_end)
-            & (dates <= test_end)
-        ).to_numpy()
-
         result[f"window_{index}"] = {
-            "test": test_mask,
+            "test": (
+                (dates > validation_end)
+                & (dates <= test_end)
+            ).to_numpy()
         }
 
     return result
@@ -120,10 +176,17 @@ def build_research_cache(
     if unknown_targets:
         raise ValueError(
             "Okända research targets: "
-            + ", ".join(sorted(unknown_targets))
+            + ", ".join(
+                sorted(unknown_targets)
+            )
         )
 
+    # ---------------------------------------------------------
+    # Signals
+    # ---------------------------------------------------------
+
     signals: dict[str, np.ndarray] = {}
+    signal_ranks: dict[str, np.ndarray] = {}
 
     for signal_name in required_signal_names:
         print(
@@ -136,12 +199,28 @@ def build_research_cache(
             signal_name,
         )
 
-        signals[signal_name] = (
-            series.to_numpy(
-                dtype=float,
-                na_value=np.nan,
+        values = series.to_numpy(
+            dtype=float,
+            na_value=np.nan,
+        )
+
+        signals[signal_name] = values
+
+        print(
+            f"  Ranking signal: {signal_name}",
+            flush=True,
+        )
+
+        signal_ranks[signal_name] = (
+            _build_signal_rank(
+                frame,
+                series,
             )
         )
+
+    # ---------------------------------------------------------
+    # Targets
+    # ---------------------------------------------------------
 
     targets: dict[str, np.ndarray] = {}
     returns: dict[str, np.ndarray] = {}
@@ -188,6 +267,14 @@ def build_research_cache(
                 )
             )
 
+    # ---------------------------------------------------------
+    # Tail masks
+    #
+    # Viktigt:
+    # rankningen ovan har redan gjorts en gång per signal.
+    # Här är varje tail bara en billig numpy-jämförelse.
+    # ---------------------------------------------------------
+
     tail_masks: dict[
         str,
         np.ndarray,
@@ -207,24 +294,29 @@ def build_research_cache(
         direction,
         fraction,
     ) in sorted(unique_tail_requirements):
-        print(
-            "  Building tail: "
-            f"{signal_name} "
-            f"{direction} "
-            f"{fraction}",
-            flush=True,
-        )
+        rank = signal_ranks[
+            signal_name
+        ]
 
-        signal_series = pd.Series(
-            signals[signal_name],
-            index=frame.index,
-        )
+        if direction == "upper":
+            mask = (
+                rank >= (1.0 - fraction)
+            )
 
-        mask = tail_mask(
-            frame,
-            signal_series,
-            fraction,
-            direction=direction,
+        elif direction == "lower":
+            mask = (
+                rank <= fraction
+            )
+
+        else:
+            raise ValueError(
+                f"Ogiltig tail-riktning: {direction}"
+            )
+
+        # NaN-ranks blir False.
+        mask = (
+            np.isfinite(rank)
+            & mask
         )
 
         tail_masks[
@@ -233,9 +325,19 @@ def build_research_cache(
                 direction,
                 fraction,
             )
-        ] = mask.to_numpy(
-            dtype=bool
+        ] = mask
+
+        print(
+            "  Built tail: "
+            f"{signal_name} "
+            f"{direction} "
+            f"{fraction}",
+            flush=True,
         )
+
+    # ---------------------------------------------------------
+    # Windows
+    # ---------------------------------------------------------
 
     window_masks = _build_window_masks(
         frame
@@ -243,6 +345,7 @@ def build_research_cache(
 
     return ResearchCache(
         signals=signals,
+        signal_ranks=signal_ranks,
         targets=targets,
         returns=returns,
         tail_masks=tail_masks,
