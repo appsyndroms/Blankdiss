@@ -112,6 +112,7 @@ def _binary_metrics(
 def _return_metrics(
     returns: np.ndarray | None,
     selected: np.ndarray,
+    scope: np.ndarray,
     *,
     bootstrap: bool,
     bootstrap_iterations: int,
@@ -128,12 +129,14 @@ def _return_metrics(
         }
 
     selected_valid = (
-        selected
+        scope
+        & selected
         & np.isfinite(returns)
     )
 
     rest_valid = (
-        ~selected
+        scope
+        & ~selected
         & np.isfinite(returns)
     )
 
@@ -267,7 +270,8 @@ def _analyse_tail(
 
     return_metrics = _return_metrics(
         returns,
-        window_mask & selected,
+        selected,
+        window_mask,
         bootstrap=bootstrap,
         bootstrap_iterations=(
             bootstrap_iterations
@@ -368,7 +372,8 @@ def _analyse_interaction(
 
     return_metrics = _return_metrics(
         returns,
-        window_mask & selected,
+        selected,
+        window_mask,
         bootstrap=bootstrap,
         bootstrap_iterations=(
             bootstrap_iterations
