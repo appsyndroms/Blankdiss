@@ -102,80 +102,6 @@ def compare_mapping(
     return differences
 
 
-def _population_fields() -> list[str]:
-    return [
-        "n",
-        "rows",
-        "feature_rows",
-        "input_rows",
-        "analysis_rows",
-        "event_count",
-        "event_rate",
-        "baseline_event_rate",
-        "discovery_end",
-        "target",
-        "target_name",
-        "signal",
-        "signals",
-        "tail_fraction",
-        "tail_fractions",
-        "direction",
-        "window",
-        "windows",
-    ]
-
-
-def compare_population(
-    old: dict[str, Any],
-    new: dict[str, Any],
-) -> list[dict[str, Any]]:
-    """
-    Compare the population represented by the two analyses.
-
-    This is intentionally public because migration tests should be able
-    to verify population equivalence independently from metric
-    equivalence.
-    """
-    return compare_mapping(
-        old,
-        new,
-        fields=_population_fields(),
-        tolerance=NUMERIC_TOLERANCE,
-    )
-
-
-def _metric_fields() -> list[str]:
-    return [
-        "baseline",
-        "baseline_rate",
-        "event_rate",
-        "lift",
-        "mean_return",
-        "median_return",
-        "return_difference",
-        "mean_return_difference",
-        "roc_auc",
-        "brier",
-        "log_loss",
-        "spearman",
-    ]
-
-
-def compare_metrics(
-    old: dict[str, Any],
-    new: dict[str, Any],
-) -> list[dict[str, Any]]:
-    """
-    Compare the common research metrics.
-    """
-    return compare_mapping(
-        old,
-        new,
-        fields=_metric_fields(),
-        tolerance=NUMERIC_TOLERANCE,
-    )
-
-
 def compare_sequence(
     name: str,
     old: Any,
@@ -192,10 +118,132 @@ def compare_sequence(
     }
 
 
+def compare_semantics(
+    old: dict[str, Any],
+    new: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Compare semantic properties of two analysis results.
+
+    These fields describe what was actually analyzed rather than the
+    resulting numerical metrics. They are important during migration
+    because an analysis can produce plausible-looking results while
+    silently changing its population, target, tail, window, or model.
+    """
+    fields = [
+        "target",
+        "target_name",
+        "signal",
+        "signals",
+        "direction",
+        "tail_fraction",
+        "tail_fractions",
+        "window",
+        "windows",
+        "discovery_end",
+        "analysis_type",
+        "mode",
+        "walk_forward",
+        "walk_forward_windows",
+        "grouping",
+        "bins",
+        "bin_edges",
+        "volatility_groups",
+        "si_deciles",
+        "min_model_rows",
+        "model_features",
+        "models",
+    ]
+
+    differences: list[dict[str, Any]] = []
+
+    for field in fields:
+        old_value = old.get(field)
+        new_value = new.get(field)
+
+        if isinstance(old_value, list) and isinstance(new_value, list):
+            difference = compare_sequence(
+                field,
+                old_value,
+                new_value,
+            )
+        else:
+            difference = compare_scalar(
+                field,
+                old_value,
+                new_value,
+            )
+
+        if difference is not None:
+            differences.append(difference)
+
+    return differences
+
+
+def compare_population(
+    old: dict[str, Any],
+    new: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Compare the population represented by two analysis results.
+    """
+    fields = [
+        "n",
+        "rows",
+        "feature_rows",
+        "input_rows",
+        "analysis_rows",
+        "event_count",
+        "event_rate",
+        "baseline_event_rate",
+        "discovery_end",
+    ]
+
+    return compare_mapping(
+        old,
+        new,
+        fields=fields,
+        tolerance=NUMERIC_TOLERANCE,
+    )
+
+
+def compare_metrics(
+    old: dict[str, Any],
+    new: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Compare common research metrics.
+    """
+    fields = [
+        "baseline",
+        "baseline_rate",
+        "event_rate",
+        "lift",
+        "mean_return",
+        "median_return",
+        "return_difference",
+        "mean_return_difference",
+        "roc_auc",
+        "brier",
+        "log_loss",
+        "spearman",
+    ]
+
+    return compare_mapping(
+        old,
+        new,
+        fields=fields,
+        tolerance=NUMERIC_TOLERANCE,
+    )
+
+
 def compare_interaction_cells(
     old: dict[str, Any],
     new: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    """
+    Compare 2x2 interaction cells when present.
+    """
     old_cells = old.get("cells")
     new_cells = new.get("cells")
 
@@ -228,14 +276,17 @@ def compare_interaction_cells(
                         "reason": "cell_added_or_removed",
                     }
                 )
+
             continue
 
         if isinstance(old_cell, dict) and isinstance(new_cell, dict):
-            for difference in compare_mapping(
+            cell_differences = compare_mapping(
                 old_cell,
                 new_cell,
                 tolerance=NUMERIC_TOLERANCE,
-            ):
+            )
+
+            for difference in cell_differences:
                 differences.append(
                     {
                         **difference,
@@ -262,19 +313,25 @@ def compare_interaction_analysis(
     old: dict[str, Any],
     new: dict[str, Any],
 ) -> ComparisonResult:
+    """
+    Compare an interaction analysis.
+    """
     differences: list[dict[str, Any]] = []
 
+    differences.extend(compare_semantics(old, new))
     differences.extend(compare_population(old, new))
     differences.extend(compare_metrics(old, new))
     differences.extend(compare_interaction_cells(old, new))
 
-    for field in (
+    fields = [
         "interaction",
         "interaction_effect",
         "risk_ratio_interaction",
         "additive_interaction",
         "multiplicative_interaction",
-    ):
+    ]
+
+    for field in fields:
         difference = compare_scalar(
             field,
             old.get(field),
@@ -314,14 +371,17 @@ def _compare_nested_analysis(
                 "reason": "analysis_added_or_removed",
             }
         )
+
         return
 
     if isinstance(old_value, dict) and isinstance(new_value, dict):
-        for difference in compare_mapping(
+        nested_differences = compare_mapping(
             old_value,
             new_value,
             tolerance=NUMERIC_TOLERANCE,
-        ):
+        )
+
+        for difference in nested_differences:
             differences.append(
                 {
                     **difference,
@@ -330,6 +390,7 @@ def _compare_nested_analysis(
                     ),
                 }
             )
+
         return
 
     if isinstance(old_value, list) and isinstance(new_value, list):
@@ -347,11 +408,13 @@ def _compare_nested_analysis(
             zip(old_value, new_value)
         ):
             if isinstance(old_row, dict) and isinstance(new_row, dict):
-                for difference in compare_mapping(
+                row_differences = compare_mapping(
                     old_row,
                     new_row,
                     tolerance=NUMERIC_TOLERANCE,
-                ):
+                )
+
+                for difference in row_differences:
                     differences.append(
                         {
                             **difference,
@@ -361,6 +424,7 @@ def _compare_nested_analysis(
                             ),
                         }
                     )
+
             elif old_row != new_row:
                 differences.append(
                     {
@@ -388,15 +452,26 @@ def compare_incremental_si_analysis(
     old: dict[str, Any],
     new: dict[str, Any],
 ) -> ComparisonResult:
+    """
+    Compare the legacy and migrated incremental SI analysis.
+
+    The analysis contains more than a simple tail metric. It may include:
+
+    - SI decile analysis
+    - volatility conditioning
+    - conditional rank analysis
+    - walk-forward models
+    - volatility-only model
+    - volatility + SI model
+    - volatility + SI interaction model
+    """
     differences: list[dict[str, Any]] = []
 
+    differences.extend(compare_semantics(old, new))
     differences.extend(compare_population(old, new))
     differences.extend(compare_metrics(old, new))
 
     for field in (
-        "target",
-        "target_name",
-        "discovery_end",
         "min_model_rows",
         "volatility_groups",
         "si_deciles",
@@ -448,6 +523,9 @@ def compare_analysis(
     old: dict[str, Any],
     new: dict[str, Any],
 ) -> ComparisonResult:
+    """
+    Dispatch to an analysis-specific comparator.
+    """
     normalized = analysis.lower().strip()
 
     if normalized in {
@@ -455,17 +533,24 @@ def compare_analysis(
         "si_volatility_interaction",
         "si_volatility_downside_interaction",
     }:
-        return compare_interaction_analysis(old, new)
+        return compare_interaction_analysis(
+            old,
+            new,
+        )
 
     if normalized in {
         "incremental_si_analysis",
         "incremental_si",
         "momentum_si_incremental_locked_oos",
     }:
-        return compare_incremental_si_analysis(old, new)
+        return compare_incremental_si_analysis(
+            old,
+            new,
+        )
 
-    differences = []
+    differences: list[dict[str, Any]] = []
 
+    differences.extend(compare_semantics(old, new))
     differences.extend(compare_population(old, new))
     differences.extend(compare_metrics(old, new))
 
@@ -478,10 +563,15 @@ def compare_analysis(
     )
 
 
-def _load_json(path: str | Path) -> dict[str, Any]:
+def _load_json(
+    path: str | Path,
+) -> dict[str, Any]:
     path = Path(path)
 
-    with path.open("r", encoding="utf-8") as handle:
+    with path.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
         value = json.load(handle)
 
     if not isinstance(value, dict):
@@ -497,6 +587,9 @@ def compare_files(
     old_path: str | Path,
     new_path: str | Path,
 ) -> ComparisonResult:
+    """
+    Load two JSON result files and compare them.
+    """
     old = _load_json(old_path)
     new = _load_json(new_path)
 
@@ -553,6 +646,7 @@ def main() -> int:
     )
 
     output_path = Path(args.output)
+
     output_path.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -587,7 +681,9 @@ def main() -> int:
                 f"{difference.get('reason')}"
             )
     else:
-        print("No semantic differences found.")
+        print(
+            "No semantic differences found."
+        )
 
     return 0
 
