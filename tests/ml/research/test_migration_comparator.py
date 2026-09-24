@@ -1,153 +1,260 @@
 from __future__ import annotations
-import sys
-from pathlib import Path
-import pytest
-# Make the repository root importable when pytest is executed
-# from GitHub Actions or another environment where the root is
-# not automatically placed on sys.path.
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-from ml.research.migration_comparator import (  # noqa: E402
-    _build_migration_spec,
-    _compare,
-    _experiment_id,
-    _fraction_name,
-    _same_value,
+
+from ml.research.migration_comparator import (
+    compare_incremental_si_analysis,
+    compare_interaction_analysis,
+    compare_mapping,
+    compare_population,
+    compare_semantics,
 )
-def test_fraction_name() -> None:
-    assert _fraction_name(0.20) == "20pct"
-    assert _fraction_name(0.10) == "10pct"
-    assert _fraction_name(0.05) == "5pct"
-    assert _fraction_name(0.025) == "2_5pct"
-    assert _fraction_name(0.01) == "1pct"
-def test_experiment_id() -> None:
-    assert (
-        _experiment_id(
-            "short_interest_level",
-            "upper",
-            0.10,
-            "up_5pct_5d",
-        )
-        == (
-            "short_interest_level"
-            "__upper"
-            "__10pct"
-            "__up_5pct_5d"
-        )
+
+
+def test_identical_mapping_passes() -> None:
+    result = {
+        "metadata": {
+            "target": "down_10pct_5d",
+            "analysis_rows": 1000,
+        },
+        "metrics": {
+            "event_rate": 0.123,
+            "mean_return": -0.045,
+        },
+    }
+
+    comparisons = compare_mapping(result, result)
+
+    assert comparisons
+    assert all(comparison.equal for comparison in comparisons)
+
+
+def test_numeric_tolerance_passes() -> None:
+    old = {
+        "value": 0.123456789,
+    }
+
+    new = {
+        "value": 0.1234567891,
+    }
+
+    comparisons = compare_mapping(old, new)
+
+    assert len(comparisons) == 1
+    assert comparisons[0].equal
+
+
+def test_population_difference_fails() -> None:
+    old = {
+        "analysis_rows": 1000,
+    }
+
+    new = {
+        "analysis_rows": 999,
+    }
+
+    comparisons = compare_population(old, new)
+
+    assert comparisons
+    assert not all(comparison.equal for comparison in comparisons)
+
+
+def test_target_difference_fails() -> None:
+    old = {
+        "target": "down_10pct_5d",
+    }
+
+    new = {
+        "target": "down_10pct_20d",
+    }
+
+    comparisons = compare_semantics(old, new)
+
+    assert comparisons
+    assert not all(comparison.equal for comparison in comparisons)
+
+
+def test_interaction_identical_results_pass() -> None:
+    result = {
+        "metadata": {
+            "target": "down_10pct_5d",
+            "discovery_end": "2025-12-19",
+            "tail_fractions": [
+                0.01,
+                0.025,
+                0.05,
+                0.10,
+            ],
+            "bootstrap_iterations": 2000,
+            "bootstrap_seed": 20260920,
+            "feature_rows": 10000,
+            "eligible_rows": 9000,
+            "analysis_rows": 9000,
+            "event_count": 800,
+        },
+        "cells": {
+            "11": {
+                "n": 100,
+                "event_rate": 0.30,
+                "mean_return": -0.10,
+            },
+            "10": {
+                "n": 200,
+                "event_rate": 0.20,
+                "mean_return": -0.06,
+            },
+            "01": {
+                "n": 300,
+                "event_rate": 0.15,
+                "mean_return": -0.04,
+            },
+            "00": {
+                "n": 400,
+                "event_rate": 0.10,
+                "mean_return": -0.02,
+            },
+        },
+        "metrics": {
+            "additive_interaction": 0.15,
+            "relative_risk_interaction": 2.5,
+        },
+        "bootstrap": {
+            "iterations": 2000,
+            "seed": 20260920,
+        },
+    }
+
+    comparisons = compare_interaction_analysis(
+        result,
+        result,
     )
-@pytest.mark.parametrize(
-    ("old", "new", "expected"),
-    [
-        (1, 1, True),
-        (1.0, 1.0, True),
-        (1.0, 1.0 + 1e-13, True),
-        (1.0, 1.0 + 1e-8, False),
-        (None, None, True),
-        (None, 1.0, False),
-        ("x", "x", True),
-        ("x", "y", False),
-    ],
-)
-def test_same_value(
-    old,
-    new,
-    expected: bool,
-) -> None:
-    assert _same_value(
+
+    assert comparisons
+    assert all(comparison.equal for comparison in comparisons)
+
+
+def test_interaction_population_difference_fails() -> None:
+    old = {
+        "metadata": {
+            "analysis_rows": 1000,
+        }
+    }
+
+    new = {
+        "metadata": {
+            "analysis_rows": 999,
+        }
+    }
+
+    comparisons = compare_interaction_analysis(
         old,
         new,
-    ) is expected
-def test_build_migration_spec() -> None:
-    spec = _build_migration_spec()
-    assert spec.id == (
-        "generic_migration_comparison"
     )
-    assert spec.mode == "scan"
-    assert spec.analysis.type == "tail"
-    assert spec.analysis.bootstrap is False
-    assert spec.windows == (
-        "window_1",
-        "window_2",
-    )
-    assert spec.splits == ("test",)
-    assert len(spec.signals) == 14
-def test_compare_matching_results() -> None:
-    old_rows = [
-        {
-            "signal": "signal_a",
-            "direction": "upper",
-            "fraction": 0.10,
-            "target": "target_a",
-            "window": "window_1",
-            "split": "test",
-            "n": 100,
-            "events": 20,
-            "event_rate": 0.20,
-            "lift": 2.0,
-            "mean_return": 0.05,
+
+    assert comparisons
+    assert not all(comparison.equal for comparison in comparisons)
+
+
+def test_interaction_tail_difference_fails() -> None:
+    old = {
+        "metadata": {
+            "tail_fractions": [
+                0.01,
+                0.025,
+                0.05,
+                0.10,
+            ]
         }
-    ]
-    new_rows = [
-        {
-            "signal": "signal_a",
-            "direction": "upper",
-            "fraction": 0.10,
-            "target": "target_a",
-            "window": "window_1",
-            "split": "test",
-            "n": 100,
-            "events": 20,
-            "event_rate": 0.20,
-            "lift": 2.0,
-            "mean_return": 0.05,
+    }
+
+    new = {
+        "metadata": {
+            "tail_fractions": [
+                0.01,
+                0.025,
+                0.05,
+                0.10,
+                0.20,
+            ]
         }
-    ]
-    comparison = _compare(
-        old_rows,
-        new_rows,
+    }
+
+    comparisons = compare_interaction_analysis(
+        old,
+        new,
     )
-    assert len(comparison) == 1
-    assert comparison.iloc[0]["status"] == "PASS"
-    assert comparison.iloc[0]["differences"] == ""
-def test_compare_detects_difference() -> None:
-    old_rows = [
-        {
-            "signal": "signal_a",
-            "direction": "upper",
-            "fraction": 0.10,
-            "target": "target_a",
-            "window": "window_1",
-            "split": "test",
-            "n": 100,
-            "events": 20,
-            "event_rate": 0.20,
-            "lift": 2.0,
-            "mean_return": 0.05,
+
+    assert comparisons
+    assert not all(comparison.equal for comparison in comparisons)
+
+
+def test_incremental_si_identical_results_pass() -> None:
+    result = {
+        "metadata": {
+            "target": "down_10pct_5d",
+            "discovery_end": "2025-12-19",
+            "feature_rows": 10000,
+            "eligible_rows": 9000,
+            "analysis_rows": 9000,
+        },
+        "decile_analysis": {
+            "volatility_group_1": {
+                "decile_1": {
+                    "n": 100,
+                    "event_rate": 0.10,
+                }
+            }
+        },
+        "conditional_rank_analysis": {
+            "spearman": 0.42,
+        },
+        "walk_forward_models": {
+            "volatility_only": {
+                "auc": 0.61,
+                "log_loss": 0.62,
+                "brier": 0.21,
+            },
+            "volatility_plus_si": {
+                "auc": 0.64,
+                "log_loss": 0.60,
+                "brier": 0.20,
+            },
+            "volatility_plus_si_interaction": {
+                "auc": 0.65,
+                "log_loss": 0.59,
+                "brier": 0.19,
+            },
+        },
+    }
+
+    comparisons = compare_incremental_si_analysis(
+        result,
+        result,
+    )
+
+    assert comparisons
+    assert all(comparison.equal for comparison in comparisons)
+
+
+def test_incremental_si_model_difference_fails() -> None:
+    old = {
+        "walk_forward_models": {
+            "volatility_plus_si_interaction": {
+                "auc": 0.65,
+            }
         }
-    ]
-    new_rows = [
-        {
-            "signal": "signal_a",
-            "direction": "upper",
-            "fraction": 0.10,
-            "target": "target_a",
-            "window": "window_1",
-            "split": "test",
-            "n": 100,
-            "events": 21,
-            "event_rate": 0.21,
-            "lift": 2.1,
-            "mean_return": 0.06,
+    }
+
+    new = {
+        "walk_forward_models": {
+            "volatility_plus_si_interaction": {
+                "auc": 0.60,
+            }
         }
-    ]
-    comparison = _compare(
-        old_rows,
-        new_rows,
+    }
+
+    comparisons = compare_incremental_si_analysis(
+        old,
+        new,
     )
-    assert len(comparison) == 1
-    assert comparison.iloc[0]["status"] == "FAIL"
-    assert (
-        comparison.iloc[0]["differences"]
-        == "events,event_rate,lift,mean_return"
-    )
+
+    assert comparisons
+    assert not all(comparison.equal for comparison in comparisons)
