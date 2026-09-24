@@ -1,11 +1,14 @@
-name: Research Engine Migration Check
+name: Research Engine Migration
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  migration-check:
-    name: Research Engine Migration
+  migration-comparison:
+    name: Research Engine migration comparison
     runs-on: ubuntu-latest
 
     steps:
@@ -16,18 +19,53 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run generic migration comparator
+      - name: Run migration comparator tests
         run: |
-          python -m ml.research.migration_comparator
+          pytest -q tests/ml/research/test_migration_comparator.py
 
-      - name: Upload migration comparisons
+      - name: Run SI prior return migration
+        run: |
+          python -m ml.research.custom.si_prior_return_interaction_migration
+
+      - name: Run FI short interest event risk migration
+        run: |
+          python -m ml.research.custom.fi_short_interest_event_risk_interaction_migration
+
+      - name: Run SI event risk grid migration
+        run: |
+          python -m ml.research.discovery.si_event_risk_grid_migration
+
+      - name: Run interaction analysis migration
+        run: |
+          python -m ml.research.custom.si_volatility_interaction_migration
+
+      - name: Run incremental SI migration
+        run: |
+          python -m ml.research.custom.incremental_si_analysis_migration
+
+      - name: Compare SI volatility interaction
+        run: |
+          python -m ml.research.migration_comparator \
+            --analysis si_volatility_interaction \
+            --old data/processed/ml/research/migration/legacy/si_volatility_interaction.json \
+            --new data/processed/ml/research/migration/new/si_volatility_interaction.json \
+            --output data/processed/ml/research/migration/comparison/si_volatility_interaction.json
+
+      - name: Compare incremental SI
+        run: |
+          python -m ml.research.migration_comparator \
+            --analysis incremental_si \
+            --old data/processed/ml/research/migration/legacy/incremental_si.json \
+            --new data/processed/ml/research/migration/new/incremental_si.json \
+            --output data/processed/ml/research/migration/comparison/incremental_si.json
+
+      - name: Upload migration comparison artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
