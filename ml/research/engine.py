@@ -175,15 +175,16 @@ def _return_metrics(
     ci_high = None
 
     if bootstrap:
-        ci_low, ci_high = (
-            bootstrap_mean_difference(
-                selected_values,
-                rest_values,
-                iterations=(
-                    bootstrap_iterations
-                ),
-                seed=seed,
-            )
+        (
+            ci_low,
+            ci_high,
+        ) = bootstrap_mean_difference(
+            selected_values,
+            rest_values,
+            iterations=(
+                bootstrap_iterations
+            ),
+            seed=seed,
         )
 
     return {
@@ -242,18 +243,12 @@ def _analyse_tail(
         target_name
     ]
 
-    return_column = getattr(
-        target_config,
-        "return_column",
-        None,
+    return_column = (
+        target_config.return_column
     )
 
-    returns = (
-        cache.returns.get(
-            return_column
-        )
-        if return_column
-        else None
+    returns = cache.returns.get(
+        return_column
     )
 
     metrics = _binary_metrics(
@@ -347,18 +342,12 @@ def _analyse_interaction(
         target_name
     ]
 
-    return_column = getattr(
-        target_config,
-        "return_column",
-        None,
+    return_column = (
+        target_config.return_column
     )
 
-    returns = (
-        cache.returns.get(
-            return_column
-        )
-        if return_column
-        else None
+    returns = cache.returns.get(
+        return_column
     )
 
     metrics = _binary_metrics(
@@ -474,7 +463,7 @@ def run_spec(
 
     else:
         raise ValueError(
-            f"Unsupported analysis type: "
+            "Unsupported analysis type: "
             f"{spec.analysis.type}"
         )
 
