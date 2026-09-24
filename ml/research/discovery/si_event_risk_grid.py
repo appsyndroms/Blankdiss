@@ -829,37 +829,10 @@ def run(
     train_end: str | pd.Timestamp,
     validation_end: str | pd.Timestamp,
     test_end: str | pd.Timestamp,
-    horizons: tuple[int, ...] = HORIZONS,
-    event_thresholds: tuple[float, ...] = (
-        EVENT_THRESHOLDS
-    ),
-    risk_cutoffs: tuple[float, ...] = (
-        RISK_CUTOFFS
-    ),
-    si_change_cutoffs: tuple[float, ...] = (
-        SI_CHANGE_CUTOFFS
-    ),
-    downside_targets: tuple[float, ...] = (
-        DOWNSIDE_TARGETS
-    ),
 ) -> tuple[
     pd.DataFrame,
     dict[str, object],
 ]:
-    """
-    Run the SI/event-risk discovery grid.
-
-    The split-local short-interest dynamics deliberately mirror the
-    original diagnostic:
-
-        train
-        validation
-        pretest
-        test
-
-    each receives its own short-interest change calculation.
-    """
-
     data = frame.copy()
 
     data["snapshot_date"] = pd.to_datetime(
@@ -880,174 +853,88 @@ def run(
     )
 
     train = data[
-        data["snapshot_date"]
-        <= train_end
+        data["snapshot_date"] <= train_end
     ].copy()
 
     validation = data[
-        (
-            data["snapshot_date"]
-            > train_end
-        )
-        & (
-            data["snapshot_date"]
-            <= validation_end
-        )
+        (data["snapshot_date"] > train_end)
+        & (data["snapshot_date"] <= validation_end)
     ].copy()
 
     pretest = data[
-        data["snapshot_date"]
-        <= validation_end
+        data["snapshot_date"] <= validation_end
     ].copy()
 
     test = data[
-        (
-            data["snapshot_date"]
-            > validation_end
-        )
-        & (
-            data["snapshot_date"]
-            <= test_end
-        )
+        (data["snapshot_date"] > validation_end)
+        & (data["snapshot_date"] <= test_end)
     ].copy()
 
-    # Preserve old split-local SI dynamics.
-    train = _prepare_frame(
-        train,
-        horizons[0],
-    )
-
-    validation = _prepare_frame(
-        validation,
-        horizons[0],
-    )
-
-    pretest = _prepare_frame(
-        pretest,
-        horizons[0],
-    )
-
-    test = _prepare_frame(
-        test,
-        horizons[0],
-    )
-
-    # _prepare_frame above validates and adds the SI dynamics.
-    # The return column is horizon-specific, so validate every
-    # requested horizon before running the grid.
-    for horizon in horizons:
-        return_column = _return_column(
-            horizon
-        )
-
-        for split_name, split in (
-            ("train", train),
-            ("validation", validation),
-            ("pretest", pretest),
-            ("test", test),
-        ):
-            if return_column not in split.columns:
-                raise KeyError(
-                    f"Missing required return column "
-                    f"{return_column} in {split_name}."
-                )
-
-            split[return_column] = _numeric(
-                split,
-                return_column,
-            )
-
-    # The historical diagnostic uses the exact same SI-change
-    # values for every horizon because the SI dynamics do not
-    # depend on horizon.
     all_rows: list[dict] = []
 
-    original_event_thresholds = EVENT_THRESHOLDS
-    original_risk_cutoffs = RISK_CUTOFFS
-    original_si_change_cutoffs = SI_CHANGE_CUTOFFS
-    original_downside_targets = DOWNSIDE_TARGETS
+    for horizon in HORIZONS:
+        prepared_train = _prepare_frame(
+            train,
+            horizon,
+        )
 
-    try:
-        # The grid helper reads the module constants. For normal
-        # migration these equal the defaults, so no mutation is
-        # required. Explicit arguments are retained in the public
-        # API for discoverability and validation.
-        if tuple(event_thresholds) != tuple(
-            original_event_thresholds
-        ):
-            raise ValueError(
-                "Custom event_thresholds are not supported "
-                "without extending the grid helper."
-            )
+        prepared_validation = _prepare_frame(
+            validation,
+            horizon,
+        )
 
-        if tuple(risk_cutoffs) != tuple(
-            original_risk_cutoffs
-        ):
-            raise ValueError(
-                "Custom risk_cutoffs are not supported "
-                "without extending the grid helper."
-            )
+        prepared_pretest = _prepare_frame(
+            pretest,
+            horizon,
+        )
 
-        if tuple(si_change_cutoffs) != tuple(
-            original_si_change_cutoffs
-        ):
-            raise ValueError(
-                "Custom si_change_cutoffs are not supported "
-                "without extending the grid helper."
-            )
+        prepared_test = _prepare_frame(
+            test,
+            horizon,
+        )
 
-        if tuple(downside_targets) != tuple(
-            original_downside_targets
-        ):
-            raise ValueError(
-                "Custom downside_targets are not supported "
-                "without extending the grid helper."
+        all_rows.extend(
+            _run_grid_for_horizon(
+                prepared_train,
+                prepared_validation,
+                prepared_pretest,
+                prepared_test,
+                horizon,
             )
-
-        for horizon in horizons:
-            all_rows.extend(
-                _run_grid_for_horizon(
-                    train,
-                    validation,
-                    pretest,
-                    test,
-                    horizon,
-                )
-            )
-    finally:
-        pass
+        )
 
     grid = pd.DataFrame(
         all_rows
     )
 
-    if grid.empty:
+    if not grid.empty:
+        grid["selection_stage"] = (
+            "discovery_grid"
+        )
+
+        grid["is_discovery_grid"] = True
+    else:
         grid = pd.DataFrame(
             columns=[
                 "selection_stage",
                 "is_discovery_grid",
             ]
         )
-    else:
-        grid["selection_stage"] = (
-            "discovery_grid"
-        )
-        grid["is_discovery_grid"] = True
 
     metrics: dict[str, object] = {
         "analysis_type": "discovery_grid",
-        "horizons": list(horizons),
+        "horizons": list(HORIZONS),
         "event_thresholds": list(
-            event_thresholds
+            EVENT_THRESHOLDS
         ),
         "risk_cutoffs": list(
-            risk_cutoffs
+            RISK_CUTOFFS
         ),
         "si_change_cutoffs": list(
-            si_change_cutoffs
+            SI_CHANGE_CUTOFFS
         ),
         "downside_targets": list(
-            downside_targets
+            DOWNSIDE_TARGETS
         ),
         "result_rows": len(grid),
     }
