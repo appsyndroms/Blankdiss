@@ -1,0 +1,51 @@
+id: fi_volatility_interaction_scan
+
+question: >
+  Är downside-event-risk särskilt hög när short interest och
+  marknadsvolatilitet samtidigt ligger högt?
+
+mode: scan
+
+signals:
+  - name: short_interest_level
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+  - down_5pct_20d
+  - down_10pct_60d
+
+analysis:
+  type: interaction
+  bootstrap: false
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - test
+
+metadata:
+  stage: signal_mapping
+  purpose: fi_volatility_interaction
+  hypothesis: >
+    Hög short interest kan ha annan betydelse i en högvolatil miljö
+    än i en lågvolatil miljö.
