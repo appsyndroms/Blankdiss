@@ -5,10 +5,9 @@ on:
     inputs:
       ai_lab:
         description: >
-          AI Lab experiment-spec som JSON. Lämna tomt för normalt Blankdiss-flöde.
-        required: false
+          AI Lab experiment-spec som JSON.
+        required: true
         type: string
-        default: ""
 
 permissions:
   contents: write
@@ -37,35 +36,50 @@ jobs:
       # ============================================================
 
       - name: Run AI Lab experiment
-        if: ${{ inputs.ai_lab != '' }}
         env:
           AI_LAB_SPEC: ${{ inputs.ai_lab }}
         run: |
+          echo "=== AI LAB INPUT ==="
+          printf '%s\n' "$AI_LAB_SPEC"
+          echo "===================="
+
           mkdir -p data/ai_lab/inbox
           mkdir -p data/ai_lab/results
 
           printf '%s\n' "$AI_LAB_SPEC" \
             > data/ai_lab/inbox/experiment.json
 
+          echo "=== EXPERIMENT FILE ==="
+          cat data/ai_lab/inbox/experiment.json
+          echo "======================="
+
+          echo "=== RUNNING AI LAB ==="
           python -u ml/ai-lab/ai_lab_runner.py \
             data/ai_lab/inbox/experiment.json
 
       # ============================================================
-      # BEFINTLIGA BLANKDISS-STEG
+      # AI LAB RESULTS
       # ============================================================
 
-      # ... alla befintliga steg i blankdiss.yml ligger kvar här ...
-      #
-      # Viktigt:
-      # AI Lab-steget ska inte ersätta den befintliga körningen.
-      # Det är ett extra läge.
+      - name: Show AI Lab results
+        if: always()
+        run: |
+          echo "=== AI LAB RESULTS ==="
+
+          if [ -d data/ai_lab/results ]; then
+            find data/ai_lab/results -maxdepth 3 -type f -print
+          else
+            echo "No results directory found."
+          fi
+
+          echo "======================"
 
       # ============================================================
       # COMMIT GENERATED DATA
       # ============================================================
 
       - name: Commit generated data
-        if: always() && inputs.ai_lab != ''
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
