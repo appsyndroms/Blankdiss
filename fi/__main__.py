@@ -2,7 +2,7 @@
 CLI för FI-data i Blankdiss.
 
 Hämtar FI:s aggregerade blankningsdata
-och sparar den som en tidsstämplad snapshot.
+och sparar den som tidsstämplade snapshots.
 
 Körs med:
 
@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import timedelta
 
+from .backfill import recover_missing_dates, snapshot_dates
 from .current import fetch_current
 from .errors import FIError
+from .normalize import now_stockholm
 from .storage import write_snapshot
 
 
@@ -37,11 +40,86 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "Hämta aktuell FI-data utan "
-            "någon annan pipeline."
+            "historisk backfill."
         ),
     )
 
     return parser.parse_args()
+
+
+def run_backfill() -> None:
+    """
+    Försöker återställa saknade FI-vardagar
+    innan aktuell snapshot hämtas.
+    """
+
+    existing = snapshot_dates()
+
+    if existing:
+        start = (
+            min(existing)
+            + timedelta(days=1)
+        )
+    else:
+        start = None
+
+    end = (
+        now_stockholm().date()
+        - timedelta(days=1)
+    )
+
+    if start is None:
+        print(
+            "FI backfill: ingen befintlig "
+            "FI-historik hittades."
+        )
+        print(
+            "FI backfill: använder "
+            "standardstart för historik."
+        )
+    elif start > end:
+        print(
+            "FI backfill: ingen historisk "
+            "lucka att kontrollera."
+        )
+        return
+
+    print()
+    print(
+        "=========================================="
+    )
+    print(
+        "FI BACKFILL"
+    )
+    print(
+        "=========================================="
+    )
+
+    if start is None:
+        recovered, unresolved = (
+            recover_missing_dates(
+                end=end,
+            )
+        )
+    else:
+        recovered, unresolved = (
+            recover_missing_dates(
+                start=start,
+                end=end,
+            )
+        )
+
+    print()
+    print(
+        "FI backfill resultat:"
+    )
+    print(
+        f"  återställda dagar: {recovered}"
+    )
+    print(
+        f"  kvarvarande luckor: {unresolved}"
+    )
+    print()
 
 
 def run_current() -> None:
@@ -87,6 +165,9 @@ def main() -> int:
     args = parse_args()
 
     try:
+        if not args.current_only:
+            run_backfill()
+
         run_current()
 
         if args.current_only:
@@ -110,4 +191,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        main()
+    )
