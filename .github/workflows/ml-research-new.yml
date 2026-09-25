@@ -2,12 +2,6 @@ name: AI-lab research
 
 on:
   workflow_dispatch:
-    inputs:
-      ai_lab:
-        description: >
-          AI Lab experiment-spec som JSON.
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -36,29 +30,26 @@ jobs:
       # ============================================================
 
       - name: Run AI Lab experiment
-        env:
-          AI_LAB_SPEC: ${{ inputs.ai_lab }}
         run: |
-          echo "=== AI LAB INPUT ==="
-          printf '%s\n' "$AI_LAB_SPEC"
-          echo "===================="
-
           mkdir -p data/ai_lab/inbox
           mkdir -p data/ai_lab/results
 
-          printf '%s\n' "$AI_LAB_SPEC" \
-            > data/ai_lab/inbox/experiment.json
+          cat > data/ai_lab/inbox/experiment.json <<'EOF'
+          {
+            "experiment_id": "ai_lab_smoke_test",
+            "experiment": "smoke_test"
+          }
+          EOF
 
-          echo "=== EXPERIMENT FILE ==="
+          echo "=== AI LAB EXPERIMENT ==="
           cat data/ai_lab/inbox/experiment.json
-          echo "======================="
+          echo "========================="
 
-          echo "=== RUNNING AI LAB ==="
           python -u ml/ai-lab/ai_lab_runner.py \
             data/ai_lab/inbox/experiment.json
 
       # ============================================================
-      # AI LAB RESULTS
+      # SHOW RESULTS
       # ============================================================
 
       - name: Show AI Lab results
