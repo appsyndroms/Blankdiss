@@ -54,10 +54,30 @@ Den normala vägen från idé till resultat är:
 
 Ny hypotes
     ↓
-Kan den uttryckas deklarativt?
-    ↓
-YAML research spec
-    ↓
+Kan befintlig Research Engine uttrycka den?
+    │
+    ├── JA
+    │    ↓
+    │  YAML research spec
+    │    ↓
+    │  SCAN
+    │
+    └── NEJ
+         ↓
+    Behövs en ny generell analysform?
+         │
+         ├── JA
+         │    ↓
+         │  Utöka Research Engine
+         │    ↓
+         │  YAML research spec
+         │    ↓
+         │  SCAN
+         │
+         └── NEJ
+              ↓
+         custom / Diagnostics
+
 SCAN
     ↓
 Intressant resultat?
@@ -69,6 +89,39 @@ Robusthet / specialanalys
 OOS-resultat
 
 Målet är att en ny vanlig hypotes ska kunna testas utan att en ny Python-fil, experimentklass eller workflow behöver byggas.
+
+⸻
+
+Viktig arkitekturregel
+
+En ny hypotes och en ny analysform är två olika saker.
+
+Ny hypotes:
+    YAML
+
+Ny generell analysform:
+    Engine + YAML
+
+Unik specialanalys:
+    custom/ eller Diagnostics
+
+Man ska inte skapa standalone-analyser bara för att den första hypotesen av en viss typ kräver ny Engine-funktionalitet.
+
+Om Research Engine exempelvis saknar stöd för en generell modelljämförelse ska modelljämförelsen implementeras som en generell Engine-funktion.
+
+Därefter uttrycks den konkreta hypotesen som YAML.
+
+Det ska alltså inte bli:
+
+Ny hypotes
+    ↓
+ny Python-fil
+    ↓
+ny experimentklass
+    ↓
+ny registry
+    ↓
+ny workflow
 
 ⸻
 
@@ -175,7 +228,61 @@ Exempel:
 
 Principen är:
 
-Använd Research när frågan är generell. Använd Diagnostics när frågan kräver speciallogik.
+Använd Research när frågan är generell.
+
+Om Research Engine saknar den generella analysförmåga som behövs ska Engine utökas innan hypotesen flyttas till Diagnostics.
+
+Använd Diagnostics när frågan kräver verkligt specialiserad logik.
+
+⸻
+
+Införande av nya forskningshypoteser
+
+När en ny forskningsidé uppstår ska följande ordning användas:
+
+1. Formulera forskningsfrågan.
+2. Läs relevant README-dokumentation.
+3. Kontrollera befintliga Research Engine-analysis types.
+4. Kontrollera befintliga signaler, targets och cache-funktionalitet.
+5. Avgör om hypotesen redan kan beskrivas med YAML.
+6. Om JA: skapa en YAML research spec.
+7. Om NEJ: identifiera vilken generell funktionalitet som saknas.
+8. Om den saknade funktionaliteten är generell: implementera den i Research Engine.
+9. Uttryck därefter den konkreta hypotesen i YAML.
+10. Om analysen inte är generell och kräver verkligt specialiserad logik: använd custom/ eller Diagnostics.
+11. Kör SCAN/DEEP.
+12. Verifiera OOS-resultat.
+13. Ta bort eventuell äldre standalone-/legacy-implementation när den nya vägen är verifierad.
+
+Exempel:
+
+Hypotes:
+    momentum
+    +
+    short-interest change
+    +
+    interaction
+
+Kontroll:
+    Finns analysis type?
+        │
+        ├── JA
+        │    ↓
+        │  YAML
+        │
+        └── NEJ
+             ↓
+        Är analysformen generell?
+             │
+             ├── JA
+             │    ↓
+             │  Engine
+             │    ↓
+             │  YAML
+             │
+             └── NEJ
+                  ↓
+             custom / Diagnostics
 
 ⸻
 
@@ -235,14 +342,18 @@ Designprinciper
 
 1. Hypotes före implementation.
 2. Generisk research före specialkod.
-3. SCAN före dyra analyser.
-4. OOS före slutsats.
-5. Ingen test leakage.
-6. Gemensam logik ska återanvändas.
-7. Resultat ska vara maskinläsbara.
-8. Specialanalys ska vara explicit.
-9. Död och duplicerad kod ska inte ligga kvar.
-10. Optimera för:
+3. Kontrollera befintlig Engine innan ny Python skrivs.
+4. Ny generell analysförmåga ska implementeras i Engine.
+5. Konkreta hypoteser ska normalt vara YAML.
+6. SCAN före dyra analyser.
+7. OOS före slutsats.
+8. Ingen test leakage.
+9. Gemensam logik ska återanvändas.
+10. Resultat ska vara maskinläsbara.
+11. Specialanalys ska vara explicit.
+12. Död och duplicerad kod ska inte ligga kvar.
+13. Legacy-implementationer ska tas bort efter verifierad migrering.
+14. Optimera för:
 
 idé → information
 
