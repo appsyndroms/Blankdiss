@@ -57,6 +57,32 @@ metadata:
       direction: upper
       fraction: 0.025
 
+  provenance:
+    source_stage: momentum_si_regime_walk_forward
+    source_spec: ml/research/specs/momentum_si_regime_walk_forward.yaml
+
+    locked_candidate:
+      momentum:
+        signal: price_momentum_5d
+        direction: lower
+        fraction: 0.20
+
+      short_interest:
+        signal: short_interest_change
+        direction: upper
+        fraction: 0.025
+
+    selection_status: explicitly_locked_before_confirmation_test
+
+    provenance_note: >
+      Confirmation-testet använder en redan låst kombination av
+      20 procent mest negativt 5-dagars momentum och 2,5 procent
+      högsta förändring i short interest. Walk-forward-steget
+      utvärderade den bredare 4x4-regimytan men är inte i sig ett
+      bevis på att just denna kombination valdes därifrån. Den
+      slutliga confirmation-körningen får därför inte använda
+      testdata för att välja eller ändra dessa parametrar.
+
   primary_endpoint:
     target: down_10pct_5d
     metric: absolute_event_rate_difference
