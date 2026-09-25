@@ -14,8 +14,8 @@
 
 ## Execution
 
-- Started: `2026-09-25T19:58:34.299710+00:00`
-- Finished: `2026-09-25T19:58:34.299752+00:00`
+- Started: `2026-09-25T20:04:50.504970+00:00`
+- Finished: `2026-09-25T20:04:50.505006+00:00`
 
 ## Result
 
@@ -42,7 +42,7 @@
     "spec_count": 10,
     "research_run_count": 0,
     "completed_spec_count": 0,
-    "open_question_count": 10,
+    "open_question_count": 6,
     "locked_spec_count": 1
   },
   "warnings": [

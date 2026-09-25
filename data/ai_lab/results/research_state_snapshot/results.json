@@ -7,13 +7,13 @@
     "experiment": "research_state"
   },
   "execution": {
-    "started_at": "2026-09-25T19:58:33.864000+00:00",
-    "finished_at": "2026-09-25T19:58:33.890936+00:00",
+    "started_at": "2026-09-25T20:04:50.391733+00:00",
+    "finished_at": "2026-09-25T20:04:50.422393+00:00",
     "success": true,
     "experiment": "research_state",
     "result": {
-      "state_version": 1,
-      "created_at_utc": "2026-09-25T19:58:33.890927+00:00",
+      "state_version": 2,
+      "created_at_utc": "2026-09-25T20:04:50.422380+00:00",
       "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
       "repository": "appsyndroms/Blankdiss",
       "research": {
@@ -922,33 +922,9 @@
             "locked": false
           },
           {
-            "spec_id": "momentum_si_prospective_confirmation",
-            "question": "Bekräftar nya, tidigare inte använda data att förändring i short interest tillför downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
-            "stage": "prospective_confirmation",
-            "locked": true
-          },
-          {
             "spec_id": "momentum_si_regime_walk_forward",
             "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n",
             "stage": "hypothesis_test",
-            "locked": false
-          },
-          {
-            "spec_id": "si_momentum_downside_scan",
-            "question": "Är hög förändring i short interest särskilt associerad med downside-risk när tidigare momentum är högt?\n",
-            "stage": "migration",
-            "locked": false
-          },
-          {
-            "spec_id": "si_volatility_downside_interaction",
-            "question": "Är hög förändring i short interest särskilt associerad med downside-risk när volatiliteten samtidigt är hög?\n",
-            "stage": "migration",
-            "locked": false
-          },
-          {
-            "spec_id": "tail_signal_scan",
-            "question": "Vilka enskilda signaler har en tydlig relation till framtida event-risk och framtida avkastning?\n",
-            "stage": "migration",
             "locked": false
           }
         ]
@@ -971,8 +947,8 @@
             "description": "Controlled experiment proposal generated from the current Blankdiss research state.",
             "success": true,
             "experiment": "experiment_planner",
-            "started_at": "2026-09-25T19:44:48.871680+00:00",
-            "finished_at": "2026-09-25T19:44:48.871713+00:00"
+            "started_at": "2026-09-25T19:58:34.299710+00:00",
+            "finished_at": "2026-09-25T19:58:34.299752+00:00"
           },
           {
             "path": "data/ai_lab/results/research_state_snapshot/results.json",
@@ -980,8 +956,8 @@
             "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
             "success": true,
             "experiment": "research_state",
-            "started_at": "2026-09-25T19:44:48.734728+00:00",
-            "finished_at": "2026-09-25T19:44:48.778325+00:00"
+            "started_at": "2026-09-25T19:58:33.864000+00:00",
+            "finished_at": "2026-09-25T19:58:33.890936+00:00"
           }
         ]
       },
