@@ -142,7 +142,10 @@ def bootstrap_mean_difference(
 
         differences[
             offset:offset + current
-        ] = tail_means - rest_means
+        ] = (
+            tail_means
+            - rest_means
+        )
 
         offset += current
 
@@ -171,10 +174,10 @@ def bootstrap_binary_rate_difference(
         event_rate(combined)
         - event_rate(baseline)
 
-    baseline_selected must contain combined_selected.
+    baseline_selected måste innehålla combined_selected.
 
-    The bootstrap resamples the complete baseline regime so that
-    the dependence between the two nested selections is retained.
+    Bootstrapen resamplar hela baseline-regimen så att den
+    nästlade relationen mellan baseline och combined bevaras.
     """
     target = np.asarray(
         target,
