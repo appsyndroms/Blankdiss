@@ -555,7 +555,6 @@ def _analyse_regime_comparison(
 
     return {
         "analysis": "regime_comparison",
-
         "baseline_signal": (
             baseline_signal.name
         ),
@@ -565,7 +564,6 @@ def _analyse_regime_comparison(
         "baseline_fraction": (
             baseline_fraction
         ),
-
         "incremental_signal": (
             incremental_signal.name
         ),
@@ -575,11 +573,9 @@ def _analyse_regime_comparison(
         "incremental_fraction": (
             incremental_fraction
         ),
-
         "target": target_name,
         "window": window_name,
         "split": split_name,
-
         "baseline_n": (
             baseline_metrics["n"]
         ),
@@ -589,7 +585,6 @@ def _analyse_regime_comparison(
         "baseline_event_rate": (
             baseline_rate
         ),
-
         "combined_n": (
             combined_metrics["n"]
         ),
@@ -599,13 +594,10 @@ def _analyse_regime_comparison(
         "combined_event_rate": (
             combined_rate
         ),
-
         "absolute_event_rate_difference": (
             absolute_difference
         ),
-
         "lift": lift,
-
         "bootstrap_ci_low": ci_low,
         "bootstrap_ci_high": ci_high,
     }
@@ -693,27 +685,27 @@ def run_spec(
             ):
                 for incremental_fraction in (
                     incremental_signal.bins
-            ):
-                for window_name in spec.windows:
-                    for split_name in spec.splits:
-                        results.append(
-                            _analyse_regime_comparison(
-                                cache,
-                                baseline_signal,
-                                incremental_signal,
-                                target_name,
-                                baseline_fraction,
-                                incremental_fraction,
-                                window_name,
-                                split_name,
-                                bootstrap=bootstrap,
-                                bootstrap_iterations=(
-                                    spec.analysis
-                                    .bootstrap_iterations
-                                ),
-                                spec_id=spec.id,
+                ):
+                    for window_name in spec.windows:
+                        for split_name in spec.splits:
+                            results.append(
+                                _analyse_regime_comparison(
+                                    cache,
+                                    baseline_signal,
+                                    incremental_signal,
+                                    target_name,
+                                    baseline_fraction,
+                                    incremental_fraction,
+                                    window_name,
+                                    split_name,
+                                    bootstrap=bootstrap,
+                                    bootstrap_iterations=(
+                                        spec.analysis
+                                        .bootstrap_iterations
+                                    ),
+                                    spec_id=spec.id,
+                                )
                             )
-                        )
 
     else:
         raise ValueError(
