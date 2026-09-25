@@ -114,12 +114,6 @@ def _regime_rate(
     target: np.ndarray,
     selected: np.ndarray,
 ) -> dict[str, Any]:
-    """
-    Event-rate metrics for a specified regime.
-
-    Unlike _binary_metrics, baseline_event_rate here is not the
-    complete window. The caller supplies the regime explicitly.
-    """
     valid = (
         np.isfinite(target)
         & selected
@@ -228,9 +222,7 @@ def _return_metrics(
         ) = bootstrap_mean_difference(
             selected_values,
             rest_values,
-            iterations=(
-                bootstrap_iterations
-            ),
+            iterations=bootstrap_iterations,
             seed=seed,
         )
 
@@ -240,9 +232,7 @@ def _return_metrics(
         ),
         "mean_return": mean_return,
         "median_return": median_return,
-        "return_difference": (
-            return_difference
-        ),
+        "return_difference": return_difference,
         "bootstrap_ci_low": ci_low,
         "bootstrap_ci_high": ci_high,
     }
@@ -290,12 +280,8 @@ def _analyse_tail(
         target_name
     ]
 
-    return_column = (
-        target_config.return_column
-    )
-
     returns = cache.returns.get(
-        return_column
+        target_config.return_column
     )
 
     metrics = _binary_metrics(
@@ -317,9 +303,7 @@ def _analyse_tail(
         selected,
         window_mask,
         bootstrap=bootstrap,
-        bootstrap_iterations=(
-            bootstrap_iterations
-        ),
+        bootstrap_iterations=bootstrap_iterations,
         seed=seed,
     )
 
@@ -390,12 +374,8 @@ def _analyse_interaction(
         target_name
     ]
 
-    return_column = (
-        target_config.return_column
-    )
-
     returns = cache.returns.get(
-        return_column
+        target_config.return_column
     )
 
     metrics = _binary_metrics(
@@ -419,9 +399,7 @@ def _analyse_interaction(
         selected,
         window_mask,
         bootstrap=bootstrap,
-        bootstrap_iterations=(
-            bootstrap_iterations
-        ),
+        bootstrap_iterations=bootstrap_iterations,
         seed=seed,
     )
 
@@ -467,12 +445,8 @@ def _analyse_regime_comparison(
 
     Combined:
         baseline tail AND incremental signal tail
-
-    Den primära jämförelsen är:
-
-        combined_event_rate
-        - baseline_event_rate
     """
+
     target = cache.targets[
         target_name
     ]
@@ -504,17 +478,13 @@ def _analyse_regime_comparison(
         window_mask
     ]
 
-    baseline_in_window = (
-        baseline_mask[
-            window_mask
-        ]
-    )
+    baseline_in_window = baseline_mask[
+        window_mask
+    ]
 
-    combined_in_window = (
-        combined_mask[
-            window_mask
-        ]
-    )
+    combined_in_window = combined_mask[
+        window_mask
+    ]
 
     baseline_metrics = _regime_rate(
         target_in_window,
@@ -633,6 +603,7 @@ def _analyse_regime_comparison(
         "absolute_event_rate_difference": (
             absolute_difference
         ),
+
         "lift": lift,
 
         "bootstrap_ci_low": ci_low,
@@ -722,27 +693,27 @@ def run_spec(
             ):
                 for incremental_fraction in (
                     incremental_signal.bins
-                ):
-                    for window_name in spec.windows:
-                        for split_name in spec.splits:
-                            results.append(
-                                _analyse_regime_comparison(
-                                    cache,
-                                    baseline_signal,
-                                    incremental_signal,
-                                    target_name,
-                                    baseline_fraction,
-                                    incremental_fraction,
-                                    window_name,
-                                    split_name,
-                                    bootstrap=bootstrap,
-                                    bootstrap_iterations=(
-                                        spec.analysis
-                                        .bootstrap_iterations
-                                    ),
-                                    spec_id=spec.id,
-                                )
+            ):
+                for window_name in spec.windows:
+                    for split_name in spec.splits:
+                        results.append(
+                            _analyse_regime_comparison(
+                                cache,
+                                baseline_signal,
+                                incremental_signal,
+                                target_name,
+                                baseline_fraction,
+                                incremental_fraction,
+                                window_name,
+                                split_name,
+                                bootstrap=bootstrap,
+                                bootstrap_iterations=(
+                                    spec.analysis
+                                    .bootstrap_iterations
+                                ),
+                                spec_id=spec.id,
                             )
+                        )
 
     else:
         raise ValueError(
