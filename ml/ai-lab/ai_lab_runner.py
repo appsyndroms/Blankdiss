@@ -272,3 +272,7 @@ def write_results(
 
 ```json
 {result_json}
+if name == “main”:
+raise SystemExit(
+main()
+)
