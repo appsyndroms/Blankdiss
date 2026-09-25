@@ -16,6 +16,7 @@ from __future__ import annotations
 from datetime import time
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -226,6 +227,61 @@ def _download_history(
             <= end_date
         )
     ].copy()
+
+    # Yahoo/yfinance kan ibland returnera enstaka
+    # råobservationer utan ett giltigt Close-värde.
+    #
+    # Dessa är inte användbara marknadsobservationer
+    # och ska därför filtreras bort innan den strikta
+    # marknadsvalideringen körs.
+    invalid_rows = market[
+        (
+            market[
+                "market_date"
+            ].isna()
+        )
+        |
+        (
+            market[
+                "market_close"
+            ].isna()
+        )
+        |
+        (
+            ~np.isfinite(
+                market[
+                    "market_close"
+                ].to_numpy(
+                    dtype=float
+                )
+            )
+        )
+        |
+        (
+            market[
+                "market_close"
+            ]
+            <= 0
+        )
+    ]
+
+    if not invalid_rows.empty:
+        print(
+            "Yahoo/yfinance returnerade "
+            f"{len(invalid_rows)} ogiltiga "
+            "råobservationer. "
+            "Dessa ignoreras före validering."
+        )
+
+        print(
+            invalid_rows.to_string(
+                index=False
+            )
+        )
+
+        market = market.drop(
+            invalid_rows.index
+        )
 
     market = _validate_market_frame(
         market,
