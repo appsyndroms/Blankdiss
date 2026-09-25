@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
 
 def run_backfill() -> None:
     """
-    Försöker återställa saknade FI-vardagar
+    Försöker återställa saknade FI-dagar
     innan aktuell snapshot hämtas.
     """
 
@@ -68,16 +68,7 @@ def run_backfill() -> None:
         - timedelta(days=1)
     )
 
-    if start is None:
-        print(
-            "FI backfill: ingen befintlig "
-            "FI-historik hittades."
-        )
-        print(
-            "FI backfill: använder "
-            "standardstart för historik."
-        )
-    elif start > end:
+    if start is not None and start > end:
         print(
             "FI backfill: ingen historisk "
             "lucka att kontrollera."
@@ -95,19 +86,12 @@ def run_backfill() -> None:
         "=========================================="
     )
 
-    if start is None:
-        recovered, unresolved = (
-            recover_missing_dates(
-                end=end,
-            )
+    recovered, unresolved = (
+        recover_missing_dates(
+            start=start,
+            end=end,
         )
-    else:
-        recovered, unresolved = (
-            recover_missing_dates(
-                start=start,
-                end=end,
-            )
-        )
+    )
 
     print()
     print(
