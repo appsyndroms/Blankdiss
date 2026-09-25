@@ -1,5 +1,5 @@
 {
-  "experiment_id": "ai_lab_smoke_test",
-  "description": "Minimal end-to-end smoke test for the AI Lab execution pipeline.",
-  "experiment": "smoke_test"
+  "experiment_id": "research_state_snapshot",
+  "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
+  "experiment": "research_state"
 }
