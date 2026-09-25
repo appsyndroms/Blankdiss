@@ -122,6 +122,131 @@ jobs:
             data/ai_lab/inbox/experiment_planner.json
 
       # ============================================================
+      # EXECUTE PLANNER PROPOSAL
+      # ============================================================
+
+      - name: Execute selected research proposal
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = Path(
+              "data/ai_lab/results/experiment_planner/results.json"
+          )
+
+          with source.open(
+              "r",
+              encoding="utf-8",
+          ) as handle:
+              payload = json.load(handle)
+
+          execution = payload.get(
+              "execution",
+              {},
+          )
+
+          result = execution.get(
+              "result",
+              {},
+          )
+
+          if result.get(
+              "status"
+          ) != "proposal_created":
+              raise SystemExit(
+                  "AI Lab planner did not create "
+                  "an executable proposal."
+              )
+
+          selection = result.get(
+              "selection",
+              {},
+          )
+
+          spec_id = selection.get(
+              "source_spec"
+          )
+
+          stage = selection.get(
+              "stage"
+          )
+
+          locked = selection.get(
+              "locked"
+          )
+
+          if not spec_id:
+              raise ValueError(
+                  "Planner proposal has no source_spec."
+              )
+
+          if locked is True:
+              raise ValueError(
+                  "Refusing to execute a locked "
+                  "research specification."
+              )
+
+          if stage == "migration":
+              raise ValueError(
+                  "Refusing to execute a migration "
+                  "specification."
+              )
+
+          spec_path = (
+              Path("ml/research/specs")
+              / f"{spec_id}.yaml"
+          )
+
+          if not spec_path.exists():
+              raise FileNotFoundError(
+                  f"Planner selected missing spec: "
+                  f"{spec_path}"
+              )
+
+          print(
+              f"Executing planner proposal: {spec_id}"
+          )
+          print(
+              f"Stage: {stage}"
+          )
+          print(
+              f"Spec: {spec_path}"
+          )
+          PY
+
+          SPEC_ID=$(python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "data/ai_lab/results/experiment_planner/results.json"
+          )
+
+          with path.open(
+              "r",
+              encoding="utf-8",
+          ) as handle:
+              payload = json.load(handle)
+
+          print(
+              payload[
+                  "execution"
+              ][
+                  "result"
+              ][
+                  "selection"
+              ][
+                  "source_spec"
+              ]
+          )
+          PY
+          )
+
+          python -u ml/research/runner.py \
+            "ml/research/specs/${SPEC_ID}.yaml"
+
+      # ============================================================
       # SHOW RESULTS
       # ============================================================
 
@@ -149,9 +274,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data/ai_lab/
+          git add data/processed/ml/research/spec_runs/
 
           if git diff --cached --quiet; then
-            echo "No AI Lab changes to commit."
+            echo "No AI Lab or research changes to commit."
             exit 0
           fi
 
