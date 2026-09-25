@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-09-25T20:14:26.933311+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_incremental_si",
+      "mode": "scan",
+      "question": "Tillför förändring i short interest information om 5-dagars downside-risk utöver 20-dagars momentum, och tillför kombinationen av momentum och short-interest-förändring ytterligare information?\n",
+      "result": "data/processed/ml/research/spec_runs/20260925T201426Z/momentum_incremental_si.json",
+      "rows": 12
+    }
+  ]
+}
