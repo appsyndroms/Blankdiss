@@ -961,6 +961,10 @@ def recover_missing_dates(
     """
     Försöker återställa saknade FI-dagar.
 
+    Varje återställd dag sparas genom samma
+    write_snapshot() som används av dagens
+    FI-hämtning.
+
     Returnerar:
         (antal återställda dagar,
          antal dagar som fortfarande saknas)
@@ -1119,6 +1123,9 @@ def recover_missing_dates(
                 )
                 continue
 
+            # Samma lagringsväg som dagens FI-data.
+            # write_snapshot() skriver snapshotfilen
+            # och uppdaterar manifest.json.
             path = write_snapshot(
                 records
             )
