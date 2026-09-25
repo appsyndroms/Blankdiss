@@ -1,4 +1,5 @@
 {
   "experiment_id": "ai_lab_smoke_test",
+  "description": "Minimal end-to-end smoke test for the AI Lab execution pipeline.",
   "experiment": "smoke_test"
 }

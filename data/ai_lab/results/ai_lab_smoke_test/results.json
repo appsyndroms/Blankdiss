@@ -1,0 +1,24 @@
+{
+  "experiment_id": "ai_lab_smoke_test",
+  "description": "Minimal end-to-end smoke test for the AI Lab execution pipeline.",
+  "spec": {
+    "experiment_id": "ai_lab_smoke_test",
+    "description": "Minimal end-to-end smoke test for the AI Lab execution pipeline.",
+    "experiment": "smoke_test"
+  },
+  "execution": {
+    "started_at": "2026-09-25T19:06:53.500491+00:00",
+    "finished_at": "2026-09-25T19:06:53.500503+00:00",
+    "success": true,
+    "experiment": "smoke_test",
+    "result": {
+      "message": "AI Lab smoke test completed successfully.",
+      "experiment_id": "ai_lab_smoke_test",
+      "runner": "ml/ai-lab/ai_lab_runner.py"
+    }
+  },
+  "runner": {
+    "name": "ai_lab_runner",
+    "version": 3
+  }
+}
