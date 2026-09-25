@@ -22,6 +22,7 @@ It does not:
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -52,9 +53,20 @@ RESEARCH_RUNS_DIR = (
 )
 
 
-def _relative(path: Path) -> str:
+def utc_now() -> str:
+    """Return the current UTC timestamp."""
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
+
+
+def _relative(
+    path: Path,
+) -> str:
     """Return a repository-relative POSIX path."""
-    return path.relative_to(ROOT).as_posix()
+    return path.relative_to(
+        ROOT
+    ).as_posix()
 
 
 def _read_text(
@@ -78,7 +90,10 @@ def _read_json(
     ):
         return None
 
-    if not isinstance(payload, dict):
+    if not isinstance(
+        payload,
+        dict,
+    ):
         return None
 
     return payload
@@ -94,13 +109,13 @@ def _load_yaml_metadata(
         payload = yaml.safe_load(
             _read_text(path)
         )
-    except (
-        OSError,
-        Exception,
-    ):
+    except Exception:
         return {}
 
-    if not isinstance(payload, dict):
+    if not isinstance(
+        payload,
+        dict,
+    ):
         return {}
 
     metadata = payload.get(
@@ -108,44 +123,88 @@ def _load_yaml_metadata(
         {},
     )
 
-    if not isinstance(metadata, dict):
+    if not isinstance(
+        metadata,
+        dict,
+    ):
         metadata = {}
 
     return {
-        "id": payload.get("id"),
-        "question": payload.get("question"),
-        "mode": payload.get("mode"),
-        "analysis": payload.get("analysis"),
-        "targets": payload.get("targets"),
-        "signals": payload.get("signals"),
-        "windows": payload.get("windows"),
-        "splits": payload.get("splits"),
+        "id": payload.get(
+            "id"
+        ),
+        "question": payload.get(
+            "question"
+        ),
+        "mode": payload.get(
+            "mode"
+        ),
+        "analysis": payload.get(
+            "analysis"
+        ),
+        "targets": payload.get(
+            "targets"
+        ),
+        "signals": payload.get(
+            "signals"
+        ),
+        "windows": payload.get(
+            "windows"
+        ),
+        "splits": payload.get(
+            "splits"
+        ),
         "metadata": metadata,
     }
 
 
-def collect_research_specs() -> list[dict[str, Any]]:
+def collect_research_specs() -> list[
+    dict[str, Any]
+]:
     """Collect all declarative research specifications."""
     if not RESEARCH_SPEC_DIR.exists():
         return []
 
-    specs: list[dict[str, Any]] = []
+    specs: list[
+        dict[str, Any]
+    ] = []
 
     for path in sorted(
-        RESEARCH_SPEC_DIR.glob("*.yaml")
-    ):
-        metadata = _load_yaml_metadata(
-            path
+        RESEARCH_SPEC_DIR.glob(
+            "*.yaml"
         )
+    ):
+        metadata = (
+            _load_yaml_metadata(
+                path
+            )
+        )
+
+        spec_metadata = metadata.get(
+            "metadata",
+            {},
+        )
+
+        if not isinstance(
+            spec_metadata,
+            dict,
+        ):
+            spec_metadata = {}
 
         specs.append(
             {
-                "path": _relative(path),
-                "id": metadata.get("id"),
+                "path": _relative(
+                    path
+                ),
+                "id": metadata.get(
+                    "id"
+                ),
                 "question": metadata.get(
                     "question"
                 ),
-                "mode": metadata.get("mode"),
+                "mode": metadata.get(
+                    "mode"
+                ),
                 "analysis": metadata.get(
                     "analysis"
                 ),
@@ -161,23 +220,14 @@ def collect_research_specs() -> list[dict[str, Any]]:
                 "splits": metadata.get(
                     "splits"
                 ),
-                "metadata": metadata.get(
-                    "metadata",
-                    {},
-                ),
+                "metadata": spec_metadata,
                 "locked": bool(
-                    metadata.get(
-                        "metadata",
-                        {},
-                    ).get(
+                    spec_metadata.get(
                         "locked",
                         False,
                     )
                 ),
-                "stage": metadata.get(
-                    "metadata",
-                    {},
-                ).get(
+                "stage": spec_metadata.get(
                     "stage"
                 ),
             }
@@ -186,12 +236,16 @@ def collect_research_specs() -> list[dict[str, Any]]:
     return specs
 
 
-def collect_ai_lab_results() -> list[dict[str, Any]]:
+def collect_ai_lab_results() -> list[
+    dict[str, Any]
+]:
     """Collect completed AI Lab experiment results."""
     if not AI_LAB_RESULTS_DIR.exists():
         return []
 
-    experiments: list[dict[str, Any]] = []
+    experiments: list[
+        dict[str, Any]
+    ] = []
 
     for result_path in sorted(
         AI_LAB_RESULTS_DIR.glob(
@@ -245,12 +299,16 @@ def collect_ai_lab_results() -> list[dict[str, Any]]:
     return experiments
 
 
-def collect_research_runs() -> list[dict[str, Any]]:
+def collect_research_runs() -> list[
+    dict[str, Any]
+]:
     """Collect research-engine run manifests."""
     if not RESEARCH_RUNS_DIR.exists():
         return []
 
-    runs: list[dict[str, Any]] = []
+    runs: list[
+        dict[str, Any]
+    ] = []
 
     for manifest_path in sorted(
         RESEARCH_RUNS_DIR.glob(
@@ -286,7 +344,9 @@ def collect_research_runs() -> list[dict[str, Any]]:
                 "feature_rows": payload.get(
                     "feature_rows"
                 ),
-                "spec_count": len(specs),
+                "spec_count": len(
+                    specs
+                ),
                 "specs": specs,
             }
         )
@@ -295,21 +355,34 @@ def collect_research_runs() -> list[dict[str, Any]]:
 
 
 def identify_locked_research(
-    specs: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    specs: list[
+        dict[str, Any]
+    ],
+) -> list[
+    dict[str, Any]
+]:
     """Return research specifications marked as locked."""
     return [
         spec
         for spec in specs
-        if spec.get("locked") is True
+        if spec.get(
+            "locked"
+        )
+        is True
     ]
 
 
 def identify_open_questions(
-    specs: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    specs: list[
+        dict[str, Any]
+    ],
+) -> list[
+    dict[str, Any]
+]:
     """Return questions represented by current research specs."""
-    questions: list[dict[str, Any]] = []
+    questions: list[
+        dict[str, Any]
+    ] = []
 
     for spec in specs:
         question = spec.get(
@@ -338,45 +411,77 @@ def identify_open_questions(
     return questions
 
 
-def build_research_state() -> dict[str, Any]:
-    """Build the complete read-only research state."""
-    specs = collect_research_specs()
-    ai_lab_results = collect_ai_lab_results()
-    research_runs = collect_research_runs()
+def build_research_state(
+    spec: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the complete read-only research state.
 
-    locked_specs = identify_locked_research(
-        specs
+    The optional spec argument is part of the common AI Lab
+    experiment interface. The research-state experiment itself
+    does not currently need experiment-specific parameters.
+    """
+    del spec
+
+    specs = collect_research_specs()
+
+    ai_lab_results = (
+        collect_ai_lab_results()
     )
 
-    open_questions = identify_open_questions(
-        specs
+    research_runs = (
+        collect_research_runs()
+    )
+
+    locked_specs = (
+        identify_locked_research(
+            specs
+        )
+    )
+
+    open_questions = (
+        identify_open_questions(
+            specs
+        )
     )
 
     return {
         "state_version": 1,
+        "created_at_utc": utc_now(),
         "purpose": (
-            "Controlled research-state snapshot "
-            "for Blankdiss AI Lab."
+            "Controlled research-state "
+            "snapshot for Blankdiss AI Lab."
         ),
-        "repository": "appsyndroms/Blankdiss",
+        "repository": (
+            "appsyndroms/Blankdiss"
+        ),
         "research": {
-            "spec_count": len(specs),
+            "spec_count": len(
+                specs
+            ),
             "specs": specs,
             "locked_spec_count": len(
                 locked_specs
             ),
             "locked_specs": [
                 {
-                    "id": spec.get("id"),
-                    "path": spec.get("path"),
-                    "stage": spec.get("stage"),
+                    "id": spec.get(
+                        "id"
+                    ),
+                    "path": spec.get(
+                        "path"
+                    ),
+                    "stage": spec.get(
+                        "stage"
+                    ),
                     "question": spec.get(
                         "question"
                     ),
                 }
                 for spec in locked_specs
             ],
-            "open_questions": open_questions,
+            "open_questions": (
+                open_questions
+            ),
         },
         "ai_lab": {
             "result_count": len(
@@ -397,14 +502,27 @@ def render_research_state_report(
     state: dict[str, Any],
 ) -> str:
     """Render a human-readable research-state report."""
-    research = state["research"]
-    ai_lab = state["ai_lab"]
+    research = state[
+        "research"
+    ]
+
+    ai_lab = state[
+        "ai_lab"
+    ]
+
     research_runs = state[
         "research_runs"
     ]
 
     lines = [
         "# Blankdiss AI Lab — Research State",
+        "",
+        "## Snapshot",
+        "",
+        f"- Created: "
+        f"`{state['created_at_utc']}`",
+        f"- State version: "
+        f"`{state['state_version']}`",
         "",
         "## Overview",
         "",
@@ -426,23 +544,26 @@ def render_research_state_report(
     ]
 
     if locked_specs:
-        for spec in locked_specs:
+        for locked_spec in locked_specs:
             lines.extend(
                 [
-                    f"### `{spec['id']}`",
+                    f"### "
+                    f"`{locked_spec['id']}`",
                     "",
-                    f"- Path: `{spec['path']}`",
-                    f"- Stage: `{spec['stage']}`",
+                    f"- Path: "
+                    f"`{locked_spec['path']}`",
+                    f"- Stage: "
+                    f"`{locked_spec['stage']}`",
                     f"- Question: "
-                    f"{spec['question']}",
+                    f"{locked_spec['question']}",
                     "",
                 ]
             )
     else:
         lines.extend(
             [
-                "No locked research specifications "
-                "were found.",
+                "No locked research "
+                "specifications were found.",
                 "",
             ]
         )
@@ -462,14 +583,15 @@ def render_research_state_report(
         for question in questions:
             lines.extend(
                 [
-                    f"### `{question['spec_id']}`",
+                    f"### "
+                    f"`{question['spec_id']}`",
                     "",
                     question["question"],
                     "",
                     f"- Stage: "
-                    f"{question['stage']}",
+                    f"`{question['stage']}`",
                     f"- Locked: "
-                    f"{question['locked']}",
+                    f"`{question['locked']}`",
                     "",
                 ]
             )
@@ -496,7 +618,8 @@ def render_research_state_report(
         for result in results:
             lines.extend(
                 [
-                    f"### `{result['experiment_id']}`",
+                    f"### "
+                    f"`{result['experiment_id']}`",
                     "",
                     f"- Experiment: "
                     f"`{result['experiment']}`",
@@ -510,8 +633,8 @@ def render_research_state_report(
     else:
         lines.extend(
             [
-                "No completed AI Lab experiments "
-                "were found.",
+                "No completed AI Lab "
+                "experiments were found.",
                 "",
             ]
         )
@@ -559,7 +682,9 @@ def render_research_state_report(
         ]
     )
 
-    return "\n".join(lines)
+    return "\n".join(
+        lines
+    )
 
 
 def main() -> int:
@@ -578,4 +703,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        main()
+    )
