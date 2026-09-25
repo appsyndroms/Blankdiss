@@ -1,0 +1,95 @@
+id: event_risk_signal_scan
+
+question: >
+  Vilka enskilda signaler är associerade med framtida downside-event-risk,
+  och på vilka tidshorisonter är sambanden tydligast?
+
+mode: scan
+
+signals:
+  - name: short_interest_level
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: short_interest_acceleration
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_momentum_5d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+  - name: price_momentum_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+  - name: price_momentum_60d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+targets:
+  - down_3pct_5d
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+  - down_5pct_20d
+  - down_10pct_60d
+
+analysis:
+  type: tail
+  bootstrap: false
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - test
+
+metadata:
+  stage: signal_mapping
+  purpose: event_risk_scan
+  hypothesis:
+    - short_interest_level
+    - short_interest_change
+    - short_interest_acceleration
+    - price_momentum
+    - volatility
+  note: >
+    Broad SCAN used to identify which signal dimensions and horizons
+    deserve deeper investigation.
