@@ -87,7 +87,6 @@ jobs:
         with:
           name: blankdiss-research-${{ github.run_id }}
           path: |
-            data/processed/ml/research/spec_runs/**
-            data/processed/ml/research/diagnostics/**
+            data/processed/ml/research/**
           if-no-files-found: warn
           retention-days: 30
