@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from ml.research.bootstrap import (
+    bootstrap_binary_rate_difference,
     bootstrap_mean_difference,
 )
 from ml.research.cache import ResearchCache
@@ -105,6 +106,49 @@ def _binary_metrics(
             float(lift)
             if lift is not None
             else None
+        ),
+    }
+
+
+def _regime_rate(
+    target: np.ndarray,
+    selected: np.ndarray,
+) -> dict[str, Any]:
+    """
+    Event-rate metrics for a specified regime.
+
+    Unlike _binary_metrics, baseline_event_rate here is not the
+    complete window. The caller supplies the regime explicitly.
+    """
+    valid = (
+        np.isfinite(target)
+        & selected
+    )
+
+    if not valid.any():
+        return {
+            "n": 0,
+            "events": 0,
+            "event_rate": None,
+        }
+
+    events = (
+        target[valid] > 0
+    )
+
+    n = int(
+        valid.sum()
+    )
+
+    event_count = int(
+        events.sum()
+    )
+
+    return {
+        "n": n,
+        "events": event_count,
+        "event_rate": float(
+            event_count / n
         ),
     }
 
@@ -400,6 +444,202 @@ def _analyse_interaction(
     }
 
 
+def _analyse_regime_comparison(
+    cache: ResearchCache,
+    baseline_signal: SignalSpec,
+    incremental_signal: SignalSpec,
+    target_name: str,
+    baseline_fraction: float,
+    incremental_fraction: float,
+    window_name: str,
+    split_name: str,
+    *,
+    bootstrap: bool,
+    bootstrap_iterations: int,
+    spec_id: str,
+) -> dict[str, Any]:
+    """
+    Testar om incremental_signal tillför downside-risk
+    inom en redan definierad baseline-regim.
+
+    Baseline:
+        baseline signal tail
+
+    Combined:
+        baseline tail AND incremental signal tail
+
+    Den primära jämförelsen är:
+
+        combined_event_rate
+        - baseline_event_rate
+    """
+    target = cache.targets[
+        target_name
+    ]
+
+    window_mask = cache.window_masks[
+        window_name
+    ][split_name]
+
+    baseline_mask = cache.tail_masks[
+        _tail_key(
+            baseline_signal,
+            baseline_fraction,
+        )
+    ]
+
+    incremental_mask = cache.tail_masks[
+        _tail_key(
+            incremental_signal,
+            incremental_fraction,
+        )
+    ]
+
+    combined_mask = (
+        baseline_mask
+        & incremental_mask
+    )
+
+    target_in_window = target[
+        window_mask
+    ]
+
+    baseline_in_window = (
+        baseline_mask[
+            window_mask
+        ]
+    )
+
+    combined_in_window = (
+        combined_mask[
+            window_mask
+        ]
+    )
+
+    baseline_metrics = _regime_rate(
+        target_in_window,
+        baseline_in_window,
+    )
+
+    combined_metrics = _regime_rate(
+        target_in_window,
+        combined_in_window,
+    )
+
+    baseline_rate = (
+        baseline_metrics["event_rate"]
+    )
+
+    combined_rate = (
+        combined_metrics["event_rate"]
+    )
+
+    absolute_difference = None
+
+    if (
+        baseline_rate is not None
+        and combined_rate is not None
+    ):
+        absolute_difference = (
+            combined_rate
+            - baseline_rate
+        )
+
+    lift = None
+
+    if (
+        baseline_rate is not None
+        and baseline_rate > 0
+        and combined_rate is not None
+    ):
+        lift = (
+            combined_rate
+            / baseline_rate
+        )
+
+    seed = _stable_seed(
+        spec_id,
+        baseline_signal.name,
+        incremental_signal.name,
+        target_name,
+        baseline_fraction,
+        incremental_fraction,
+        window_name,
+        split_name,
+    )
+
+    ci_low = None
+    ci_high = None
+
+    if bootstrap:
+        (
+            ci_low,
+            ci_high,
+        ) = bootstrap_binary_rate_difference(
+            target_in_window,
+            baseline_in_window,
+            combined_in_window,
+            iterations=bootstrap_iterations,
+            seed=seed,
+        )
+
+    return {
+        "analysis": "regime_comparison",
+
+        "baseline_signal": (
+            baseline_signal.name
+        ),
+        "baseline_direction": (
+            baseline_signal.direction
+        ),
+        "baseline_fraction": (
+            baseline_fraction
+        ),
+
+        "incremental_signal": (
+            incremental_signal.name
+        ),
+        "incremental_direction": (
+            incremental_signal.direction
+        ),
+        "incremental_fraction": (
+            incremental_fraction
+        ),
+
+        "target": target_name,
+        "window": window_name,
+        "split": split_name,
+
+        "baseline_n": (
+            baseline_metrics["n"]
+        ),
+        "baseline_events": (
+            baseline_metrics["events"]
+        ),
+        "baseline_event_rate": (
+            baseline_rate
+        ),
+
+        "combined_n": (
+            combined_metrics["n"]
+        ),
+        "combined_events": (
+            combined_metrics["events"]
+        ),
+        "combined_event_rate": (
+            combined_rate
+        ),
+
+        "absolute_event_rate_difference": (
+            absolute_difference
+        ),
+        "lift": lift,
+
+        "bootstrap_ci_low": ci_low,
+        "bootstrap_ci_high": ci_high,
+    }
+
+
 def run_spec(
     cache: ResearchCache,
     spec: ResearchSpec,
@@ -455,6 +695,44 @@ def run_spec(
                                     target_name,
                                     x_fraction,
                                     y_fraction,
+                                    window_name,
+                                    split_name,
+                                    bootstrap=bootstrap,
+                                    bootstrap_iterations=(
+                                        spec.analysis
+                                        .bootstrap_iterations
+                                    ),
+                                    spec_id=spec.id,
+                                )
+                            )
+
+    elif spec.analysis.type == "regime_comparison":
+        if len(spec.signals) != 2:
+            raise ValueError(
+                "regime_comparison kräver exakt två signaler."
+            )
+
+        baseline_signal, incremental_signal = (
+            spec.signals
+        )
+
+        for target_name in spec.targets:
+            for baseline_fraction in (
+                baseline_signal.bins
+            ):
+                for incremental_fraction in (
+                    incremental_signal.bins
+                ):
+                    for window_name in spec.windows:
+                        for split_name in spec.splits:
+                            results.append(
+                                _analyse_regime_comparison(
+                                    cache,
+                                    baseline_signal,
+                                    incremental_signal,
+                                    target_name,
+                                    baseline_fraction,
+                                    incremental_fraction,
                                     window_name,
                                     split_name,
                                     bootstrap=bootstrap,
