@@ -243,7 +243,7 @@ jobs:
           PY
           )
 
-          python -u ml/research/runner.py \
+          PYTHONPATH=. python -u ml/research/runner.py \
             "ml/research/specs/${SPEC_ID}.yaml"
 
       # ============================================================
@@ -261,6 +261,14 @@ jobs:
             echo "No results directory found."
           fi
 
+          echo "=== RESEARCH ENGINE RESULTS ==="
+
+          if [ -d data/processed/ml/research/spec_runs ]; then
+            find data/processed/ml/research/spec_runs -maxdepth 2 -type f -print
+          else
+            echo "No research engine results directory found."
+          fi
+
           echo "======================"
 
       # ============================================================
@@ -274,7 +282,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data/ai_lab/
-          git add data/processed/ml/research/spec_runs/
+
+          if [ -d data/processed/ml/research/spec_runs ]; then
+            git add data/processed/ml/research/spec_runs/
+          fi
 
           if git diff --cached --quiet; then
             echo "No AI Lab or research changes to commit."
