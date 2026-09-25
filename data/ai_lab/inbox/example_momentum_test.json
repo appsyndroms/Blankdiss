@@ -1,0 +1,10 @@
+{
+  "experiment_id": "example_momentum_test",
+  "description": "Example AI Lab experiment using the existing momentum analysis.",
+  "command": [
+    "python",
+    "-u",
+    "-m",
+    "ml.research.momentum_incremental_si_analysis"
+  ]
+}
