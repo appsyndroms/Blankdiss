@@ -1,0 +1,89 @@
+id: direction_signal_scan
+
+question: >
+  Har signalerna en riktad relation till framtida upp- respektive
+  nedgång, eller beskriver de huvudsakligen generell event-risk?
+
+mode: scan
+
+signals:
+  - name: short_interest_level
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: short_interest_acceleration
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+      - 0.01
+
+  - name: price_momentum_5d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+  - name: price_momentum_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+  - name: price_momentum_60d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+
+targets:
+  - positive_5d
+  - positive_20d
+  - positive_60d
+  - down_5pct_5d
+  - down_5pct_20d
+  - down_10pct_60d
+
+analysis:
+  type: tail
+  bootstrap: false
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - test
+
+metadata:
+  stage: signal_mapping
+  purpose: direction_scan
+  hypothesis: >
+    Avgöra om signalerna har asymmetrisk riktning eller främst
+    fungerar som mått på framtida rörelserisk.
