@@ -1,0 +1,975 @@
+{
+  "experiment_id": "experiment_planner",
+  "description": "Controlled experiment proposal generated from the current Blankdiss research state.",
+  "experiment": "experiment_planner",
+  "research_state": {
+    "state_version": 1,
+    "created_at_utc": "2026-09-25T19:44:48.778312+00:00",
+    "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
+    "repository": "appsyndroms/Blankdiss",
+    "research": {
+      "spec_count": 10,
+      "specs": [
+        {
+          "path": "ml/research/specs/direction_signal_scan.yaml",
+          "id": "direction_signal_scan",
+          "question": "Har signalerna en riktad relation till framtida upp- respektive nedgång, eller beskriver de huvudsakligen generell event-risk?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "tail",
+            "bootstrap": false
+          },
+          "targets": [
+            "positive_5d",
+            "positive_20d",
+            "positive_60d",
+            "down_5pct_5d",
+            "down_5pct_20d",
+            "down_10pct_60d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_level",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "short_interest_acceleration",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_momentum_5d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            },
+            {
+              "name": "price_momentum_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            },
+            {
+              "name": "price_momentum_60d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            },
+            {
+              "name": "price_volatility_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "signal_mapping",
+            "purpose": "direction_scan",
+            "hypothesis": "Avgöra om signalerna har asymmetrisk riktning eller främst fungerar som mått på framtida rörelserisk.\n"
+          },
+          "locked": false,
+          "stage": "signal_mapping"
+        },
+        {
+          "path": "ml/research/specs/event_risk_signal_scan.yaml",
+          "id": "event_risk_signal_scan",
+          "question": "Vilka enskilda signaler är associerade med framtida downside-event-risk, och på vilka tidshorisonter är sambanden tydligast?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "tail",
+            "bootstrap": false
+          },
+          "targets": [
+            "down_3pct_5d",
+            "down_5pct_5d",
+            "down_7pct_5d",
+            "down_10pct_5d",
+            "down_5pct_20d",
+            "down_10pct_60d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_level",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "short_interest_acceleration",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_momentum_5d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            },
+            {
+              "name": "price_momentum_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            },
+            {
+              "name": "price_momentum_60d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            },
+            {
+              "name": "price_volatility_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "signal_mapping",
+            "purpose": "event_risk_scan",
+            "hypothesis": [
+              "short_interest_level",
+              "short_interest_change",
+              "short_interest_acceleration",
+              "price_momentum",
+              "volatility"
+            ],
+            "note": "Broad SCAN used to identify which signal dimensions and horizons deserve deeper investigation.\n"
+          },
+          "locked": false,
+          "stage": "signal_mapping"
+        },
+        {
+          "path": "ml/research/specs/fi_change_volatility_interaction_scan.yaml",
+          "id": "fi_change_volatility_interaction_scan",
+          "question": "Är downside-event-risk särskilt hög när short interest ökar samtidigt som volatiliteten är hög?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "interaction",
+            "bootstrap": false
+          },
+          "targets": [
+            "down_5pct_5d",
+            "down_7pct_5d",
+            "down_10pct_5d",
+            "down_5pct_20d",
+            "down_10pct_60d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_volatility_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "signal_mapping",
+            "purpose": "fi_change_volatility_interaction",
+            "hypothesis": "En kombination av stigande short interest och hög volatilitet kan identifiera en särskild downside-riskpopulation.\n"
+          },
+          "locked": false,
+          "stage": "signal_mapping"
+        },
+        {
+          "path": "ml/research/specs/fi_volatility_interaction_scan.yaml",
+          "id": "fi_volatility_interaction_scan",
+          "question": "Är downside-event-risk särskilt hög när short interest och marknadsvolatilitet samtidigt ligger högt?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "interaction",
+            "bootstrap": false
+          },
+          "targets": [
+            "down_5pct_5d",
+            "down_7pct_5d",
+            "down_10pct_5d",
+            "down_5pct_20d",
+            "down_10pct_60d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_level",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_volatility_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "signal_mapping",
+            "purpose": "fi_volatility_interaction",
+            "hypothesis": "Hög short interest kan ha annan betydelse i en högvolatil miljö än i en lågvolatil miljö.\n"
+          },
+          "locked": false,
+          "stage": "signal_mapping"
+        },
+        {
+          "path": "ml/research/specs/momentum_incremental_si.yaml",
+          "id": "momentum_incremental_si",
+          "question": "Tillför förändring i short interest information om 5-dagars downside-risk utöver 20-dagars momentum, och tillför kombinationen av momentum och short-interest-förändring ytterligare information?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "regime_comparison",
+            "bootstrap": false
+          },
+          "targets": [
+            "down_5pct_5d",
+            "down_7pct_5d",
+            "down_10pct_5d"
+          ],
+          "signals": [
+            {
+              "name": "price_momentum_20d",
+              "direction": "upper",
+              "bins": [
+                0.2
+              ]
+            },
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "validation",
+            "test"
+          ],
+          "metadata": {
+            "stage": "hypothesis_test",
+            "purpose": "momentum_incremental_si",
+            "baseline_model": {
+              "definition": "price_momentum_20d_tail"
+            },
+            "incremental_model": {
+              "definition": "price_momentum_20d_tail_and_short_interest_change_tail"
+            },
+            "interaction_model": {
+              "definition": "price_momentum_20d_tail_and_short_interest_change_tail"
+            },
+            "baseline_signal": "price_momentum_20d",
+            "incremental_signal": "short_interest_change",
+            "interaction": {
+              "signal_x": "price_momentum_20d",
+              "signal_y": "short_interest_change"
+            },
+            "evaluation": [
+              "event_rate",
+              "baseline_event_rate",
+              "lift",
+              "n_valid"
+            ],
+            "comparison": [
+              "baseline_event_rate",
+              "combined_event_rate",
+              "lift",
+              "combined_n"
+            ],
+            "note": "Den tidigare incremental_model-analysen är här uttryckt som deklarativ regime_comparison i den nya researchmotorn. Baseline är 20-dagars momentum-tail och combined är momentum-tail AND short-interest-change-tail. Ingen legacy analysis-type används.\n"
+          },
+          "locked": false,
+          "stage": "hypothesis_test"
+        },
+        {
+          "path": "ml/research/specs/momentum_si_prospective_confirmation.yaml",
+          "id": "momentum_si_prospective_confirmation",
+          "question": "Bekräftar nya, tidigare inte använda data att förändring i short interest tillför downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+          "mode": "deep",
+          "analysis": {
+            "type": "regime_comparison",
+            "bootstrap": true,
+            "bootstrap_iterations": 2000
+          },
+          "targets": [
+            "down_10pct_5d",
+            "down_5pct_5d",
+            "down_7pct_5d"
+          ],
+          "signals": [
+            {
+              "name": "price_momentum_5d",
+              "direction": "lower",
+              "bins": [
+                0.2
+              ]
+            },
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.025
+              ]
+            }
+          ],
+          "windows": [
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "prospective_confirmation",
+            "purpose": "momentum_si_prospective_confirmation",
+            "locked": true,
+            "hypothesis": {
+              "baseline": "negative_5d_momentum_20pct",
+              "incremental_signal": "short_interest_change_top_2_5pct",
+              "primary_target": "down_10pct_5d",
+              "horizon_days": 5
+            },
+            "locked_parameters": {
+              "momentum": {
+                "signal": "price_momentum_5d",
+                "direction": "lower",
+                "fraction": 0.2
+              },
+              "short_interest": {
+                "signal": "short_interest_change",
+                "direction": "upper",
+                "fraction": 0.025
+              }
+            },
+            "provenance": {
+              "source_stage": "momentum_si_regime_walk_forward",
+              "source_spec": "ml/research/specs/momentum_si_regime_walk_forward.yaml",
+              "locked_candidate": {
+                "momentum": {
+                  "signal": "price_momentum_5d",
+                  "direction": "lower",
+                  "fraction": 0.2
+                },
+                "short_interest": {
+                  "signal": "short_interest_change",
+                  "direction": "upper",
+                  "fraction": 0.025
+                }
+              },
+              "selection_status": "explicitly_locked_before_confirmation_test",
+              "provenance_note": "Confirmation-testet använder en redan låst kombination av 20 procent mest negativt 5-dagars momentum och 2,5 procent högsta förändring i short interest. Walk-forward-steget utvärderade den bredare 4x4-regimytan men är inte i sig ett bevis på att just denna kombination valdes därifrån. Den slutliga confirmation-körningen får därför inte använda testdata för att välja eller ändra dessa parametrar.\n"
+            },
+            "primary_endpoint": {
+              "target": "down_10pct_5d",
+              "metric": "absolute_event_rate_difference",
+              "definition": "combined_event_rate_minus_baseline_event_rate"
+            },
+            "secondary_endpoints": [
+              {
+                "target": "down_5pct_5d",
+                "metric": "absolute_event_rate_difference"
+              },
+              {
+                "target": "down_7pct_5d",
+                "metric": "absolute_event_rate_difference"
+              }
+            ],
+            "uncertainty": {
+              "method": "bootstrap",
+              "iterations": 2000,
+              "report": [
+                "bootstrap_ci_low",
+                "bootstrap_ci_high"
+              ]
+            },
+            "rules": [
+              "parameters_must_not_be_changed_after_test_start",
+              "no_additional_bin_search",
+              "no_threshold_optimization_on_test_data",
+              "no_switching_of_primary_endpoint_after_test_start",
+              "test_period_must_not_be_used_for_parameter_selection"
+            ],
+            "interpretation": {
+              "primary_comparison": {
+                "baseline": "negative_5d_momentum_20pct",
+                "combined": "negative_5d_momentum_20pct_and_si_top_2_5pct"
+              },
+              "report": [
+                "baseline_event_rate",
+                "combined_event_rate",
+                "absolute_event_rate_difference",
+                "lift",
+                "bootstrap_ci_low",
+                "bootstrap_ci_high",
+                "n_valid",
+                "combined_n"
+              ]
+            },
+            "note": "Detta är ett prospektivt bekräftelsetest och inte en discovery-körning. Parametrarna 20 procent negativt 5-dagars momentum och 2,5 procent högsta förändring i short interest är låsta före testet. Primärt endpoint är down_10pct_5d. down_5pct_5d och down_7pct_5d är sekundära endpoints. Resultatet får inte användas för att välja nya bin, trösklar eller primärt endpoint inom samma confirmation-test.\n"
+          },
+          "locked": true,
+          "stage": "prospective_confirmation"
+        },
+        {
+          "path": "ml/research/specs/momentum_si_regime_walk_forward.yaml",
+          "id": "momentum_si_regime_walk_forward",
+          "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n",
+          "mode": "deep",
+          "analysis": {
+            "type": "regime_comparison",
+            "bootstrap": true,
+            "bootstrap_iterations": 2000
+          },
+          "targets": [
+            "down_5pct_5d",
+            "down_7pct_5d",
+            "down_10pct_5d"
+          ],
+          "signals": [
+            {
+              "name": "price_momentum_5d",
+              "direction": "lower",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025
+              ]
+            },
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "validation",
+            "test"
+          ],
+          "metadata": {
+            "stage": "hypothesis_test",
+            "purpose": "momentum_si_regime_walk_forward",
+            "hypothesis": {
+              "baseline": "negative_5d_momentum",
+              "incremental_signal": "short_interest_change",
+              "expected_effect": "downside_risk_amplification"
+            },
+            "comparison": {
+              "baseline": {
+                "definition": "negative_momentum_tail"
+              },
+              "combined": {
+                "definition": "negative_momentum_tail_and_high_si_change"
+              },
+              "primary_metric": {
+                "name": "absolute_event_rate_difference",
+                "definition": "combined_event_rate_minus_baseline_event_rate"
+              },
+              "secondary_metrics": [
+                "lift",
+                "bootstrap_ci_low",
+                "bootstrap_ci_high"
+              ]
+            },
+            "tails": {
+              "momentum": {
+                "direction": "lower",
+                "fractions": [
+                  0.2,
+                  0.1,
+                  0.05,
+                  0.025
+                ]
+              },
+              "short_interest": {
+                "direction": "upper",
+                "fractions": [
+                  0.2,
+                  0.1,
+                  0.05,
+                  0.025
+                ]
+              }
+            },
+            "provenance": {
+              "role": "candidate_grid_evaluation",
+              "selection_policy": "no_threshold_selection_in_this_step",
+              "confirmation_candidate": {
+                "momentum_fraction": 0.2,
+                "short_interest_fraction": 0.025,
+                "primary_target": "down_10pct_5d"
+              },
+              "note": "Detta steg utvärderar den fördefinierade 4x4-regimytan och ska inte i efterhand beskrivas som att det ensamt valde 20 procent momentum och 2,5 procent short-interest. Den slutliga confirmation-specen låser dessa parametrar separat. Om ett tidigare discovery- eller walk-forward-resultat används som urvalskälla måste det kunna hänvisas till separat.\n"
+            },
+            "note": "2025 är test i window_1 och validation i window_2 och är därför inte en oberoende period mellan de två windows.\n"
+          },
+          "locked": false,
+          "stage": "hypothesis_test"
+        },
+        {
+          "path": "ml/research/specs/si_momentum_scan.yaml",
+          "id": "si_momentum_downside_scan",
+          "question": "Är hög förändring i short interest särskilt associerad med downside-risk när tidigare momentum är högt?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "interaction",
+            "bootstrap": false
+          },
+          "targets": [
+            "down_5pct_5d",
+            "down_7pct_5d",
+            "down_10pct_5d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_momentum_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "migration",
+            "purpose": "scan"
+          },
+          "locked": false,
+          "stage": "migration"
+        },
+        {
+          "path": "ml/research/specs/si_volatility_downside_interaction.yaml",
+          "id": "si_volatility_downside_interaction",
+          "question": "Är hög förändring i short interest särskilt associerad med downside-risk när volatiliteten samtidigt är hög?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "interaction",
+            "bootstrap": false
+          },
+          "targets": [
+            "down_10pct_5d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_volatility_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "migration",
+            "source": "ml/research/interaction_analysis.py",
+            "purpose": "generic_si_volatility_interaction"
+          },
+          "locked": false,
+          "stage": "migration"
+        },
+        {
+          "path": "ml/research/specs/tail_signal_scan.yaml",
+          "id": "tail_signal_scan",
+          "question": "Vilka enskilda signaler har en tydlig relation till framtida event-risk och framtida avkastning?\n",
+          "mode": "scan",
+          "analysis": {
+            "type": "tail",
+            "bootstrap": false
+          },
+          "targets": [
+            "up_5pct_5d",
+            "down_5pct_5d",
+            "down_10pct_5d"
+          ],
+          "signals": [
+            {
+              "name": "short_interest_level",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "short_interest_change",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "short_interest_acceleration",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_momentum_5d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_momentum_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_momentum_60d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "price_volatility_20d",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "distance_from_20d_high",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            },
+            {
+              "name": "distance_from_60d_high",
+              "direction": "upper",
+              "bins": [
+                0.2,
+                0.1,
+                0.05,
+                0.025,
+                0.01
+              ]
+            }
+          ],
+          "windows": [
+            "window_1",
+            "window_2"
+          ],
+          "splits": [
+            "test"
+          ],
+          "metadata": {
+            "stage": "migration",
+            "purpose": "broad_signal_scan"
+          },
+          "locked": false,
+          "stage": "migration"
+        }
+      ],
+      "locked_spec_count": 1,
+      "locked_specs": [
+        {
+          "id": "momentum_si_prospective_confirmation",
+          "path": "ml/research/specs/momentum_si_prospective_confirmation.yaml",
+          "stage": "prospective_confirmation",
+          "question": "Bekräftar nya, tidigare inte använda data att förändring i short interest tillför downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n"
+        }
+      ],
+      "open_questions": [
+        {
+          "spec_id": "direction_signal_scan",
+          "question": "Har signalerna en riktad relation till framtida upp- respektive nedgång, eller beskriver de huvudsakligen generell event-risk?\n",
+          "stage": "signal_mapping",
+          "locked": false
+        },
+        {
+          "spec_id": "event_risk_signal_scan",
+          "question": "Vilka enskilda signaler är associerade med framtida downside-event-risk, och på vilka tidshorisonter är sambanden tydligast?\n",
+          "stage": "signal_mapping",
+          "locked": false
+        },
+        {
+          "spec_id": "fi_change_volatility_interaction_scan",
+          "question": "Är downside-event-risk särskilt hög när short interest ökar samtidigt som volatiliteten är hög?\n",
+          "stage": "signal_mapping",
+          "locked": false
+        },
+        {
+          "spec_id": "fi_volatility_interaction_scan",
+          "question": "Är downside-event-risk särskilt hög när short interest och marknadsvolatilitet samtidigt ligger högt?\n",
+          "stage": "signal_mapping",
+          "locked": false
+        },
+        {
+          "spec_id": "momentum_incremental_si",
+          "question": "Tillför förändring i short interest information om 5-dagars downside-risk utöver 20-dagars momentum, och tillför kombinationen av momentum och short-interest-förändring ytterligare information?\n",
+          "stage": "hypothesis_test",
+          "locked": false
+        },
+        {
+          "spec_id": "momentum_si_prospective_confirmation",
+          "question": "Bekräftar nya, tidigare inte använda data att förändring i short interest tillför downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+          "stage": "prospective_confirmation",
+          "locked": true
+        },
+        {
+          "spec_id": "momentum_si_regime_walk_forward",
+          "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n",
+          "stage": "hypothesis_test",
+          "locked": false
+        },
+        {
+          "spec_id": "si_momentum_downside_scan",
+          "question": "Är hög förändring i short interest särskilt associerad med downside-risk när tidigare momentum är högt?\n",
+          "stage": "migration",
+          "locked": false
+        },
+        {
+          "spec_id": "si_volatility_downside_interaction",
+          "question": "Är hög förändring i short interest särskilt associerad med downside-risk när volatiliteten samtidigt är hög?\n",
+          "stage": "migration",
+          "locked": false
+        },
+        {
+          "spec_id": "tail_signal_scan",
+          "question": "Vilka enskilda signaler har en tydlig relation till framtida event-risk och framtida avkastning?\n",
+          "stage": "migration",
+          "locked": false
+        }
+      ]
+    },
+    "ai_lab": {
+      "result_count": 2,
+      "results": [
+        {
+          "path": "data/ai_lab/results/ai_lab_smoke_test/results.json",
+          "experiment_id": "ai_lab_smoke_test",
+          "description": "Minimal end-to-end smoke test for the AI Lab execution pipeline.",
+          "success": true,
+          "experiment": "smoke_test",
+          "started_at": "2026-09-25T19:16:35.149390+00:00",
+          "finished_at": "2026-09-25T19:16:35.149399+00:00"
+        },
+        {
+          "path": "data/ai_lab/results/research_state_snapshot/results.json",
+          "experiment_id": "research_state_snapshot",
+          "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
+          "success": true,
+          "experiment": "research_state",
+          "started_at": "2026-09-25T19:41:20.374091+00:00",
+          "finished_at": "2026-09-25T19:41:20.396614+00:00"
+        }
+      ]
+    },
+    "research_runs": {
+      "run_count": 0,
+      "runs": []
+    }
+  }
+}
