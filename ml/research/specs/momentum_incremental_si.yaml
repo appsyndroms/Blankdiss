@@ -3,7 +3,7 @@ id: momentum_incremental_si
 question: >
   Tillför förändring i short interest information om 5-dagars
   downside-risk utöver 20-dagars momentum, och tillför
-  interaktionen mellan momentum och short-interest-förändring
+  kombinationen av momentum och short-interest-förändring
   ytterligare information?
 
 mode: scan
@@ -25,7 +25,7 @@ targets:
   - down_10pct_5d
 
 analysis:
-  type: incremental_model
+  type: interaction
   bootstrap: false
 
 windows:
@@ -39,19 +39,37 @@ splits:
 metadata:
   stage: hypothesis_test
   purpose: momentum_incremental_si
-  baseline_model: M0
-  incremental_model: M1
-  interaction_model: M2
+
+  baseline_model:
+    definition: price_momentum_20d_tail
+
+  incremental_model:
+    definition: price_momentum_20d_tail_and_short_interest_change_tail
+
+  interaction_model:
+    definition: price_momentum_20d_tail_and_short_interest_change_tail
+
   baseline_signal: price_momentum_20d
   incremental_signal: short_interest_change
-  interaction: price_momentum_20d_x_short_interest_change
+
+  interaction:
+    signal_x: price_momentum_20d
+    signal_y: short_interest_change
 
   evaluation:
-    - auc
-    - log_loss
-    - brier
+    - event_rate
+    - baseline_event_rate
+    - lift
+    - n_valid
 
   comparison:
-    - delta_auc_vs_M0
-    - delta_log_loss_vs_M0
-    - delta_brier_vs_M0
+    - baseline_event_rate
+    - combined_event_rate
+    - lift
+    - combined_n
+
+  note: >
+    Den tidigare incremental_model-analysen är här uttryckt som
+    deklarativ interaction i den nya researchmotorn. Baseline är
+    20-dagars momentum-tail och combined är momentum-tail AND
+    short-interest-change-tail. Ingen legacy analysis-type används.
