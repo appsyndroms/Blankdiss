@@ -17,6 +17,16 @@ It does not:
     - modify research results
     - select parameters
     - optimize hypotheses
+
+The research state distinguishes between:
+    - open research questions
+    - locked research checkpoints
+    - legacy/migration specifications
+
+Locked prospective-confirmation specifications remain visible under
+``locked_specs`` but are not considered open questions. Migration
+specifications are retained in the complete specification inventory
+but are excluded from the current research question queue.
 """
 
 from __future__ import annotations
@@ -379,7 +389,14 @@ def identify_open_questions(
 ) -> list[
     dict[str, Any]
 ]:
-    """Return questions represented by current research specs."""
+    """Return genuinely open questions from current research specs.
+
+    Locked specifications remain visible under ``locked_specs`` but are
+    not open questions.
+
+    Migration specifications are legacy work and are therefore excluded
+    from the current research question queue.
+    """
     questions: list[
         dict[str, Any]
     ] = []
@@ -392,6 +409,19 @@ def identify_open_questions(
         if not question:
             continue
 
+        if spec.get(
+            "locked"
+        ) is True:
+            continue
+
+        if str(
+            spec.get(
+                "stage",
+                ""
+            )
+        ).strip().lower() == "migration":
+            continue
+
         questions.append(
             {
                 "spec_id": spec.get(
@@ -401,10 +431,7 @@ def identify_open_questions(
                 "stage": spec.get(
                     "stage"
                 ),
-                "locked": spec.get(
-                    "locked",
-                    False,
-                ),
+                "locked": False,
             }
         )
 
@@ -445,7 +472,7 @@ def build_research_state(
     )
 
     return {
-        "state_version": 1,
+        "state_version": 2,
         "created_at_utc": utc_now(),
         "purpose": (
             "Controlled research-state "
@@ -530,6 +557,8 @@ def render_research_state_report(
         f"{research['spec_count']}",
         f"- Locked specs: "
         f"{research['locked_spec_count']}",
+        f"- Open research questions: "
+        f"{len(research['open_questions'])}",
         f"- AI Lab results: "
         f"{ai_lab['result_count']}",
         f"- Research runs: "
