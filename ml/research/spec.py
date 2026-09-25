@@ -15,6 +15,7 @@ VALID_MODES = {
 VALID_ANALYSIS_TYPES = {
     "interaction",
     "tail",
+    "incremental_model",
 }
 
 VALID_DIRECTIONS = {
