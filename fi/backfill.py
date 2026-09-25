@@ -46,10 +46,6 @@ COMMONCRAWL_RETRY_STATUSES = {
     504,
 }
 
-# FI:s aggregat-endpoint har historiskt testats med
-# flera möjliga parameternamn. Vi provar dem i turordning
-# och accepterar endast ett svar som faktiskt innehåller
-# det efterfrågade positionsdatumet.
 FI_DATE_PARAMETER_NAMES = (
     "date",
     "datum",
@@ -897,6 +893,116 @@ def parse_position_date(
     return parsed.date().isoformat()
 
 
+def parse_fi_ods_records(
+    content: bytes,
+    source_date: date,
+    source: str,
+    source_url: str,
+) -> list[dict]:
+    """
+    Läser FI:s ODS-format direkt.
+
+    FI:s aggregat-endpoint är ett ODS-svar där
+    datatabellen börjar efter sex rader och
+    de fyra första kolumnerna är:
+
+        0 = emittent
+        1 = LEI
+        2 = summa blankning
+        3 = positionsdatum
+
+    Vi använder medvetet ingen header-detektering här.
+    Detta är samma struktur som redan verifierats
+    i aggregate_probe.py.
+    """
+
+    try:
+        table = pd.read_excel(
+            io.BytesIO(content),
+            engine="odf",
+            skiprows=6,
+            header=None,
+        )
+
+    except Exception as exc:
+        raise FIError(
+            "FI-historik: kunde inte läsa "
+            f"FI:s ODS-svar: {exc}"
+        ) from exc
+
+    if table.empty:
+        raise FIError(
+            f"FI-historik {source_date}: "
+            "ODS-tabellen är tom."
+        )
+
+    if len(table.columns) < 4:
+        raise FIError(
+            f"FI-historik {source_date}: "
+            "ODS-tabellen har färre än fyra "
+            f"kolumner: shape={table.shape}"
+        )
+
+    records: list[dict] = []
+
+    for _, row in table.iterrows():
+        issuer = normalize_text(
+            row.iloc[0]
+        )
+
+        if not issuer:
+            continue
+
+        lei = normalize_text(
+            row.iloc[1]
+        )
+
+        position = parse_position(
+            row.iloc[2]
+        )
+
+        if position is None:
+            continue
+
+        position_date = parse_position_date(
+            row.iloc[3]
+        )
+
+        records.append(
+            {
+                "snapshot_date": (
+                    source_date.isoformat()
+                ),
+                "source_date": (
+                    source_date.isoformat()
+                ),
+                "issuer": issuer,
+                "lei": lei or None,
+                "short_interest_pct": round(
+                    position,
+                    6,
+                ),
+                "position_date": position_date,
+                "fetched_at": (
+                    now_stockholm()
+                    .isoformat(
+                        timespec="seconds"
+                    )
+                ),
+                "source": source,
+                "source_url": source_url,
+            }
+        )
+
+    if not records:
+        raise FIError(
+            f"FI-historik {source_date}: "
+            "inga observationer."
+        )
+
+    return records
+
+
 def parse_excel_records(
     content: bytes,
     source_date: date,
@@ -904,22 +1010,32 @@ def parse_excel_records(
     source_url: str,
 ) -> list[dict]:
     """
-    Läser FI:s Excel/ODS-data.
+    Läser FI:s historiska filer.
 
-    FI:s aktuella aggregat-endpoint returnerar ODS,
-    medan arkiverade historiska filer kan vara XLSX.
-    Därför provar vi ODS först och XLSX därefter.
+    FI:s eget aggregat-endpoint returnerar ODS
+    och arkiverade historiska filer kan vara XLSX.
+
+    ODS försöks först med FI:s kända, fasta
+    tabellstruktur. XLSX används som fallback
+    för arkiverade filer.
     """
 
-    excel: pd.ExcelFile
+    try:
+        return parse_fi_ods_records(
+            content,
+            source_date,
+            source,
+            source_url,
+        )
+
+    except FIError:
+        pass
 
     try:
         excel = pd.ExcelFile(
             io.BytesIO(content),
-            engine="odf",
+            engine="openpyxl",
         )
-
-        skiprows = 6
 
         frames: list[pd.DataFrame] = []
 
@@ -927,36 +1043,16 @@ def parse_excel_records(
             frame = pd.read_excel(
                 excel,
                 sheet_name=sheet,
-                skiprows=skiprows,
-                header=None,
             )
 
             if not frame.empty:
                 frames.append(frame)
 
-    except Exception:
-        try:
-            excel = pd.ExcelFile(
-                io.BytesIO(content),
-                engine="openpyxl",
-            )
-
-            frames = []
-
-            for sheet in excel.sheet_names:
-                frame = pd.read_excel(
-                    excel,
-                    sheet_name=sheet,
-                )
-
-                if not frame.empty:
-                    frames.append(frame)
-
-        except Exception as exc:
-            raise FIError(
-                "FI-historik: kunde inte läsa "
-                f"Excel/ODS-data: {exc}"
-            ) from exc
+    except Exception as exc:
+        raise FIError(
+            "FI-historik: kunde inte läsa "
+            f"Excel/ODS-data: {exc}"
+        ) from exc
 
     if not frames:
         raise FIError(
@@ -968,54 +1064,6 @@ def parse_excel_records(
         frames,
         ignore_index=True,
     )
-
-    # ODS-endpointen har ingen vanlig header
-    # efter skiprows=6. Arkiverade XLSX-filer
-    # har däremot normalt header.
-    #
-    # Om första raden fortfarande innehåller
-    # rubriker försöker vi använda den.
-    if all(
-        normalize_header(value)
-        for value in frame.iloc[0].tolist()
-    ):
-        possible_headers = {
-            normalize_header(value)
-            for value in frame.iloc[0].tolist()
-        }
-
-        if (
-            any(
-                "emittent" in value
-                for value in possible_headers
-            )
-            or "lei" in possible_headers
-            or any(
-                "summa_blankning" in value
-                for value in possible_headers
-            )
-        ):
-            frame = frame.iloc[1:].copy()
-
-    # För FI:s ODS-format är de första fyra
-    # kolumnerna:
-    #   emittent
-    #   lei
-    #   summa blankning
-    #   positionsdatum
-    #
-    # Det formatet har visat sig vara stabilt.
-    if len(frame.columns) >= 4:
-        first_four = frame.iloc[:, :4].copy()
-
-        first_four.columns = [
-            "issuer",
-            "lei",
-            "short_interest_pct",
-            "position_date",
-        ]
-
-        frame = first_four
 
     issuer_col = find_column(
         frame.columns,
@@ -1092,9 +1140,7 @@ def parse_excel_records(
 
         latest_position_date = (
             parse_position_date(
-                row.get(
-                    latest_date_col
-                )
+                row.get(latest_date_col)
             )
             if latest_date_col
             else None
@@ -1137,7 +1183,7 @@ def parse_xlsx(
     source: str,
     source_url: str,
 ) -> list[dict]:
-    """Bakåtkompatibelt namn för arkiverade XLSX-filer."""
+    """Bakåtkompatibelt namn för historiska filer."""
 
     return parse_excel_records(
         content,
@@ -1172,6 +1218,19 @@ def validate_records(
             "dubbletter av emittenter."
         )
 
+    position_dates = {
+        record.get("position_date")
+        for record in records
+        if record.get("position_date")
+    }
+
+    if source_date.isoformat() not in position_dates:
+        raise FIError(
+            f"FI-historik {source_date}: "
+            "inga observationer har det "
+            "efterfrågade positionsdatumet."
+        )
+
     for record in records:
         value = record[
             "short_interest_pct"
@@ -1184,84 +1243,6 @@ def validate_records(
             )
 
 
-def extract_position_dates(
-    content: bytes,
-) -> set[date]:
-    """
-    Läser alla positionsdatum ur ett FI-aggregatsvar.
-
-    Används innan vi accepterar ett svar från
-    FI:s historiska endpoint. Det räcker alltså
-    inte att endpointen returnerar HTTP 200.
-    """
-
-    excel: pd.ExcelFile
-
-    try:
-        excel = pd.ExcelFile(
-            io.BytesIO(content),
-            engine="odf",
-        )
-
-        frames: list[pd.DataFrame] = []
-
-        for sheet in excel.sheet_names:
-            frame = pd.read_excel(
-                excel,
-                sheet_name=sheet,
-                skiprows=6,
-                header=None,
-            )
-
-            if not frame.empty:
-                frames.append(frame)
-
-    except Exception:
-        try:
-            excel = pd.ExcelFile(
-                io.BytesIO(content),
-                engine="openpyxl",
-            )
-
-            frames = []
-
-            for sheet in excel.sheet_names:
-                frame = pd.read_excel(
-                    excel,
-                    sheet_name=sheet,
-                )
-
-                if not frame.empty:
-                    frames.append(frame)
-
-        except Exception:
-            return set()
-
-    if not frames:
-        return set()
-
-    frame = pd.concat(
-        frames,
-        ignore_index=True,
-    )
-
-    if len(frame.columns) < 4:
-        return set()
-
-    values = frame.iloc[:, 3]
-
-    parsed = pd.to_datetime(
-        values,
-        errors="coerce",
-        dayfirst=False,
-    )
-
-    return {
-        value.date()
-        for value in parsed.dropna()
-    }
-
-
 def fetch_fi_historical_endpoint(
     session: requests.Session,
     source_date: date,
@@ -1272,12 +1253,10 @@ def fetch_fi_historical_endpoint(
 
     Ett svar accepteras endast om:
       1. HTTP-status är 200
-      2. svaret går att läsa som Excel/ODS
-      3. det efterfrågade datumet faktiskt finns
-         i positionsdatumkolumnen.
-
-    Detta är viktigt eftersom FI kan ignorera en
-    okänd datumparameter och returnera dagens fil.
+      2. svaret går att läsa som FI:s ODS-format
+      3. observationer skapas
+      4. efterfrågat datum faktiskt finns
+         som positionsdatum.
     """
 
     date_text = source_date.isoformat()
@@ -1320,32 +1299,39 @@ def fetch_fi_historical_endpoint(
         if response.status_code != 200:
             continue
 
-        content = response.content
-
-        if len(content) < 1000:
-            print(
-                "FI backfill: svaret är för litet."
+        try:
+            records = parse_fi_ods_records(
+                response.content,
+                source_date,
+                "fi_endpoint",
+                FI_AGGREGATE_URL,
             )
-            continue
 
-        position_dates = extract_position_dates(
-            content
-        )
+            validate_records(
+                records,
+                source_date,
+            )
 
-        if source_date not in position_dates:
+        except (
+            FIError,
+            ValueError,
+            KeyError,
+        ) as exc:
             print(
                 "FI backfill: "
                 f"{parameter_name} gav inget "
-                f"positionsdatum {source_date}."
+                f"verifierat historiskt svar "
+                f"för {source_date}: {exc}"
             )
             continue
 
         print(
             "FI backfill: HISTORIK FUNNEN via "
-            f"{parameter_name}={date_text}."
+            f"{parameter_name}={date_text}: "
+            f"{len(records)} observationer."
         )
 
-        return content
+        return response.content
 
     print(
         "FI backfill: FI:s historiska "
@@ -1380,7 +1366,7 @@ def recover_from_fi_endpoint(
             continue
 
         try:
-            records = parse_excel_records(
+            records = parse_fi_ods_records(
                 content,
                 source_date,
                 "fi_endpoint",
