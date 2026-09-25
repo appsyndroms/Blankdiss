@@ -232,7 +232,7 @@ def parse_date(
     parsed = pd.to_datetime(
         text,
         errors="coerce",
-        dayfirst=True,
+        dayfirst=False,
     )
 
     if pd.isna(parsed):
