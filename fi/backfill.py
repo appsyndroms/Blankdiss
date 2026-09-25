@@ -34,7 +34,13 @@ WAYBACK_CDX_URL = (
     "https://web.archive.org/cdx/search/cdx"
 )
 
-DEFAULT_DELAY = 0.5
+DEFAULT_DELAY = 1.0
+COMMONCRAWL_RETRIES = 3
+COMMONCRAWL_RETRY_STATUSES = {
+    502,
+    503,
+    504,
+}
 
 
 @dataclass(frozen=True)
@@ -370,14 +376,53 @@ def is_fi_aggregate_url(
     )
 
 
+def commoncrawl_index_sort_key(
+    index_name: str,
+) -> tuple[int, int]:
+    """
+    Returnerar (år, vecka) för Common Crawl-index.
+
+    Exempel:
+        CC-MAIN-2026-39 -> (2026, 39)
+    """
+
+    match = re.fullmatch(
+        r"CC-MAIN-(\d{4})-(\d{2})",
+        index_name,
+    )
+
+    if not match:
+        return (-1, -1)
+
+    return (
+        int(match.group(1)),
+        int(match.group(2)),
+    )
+
+
 def get_commoncrawl_indexes(
     session: requests.Session,
 ) -> list[str]:
-    """Hämtar relevanta Common Crawl-index."""
+    """
+    Hämtar Common Crawl-index och sorterar dem
+    kronologiskt.
+
+    Nyaste index kommer först.
+    """
+
+    headers = {
+        **HEADERS,
+        "User-Agent": (
+            "Blankdiss/1.0 "
+            "(FI historical backfill; "
+            "https://github.com/appsyndroms/Blankdiss)"
+        ),
+    }
 
     try:
         response = session.get(
             COMMONCRAWL_COLLECTIONS_URL,
+            headers=headers,
             timeout=60,
         )
 
@@ -399,15 +444,27 @@ def get_commoncrawl_indexes(
     result: list[str] = []
 
     for collection in collections:
+        if not isinstance(
+            collection,
+            dict,
+        ):
+            continue
+
         name = collection.get(
             "id",
             "",
         )
 
-        if name.startswith(
-            "CC-MAIN-"
+        if re.fullmatch(
+            r"CC-MAIN-\d{4}-\d{2}",
+            name,
         ):
             result.append(name)
+
+    result.sort(
+        key=commoncrawl_index_sort_key,
+        reverse=True,
+    )
 
     return result
 
@@ -437,25 +494,100 @@ def query_commoncrawl(
         "collapse": "urlkey",
     }
 
-    try:
-        response = session.get(
-            endpoint,
-            params=params,
-            timeout=60,
-        )
+    headers = {
+        **HEADERS,
+        "User-Agent": (
+            "Blankdiss/1.0 "
+            "(FI historical backfill; "
+            "https://github.com/appsyndroms/Blankdiss)"
+        ),
+    }
 
-        if response.status_code == 404:
+    for attempt in range(
+        COMMONCRAWL_RETRIES
+    ):
+        try:
+            response = session.get(
+                endpoint,
+                params=params,
+                headers=headers,
+                timeout=60,
+            )
+
+            if response.status_code == 404:
+                return []
+
+            if (
+                response.status_code
+                in COMMONCRAWL_RETRY_STATUSES
+            ):
+                if (
+                    attempt
+                    < COMMONCRAWL_RETRIES - 1
+                ):
+                    wait_seconds = (
+                        2 ** attempt
+                    )
+
+                    print(
+                        "FI backfill: Common Crawl "
+                        f"{index_name} gav "
+                        f"{response.status_code}, "
+                        f"försöker igen om "
+                        f"{wait_seconds}s."
+                    )
+
+                    time.sleep(
+                        wait_seconds
+                    )
+
+                    continue
+
+                print(
+                    "FI backfill: Common Crawl "
+                    f"{index_name} misslyckades "
+                    f"efter {COMMONCRAWL_RETRIES} "
+                    f"försök: HTTP "
+                    f"{response.status_code}"
+                )
+
+                return []
+
+            response.raise_for_status()
+
+            break
+
+        except requests.RequestException as exc:
+            if (
+                attempt
+                < COMMONCRAWL_RETRIES - 1
+            ):
+                wait_seconds = (
+                    2 ** attempt
+                )
+
+                print(
+                    "FI backfill: Common Crawl "
+                    f"{index_name} misslyckades: "
+                    f"{exc}. "
+                    f"Försöker igen om "
+                    f"{wait_seconds}s."
+                )
+
+                time.sleep(
+                    wait_seconds
+                )
+
+                continue
+
+            print(
+                "FI backfill: Common Crawl "
+                f"{index_name} misslyckades "
+                f"efter {COMMONCRAWL_RETRIES} "
+                f"försök: {exc}"
+            )
+
             return []
-
-        response.raise_for_status()
-
-    except requests.RequestException as exc:
-        print(
-            "FI backfill: Common Crawl "
-            f"{index_name} misslyckades: {exc}"
-        )
-
-        return []
 
     candidates: list[Candidate] = []
 
@@ -1014,6 +1146,7 @@ def recover_missing_dates(
         )
 
     session = requests.Session()
+
     session.headers.update(
         HEADERS
     )
@@ -1032,7 +1165,25 @@ def recover_missing_dates(
         session
     )
 
-    for index_name in indexes[-12:]:
+    print(
+        "FI backfill: Common Crawl-index "
+        f"att söka: {len(indexes)}"
+    )
+
+    # Nyaste index först.
+    #
+    # Vi behöver inte söka hela Common Crawl-
+    # historiken varje gång. De senaste indexen
+    # är relevanta för de senaste luckorna.
+    #
+    # Om inga kandidater hittas går vi vidare
+    # till Wayback som fallback.
+    for index_name in indexes[:12]:
+        print(
+            "FI backfill: söker Common Crawl "
+            f"{index_name}."
+        )
+
         found = query_commoncrawl(
             session,
             index_name,
@@ -1041,17 +1192,60 @@ def recover_missing_dates(
         )
 
         if found:
-            candidates.extend(found)
+            print(
+                "FI backfill: "
+                f"{index_name} gav "
+                f"{len(found)} kandidater."
+            )
 
+            candidates.extend(
+                found
+            )
+
+        # Respektera Common Crawls
+        # rate limiting.
         time.sleep(delay)
 
-    candidates.extend(
-        query_wayback(
-            session,
-            search_start,
-            search_end,
+        found_dates = {
+            candidate.source_date
+            for candidate in candidates
+        }
+
+        if all(
+            value in found_dates
+            for value in missing
+        ):
+            print(
+                "FI backfill: alla saknade "
+                "datum hittades i Common Crawl."
+            )
+            break
+
+    # Wayback används som fallback och kan
+    # även ge alternativa kandidater för
+    # samma datum.
+    unresolved_dates = {
+        value
+        for value in missing
+        if not any(
+            candidate.source_date == value
+            for candidate in candidates
         )
-    )
+    }
+
+    if unresolved_dates:
+        print(
+            "FI backfill: söker kvarvarande "
+            "datum i Wayback."
+        )
+
+        candidates.extend(
+            query_wayback(
+                session,
+                min(unresolved_dates),
+                max(unresolved_dates),
+            )
+        )
 
     by_date: dict[
         date,
@@ -1124,6 +1318,7 @@ def recover_missing_dates(
                 continue
 
             # Samma lagringsväg som dagens FI-data.
+            #
             # write_snapshot() skriver snapshotfilen
             # och uppdaterar manifest.json.
             path = write_snapshot(
