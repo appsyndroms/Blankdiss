@@ -7,7 +7,7 @@
     "experiment": "experiment_planner",
     "research_state": {
       "state_version": 1,
-      "created_at_utc": "2026-09-25T19:44:48.778312+00:00",
+      "created_at_utc": "2026-09-25T19:58:33.890927+00:00",
       "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
       "repository": "appsyndroms/Blankdiss",
       "research": {
@@ -948,7 +948,7 @@
         ]
       },
       "ai_lab": {
-        "result_count": 2,
+        "result_count": 3,
         "results": [
           {
             "path": "data/ai_lab/results/ai_lab_smoke_test/results.json",
@@ -960,13 +960,22 @@
             "finished_at": "2026-09-25T19:16:35.149399+00:00"
           },
           {
+            "path": "data/ai_lab/results/experiment_planner/results.json",
+            "experiment_id": "experiment_planner",
+            "description": "Controlled experiment proposal generated from the current Blankdiss research state.",
+            "success": true,
+            "experiment": "experiment_planner",
+            "started_at": "2026-09-25T19:44:48.871680+00:00",
+            "finished_at": "2026-09-25T19:44:48.871713+00:00"
+          },
+          {
             "path": "data/ai_lab/results/research_state_snapshot/results.json",
             "experiment_id": "research_state_snapshot",
             "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
             "success": true,
             "experiment": "research_state",
-            "started_at": "2026-09-25T19:41:20.374091+00:00",
-            "finished_at": "2026-09-25T19:41:20.396614+00:00"
+            "started_at": "2026-09-25T19:44:48.734728+00:00",
+            "finished_at": "2026-09-25T19:44:48.778325+00:00"
           }
         ]
       },
@@ -977,99 +986,40 @@
     }
   },
   "execution": {
-    "started_at": "2026-09-25T19:44:48.871680+00:00",
-    "finished_at": "2026-09-25T19:44:48.871713+00:00",
+    "started_at": "2026-09-25T19:58:34.299710+00:00",
+    "finished_at": "2026-09-25T19:58:34.299752+00:00",
     "success": true,
     "experiment": "experiment_planner",
     "result": {
-      "planner_version": 1,
-      "research_state_version": 1,
+      "planner_version": 2,
       "status": "proposal_created",
       "selection": {
-        "source_spec": "momentum_si_prospective_confirmation",
-        "stage": "prospective_confirmation",
-        "locked": true
+        "source_spec": "momentum_incremental_si",
+        "stage": "hypothesis_test",
+        "locked": false,
+        "question": "Tillför förändring i short interest information om 5-dagars downside-risk utöver 20-dagars momentum, och tillför kombinationen av momentum och short-interest-förändring ytterligare information?\n"
       },
-      "proposal": {
-        "proposal_version": 1,
-        "research_question": "Bekräftar nya, tidigare inte använda data att förändring i short interest tillför downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
-        "hypothesis": {
-          "baseline": "negative_5d_momentum_20pct",
-          "incremental_signal": "short_interest_change_top_2_5pct",
-          "primary_target": "down_10pct_5d",
-          "horizon_days": 5
-        },
-        "stage": "prospective_confirmation",
-        "source_specs": [
-          "momentum_si_prospective_confirmation"
-        ],
-        "data_requirements": {
-          "windows": [
-            "window_2"
-          ],
-          "splits": [
-            "test"
-          ],
-          "required_signals": [
-            {
-              "name": "price_momentum_5d",
-              "direction": "lower",
-              "bins": [
-                0.2
-              ]
-            },
-            {
-              "name": "short_interest_change",
-              "direction": "upper",
-              "bins": [
-                0.025
-              ]
-            }
-          ],
-          "targets": [
-            "down_10pct_5d",
-            "down_5pct_5d",
-            "down_7pct_5d"
-          ]
-        },
-        "parameters": {
-          "source_spec": "momentum_si_prospective_confirmation",
-          "locked": true
-        },
-        "validation": {
-          "analysis": {
-            "type": "regime_comparison",
-            "bootstrap": true,
-            "bootstrap_iterations": 2000
-          },
-          "declared_by_source_spec": true,
-          "research_run_count_visible": 0
-        },
-        "constraints": [
-          "Do not modify research specifications.",
-          "Do not execute arbitrary code.",
-          "Do not optimize parameters against test data.",
-          "Do not declare a hypothesis confirmed.",
-          "Use the selected specification as declared; do not silently change its parameters.",
-          "Treat confirmation parameters as locked.",
-          "Do not search additional bins.",
-          "Do not optimize thresholds on confirmation data.",
-          "Do not switch the primary endpoint after test start.",
-          "Do not use confirmation data for parameter selection."
-        ],
-        "rationale": "A locked prospective confirmation specification already exists. The planner preserves its predefined parameters and endpoint and proposes no optimization.",
-        "expected_observation": "Determine what the declared research specification actually observes without changing its design.",
-        "status": "proposed"
-      },
-      "warnings": [
-        "No research-engine run manifests are visible in the current research-state snapshot.",
-        "3 migration-stage specification(s) are visible but are not treated as new evidence."
+      "parameters": {},
+      "constraints": [
+        "Do not modify the research specification.",
+        "Do not introduce arbitrary parameters.",
+        "Do not optimize thresholds on the test set.",
+        "Do not select the test data based on observed outcomes.",
+        "Do not declare the research hypothesis confirmed from the planner output.",
+        "Do not automatically select a locked prospective-confirmation specification."
       ],
       "research_context": {
         "spec_count": 10,
-        "locked_spec_count": 1,
-        "research_run_count": 0
-      }
+        "research_run_count": 0,
+        "completed_spec_count": 0,
+        "open_question_count": 10,
+        "locked_spec_count": 1
+      },
+      "warnings": [
+        "Locked prospective-confirmation specification(s) exist but are not automatically selected by the planner.",
+        "Migration specifications are visible in the research state but are not treated as current research evidence or automatic planning candidates.",
+        "No research-engine runs are visible in the current research state."
+      ]
     }
   },
   "runner": {
