@@ -3,14 +3,16 @@ name: Delete workflow runs
 on:
   workflow_dispatch:
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   delete-runs:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
 
     steps:
-      - name: Delete all workflow runs
+      - name: Delete workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -20,6 +22,8 @@ jobs:
             --json databaseId \
             --jq '.[].databaseId' |
           while read -r id; do
-            echo "Deleting run $id"
-            gh run delete "$id" --repo "${{ github.repository }}"
+            if [ "$id" != "${GITHUB_RUN_ID}" ]; then
+              echo "Deleting run $id"
+              gh run delete "$id" --repo "${github.repository}"
+            fi
           done
