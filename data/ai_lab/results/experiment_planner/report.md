@@ -14,8 +14,8 @@
 
 ## Execution
 
-- Started: `2026-09-25T20:21:00.738869+00:00`
-- Finished: `2026-09-25T20:21:00.738921+00:00`
+- Started: `2026-09-25T20:47:21.149359+00:00`
+- Finished: `2026-09-25T20:47:21.149409+00:00`
 
 ## Result
 
@@ -24,10 +24,10 @@
   "planner_version": 2,
   "status": "proposal_created",
   "selection": {
-    "source_spec": "momentum_si_regime_walk_forward",
-    "stage": "hypothesis_test",
+    "source_spec": "direction_signal_scan",
+    "stage": "discovery",
     "locked": false,
-    "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n"
+    "question": "Har signalerna en riktad relation till framtida upp- respektive nedgång, eller beskriver de huvudsakligen generell event-risk?\n"
   },
   "parameters": {},
   "constraints": [
@@ -40,8 +40,8 @@
   ],
   "research_context": {
     "spec_count": 10,
-    "research_run_count": 1,
-    "completed_spec_count": 1,
+    "research_run_count": 2,
+    "completed_spec_count": 2,
     "open_question_count": 6,
     "locked_spec_count": 1
   },

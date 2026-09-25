@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-09-25T20:47:30.719097+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "direction_signal_scan",
+      "mode": "scan",
+      "question": "Har signalerna en riktad relation till framtida upp- respektive nedgång, eller beskriver de huvudsakligen generell event-risk?\n",
+      "result": "data/processed/ml/research/spec_runs/20260925T204730Z/direction_signal_scan.json",
+      "rows": 324
+    }
+  ]
+}

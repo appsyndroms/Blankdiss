@@ -4,7 +4,7 @@
   "experiment": "experiment_planner",
   "research_state": {
     "state_version": 2,
-    "created_at_utc": "2026-09-25T20:21:00.632938+00:00",
+    "created_at_utc": "2026-09-25T20:47:21.057885+00:00",
     "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
     "repository": "appsyndroms/Blankdiss",
     "research": {
@@ -938,8 +938,8 @@
           "description": "Controlled experiment proposal generated from the current Blankdiss research state.",
           "success": true,
           "experiment": "experiment_planner",
-          "started_at": "2026-09-25T20:14:20.986044+00:00",
-          "finished_at": "2026-09-25T20:14:20.986089+00:00"
+          "started_at": "2026-09-25T20:21:00.738869+00:00",
+          "finished_at": "2026-09-25T20:21:00.738921+00:00"
         },
         {
           "path": "data/ai_lab/results/research_state_snapshot/results.json",
@@ -947,13 +947,13 @@
           "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
           "success": true,
           "experiment": "research_state",
-          "started_at": "2026-09-25T20:14:20.847187+00:00",
-          "finished_at": "2026-09-25T20:14:20.887191+00:00"
+          "started_at": "2026-09-25T20:21:00.588233+00:00",
+          "finished_at": "2026-09-25T20:21:00.632950+00:00"
         }
       ]
     },
     "research_runs": {
-      "run_count": 1,
+      "run_count": 2,
       "runs": [
         {
           "path": "data/processed/ml/research/spec_runs/20260925T201426Z/manifest.json",
@@ -967,6 +967,21 @@
               "question": "Tillför förändring i short interest information om 5-dagars downside-risk utöver 20-dagars momentum, och tillför kombinationen av momentum och short-interest-förändring ytterligare information?\n",
               "result": "data/processed/ml/research/spec_runs/20260925T201426Z/momentum_incremental_si.json",
               "rows": 12
+            }
+          ]
+        },
+        {
+          "path": "data/processed/ml/research/spec_runs/20260925T202106Z/manifest.json",
+          "created_at_utc": "2026-09-25T20:21:06.889871+00:00",
+          "feature_rows": 202240,
+          "spec_count": 1,
+          "specs": [
+            {
+              "id": "momentum_si_regime_walk_forward",
+              "mode": "deep",
+              "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n",
+              "result": "data/processed/ml/research/spec_runs/20260925T202106Z/momentum_si_regime_walk_forward.json",
+              "rows": 192
             }
           ]
         }
