@@ -24,6 +24,6 @@ jobs:
           while read -r id; do
             if [ "$id" != "${GITHUB_RUN_ID}" ]; then
               echo "Deleting run $id"
-              gh run delete "$id" --repo "${github.repository}"
+              gh run delete "$id" --repo "${{ github.repository }}"
             fi
           done
