@@ -1,0 +1,107 @@
+id: momentum_si_prospective_confirmation
+
+question: >
+  Bekräftar nya, tidigare inte använda data att förändring i short
+  interest tillför downside-risk inom de 20 procent mest negativa
+  5-dagars momentumobservationerna?
+
+mode: deep
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.025
+
+targets:
+  - down_10pct_5d
+  - down_5pct_5d
+  - down_7pct_5d
+
+analysis:
+  type: regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_2
+
+splits:
+  - test
+
+metadata:
+  stage: prospective_confirmation
+  purpose: momentum_si_prospective_confirmation
+
+  locked: true
+
+  hypothesis:
+    baseline: negative_5d_momentum_20pct
+    incremental_signal: short_interest_change_top_2_5pct
+    primary_target: down_10pct_5d
+    horizon_days: 5
+
+  locked_parameters:
+    momentum:
+      signal: price_momentum_5d
+      direction: lower
+      fraction: 0.20
+
+    short_interest:
+      signal: short_interest_change
+      direction: upper
+      fraction: 0.025
+
+  primary_endpoint:
+    target: down_10pct_5d
+    metric: absolute_event_rate_difference
+    definition: combined_event_rate_minus_baseline_event_rate
+
+  secondary_endpoints:
+    - target: down_5pct_5d
+      metric: absolute_event_rate_difference
+
+    - target: down_7pct_5d
+      metric: absolute_event_rate_difference
+
+  uncertainty:
+    method: bootstrap
+    iterations: 2000
+    report:
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+
+  rules:
+    - parameters_must_not_be_changed_after_test_start
+    - no_additional_bin_search
+    - no_threshold_optimization_on_test_data
+    - no_switching_of_primary_endpoint_after_test_start
+    - test_period_must_not_be_used_for_parameter_selection
+
+  interpretation:
+    primary_comparison:
+      baseline: negative_5d_momentum_20pct
+      combined: negative_5d_momentum_20pct_and_si_top_2_5pct
+
+    report:
+      - baseline_event_rate
+      - combined_event_rate
+      - absolute_event_rate_difference
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+      - n_valid
+      - combined_n
+
+  note: >
+    Detta är ett prospektivt bekräftelsetest och inte en discovery-körning.
+    Parametrarna 20 procent negativt 5-dagars momentum och 2,5 procent
+    högsta förändring i short interest är låsta före testet. Primärt
+    endpoint är down_10pct_5d. down_5pct_5d och down_7pct_5d är sekundära
+    endpoints. Resultatet får inte användas för att välja nya bin,
+    trösklar eller primärt endpoint inom samma confirmation-test.
