@@ -25,7 +25,7 @@ targets:
   - down_10pct_5d
 
 analysis:
-  type: interaction
+  type: regime_comparison
   bootstrap: false
 
 windows:
@@ -70,6 +70,6 @@ metadata:
 
   note: >
     Den tidigare incremental_model-analysen är här uttryckt som
-    deklarativ interaction i den nya researchmotorn. Baseline är
+    deklarativ regime_comparison i den nya researchmotorn. Baseline är
     20-dagars momentum-tail och combined är momentum-tail AND
     short-interest-change-tail. Ingen legacy analysis-type används.
