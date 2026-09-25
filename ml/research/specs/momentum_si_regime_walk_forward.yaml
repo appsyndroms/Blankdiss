@@ -84,6 +84,23 @@ metadata:
         - 0.05
         - 0.025
 
+  provenance:
+    role: candidate_grid_evaluation
+    selection_policy: no_threshold_selection_in_this_step
+
+    confirmation_candidate:
+      momentum_fraction: 0.20
+      short_interest_fraction: 0.025
+      primary_target: down_10pct_5d
+
+    note: >
+      Detta steg utvärderar den fördefinierade 4x4-regimytan och ska inte
+      i efterhand beskrivas som att det ensamt valde 20 procent momentum
+      och 2,5 procent short-interest. Den slutliga confirmation-specen
+      låser dessa parametrar separat. Om ett tidigare discovery- eller
+      walk-forward-resultat används som urvalskälla måste det kunna
+      hänvisas till separat.
+
   note: >
     2025 är test i window_1 och validation i window_2 och är därför
     inte en oberoende period mellan de två windows.
