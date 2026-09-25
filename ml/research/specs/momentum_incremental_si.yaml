@@ -1,23 +1,28 @@
-id: momentum_incremental_si
+id: momentum_si_regime_walk_forward
 
 question: >
-  Tillför förändring i short interest information om 5-dagars
-  downside-risk utöver 20-dagars momentum, och tillför
-  interaktionen mellan momentum och short-interest-förändring
-  ytterligare information?
+  Tillför förändring i short interest information om downside-risk
+  inom negativa momentumregimer, trots att short-interest-förändring
+  inte förbättrar den globala modellen?
 
 mode: scan
 
 signals:
-  - name: price_momentum_20d
-    direction: upper
+  - name: price_momentum_5d
+    direction: lower
     bins:
       - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
 
   - name: short_interest_change
     direction: upper
     bins:
       - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
 
 targets:
   - down_5pct_5d
@@ -25,8 +30,22 @@ targets:
   - down_10pct_5d
 
 analysis:
-  type: incremental_model
-  bootstrap: false
+  type: regime_comparison
+  bootstrap: true
+  confidence_level: 0.95
+
+  baseline:
+    signal: price_momentum_5d
+
+  incremental:
+    signal: short_interest_change
+
+  comparison:
+    - baseline_event_rate
+    - combined_event_rate
+    - absolute_event_rate_difference
+    - lift
+    - confidence_interval
 
 windows:
   - window_1
@@ -38,18 +57,36 @@ splits:
 
 metadata:
   stage: hypothesis_test
-  purpose: momentum_incremental_si
-  baseline_model: M0
-  incremental_model: M1
-  interaction_model: M2
-  baseline_signal: price_momentum_20d
-  incremental_signal: short_interest_change
-  interaction: price_momentum_20d_x_short_interest_change
+  purpose: momentum_si_regime_walk_forward
+
+  hypothesis:
+    baseline: negative_5d_momentum
+    incremental_signal: short_interest_change
+    expected_effect: downside_risk_amplification
+
   evaluation:
-    - auc
-    - log_loss
-    - brier
-  comparison:
-    - delta_auc_vs_M0
-    - delta_log_loss_vs_M0
-    - delta_brier_vs_M0
+    - event_rate
+    - absolute_difference
+    - lift
+    - confidence_interval
+
+  tails:
+    momentum:
+      direction: lower
+      fractions:
+        - 0.20
+        - 0.10
+        - 0.05
+        - 0.025
+
+    short_interest:
+      direction: upper
+      fractions:
+        - 0.20
+        - 0.10
+        - 0.05
+        - 0.025
+
+  note: >
+    2025 is test in window_1 and validation in window_2 and is therefore
+    not an independent period across the two windows.
