@@ -19,10 +19,12 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import importlib.util
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable
 
 
@@ -57,28 +59,6 @@ def smoke_test(
     }
 
 
-def research_state(
-    spec: dict[str, Any],
-) -> dict[str, Any]:
-    """Build a read-only snapshot of current research state."""
-    from ml.ai_lab.research_state import (
-        build_research_state,
-    )
-
-    state = build_research_state()
-
-    return {
-        "message": (
-            "Research state snapshot "
-            "created successfully."
-        ),
-        "experiment_id": spec[
-            "experiment_id"
-        ],
-        "state": state,
-    }
-
-
 EXPERIMENT_REGISTRY: dict[
     str,
     tuple[str, str],
@@ -88,7 +68,7 @@ EXPERIMENT_REGISTRY: dict[
         "smoke_test",
     ),
     "research_state": (
-        "ml.ai_lab.research_state",
+        "@file:ml/ai-lab/research_state.py",
         "build_research_state",
     ),
 }
@@ -189,30 +169,118 @@ def validate_spec(
         )
 
 
-def safe_experiment_id(
-    value: str,
-) -> str:
-    allowed = set(
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "0123456789"
-        "_-"
-    )
+def load_module_from_file(
+    file_reference: str,
+) -> ModuleType:
+    """Load a Python module from a repository-relative file path.
 
-    cleaned = "".join(
-        character
-        if character in allowed
-        else "_"
-        for character in value
-    )
+    File references use the format:
 
-    if not cleaned:
+        @file:path/to/module.py
+
+    This is needed for AI Lab modules because the directory
+    ml/ai-lab contains a hyphen and therefore cannot be imported
+    as a normal Python package name.
+    """
+    if not file_reference.startswith(
+        "@file:"
+    ):
         raise ValueError(
-            "experiment_id is empty "
-            "after sanitization."
+            "Invalid file module reference: "
+            f"{file_reference}"
         )
 
-    return cleaned
+    relative_path = file_reference[
+        len("@file:") :
+    ]
+
+    module_path = (
+        ROOT
+        / relative_path
+    ).resolve()
+
+    try:
+        module_path.relative_to(
+            ROOT
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "Module path must remain "
+            "inside the repository: "
+            f"{relative_path}"
+        ) from exc
+
+    if not module_path.is_file():
+        raise ValueError(
+            "Registered module file does "
+            "not exist: "
+            f"{relative_path}"
+        )
+
+    module_name = (
+        "blankdiss_ai_lab_"
+        + module_path.stem
+    )
+
+    module_spec = (
+        importlib.util.spec_from_file_location(
+            module_name,
+            module_path,
+        )
+    )
+
+    if module_spec is None:
+        raise ValueError(
+            "Could not create import "
+            "specification for: "
+            f"{relative_path}"
+        )
+
+    if module_spec.loader is None:
+        raise ValueError(
+            "Could not create module "
+            "loader for: "
+            f"{relative_path}"
+        )
+
+    module = (
+        importlib.util.module_from_spec(
+            module_spec
+        )
+    )
+
+    sys.modules[
+        module_name
+    ] = module
+
+    module_spec.loader.exec_module(
+        module
+    )
+
+    return module
+
+
+def load_registered_module(
+    module_name: str,
+) -> ModuleType:
+    """Load a registered module safely.
+
+    Normal Python modules use importlib.
+
+    AI Lab modules located below ml/ai-lab can use the
+    explicit @file: form because that directory contains
+    a hyphen and is not a valid Python package name.
+    """
+    if module_name.startswith(
+        "@file:"
+    ):
+        return load_module_from_file(
+            module_name
+        )
+
+    return importlib.import_module(
+        module_name
+    )
 
 
 def load_experiment_runner(
@@ -224,7 +292,7 @@ def load_experiment_runner(
         ]
     )
 
-    module = importlib.import_module(
+    module = load_registered_module(
         module_name
     )
 
@@ -309,7 +377,7 @@ def write_results(
         "execution": execution,
         "runner": {
             "name": "ai_lab_runner",
-            "version": 4,
+            "version": 5,
         },
     }
 
@@ -455,6 +523,32 @@ def main() -> int:
     )
 
     return 0
+
+
+def safe_experiment_id(
+    value: str,
+) -> str:
+    allowed = set(
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789"
+        "_-"
+    )
+
+    cleaned = "".join(
+        character
+        if character in allowed
+        else "_"
+        for character in value
+    )
+
+    if not cleaned:
+        raise ValueError(
+            "experiment_id is empty "
+            "after sanitization."
+        )
+
+    return cleaned
 
 
 if __name__ == "__main__":
