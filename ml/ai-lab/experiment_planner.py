@@ -1,17 +1,19 @@
-"""Controlled AI Lab experiment planner.
+"""
+Deterministic planner for the Blankdiss AI Lab.
 
-The planner consumes an explicit research-state snapshot and produces
-an auditable experiment proposal.
+The planner does not execute research experiments. It inspects the
+current research state and proposes the next eligible existing
+research specification.
 
-It does not:
-    - execute experiments
-    - modify research specifications
-    - modify locked parameters
-    - optimize thresholds on test data
-    - declare hypotheses confirmed
-
-The first implementation is deliberately deterministic. It establishes
-the planner contract before introducing model-based reasoning.
+Design principles:
+- deterministic
+- conservative
+- no modification of research specifications
+- no parameter optimization
+- no test-set selection
+- no automatic selection of locked prospective confirmations
+- already executed specifications are skipped
+- hypothesis tests have priority over discovery scans
 """
 
 from __future__ import annotations
@@ -19,163 +21,102 @@ from __future__ import annotations
 from typing import Any
 
 
-PLANNER_VERSION = 1
+PLANNER_VERSION = 2
 
 
-def _as_list(
-    value: Any,
-) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-
-    return [
-        item
-        for item in value
-        if isinstance(item, dict)
-    ]
-
-
-def _research(
-    state: dict[str, Any],
-) -> dict[str, Any]:
-    value = state.get(
-        "research",
-        {},
-    )
-
-    if not isinstance(
-        value,
-        dict,
-    ):
-        return {}
-
-    return value
-
-
-def _locked_specs(
-    state: dict[str, Any],
-) -> list[dict[str, Any]]:
-    research = _research(state)
-
-    return _as_list(
-        research.get(
-            "locked_specs",
-            [],
-        )
-    )
-
-
-def _specs(
-    state: dict[str, Any],
-) -> list[dict[str, Any]]:
-    research = _research(state)
-
-    return _as_list(
-        research.get(
-            "specs",
-            [],
-        )
-    )
-
-
-def _research_runs(
-    state: dict[str, Any],
-) -> list[dict[str, Any]]:
-    value = state.get(
-        "research_runs",
-        {},
-    )
-
-    if not isinstance(
-        value,
-        dict,
-    ):
-        return []
-
-    return _as_list(
-        value.get(
-            "runs",
-            [],
-        )
-    )
-
-
-def _stage(
-    spec: dict[str, Any],
-) -> str | None:
-    value = spec.get(
-        "stage"
-    )
+def _spec_id(spec: dict[str, Any]) -> str:
+    """Return the specification identifier."""
+    value = spec.get("id")
 
     if value is None:
-        return None
+        value = spec.get("spec_id")
+
+    if value is None:
+        raise ValueError(
+            "Research specification is missing an id/spec_id."
+        )
 
     return str(value)
 
 
-def _is_locked(
-    spec: dict[str, Any],
-) -> bool:
-    return (
-        spec.get(
-            "locked",
-            False,
-        )
-        is True
+def _stage(spec: dict[str, Any]) -> str:
+    """Return the normalized research stage."""
+    return str(
+        spec.get("stage", "")
+    ).strip().lower()
+
+
+def _is_locked(spec: dict[str, Any]) -> bool:
+    """Return whether the specification is locked."""
+    return bool(
+        spec.get("locked", False)
     )
 
 
-def _spec_id(
-    spec: dict[str, Any],
-) -> str | None:
-    value = spec.get(
-        "id"
-    )
+def _run_spec_ids(
+    research_runs: list[dict[str, Any]],
+) -> set[str]:
+    """Return spec IDs already represented in research run manifests."""
+    completed: set[str] = set()
 
-    if value is None:
-        return None
+    for run in research_runs:
+        specs = run.get("specs", [])
 
-    return str(value)
+        if not isinstance(specs, list):
+            continue
+
+        for item in specs:
+            if isinstance(item, str):
+                completed.add(item)
+                continue
+
+            if not isinstance(item, dict):
+                continue
+
+            for key in (
+                "id",
+                "spec_id",
+                "experiment_id",
+            ):
+                value = item.get(key)
+
+                if value is not None:
+                    completed.add(str(value))
+                    break
+
+    return completed
 
 
 def _select_existing_spec(
     specs: list[dict[str, Any]],
+    research_runs: list[dict[str, Any]],
 ) -> tuple[
     dict[str, Any] | None,
     str,
 ]:
-    """Select an existing spec without changing its parameters.
+    """Select the next eligible existing spec.
 
-    Priority is deliberately conservative:
+    Locked prospective-confirmation specifications are never selected
+    automatically. They are controlled checkpoints that require their
+    own execution decision.
 
-    1. locked prospective confirmation
-    2. hypothesis test
-    3. discovery
+    Selection priority:
+        1. unexecuted hypothesis tests
+        2. unexecuted discovery/signal-mapping specs
 
-    A locked confirmation is selected only as an existing experiment
-    to inspect/execute. Its parameters are never reconstructed or changed.
+    Already represented research specs are skipped so the planner does
+    not repeatedly propose the same experiment.
     """
-
-    confirmation = [
-        spec
-        for spec in specs
-        if _stage(spec)
-        == "prospective_confirmation"
-        and _is_locked(spec)
-    ]
-
-    if confirmation:
-        return (
-            confirmation[0],
-            "prospective_confirmation",
-        )
+    completed_ids = _run_spec_ids(
+        research_runs
+    )
 
     hypothesis = [
         spec
         for spec in specs
-        if _stage(spec)
-        == "hypothesis_test"
+        if _stage(spec) == "hypothesis_test"
         and not _is_locked(spec)
+        and _spec_id(spec) not in completed_ids
     ]
 
     if hypothesis:
@@ -187,9 +128,9 @@ def _select_existing_spec(
     discovery = [
         spec
         for spec in specs
-        if _stage(spec)
-        == "signal_mapping"
+        if _stage(spec) == "signal_mapping"
         and not _is_locked(spec)
+        and _spec_id(spec) not in completed_ids
     ]
 
     if discovery:
@@ -198,49 +139,259 @@ def _select_existing_spec(
             "discovery",
         )
 
-    return (
-        None,
-        "none",
+    return None, "none"
+
+
+def _copy_locked_parameters(
+    spec: dict[str, Any],
+) -> dict[str, Any]:
+    """Copy parameters from a locked specification.
+
+    This is intentionally a shallow structural copy. The planner does
+    not alter parameter values.
+    """
+    parameters = spec.get(
+        "parameters",
+        {},
     )
+
+    if not isinstance(parameters, dict):
+        return {}
+
+    return dict(parameters)
 
 
 def _build_constraints(
-    selected_spec: dict[str, Any] | None,
-    stage: str,
+    spec: dict[str, Any],
 ) -> list[str]:
+    """Build conservative execution constraints."""
     constraints = [
-        "Do not modify research specifications.",
-        "Do not execute arbitrary code.",
-        "Do not optimize parameters against test data.",
-        "Do not declare a hypothesis confirmed.",
+        "Do not modify the research specification.",
+        "Do not introduce arbitrary parameters.",
+        "Do not optimize thresholds on the test set.",
+        "Do not select the test data based on observed outcomes.",
+        "Do not declare the research hypothesis confirmed from the planner output.",
+        "Do not automatically select a locked prospective-confirmation specification.",
     ]
 
-    if selected_spec is not None:
-        constraints.append(
-            "Use the selected specification as declared; "
-            "do not silently change its parameters."
-        )
-
-    if stage == "prospective_confirmation":
+    if _is_locked(spec):
         constraints.extend(
             [
-                "Treat confirmation parameters as locked.",
-                "Do not search additional bins.",
-                "Do not optimize thresholds on confirmation data.",
-                "Do not switch the primary endpoint after test start.",
-                "Do not use confirmation data for parameter selection.",
+                "Treat all locked parameters as immutable.",
+                "Do not add new bins.",
+                "Do not optimize thresholds.",
+                "Do not switch the primary endpoint.",
+                "Do not use test-data results to alter the specification.",
             ]
         )
 
     return constraints
 
 
-def _build_proposal(
-    selected_spec: dict[str, Any],
-    stage: str,
-    research_runs: list[dict[str, Any]],
+def _open_question_ids(
+    research_state: dict[str, Any],
+) -> set[str]:
+    """Return specification IDs currently represented as open questions."""
+    questions = (
+        research_state
+        .get("research", {})
+        .get("open_questions", [])
+    )
+
+    if not isinstance(questions, list):
+        return set()
+
+    result: set[str] = set()
+
+    for item in questions:
+        if not isinstance(item, dict):
+            continue
+
+        value = item.get("spec_id")
+
+        if value is not None:
+            result.add(str(value))
+
+    return result
+
+
+def build_experiment_plan(
+    research_state: dict[str, Any],
 ) -> dict[str, Any]:
-    spec_id = _spec_id(
+    """Build a deterministic next-experiment proposal."""
+    research = research_state.get(
+        "research",
+        {},
+    )
+
+    if not isinstance(research, dict):
+        research = {}
+
+    specs = research.get(
+        "specs",
+        [],
+    )
+
+    if not isinstance(specs, list):
+        specs = []
+
+    normalized_specs = [
+        spec
+        for spec in specs
+        if isinstance(spec, dict)
+    ]
+
+    research_runs_section = research_state.get(
+        "research_runs",
+        {},
+    )
+
+    if not isinstance(
+        research_runs_section,
+        dict,
+    ):
+        research_runs_section = {}
+
+    research_runs = research_runs_section.get(
+        "runs",
+        [],
+    )
+
+    if not isinstance(research_runs, list):
+        research_runs = []
+
+    research_runs = [
+        run
+        for run in research_runs
+        if isinstance(run, dict)
+    ]
+
+    completed_spec_ids = _run_spec_ids(
+        research_runs
+    )
+
+    selected_spec, stage = _select_existing_spec(
+        normalized_specs,
+        research_runs,
+    )
+
+    locked_specs = [
+        spec
+        for spec in normalized_specs
+        if _is_locked(spec)
+    ]
+
+    locked_confirmation_specs = [
+        spec
+        for spec in locked_specs
+        if _stage(spec) == "prospective_confirmation"
+    ]
+
+    warnings: list[str] = []
+
+    if locked_confirmation_specs:
+        warnings.append(
+            "Locked prospective-confirmation specification(s) "
+            "exist but are not automatically selected by the planner."
+        )
+
+    migration_specs = [
+        spec
+        for spec in normalized_specs
+        if _stage(spec) == "migration"
+    ]
+
+    if migration_specs:
+        warnings.append(
+            "Migration specifications are visible in the research "
+            "state but are not treated as current research evidence "
+            "or automatic planning candidates."
+        )
+
+    if not research_runs:
+        warnings.append(
+            "No research-engine runs are visible in the current "
+            "research state."
+        )
+
+    if selected_spec is None:
+        remaining_hypothesis = [
+            spec
+            for spec in normalized_specs
+            if _stage(spec) == "hypothesis_test"
+            and not _is_locked(spec)
+            and _spec_id(spec) not in completed_spec_ids
+        ]
+
+        remaining_discovery = [
+            spec
+            for spec in normalized_specs
+            if _stage(spec) == "signal_mapping"
+            and not _is_locked(spec)
+            and _spec_id(spec) not in completed_spec_ids
+        ]
+
+        if not remaining_hypothesis and not remaining_discovery:
+            warnings.append(
+                "No unexecuted hypothesis-test or discovery "
+                "specification is available for automatic planning."
+            )
+
+        return {
+            "planner_version": PLANNER_VERSION,
+            "status": "no_proposal",
+            "selection": {
+                "source_spec": None,
+                "stage": "none",
+                "locked": False,
+            },
+            "parameters": {},
+            "constraints": [
+                "Do not create a new research specification "
+                "automatically.",
+                "Do not modify existing research specifications.",
+                "Do not automatically select a locked "
+                "prospective-confirmation specification.",
+            ],
+            "research_context": {
+                "spec_count": len(
+                    normalized_specs
+                ),
+                "research_run_count": len(
+                    research_runs
+                ),
+                "completed_spec_count": len(
+                    completed_spec_ids
+                ),
+                "open_question_count": len(
+                    _open_question_ids(
+                        research_state
+                    )
+                ),
+                "locked_spec_count": len(
+                    locked_specs
+                ),
+            },
+            "warnings": warnings,
+        }
+
+    selected_id = _spec_id(
+        selected_spec
+    )
+
+    selection = {
+        "source_spec": selected_id,
+        "stage": stage,
+        "locked": _is_locked(
+            selected_spec
+        ),
+    }
+
+    parameters = _copy_locked_parameters(
+        selected_spec
+    )
+
+    constraints = _build_constraints(
         selected_spec
     )
 
@@ -248,273 +399,57 @@ def _build_proposal(
         "question"
     )
 
-    metadata = selected_spec.get(
-        "metadata",
-        {},
-    )
-
-    if not isinstance(
-        metadata,
-        dict,
-    ):
-        metadata = {}
-
-    hypothesis = metadata.get(
-        "hypothesis"
-    )
-
-    if hypothesis is None:
-        hypothesis = (
-            "Evaluate the research question "
-            "defined by the existing specification."
+    if question is not None:
+        selection["question"] = str(
+            question
         )
-
-    targets = selected_spec.get(
-        "targets",
-        [],
-    )
-
-    if not isinstance(
-        targets,
-        list,
-    ):
-        targets = []
-
-    signals = selected_spec.get(
-        "signals",
-        [],
-    )
-
-    if not isinstance(
-        signals,
-        list,
-    ):
-        signals = []
-
-    windows = selected_spec.get(
-        "windows",
-        [],
-    )
-
-    if not isinstance(
-        windows,
-        list,
-    ):
-        windows = []
-
-    splits = selected_spec.get(
-        "splits",
-        [],
-    )
-
-    if not isinstance(
-        splits,
-        list,
-    ):
-        splits = []
-
-    analysis = selected_spec.get(
-        "analysis",
-        {},
-    )
-
-    if not isinstance(
-        analysis,
-        dict,
-    ):
-        analysis = {}
-
-    rationale = (
-        "An existing declarative research specification "
-        "already represents this research question. "
-        "The planner therefore proposes using that specification "
-        "rather than creating a new parameter search."
-    )
-
-    if stage == "prospective_confirmation":
-        rationale = (
-            "A locked prospective confirmation specification "
-            "already exists. The planner preserves its predefined "
-            "parameters and endpoint and proposes no optimization."
-        )
-
-    return {
-        "proposal_version": 1,
-        "research_question": question,
-        "hypothesis": hypothesis,
-        "stage": stage,
-        "source_specs": (
-            [spec_id]
-            if spec_id
-            else []
-        ),
-        "data_requirements": {
-            "windows": windows,
-            "splits": splits,
-            "required_signals": signals,
-            "targets": targets,
-        },
-        "parameters": {
-            "source_spec": spec_id,
-            "locked": (
-                _is_locked(
-                    selected_spec
-                )
-            ),
-        },
-        "validation": {
-            "analysis": analysis,
-            "declared_by_source_spec": True,
-            "research_run_count_visible": len(
-                research_runs
-            ),
-        },
-        "constraints": _build_constraints(
-            selected_spec,
-            stage,
-        ),
-        "rationale": rationale,
-        "expected_observation": (
-            "Determine what the declared research specification "
-            "actually observes without changing its design."
-        ),
-        "status": "proposed",
-    }
-
-
-def build_experiment_plan(
-    state: dict[str, Any],
-) -> dict[str, Any]:
-    """Build a deterministic proposal from the research state."""
-
-    if not isinstance(
-        state,
-        dict,
-    ):
-        raise ValueError(
-            "Research state must be a JSON object."
-        )
-
-    specs = _specs(
-        state
-    )
-
-    locked_specs = _locked_specs(
-        state
-    )
-
-    research_runs = _research_runs(
-        state
-    )
-
-    selected_spec, stage = (
-        _select_existing_spec(
-            specs
-        )
-    )
-
-    warnings: list[str] = []
-
-    if not research_runs:
-        warnings.append(
-            "No research-engine run manifests are visible "
-            "in the current research-state snapshot."
-        )
-
-    migration_count = sum(
-        1
-        for spec in specs
-        if _stage(spec) == "migration"
-    )
-
-    if migration_count:
-        warnings.append(
-            f"{migration_count} migration-stage specification(s) "
-            "are visible but are not treated as new evidence."
-        )
-
-    if selected_spec is None:
-        return {
-            "planner_version": PLANNER_VERSION,
-            "research_state_version": state.get(
-                "state_version"
-            ),
-            "status": "no_existing_experiment_selected",
-            "selection": {
-                "source_spec": None,
-                "stage": "none",
-            },
-            "proposal": None,
-            "constraints": _build_constraints(
-                None,
-                "none",
-            ),
-            "warnings": warnings,
-        }
-
-    proposal = _build_proposal(
-        selected_spec,
-        stage,
-        research_runs,
-    )
 
     return {
         "planner_version": PLANNER_VERSION,
-        "research_state_version": state.get(
-            "state_version"
-        ),
         "status": "proposal_created",
-        "selection": {
-            "source_spec": _spec_id(
-                selected_spec
-            ),
-            "stage": stage,
-            "locked": _is_locked(
-                selected_spec
-            ),
-        },
-        "proposal": proposal,
-        "warnings": warnings,
+        "selection": selection,
+        "parameters": parameters,
+        "constraints": constraints,
         "research_context": {
             "spec_count": len(
-                specs
-            ),
-            "locked_spec_count": len(
-                locked_specs
+                normalized_specs
             ),
             "research_run_count": len(
                 research_runs
             ),
+            "completed_spec_count": len(
+                completed_spec_ids
+            ),
+            "open_question_count": len(
+                _open_question_ids(
+                    research_state
+                )
+            ),
+            "locked_spec_count": len(
+                locked_specs
+            ),
         },
+        "warnings": warnings,
     }
 
 
 def main(
-    spec: dict[str, Any] | None = None,
+    experiment: dict[str, Any],
 ) -> dict[str, Any]:
-    """AI Lab runner entry point."""
-
-    if not isinstance(
-        spec,
-        dict,
-    ):
-        raise ValueError(
-            "Planner specification must be a JSON object."
-        )
-
-    state = spec.get(
+    """Entry point used by the AI Lab runner."""
+    research_state = experiment.get(
         "research_state"
     )
 
     if not isinstance(
-        state,
+        research_state,
         dict,
     ):
         raise ValueError(
-            "Planner requires a "
-            "'research_state' object."
+            "experiment_planner requires a "
+            "research_state object."
         )
 
     return build_experiment_plan(
-        state
+        research_state
     )
