@@ -124,10 +124,29 @@ engine.py
 
 Den generiska analysmotorn.
 
-Nuvarande analysformer:
+Engine ska innehålla återanvändbara analysis types.
+
+Exempel:
 
 tail
 interaction
+incremental_model
+
+En analysis type är en generell analysförmåga.
+
+Den ska inte vara namngiven efter en specifik forskningshypotes.
+
+Exempel:
+
+Rätt:
+
+incremental_model
+
+Fel:
+
+momentum_incremental_si
+
+Det konkreta experimentet ska beskrivas av YAML-specen.
 
 Engine ansvarar för standardiserade mått såsom:
 
@@ -139,9 +158,74 @@ Engine ansvarar för standardiserade mått såsom:
 * mean return
 * median return
 * return difference
+* modellmetrics
 * bootstrap CI i DEEP
 
 Analyslogik som återkommer mellan hypoteser ska flyttas hit.
+
+⸻
+
+Införande av nya forskningshypoteser
+
+När en ny hypotes ska införas ska följande ordning alltid användas:
+
+1. Formulera forskningsfrågan.
+2. Läs denna README.
+3. Kontrollera spec.py.
+4. Kontrollera befintliga analysis types i engine.py.
+5. Kontrollera signals.py.
+6. Kontrollera cache.py.
+7. Avgör om hypotesen kan uttryckas med befintlig Engine.
+8. Om JA: skapa YAML-spec.
+9. Om NEJ: avgör om den saknade analysformen är generell.
+10. Om generell: implementera den i Engine.
+11. Skapa därefter YAML-specen.
+12. Kör research runner.
+13. Verifiera resultat och OOS.
+14. Ta bort eventuell legacy-implementation när migreringen är verifierad.
+
+Den viktiga distinktionen är:
+
+Ny hypotes
+    → YAML
+
+Ny generell analysis type
+    → Engine
+
+Ny hypotes som använder den nya analysis typen
+    → YAML
+
+En första hypotes som kräver ny Engine-funktionalitet ska alltså inte implementeras som standalone Python.
+
+Exempel:
+
+Hypotes:
+
+M0 = momentum
+
+M1 = momentum + SI change
+
+M2 = momentum + SI change + momentum × SI change
+
+Om Engine saknar incremental_model ska man inte skapa:
+
+ml/research/momentum_incremental_si_analysis.py
+
+för den nya hypotesen.
+
+I stället:
+
+incremental_model
+    ↓
+engine.py
+
+och:
+
+momentum_incremental_si.yaml
+    ↓
+Research Engine
+
+Det gör att nästa liknande hypotes kan använda samma analysis type utan ny specialkod.
 
 ⸻
 
@@ -276,6 +360,10 @@ Exempel:
 
 Custom-kod ska fortfarande återanvända Research Engine där det är möjligt.
 
+Custom ska inte användas enbart för att en generell analysis type ännu saknas i Engine.
+
+Om samma analyslogik kan användas av flera framtida hypoteser ska den normalt införas som en generell Engine-funktion i stället.
+
 ⸻
 
 Research kontra Diagnostics
@@ -291,6 +379,8 @@ Kan frågan beskrivas deklarativt?
        NEJ
         ↓
  custom / Diagnostics
+
+Men innan en fråga flyttas till custom eller Diagnostics ska det kontrolleras om den egentligen representerar en generell analysis type som saknas i Engine.
 
 Diagnostics används när analysen kräver ett mer specialiserat experimentframework.
 
@@ -358,9 +448,50 @@ Skriv inte en ny experimentklass bara för att testa en vanlig hypotes.
 
 Börja med YAML.
 
-Ny Python är motiverad när analysen kräver verkligt ny logik.
+Om hypotesen kan uttryckas med befintlig analysis type ska endast YAML-specen behöva skapas.
 
-Om samma logik sedan används av flera analyser ska den flyttas från custom till Engine.
+Om hypotesen inte kan uttryckas med befintlig analysis type:
+
+1. Identifiera vilken funktionalitet som saknas.
+2. Avgör om den är generell.
+3. Om generell: lägg den i Engine.
+4. Skapa därefter YAML-specen.
+5. Om unik: överväg custom/ eller Diagnostics.
+
+Exempel:
+
+Ny hypotes
+    ↓
+befintlig Engine?
+    │
+    ├── JA → YAML
+    │
+    └── NEJ
+         ↓
+    generell analysform?
+         │
+         ├── JA → Engine → YAML
+         │
+         └── NEJ → custom / Diagnostics
+
+Om samma logik sedan används av flera analyser ska den finnas centralt i Engine.
+
+⸻
+
+Legacy och migration
+
+När en äldre standalone-analys ersätts av Research Engine ska migreringen ske i följande ordning:
+
+1. Identifiera vilken generell analysförmåga legacy-koden representerar.
+2. Implementera den generellt i Engine.
+3. Skapa en YAML-spec som reproducerar hypotesen.
+4. Kör gammal och ny implementation parallellt under verifieringen.
+5. Jämför resultat.
+6. Verifiera OOS och output.
+7. När den nya vägen är verifierad: ta bort legacy-koden.
+8. Ta bort eventuell duplicerad registry-/workflow-logik.
+
+Det ska inte finnas två permanenta implementationsvägar för samma analys.
 
 ⸻
 
@@ -388,6 +519,10 @@ körning
 
 Den deklarativa vägen är standard.
 
+Den generiska Engine-funktionen ska byggas först när en ny analysform behövs.
+
+Den konkreta forskningshypotesen ska därefter beskrivas deklarativt.
+
 ⸻
 
 Migration status
@@ -398,9 +533,11 @@ Efter migreringen ska:
 
 * generiska experiment vara YAML
 * gemensam logik finnas i Engine
+* nya generella analysis types finnas i Engine
 * specialiserad Research finnas i custom/
 * Diagnostics endast innehålla verkligt specialiserade analyser
 * legacy-filer vara borttagna
 * död kod vara borttagen
+* duplicerad analyslogik vara borttagen
 
 Det finns ingen anledning att behålla en gammal implementation parallellt när den nya funktionaliteten är verifierad.
