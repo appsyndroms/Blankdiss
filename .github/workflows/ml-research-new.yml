@@ -29,7 +29,7 @@ jobs:
       # AI LAB
       # ============================================================
 
-      - name: Run AI Lab experiment
+      - name: Run AI Lab research state
         run: |
           mkdir -p data/ai_lab/inbox
           mkdir -p data/ai_lab/results
@@ -48,6 +48,78 @@ jobs:
 
           python -u ml/ai-lab/ai_lab_runner.py \
             data/ai_lab/inbox/experiment.json
+
+      # ============================================================
+      # AI LAB PLANNER
+      # ============================================================
+
+      - name: Run AI Lab experiment planner
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = Path(
+              "data/ai_lab/results/research_state_snapshot/results.json"
+          )
+
+          with source.open(
+              "r",
+              encoding="utf-8",
+          ) as handle:
+              payload = json.load(handle)
+
+          execution = payload.get(
+              "execution",
+              {},
+          )
+
+          research_state = execution.get(
+              "result"
+          )
+
+          if not isinstance(
+              research_state,
+              dict,
+          ):
+              raise ValueError(
+                  "research_state_snapshot does not contain "
+                  "a valid execution.result object."
+              )
+
+          planner_spec = {
+              "experiment_id": "experiment_planner",
+              "description": (
+                  "Controlled experiment proposal generated "
+                  "from the current Blankdiss research state."
+              ),
+              "experiment": "experiment_planner",
+              "research_state": research_state,
+          }
+
+          output = Path(
+              "data/ai_lab/inbox/experiment_planner.json"
+          )
+
+          with output.open(
+              "w",
+              encoding="utf-8",
+          ) as handle:
+              json.dump(
+                  planner_spec,
+                  handle,
+                  indent=2,
+                  ensure_ascii=False,
+              )
+              handle.write("\n")
+          PY
+
+          echo "=== AI LAB EXPERIMENT PLANNER ==="
+          cat data/ai_lab/inbox/experiment_planner.json
+          echo "================================="
+
+          python -u ml/ai-lab/ai_lab_runner.py \
+            data/ai_lab/inbox/experiment_planner.json
 
       # ============================================================
       # SHOW RESULTS
@@ -83,5 +155,5 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Run AI Lab research state snapshot"
+          git commit -m "Run AI Lab research planner"
           git push origin HEAD:main
