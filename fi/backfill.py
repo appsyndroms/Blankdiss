@@ -1,12 +1,16 @@
-"""Backfill av Finansinspektionens historiska aggregerade blankning."""
+"""Självläkande backfill av FI:s aggregerade blankningsdata."""
+
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import re
 import time
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from io import BytesIO
 from pathlib import Path
+from typing import Iterable
 
 import pandas as pd
 import requests
@@ -16,600 +20,56 @@ from .errors import FIError
 from .normalize import normalize_records, now_stockholm
 
 
-DEFAULT_START_DATE = date(2022, 5, 25)
-
-# Historiska aggregatfiler som vi faktiskt har verifierat
-# finns i FI:s daterade filarkiv.
-#
-# VIKTIGT:
-# FI började publicera aggregerad blankning 2022-05-25 och
-# gick över till fortlöpande publicering 2022-06-09.
-#
-# Det innebär däremot inte att det finns en separat daterad
-# Excel/ODS-fil för varje dag som fortfarande är åtkomlig via
-# dagens FI-server.
-#
-# Vi ska därför INTE konstruera URL:er för varje vardag och
-# bombardera FI med 404-anrop.
-VERIFIED_HISTORICAL_DATES = (
-    date(2022, 5, 25),
-    date(2022, 6, 1),
-    date(2022, 6, 8),
-)
+DEFAULT_START_DATE = date(2022, 6, 9)
 
 HISTORICAL_DIR = RAW_DIR / "historical"
+
+COMMONCRAWL_COLLECTIONS_URL = (
+    "https://index.commoncrawl.org/collinfo.json"
+)
+
+COMMONCRAWL_INDEX_URL = (
+    "https://index.commoncrawl.org/"
+)
+
+WAYBACK_CDX_URL = (
+    "https://web.archive.org/cdx/search/cdx"
+)
+
+DEFAULT_DELAY = 0.5
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """En möjlig historisk FI-fil."""
+
+    url: str
+    source_date: date
+    source: str
+    archive_timestamp: str | None = None
 
 
 def parse_date(value: str) -> date:
     """Tolkar YYYY-MM-DD."""
+
     try:
         return datetime.strptime(
             value,
             "%Y-%m-%d",
         ).date()
+
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            f"Ogiltigt datum: {value}. Använd YYYY-MM-DD."
+            f"Ogiltigt datum: {value}. "
+            "Använd YYYY-MM-DD."
         ) from exc
-
-
-def historical_dates(
-    start: date,
-    end: date,
-):
-    """
-    Returnerar endast historiska FI-aggregatdatum som är verifierade.
-
-    Vi använder medvetet inte ett genererat datumintervall här.
-
-    Om FI:s historiska filarkiv senare kartläggs och fler datum
-    verifieras läggs de till i VERIFIED_HISTORICAL_DATES.
-    """
-    if start > end:
-        return
-
-    for source_date in VERIFIED_HISTORICAL_DATES:
-        if start <= source_date <= end:
-            yield source_date
-
-
-def historical_urls(
-    source_date: date,
-) -> list[str]:
-    """
-    Returnerar möjliga FI-URL:er för en verifierad aggregatfil.
-
-    XLSX provas först och ODS därefter som fallback.
-    """
-    date_text = source_date.isoformat()
-
-    base = (
-        "https://www.fi.se/contentassets/"
-        "79e6c3558bd9473fb70a418f51df48d0/"
-    )
-
-    stem = (
-        "aggregerade-blankningspositioner-"
-        f"{date_text}"
-    )
-
-    return [
-        f"{base}{stem}.xlsx",
-        f"{base}{stem}.ods",
-    ]
-
-
-def detect_file_format(
-    data: bytes,
-) -> str:
-    """Identifierar filformat utifrån filens bytes."""
-    if data.startswith(b"PK\x03\x04"):
-        return "zip"
-
-    if data.startswith(b"\xd0\xcf\x11\xe0"):
-        return "ole"
-
-    if data.startswith(b"<?xml"):
-        return "xml"
-
-    if data.lstrip().startswith(b"<"):
-        return "html-or-xml"
-
-    return "unknown"
-
-
-def describe_content(
-    data: bytes,
-) -> str:
-    """Returnerar en kort diagnostisk beskrivning."""
-    file_format = detect_file_format(data)
-
-    preview = (
-        data[:120]
-        .replace(b"\r", b" ")
-        .replace(b"\n", b" ")
-    )
-
-    preview_text = preview.decode(
-        "utf-8",
-        errors="replace",
-    )
-
-    return (
-        f"format={file_format}, "
-        f"bytes={len(data)}, "
-        f"preview={preview_text!r}"
-    )
-
-
-def download_historical_file(
-    session: requests.Session,
-    source_date: date,
-) -> tuple[bytes, str] | None:
-    """
-    Hämtar en verifierad daterad FI-fil.
-
-    XLSX är primär filtyp.
-    ODS används endast som fallback.
-
-    Ett 404-svar betyder att den verifierade URL:en
-    inte längre finns.
-    """
-    urls = historical_urls(
-        source_date
-    )
-
-    for index, url in enumerate(urls):
-        if index == 1:
-            print(
-                "FI backfill: XLSX saknas, "
-                "provar ODS som fallback."
-            )
-
-        print(
-            "FI backfill: försöker "
-            f"{url}"
-        )
-
-        try:
-            response = session.get(
-                url,
-                headers=HEADERS,
-                timeout=60,
-                allow_redirects=True,
-            )
-        except requests.RequestException as exc:
-            raise FIError(
-                "FI-nätverksfel för "
-                f"{source_date}: {exc}"
-            ) from exc
-
-        content_type = response.headers.get(
-            "Content-Type",
-            "",
-        )
-
-        print(
-            "FI backfill: "
-            f"HTTP={response.status_code}, "
-            f"Content-Type={content_type!r}, "
-            f"bytes={len(response.content)}"
-        )
-
-        if response.url != url:
-            print(
-                "FI backfill: redirect -> "
-                f"{response.url}"
-            )
-
-        if response.status_code == 404:
-            label = (
-                "XLSX"
-                if index == 0
-                else "ODS"
-            )
-
-            print(
-                f"FI backfill: {label} saknas "
-                f"för {source_date}"
-            )
-
-            continue
-
-        if response.status_code != 200:
-            raise FIError(
-                "FI returnerade HTTP "
-                f"{response.status_code} "
-                f"för {source_date}."
-            )
-
-        data = response.content
-
-        if len(data) < 100:
-            print(
-                "FI backfill: svaret är "
-                "för litet för att vara "
-                "en historisk datafil."
-            )
-            continue
-
-        description = describe_content(
-            data
-        )
-
-        print(
-            "FI backfill: "
-            f"{description}"
-        )
-
-        if "html" in content_type.lower():
-            print(
-                "FI backfill: HTML-svar "
-                f"för {source_date}, "
-                "behandlar som saknad fil."
-            )
-            continue
-
-        return data, url
-
-    return None
-
-
-def prepare_historical_two_column_table(
-    table: pd.DataFrame,
-    source_date: date,
-) -> pd.DataFrame:
-    """Hanterar FI:s äldre tvåkolumnsformat."""
-    if table.shape[1] != 2:
-        raise FIError(
-            "Den historiska FI-filen har "
-            f"{table.shape[1]} kolumner. "
-            "Förväntade två kolumner."
-        )
-
-    result = pd.DataFrame(
-        {
-            "Emittentens namn": table.iloc[
-                :, 0
-            ],
-            "Emittentens LEI-kod": None,
-            "Summa blankning %": pd.to_numeric(
-                table.iloc[:, 1],
-                errors="coerce",
-            ),
-            "Positionsdatum": (
-                source_date.isoformat()
-            ),
-        }
-    )
-
-    result = result.loc[
-        result["Emittentens namn"].notna()
-    ].copy()
-
-    result = result.loc[
-        result["Summa blankning %"].notna()
-    ].copy()
-
-    result = result.reset_index(
-        drop=True
-    )
-
-    print(
-        "FI backfill: identifierat "
-        "historiskt tvåkolumnsformat."
-    )
-
-    print(
-        "FI backfill: "
-        f"{len(result)} observationer."
-    )
-
-    return result
-
-
-def find_header_row(
-    table: pd.DataFrame,
-) -> int | None:
-    """Försöker hitta rubrikraden i en historisk FI-tabell."""
-    for header_row in range(
-        min(30, len(table))
-    ):
-        raw_values = table.iloc[
-            header_row
-        ].tolist()
-
-        values = [
-            str(value).strip()
-            for value in raw_values
-        ]
-
-        text = (
-            " | ".join(values)
-            .lower()
-        )
-
-        if (
-            "emittentens namn" in text
-            and "summa blankning" in text
-        ):
-            return header_row
-
-        if (
-            "emittent" in text
-            and "blankning" in text
-            and (
-                "lei" in text
-                or "positionsdatum" in text
-                or "position" in text
-            )
-        ):
-            return header_row
-
-        if (
-            "issuer" in text
-            and (
-                "short" in text
-                or "position" in text
-            )
-        ):
-            return header_row
-
-    return None
-
-
-def print_table_diagnostic(
-    table: pd.DataFrame,
-    source_date: date,
-) -> None:
-    """Skriver diagnostik när formatet inte känns igen."""
-    print(
-        "FI backfill: okänt tabellformat "
-        f"för {source_date}."
-    )
-
-    print(
-        "FI backfill: "
-        f"tabellens shape={table.shape}"
-    )
-
-    print(
-        "FI backfill: kolumnindex="
-        f"{list(table.columns)!r}"
-    )
-
-    preview_rows = min(
-        25,
-        len(table),
-    )
-
-    print(
-        "FI backfill: "
-        f"första {preview_rows} rader:"
-    )
-
-    for index in range(
-        preview_rows
-    ):
-        values = [
-            repr(value)
-            for value in table.iloc[
-                index
-            ].tolist()
-        ]
-
-        print(
-            f"  [{index}] "
-            + " | ".join(values)
-        )
-
-
-def prepare_table(
-    table: pd.DataFrame,
-    source_date: date,
-) -> pd.DataFrame:
-    """Försöker omvandla en rå Excel-tabell till normaliserbara kolumner."""
-    if table.shape[1] == 2:
-        first_column = table.iloc[
-            :, 0
-        ]
-
-        second_column = pd.to_numeric(
-            table.iloc[:, 1],
-            errors="coerce",
-        )
-
-        non_empty = (
-            first_column.notna()
-        )
-
-        numeric_ratio = (
-            second_column.notna().sum()
-            / max(
-                non_empty.sum(),
-                1,
-            )
-        )
-
-        if numeric_ratio >= 0.90:
-            return (
-                prepare_historical_two_column_table(
-                    table,
-                    source_date,
-                )
-            )
-
-    header_row = find_header_row(
-        table
-    )
-
-    if header_row is None:
-        print_table_diagnostic(
-            table,
-            source_date,
-        )
-
-        raise FIError(
-            "Kunde inte identifiera "
-            "rubrikraden i FI:s "
-            "historiska fil för "
-            f"{source_date}."
-        )
-
-    candidate = [
-        str(value).strip()
-        for value in table.iloc[
-            header_row
-        ].tolist()
-    ]
-
-    result = (
-        table
-        .iloc[
-            header_row + 1 :
-        ]
-        .copy()
-    )
-
-    result.columns = candidate
-
-    result = result.reset_index(
-        drop=True
-    )
-
-    print(
-        "FI backfill: identifierad "
-        f"rubrikrad={header_row}"
-    )
-
-    print(
-        "FI backfill: kolumner="
-        f"{list(result.columns)!r}"
-    )
-
-    return result
-
-
-def read_aggregate_file(
-    data: bytes,
-    source_date: date,
-) -> pd.DataFrame:
-    """Läser en historisk FI-aggregatfil."""
-    file_format = detect_file_format(
-        data
-    )
-
-    print(
-        "FI backfill: läser fil "
-        f"{source_date}: "
-        f"format={file_format}"
-    )
-
-    errors: list[str] = []
-
-    if file_format == "zip":
-        try:
-            table = pd.read_excel(
-                BytesIO(data),
-                engine="openpyxl",
-                header=None,
-            )
-
-            print(
-                "FI backfill: "
-                "parser=openpyxl, "
-                f"shape={table.shape}"
-            )
-
-            return prepare_table(
-                table,
-                source_date,
-            )
-
-        except FIError:
-            raise
-
-        except Exception as exc:
-            errors.append(
-                f"openpyxl: {exc}"
-            )
-
-            print(
-                "FI backfill: "
-                "parser=openpyxl "
-                f"misslyckades: {exc}"
-            )
-
-        try:
-            table = pd.read_excel(
-                BytesIO(data),
-                engine="odf",
-                header=None,
-            )
-
-            print(
-                "FI backfill: "
-                "parser=odf, "
-                f"shape={table.shape}"
-            )
-
-            return prepare_table(
-                table,
-                source_date,
-            )
-
-        except FIError:
-            raise
-
-        except Exception as exc:
-            errors.append(
-                f"odf: {exc}"
-            )
-
-    elif file_format == "ole":
-        try:
-            table = pd.read_excel(
-                BytesIO(data),
-                engine="xlrd",
-                header=None,
-            )
-
-            print(
-                "FI backfill: "
-                "parser=xlrd, "
-                f"shape={table.shape}"
-            )
-
-            return prepare_table(
-                table,
-                source_date,
-            )
-
-        except FIError:
-            raise
-
-        except Exception as exc:
-            errors.append(
-                f"xlrd: {exc}"
-            )
-
-    else:
-        errors.append(
-            "okänt filformat"
-        )
-
-    raise FIError(
-        "Kunde inte läsa historisk "
-        f"FI-fil för {source_date}: "
-        f"{describe_content(data)}; "
-        f"{'; '.join(errors)}"
-    )
 
 
 def output_path(
     source_date: date,
 ) -> Path:
-    """Returnerar JSONL-sökvägen för ett datum."""
+    """Returnerar den kanoniska filen för ett FI-datum."""
+
     return (
         HISTORICAL_DIR
         / (
@@ -620,11 +80,778 @@ def output_path(
     )
 
 
-def write_historical_snapshot(
+def snapshot_dates() -> set[date]:
+    """
+    Läser befintliga FI-datum.
+
+    Vi tittar både på historiska datumfiler och gamla
+    tidsstämplade snapshots.
+    """
+
+    dates: set[date] = set()
+
+    for path in HISTORICAL_DIR.glob(
+        "fi_aggregate_*.jsonl"
+    ):
+        match = re.search(
+            r"fi_aggregate_"
+            r"(\d{4})-(\d{2})-(\d{2})"
+            r"(?:_|\.jsonl)",
+            path.name,
+        )
+
+        if not match:
+            continue
+
+        try:
+            dates.add(
+                date(
+                    int(match.group(1)),
+                    int(match.group(2)),
+                    int(match.group(3)),
+                )
+            )
+        except ValueError:
+            continue
+
+    snapshot_dir = RAW_DIR / "snapshots"
+
+    for path in snapshot_dir.glob(
+        "fi_aggregate_*.jsonl"
+    ):
+        match = re.search(
+            r"fi_aggregate_"
+            r"(\d{4})-(\d{2})-(\d{2})",
+            path.name,
+        )
+
+        if not match:
+            continue
+
+        try:
+            dates.add(
+                date(
+                    int(match.group(1)),
+                    int(match.group(2)),
+                    int(match.group(3)),
+                )
+            )
+        except ValueError:
+            continue
+
+    return dates
+
+
+def is_weekday(
+    value: date,
+) -> bool:
+    """Returnerar True för måndag-fredag."""
+
+    return value.weekday() < 5
+
+
+def missing_weekdays(
+    start: date,
+    end: date,
+) -> list[date]:
+    """Returnerar saknade vardagar."""
+
+    existing = snapshot_dates()
+
+    result: list[date] = []
+
+    current = start
+
+    while current <= end:
+        if (
+            is_weekday(current)
+            and current not in existing
+        ):
+            result.append(current)
+
+        current += timedelta(days=1)
+
+    return result
+
+
+def normalize_text(
+    value: object,
+) -> str:
+    """Normaliserar text."""
+
+    if value is None:
+        return ""
+
+    text = str(value).strip()
+
+    return re.sub(
+        r"\s+",
+        " ",
+        text,
+    )
+
+
+def normalize_header(
+    value: object,
+) -> str:
+    """Normaliserar kolumnnamn."""
+
+    text = normalize_text(
+        value
+    ).lower()
+
+    replacements = {
+        "å": "a",
+        "ä": "a",
+        "ö": "o",
+        "é": "e",
+        "á": "a",
+    }
+
+    for old, new in replacements.items():
+        text = text.replace(
+            old,
+            new,
+        )
+
+    text = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        text,
+    )
+
+    return text.strip("_")
+
+
+def extract_date_from_url(
+    url: str,
+) -> date | None:
+    """Hittar FI-datum i en historisk fil-URL."""
+
+    match = re.search(
+        r"aggregerade[-_]blankningspositioner[-_]"
+        r"(\d{4})[-_](\d{2})[-_](\d{2})",
+        url,
+        flags=re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    try:
+        return date(
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
+        )
+
+    except ValueError:
+        return None
+
+
+def is_fi_aggregate_url(
+    url: str,
+) -> bool:
+    """Kontrollerar att URL är en FI-aggregatfil."""
+
+    lowered = url.lower()
+
+    return (
+        "fi.se/" in lowered
+        and "aggregerade-blankningspositioner-"
+        in lowered
+        and lowered.endswith(".xlsx")
+    )
+
+
+def get_commoncrawl_indexes(
+    session: requests.Session,
+) -> list[str]:
+    """Hämtar relevanta Common Crawl-index."""
+
+    try:
+        response = session.get(
+            COMMONCRAWL_COLLECTIONS_URL,
+            timeout=60,
+        )
+
+        response.raise_for_status()
+
+        collections = response.json()
+
+    except (
+        requests.RequestException,
+        ValueError,
+    ) as exc:
+        print(
+            "FI backfill: Common Crawl-index "
+            f"kunde inte hämtas: {exc}"
+        )
+
+        return []
+
+    result: list[str] = []
+
+    for collection in collections:
+        name = collection.get(
+            "id",
+            "",
+        )
+
+        if not name.startswith(
+            "CC-MAIN-"
+        ):
+            continue
+
+        result.append(name)
+
+    return result
+
+
+def query_commoncrawl(
+    session: requests.Session,
+    index_name: str,
+    start: date,
+    end: date,
+) -> list[Candidate]:
+    """Söker historiska FI-filer i Common Crawl."""
+
+    pattern = (
+        "fi.se/contentassets/*/"
+        "aggregerade-blankningspositioner-*.xlsx"
+    )
+
+    endpoint = (
+        f"{COMMONCRAWL_INDEX_URL}"
+        f"{index_name}-index"
+    )
+
+    params = {
+        "url": pattern,
+        "output": "json",
+        "filter": "status:200",
+        "collapse": "urlkey",
+    }
+
+    try:
+        response = session.get(
+            endpoint,
+            params=params,
+            timeout=60,
+        )
+
+        if response.status_code == 404:
+            return []
+
+        response.raise_for_status()
+
+    except requests.RequestException as exc:
+        print(
+            "FI backfill: Common Crawl "
+            f"{index_name} misslyckades: {exc}"
+        )
+
+        return []
+
+    candidates: list[Candidate] = []
+
+    for line in response.text.splitlines():
+        if not line.strip():
+            continue
+
+        try:
+            item = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        url = item.get(
+            "url",
+            "",
+        )
+
+        if not is_fi_aggregate_url(
+            url
+        ):
+            continue
+
+        source_date = extract_date_from_url(
+            url
+        )
+
+        if source_date is None:
+            continue
+
+        if not (
+            start
+            <= source_date
+            <= end
+        ):
+            continue
+
+        candidates.append(
+            Candidate(
+                url=url,
+                source_date=source_date,
+                source="commoncrawl",
+                archive_timestamp=item.get(
+                    "timestamp"
+                ),
+            )
+        )
+
+    return candidates
+
+
+def query_wayback(
+    session: requests.Session,
+    start: date,
+    end: date,
+) -> list[Candidate]:
+    """Söker historiska FI-filer i Wayback."""
+
+    pattern = (
+        "https://www.fi.se/contentassets/*/"
+        "aggregerade-blankningspositioner-*.xlsx"
+    )
+
+    params = {
+        "url": pattern,
+        "output": "json",
+        "filter": "statuscode:200",
+        "fl": (
+            "timestamp,"
+            "original,"
+            "statuscode"
+        ),
+        "collapse": "urlkey",
+    }
+
+    try:
+        response = session.get(
+            WAYBACK_CDX_URL,
+            params=params,
+            timeout=60,
+        )
+
+        response.raise_for_status()
+
+    except requests.RequestException as exc:
+        print(
+            "FI backfill: Wayback "
+            f"misslyckades: {exc}"
+        )
+
+        return []
+
+    try:
+        rows = response.json()
+
+    except ValueError:
+        return []
+
+    candidates: list[Candidate] = []
+
+    for row in rows:
+        if not isinstance(
+            row,
+            list,
+        ):
+            continue
+
+        if len(row) < 2:
+            continue
+
+        timestamp = row[0]
+        url = row[1]
+
+        if not is_fi_aggregate_url(
+            url
+        ):
+            continue
+
+        source_date = extract_date_from_url(
+            url
+        )
+
+        if source_date is None:
+            continue
+
+        if not (
+            start
+            <= source_date
+            <= end
+        ):
+            continue
+
+        candidates.append(
+            Candidate(
+                url=url,
+                source_date=source_date,
+                source="wayback",
+                archive_timestamp=timestamp,
+            )
+        )
+
+    return candidates
+
+
+def download_candidate(
+    session: requests.Session,
+    candidate: Candidate,
+) -> bytes | None:
+    """Hämtar en kandidat direkt eller från arkiv."""
+
+    urls: list[str] = []
+
+    if candidate.source == "commoncrawl":
+        urls.append(candidate.url)
+
+    elif candidate.source == "wayback":
+        if candidate.archive_timestamp:
+            urls.append(
+                "https://web.archive.org/web/"
+                f"{candidate.archive_timestamp}"
+                "id_/"
+                f"{candidate.url}"
+            )
+
+    urls.append(candidate.url)
+
+    for url in urls:
+        try:
+            response = session.get(
+                url,
+                headers=HEADERS,
+                timeout=60,
+            )
+
+        except requests.RequestException:
+            continue
+
+        if response.status_code != 200:
+            continue
+
+        data = response.content
+
+        if len(data) < 1000:
+            continue
+
+        first = data[:1000].lower()
+
+        if (
+            b"<html" in first
+            or b"<!doctype" in first
+        ):
+            continue
+
+        return data
+
+    return None
+
+
+def find_column(
+    columns: Iterable[object],
+    *wanted: str,
+) -> str | None:
+    """Hittar en kolumn utifrån normaliserat namn."""
+
+    normalized = {
+        normalize_header(column): str(column)
+        for column in columns
+    }
+
+    for wanted_name in wanted:
+        wanted_normalized = normalize_header(
+            wanted_name
+        )
+
+        for (
+            normalized_name,
+            original,
+        ) in normalized.items():
+
+            if (
+                normalized_name
+                == wanted_normalized
+                or wanted_normalized
+                in normalized_name
+                or normalized_name
+                in wanted_normalized
+            ):
+                return original
+
+    return None
+
+
+def parse_position(
+    value: object,
+) -> float | None:
+    """Tolkar blankningsprocent."""
+
+    if value is None:
+        return None
+
+    if isinstance(
+        value,
+        (int, float),
+    ):
+        if pd.isna(value):
+            return None
+
+        number = float(value)
+
+        if 0 < abs(number) < 1:
+            number *= 100
+
+        return number
+
+    text = normalize_text(value)
+
+    if not text:
+        return None
+
+    text = (
+        text
+        .replace("%", "")
+        .replace(" ", "")
+        .replace(",", ".")
+    )
+
+    try:
+        number = float(text)
+
+    except ValueError:
+        return None
+
+    if 0 < abs(number) < 1:
+        number *= 100
+
+    return number
+
+
+def parse_position_date(
+    value: object,
+) -> str | None:
+    """Tolkar positionsdatum."""
+
+    if value is None:
+        return None
+
+    if isinstance(
+        value,
+        datetime,
+    ):
+        return value.date().isoformat()
+
+    if isinstance(
+        value,
+        date,
+    ):
+        return value.isoformat()
+
+    text = normalize_text(value)
+
+    if not text:
+        return None
+
+    parsed = pd.to_datetime(
+        text,
+        errors="coerce",
+        dayfirst=False,
+    )
+
+    if pd.isna(parsed):
+        return None
+
+    return parsed.date().isoformat()
+
+
+def parse_xlsx(
+    content: bytes,
+    source_date: date,
+    source: str,
+    source_url: str,
+) -> list[dict]:
+    """Läser en historisk FI-XLSX."""
+
+    excel = pd.ExcelFile(
+        io.BytesIO(content),
+        engine="openpyxl",
+    )
+
+    frames: list[pd.DataFrame] = []
+
+    for sheet in excel.sheet_names:
+        frame = pd.read_excel(
+            excel,
+            sheet_name=sheet,
+        )
+
+        if not frame.empty:
+            frames.append(frame)
+
+    if not frames:
+        raise FIError(
+            "FI-historik: Excel-filen "
+            "innehåller inga tabeller."
+        )
+
+    frame = pd.concat(
+        frames,
+        ignore_index=True,
+    )
+
+    issuer_col = find_column(
+        frame.columns,
+        "Emittentens namn",
+        "Namn på emittent",
+        "Emittent",
+        "Issuer",
+        "Company",
+    )
+
+    lei_col = find_column(
+        frame.columns,
+        "Emittentens LEI-kod",
+        "LEI",
+        "Emittentens LEI",
+    )
+
+    position_col = find_column(
+        frame.columns,
+        "Summa blankning %",
+        "Position i procent",
+        "Position",
+        "Aggregate short position",
+        "Short position",
+    )
+
+    latest_date_col = find_column(
+        frame.columns,
+        "Positionsdatum senaste position",
+        "Positionsdatum",
+        "Latest position date",
+    )
+
+    if issuer_col is None:
+        raise FIError(
+            "FI-historik: kunde inte hitta "
+            "emittentkolumn."
+        )
+
+    if position_col is None:
+        raise FIError(
+            "FI-historik: kunde inte hitta "
+            "blankningskolumn."
+        )
+
+    records: list[dict] = []
+
+    for _, row in frame.iterrows():
+        issuer = normalize_text(
+            row.get(issuer_col)
+        )
+
+        if not issuer:
+            continue
+
+        position = parse_position(
+            row.get(position_col)
+        )
+
+        if position is None:
+            continue
+
+        lei = (
+            normalize_text(
+                row.get(lei_col)
+            )
+            if lei_col
+            else ""
+        )
+
+        latest_position_date = (
+            parse_position_date(
+                row.get(
+                    latest_date_col
+                )
+            )
+            if latest_date_col
+            else None
+        )
+
+        records.append(
+            {
+                "source_date": (
+                    source_date.isoformat()
+                ),
+                "issuer": issuer,
+                "lei": lei or None,
+                "short_interest_pct": round(
+                    position,
+                    6,
+                ),
+                "position_date": (
+                    latest_position_date
+                ),
+                "fetched_at": (
+                    now_stockholm()
+                    .isoformat(
+                        timespec="seconds"
+                    )
+                ),
+                "source": source,
+                "source_url": source_url,
+            }
+        )
+
+    return records
+
+
+def validate_records(
+    records: list[dict],
+    source_date: date,
+) -> None:
+    """Validerar en återställd FI-snapshot."""
+
+    if not records:
+        raise FIError(
+            f"FI-historik {source_date}: "
+            "inga observationer."
+        )
+
+    issuers = [
+        record["issuer"]
+        for record in records
+    ]
+
+    if len(issuers) != len(
+        set(issuers)
+    ):
+        raise FIError(
+            f"FI-historik {source_date}: "
+            "dubbletter av emittenter."
+        )
+
+    for record in records:
+        value = record[
+            "short_interest_pct"
+        ]
+
+        if value < 0 or value > 100:
+            raise FIError(
+                f"FI-historik {source_date}: "
+                f"ogiltig blankning {value}."
+            )
+
+
+def write_snapshot(
     records: list[dict],
     source_date: date,
 ) -> Path:
-    """Skriver en historisk JSONL-snapshot."""
+    """Skriver en kanonisk datumfil."""
+
     HISTORICAL_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -634,202 +861,222 @@ def write_historical_snapshot(
         source_date
     )
 
-    lines = [
-        json.dumps(
-            record,
-            ensure_ascii=False,
-        )
-        + "\n"
-        for record in records
-    ]
+    if path.exists():
+        return path
 
-    path.write_text(
-        "".join(lines),
+    with path.open(
+        "w",
         encoding="utf-8",
-    )
+    ) as handle:
+
+        for record in records:
+            handle.write(
+                json.dumps(
+                    record,
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
 
     return path
 
 
-def backfill(
-    start: date = DEFAULT_START_DATE,
-    end: date | None = None,
-    delay: float = 0.15,
+def recover_missing_dates(
+    start: date,
+    end: date,
+    delay: float,
 ) -> tuple[int, int]:
     """
-    Hämtar verifierad historisk FI-aggregathistorik.
+    Försöker återställa saknade vardagar.
 
-    Vi frågar inte FI efter varje vardag från 2022-06-09.
-
-    Endast verifierade historiska datum provas.
+    Returnerar:
+        (antal återställda dagar,
+         antal dagar som fortfarande saknas)
     """
-    if end is None:
-        end = (
-            now_stockholm().date()
-            - timedelta(days=1)
-        )
 
-    if start > end:
-        raise FIError(
-            f"Startdatum {start} ligger "
-            f"efter slutdatum {end}."
-        )
-
-    candidate_dates = list(
-        historical_dates(
-            start,
-            end,
-        )
+    missing = missing_weekdays(
+        start,
+        end,
     )
 
-    if not candidate_dates:
+    if not missing:
         print(
-            "FI backfill: inga verifierade "
-            "historiska aggregatdatum "
-            f"inom intervallet {start} till {end}."
-        )
-
-        print(
-            "FI backfill: försöker inte "
-            "gissa fram senare FI-URL:er."
-        )
-
-        print(
-            "FI backfill: verifierade datum är "
-            + ", ".join(
-                d.isoformat()
-                for d in VERIFIED_HISTORICAL_DATES
-            )
+            "FI backfill: inga saknade "
+            "vardagar."
         )
 
         return 0, 0
 
     print(
-        "FI backfill: verifierade datum "
-        "inom intervallet:"
+        "FI backfill: saknade vardagar:"
     )
 
-    for source_date in candidate_dates:
+    for value in missing:
         print(
-            f"  - {source_date}"
+            f"  - {value}"
         )
-
-    found = 0
-    rows = 0
 
     session = requests.Session()
+    session.headers.update(
+        HEADERS
+    )
 
-    for source_date in candidate_dates:
-        existing = output_path(
-            source_date
-        )
+    search_start = min(missing)
+    search_end = max(missing)
 
-        if existing.exists():
-            found += 1
+    candidates: list[Candidate] = []
 
-            try:
-                with existing.open(
-                    "r",
-                    encoding="utf-8",
-                ) as file:
-                    existing_rows = sum(
-                        1
-                        for _ in file
-                    )
+    print(
+        "FI backfill: söker historiska "
+        "FI-filer."
+    )
 
-                rows += existing_rows
+    indexes = get_commoncrawl_indexes(
+        session
+    )
 
-                print(
-                    "FI backfill: "
-                    f"{source_date} finns redan "
-                    f"({existing_rows} rader), "
-                    "hoppar över."
-                )
-
-            except OSError:
-                pass
-
-            continue
-
-        result = download_historical_file(
+    # De nyare indexen räcker normalt för
+    # moderna luckor och minskar belastningen.
+    for index_name in indexes[-12:]:
+        found = query_commoncrawl(
             session,
-            source_date,
+            index_name,
+            search_start,
+            search_end,
         )
 
-        if result is None:
-            print(
-                "FI backfill: ingen "
-                f"åtkomlig fil för {source_date}."
-            )
-
-            time.sleep(delay)
-            continue
-
-        data, url = result
-
-        table = read_aggregate_file(
-            data,
-            source_date,
-        )
-
-        fetched_at_value = (
-            now_stockholm().isoformat(
-                timespec="seconds"
-            )
-        )
-
-        try:
-            records = normalize_records(
-                table,
-                fetched_at_value,
-                source_date.isoformat(),
-            )
-
-        except ValueError as exc:
-            raise FIError(
-                "Kunde inte normalisera "
-                f"FI-data för {source_date}: "
-                f"{exc}"
-            ) from exc
-
-        if not records:
-            raise FIError(
-                "FI-filen för "
-                f"{source_date} innehöll "
-                "inga observationer."
-            )
-
-        path = write_historical_snapshot(
-            records,
-            source_date,
-        )
-
-        found += 1
-        rows += len(records)
-
-        print(
-            f"FI backfill: {source_date}: "
-            f"{len(records)} observationer "
-            f"-> {path}"
-        )
-
-        print(
-            "FI backfill: källa = "
-            f"{url}"
-        )
+        if found:
+            candidates.extend(found)
 
         time.sleep(delay)
 
-    return found, rows
+    wayback = query_wayback(
+        session,
+        search_start,
+        search_end,
+    )
+
+    candidates.extend(
+        wayback
+    )
+
+    by_date: dict[
+        date,
+        list[Candidate],
+    ] = {}
+
+    for candidate in candidates:
+        by_date.setdefault(
+            candidate.source_date,
+            [],
+        ).append(candidate)
+
+    recovered = 0
+    unresolved = 0
+
+    for source_date in missing:
+        path = output_path(
+            source_date
+        )
+
+        if path.exists():
+            continue
+
+        candidates_for_date = (
+            by_date.get(
+                source_date,
+                [],
+            )
+        )
+
+        # Prioritera Common Crawl före
+        # Wayback när båda finns.
+        candidates_for_date.sort(
+            key=lambda candidate: (
+                candidate.source
+                != "commoncrawl"
+            )
+        )
+
+        recovered_this_date = False
+
+        for candidate in candidates_for_date:
+            print(
+                "FI backfill: försöker "
+                f"{source_date} via "
+                f"{candidate.source}."
+            )
+
+            content = download_candidate(
+                session,
+                candidate,
+            )
+
+            if content is None:
+                continue
+
+            try:
+                records = parse_xlsx(
+                    content,
+                    source_date,
+                    candidate.source,
+                    candidate.url,
+                )
+
+                validate_records(
+                    records,
+                    source_date,
+                )
+
+            except (
+                FIError,
+                ValueError,
+                KeyError,
+            ) as exc:
+                print(
+                    "FI backfill: fil kunde "
+                    f"inte valideras: {exc}"
+                )
+                continue
+
+            path = write_snapshot(
+                records,
+                source_date,
+            )
+
+            print(
+                "FI backfill: återställde "
+                f"{source_date}: "
+                f"{len(records)} observationer "
+                f"-> {path}"
+            )
+
+            recovered += 1
+            recovered_this_date = True
+
+            break
+
+        if not recovered_this_date:
+            print(
+                "FI backfill: kunde inte "
+                f"återställa {source_date}."
+            )
+
+            unresolved += 1
+
+        time.sleep(delay)
+
+    return recovered, unresolved
 
 
 def parse_args() -> argparse.Namespace:
-    """Parsar kommandoradsargument."""
+    """Parsar CLI-argument."""
+
     parser = argparse.ArgumentParser(
         description=(
-            "Hämta verifierad historisk "
-            "aggregerad blankning "
-            "från Finansinspektionen."
+            "Återställer saknade vardagar "
+            "i FI:s aggregerade "
+            "blankningshistorik."
         )
     )
 
@@ -837,10 +1084,11 @@ def parse_args() -> argparse.Namespace:
         "--from",
         dest="start",
         type=parse_date,
-        default=DEFAULT_START_DATE,
+        default=None,
         help=(
-            "Första datum, YYYY-MM-DD. "
-            f"Standard: {DEFAULT_START_DATE}."
+            "Första datum. Om utelämnat "
+            "används senaste befintliga "
+            "FI-datum."
         ),
     )
 
@@ -850,19 +1098,17 @@ def parse_args() -> argparse.Namespace:
         type=parse_date,
         default=None,
         help=(
-            "Sista datum, YYYY-MM-DD. "
-            "Standard: gårdagen."
+            "Sista datum. Standard är "
+            "gårdagen."
         ),
     )
 
     parser.add_argument(
         "--delay",
         type=float,
-        default=0.15,
+        default=DEFAULT_DELAY,
         help=(
-            "Paus mellan FI-anrop "
-            "i sekunder. "
-            "Standard: 0.15."
+            "Paus mellan externa anrop."
         ),
     )
 
@@ -871,29 +1117,65 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     """CLI-entrypoint."""
+
     args = parse_args()
 
-    try:
-        found, rows = backfill(
-            start=args.start,
-            end=args.end,
-            delay=args.delay,
+    existing = snapshot_dates()
+
+    if args.start is not None:
+        start = args.start
+
+    elif existing:
+        start = (
+            min(existing)
+            + timedelta(days=1)
         )
 
+    else:
+        start = DEFAULT_START_DATE
+
+    if args.end is not None:
+        end = args.end
+
+    else:
+        end = (
+            now_stockholm().date()
+            - timedelta(days=1)
+        )
+
+    if start > end:
         print(
-            "FI backfill klart: "
-            f"{found} filer, "
-            f"{rows} observationer."
+            "FI backfill: inget intervall "
+            "att reparera."
         )
 
         return 0
 
-    except FIError as exc:
-        print(
-            f"FI backfill: FEL: {exc}"
-        )
+    print(
+        "FI backfill: intervall "
+        f"{start} -> {end}"
+    )
 
-        return 1
+    recovered, unresolved = (
+        recover_missing_dates(
+            start,
+            end,
+            args.delay,
+        )
+    )
+
+    print()
+    print(
+        "FI backfill klart:"
+    )
+    print(
+        f"  återställda dagar: {recovered}"
+    )
+    print(
+        f"  kvarvarande luckor: {unresolved}"
+    )
+
+    return 0
 
 
 if __name__ == "__main__":
