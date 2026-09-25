@@ -43,9 +43,7 @@ class AnalysisSpec:
 class ResearchSpec:
     id: str
     question: str
-
     signals: tuple[SignalSpec, ...]
-
     targets: tuple[str, ...]
 
     analysis: AnalysisSpec = field(
