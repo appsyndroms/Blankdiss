@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import re
@@ -15,14 +16,17 @@ from typing import Iterable
 import pandas as pd
 import requests
 
-from .config import HEADERS, RAW_DIR
+from .config import (
+    HEADERS,
+    MANIFEST_PATH,
+    RAW_DIR,
+    SNAPSHOT_DIR,
+)
 from .errors import FIError
-from .normalize import normalize_records, now_stockholm
+from .normalize import now_stockholm
 
 
 DEFAULT_START_DATE = date(2022, 6, 9)
-
-HISTORICAL_DIR = RAW_DIR / "historical"
 
 COMMONCRAWL_COLLECTIONS_URL = (
     "https://index.commoncrawl.org/collinfo.json"
@@ -68,55 +72,31 @@ def parse_date(value: str) -> date:
 def output_path(
     source_date: date,
 ) -> Path:
-    """Returnerar den kanoniska filen för ett FI-datum."""
+    """
+    Returnerar den kanoniska snapshot-filen
+    för ett återställt FI-datum.
+    """
 
     return (
-        HISTORICAL_DIR
+        SNAPSHOT_DIR
         / (
             "fi_aggregate_"
             f"{source_date.isoformat()}"
-            ".jsonl"
+            "_00-00-00.jsonl"
         )
     )
 
 
 def snapshot_dates() -> set[date]:
     """
-    Läser befintliga FI-datum.
+    Läser befintliga FI-datum från snapshots.
 
-    Vi tittar både på historiska datumfiler och gamla
-    tidsstämplade snapshots.
+    Datumet hämtas från filnamnet.
     """
 
     dates: set[date] = set()
 
-    for path in HISTORICAL_DIR.glob(
-        "fi_aggregate_*.jsonl"
-    ):
-        match = re.search(
-            r"fi_aggregate_"
-            r"(\d{4})-(\d{2})-(\d{2})"
-            r"(?:_|\.jsonl)",
-            path.name,
-        )
-
-        if not match:
-            continue
-
-        try:
-            dates.add(
-                date(
-                    int(match.group(1)),
-                    int(match.group(2)),
-                    int(match.group(3)),
-                )
-            )
-        except ValueError:
-            continue
-
-    snapshot_dir = RAW_DIR / "snapshots"
-
-    for path in snapshot_dir.glob(
+    for path in SNAPSHOT_DIR.glob(
         "fi_aggregate_*.jsonl"
     ):
         match = re.search(
@@ -142,19 +122,160 @@ def snapshot_dates() -> set[date]:
     return dates
 
 
-def is_weekday(
+def easter_sunday(year: int) -> date:
+    """
+    Beräknar påskdagen enligt
+    Gregorian computus.
+    """
+
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (
+        19 * a
+        + b
+        - d
+        - g
+        + 15
+    ) % 30
+    i = c // 4
+    k = c % 4
+    l = (
+        32
+        + 2 * e
+        + 2 * i
+        - h
+        - k
+    ) % 7
+    m = (
+        a
+        + 11 * h
+        + 22 * l
+    ) // 451
+
+    month = (
+        h + l - 7 * m + 114
+    ) // 31
+
+    day = (
+        (h + l - 7 * m + 114)
+        % 31
+    ) + 1
+
+    return date(
+        year,
+        month,
+        day,
+    )
+
+
+def midsummer_day(year: int) -> date:
+    """
+    Första lördagen mellan 20 och 26 juni.
+    """
+
+    current = date(
+        year,
+        6,
+        20,
+    )
+
+    while current.weekday() != 5:
+        current += timedelta(days=1)
+
+    return current
+
+
+def all_saints_day(year: int) -> date:
+    """
+    Första lördagen mellan 31 oktober
+    och 6 november.
+    """
+
+    current = date(
+        year,
+        10,
+        31,
+    )
+
+    while current.weekday() != 5:
+        current += timedelta(days=1)
+
+    return current
+
+
+def swedish_holidays(year: int) -> set[date]:
+    """
+    Svenska allmänna helgdagar samt
+    helgaftnar som behandlas som söndagar
+    i svensk arbetsrätt.
+
+    Vi använder dessa för att inte skapa
+    falska FI-luckor på dagar då en publicering
+    normalt inte ska förväntas.
+    """
+
+    easter = easter_sunday(year)
+
+    holidays = {
+        date(year, 1, 1),
+        date(year, 1, 6),
+
+        easter - timedelta(days=2),
+        easter - timedelta(days=1),
+        easter,
+        easter + timedelta(days=1),
+
+        date(year, 5, 1),
+
+        easter + timedelta(days=39),
+
+        date(year, 6, 6),
+
+        midsummer_day(year),
+
+        all_saints_day(year),
+
+        date(year, 12, 24),
+        date(year, 12, 25),
+        date(year, 12, 26),
+        date(year, 12, 31),
+    }
+
+    return holidays
+
+
+def is_expected_fi_day(
     value: date,
 ) -> bool:
-    """Returnerar True för måndag-fredag."""
+    """
+    Returnerar True när datumet är en vardag
+    där FI-data kan förväntas.
 
-    return value.weekday() < 5
+    Helger och svenska helgdagar/helgaftnar
+    räknas inte som luckor.
+    """
+
+    if value.weekday() >= 5:
+        return False
+
+    if value in swedish_holidays(
+        value.year
+    ):
+        return False
+
+    return True
 
 
 def missing_weekdays(
     start: date,
     end: date,
 ) -> list[date]:
-    """Returnerar saknade vardagar."""
+    """Returnerar saknade förväntade FI-dagar."""
 
     existing = snapshot_dates()
 
@@ -164,7 +285,7 @@ def missing_weekdays(
 
     while current <= end:
         if (
-            is_weekday(current)
+            is_expected_fi_day(current)
             and current not in existing
         ):
             result.append(current)
@@ -298,12 +419,10 @@ def get_commoncrawl_indexes(
             "",
         )
 
-        if not name.startswith(
+        if name.startswith(
             "CC-MAIN-"
         ):
-            continue
-
-        result.append(name)
+            result.append(name)
 
     return result
 
@@ -314,10 +433,10 @@ def query_commoncrawl(
     start: date,
     end: date,
 ) -> list[Candidate]:
-    """Söker historiska FI-filer i Common Crawl."""
+    """Söker FI-filer i Common Crawl."""
 
     pattern = (
-        "fi.se/contentassets/*/"
+        "https://www.fi.se/contentassets/*/"
         "aggregerade-blankningspositioner-*.xlsx"
     )
 
@@ -783,6 +902,9 @@ def parse_xlsx(
 
         records.append(
             {
+                "snapshot_date": (
+                    source_date.isoformat()
+                ),
                 "source_date": (
                     source_date.isoformat()
                 ),
@@ -846,13 +968,123 @@ def validate_records(
             )
 
 
+def sha256_bytes(
+    data: bytes,
+) -> str:
+    """SHA-256 för snapshot-data."""
+
+    return hashlib.sha256(
+        data
+    ).hexdigest()
+
+
+def register_snapshot(
+    path: Path,
+    records: list[dict],
+) -> None:
+    """
+    Registrerar en återställd snapshot
+    i FI:s manifest.
+    """
+
+    if not records:
+        return
+
+    try:
+        manifest = json.loads(
+            MANIFEST_PATH.read_text(
+                encoding="utf-8"
+            )
+        )
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+    ):
+        manifest = {
+            "source": "FI",
+            "dataset": (
+                "aggregate_short_positions"
+            ),
+            "last_checked": None,
+            "files": {},
+            "snapshots": [],
+        }
+
+    snapshots = manifest.setdefault(
+        "snapshots",
+        [],
+    )
+
+    relative_path = path.relative_to(
+        RAW_DIR
+    ).as_posix()
+
+    data = path.read_bytes()
+
+    fetched_at = records[0].get(
+        "fetched_at"
+    )
+
+    entry = {
+        "file": relative_path,
+        "fetched_at": fetched_at,
+        "source_dates": [
+            records[0]["source_date"]
+        ],
+        "observations": len(records),
+        "sha256": sha256_bytes(data),
+        "recovered": True,
+    }
+
+    snapshots = [
+        item
+        for item in snapshots
+        if not (
+            isinstance(item, dict)
+            and item.get("file")
+            == relative_path
+        )
+    ]
+
+    snapshots.append(entry)
+
+    snapshots.sort(
+        key=lambda item: item.get(
+            "fetched_at",
+            "",
+        )
+    )
+
+    manifest["snapshots"] = snapshots
+    manifest["source"] = "FI"
+    manifest["dataset"] = (
+        "aggregate_short_positions"
+    )
+
+    MANIFEST_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    MANIFEST_PATH.write_text(
+        json.dumps(
+            manifest,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def write_snapshot(
     records: list[dict],
     source_date: date,
 ) -> Path:
-    """Skriver en kanonisk datumfil."""
+    """Skriver en kanonisk datum-snapshot."""
 
-    HISTORICAL_DIR.mkdir(
+    SNAPSHOT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -864,35 +1096,57 @@ def write_snapshot(
     if path.exists():
         return path
 
-    with path.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
+    lines = [
+        json.dumps(
+            record,
+            ensure_ascii=False,
+        )
+        + "\n"
+        for record in records
+    ]
 
-        for record in records:
-            handle.write(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
+    path.write_text(
+        "".join(lines),
+        encoding="utf-8",
+    )
+
+    register_snapshot(
+        path,
+        records,
+    )
 
     return path
 
 
 def recover_missing_dates(
-    start: date,
-    end: date,
-    delay: float,
+    start: date | None = None,
+    end: date | None = None,
+    delay: float = DEFAULT_DELAY,
 ) -> tuple[int, int]:
     """
-    Försöker återställa saknade vardagar.
+    Försöker återställa saknade FI-dagar.
 
     Returnerar:
         (antal återställda dagar,
          antal dagar som fortfarande saknas)
     """
+
+    existing = snapshot_dates()
+
+    if start is None:
+        if existing:
+            start = (
+                min(existing)
+                + timedelta(days=1)
+            )
+        else:
+            start = DEFAULT_START_DATE
+
+    if end is None:
+        end = (
+            now_stockholm().date()
+            - timedelta(days=1)
+        )
 
     missing = missing_weekdays(
         start,
@@ -902,13 +1156,14 @@ def recover_missing_dates(
     if not missing:
         print(
             "FI backfill: inga saknade "
-            "vardagar."
+            "förväntade FI-dagar."
         )
 
         return 0, 0
 
     print(
-        "FI backfill: saknade vardagar:"
+        "FI backfill: saknade "
+        "förväntade FI-dagar:"
     )
 
     for value in missing:
@@ -935,8 +1190,6 @@ def recover_missing_dates(
         session
     )
 
-    # De nyare indexen räcker normalt för
-    # moderna luckor och minskar belastningen.
     for index_name in indexes[-12:]:
         found = query_commoncrawl(
             session,
@@ -989,8 +1242,6 @@ def recover_missing_dates(
             )
         )
 
-        # Prioritera Common Crawl före
-        # Wayback när båda finns.
         candidates_for_date.sort(
             key=lambda candidate: (
                 candidate.source
@@ -1086,9 +1337,7 @@ def parse_args() -> argparse.Namespace:
         type=parse_date,
         default=None,
         help=(
-            "Första datum. Om utelämnat "
-            "används senaste befintliga "
-            "FI-datum."
+            "Första datum."
         ),
     )
 
@@ -1120,47 +1369,11 @@ def main() -> int:
 
     args = parse_args()
 
-    existing = snapshot_dates()
-
-    if args.start is not None:
-        start = args.start
-
-    elif existing:
-        start = (
-            min(existing)
-            + timedelta(days=1)
-        )
-
-    else:
-        start = DEFAULT_START_DATE
-
-    if args.end is not None:
-        end = args.end
-
-    else:
-        end = (
-            now_stockholm().date()
-            - timedelta(days=1)
-        )
-
-    if start > end:
-        print(
-            "FI backfill: inget intervall "
-            "att reparera."
-        )
-
-        return 0
-
-    print(
-        "FI backfill: intervall "
-        f"{start} -> {end}"
-    )
-
     recovered, unresolved = (
         recover_missing_dates(
-            start,
-            end,
-            args.delay,
+            start=args.start,
+            end=args.end,
+            delay=args.delay,
         )
     )
 
