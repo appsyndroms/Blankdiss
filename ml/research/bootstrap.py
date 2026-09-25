@@ -18,8 +18,6 @@ def bootstrap_mean_ci(
 ) -> tuple[float | None, float | None]:
     """
     Bootstrap 95% confidence interval for the mean.
-
-    NumPy arrays are used throughout the bootstrap loop.
     """
     values = np.asarray(
         values,
@@ -147,6 +145,140 @@ def bootstrap_mean_difference(
         ] = tail_means - rest_means
 
         offset += current
+
+    lower, upper = np.quantile(
+        differences,
+        [0.025, 0.975],
+    )
+
+    return (
+        float(lower),
+        float(upper),
+    )
+
+
+def bootstrap_binary_rate_difference(
+    target: np.ndarray,
+    baseline_selected: np.ndarray,
+    combined_selected: np.ndarray,
+    *,
+    iterations: int = DEFAULT_ITERATIONS,
+    seed: int,
+) -> tuple[float | None, float | None]:
+    """
+    Bootstrap CI for:
+
+        event_rate(combined)
+        - event_rate(baseline)
+
+    baseline_selected must contain combined_selected.
+
+    The bootstrap resamples the complete baseline regime so that
+    the dependence between the two nested selections is retained.
+    """
+    target = np.asarray(
+        target,
+        dtype=np.float64,
+    )
+
+    baseline_selected = np.asarray(
+        baseline_selected,
+        dtype=bool,
+    )
+
+    combined_selected = np.asarray(
+        combined_selected,
+        dtype=bool,
+    )
+
+    valid = (
+        np.isfinite(target)
+        & baseline_selected
+    )
+
+    if valid.sum() < MIN_ROWS:
+        return None, None
+
+    y = target[valid]
+    combined = combined_selected[valid]
+
+    if not combined.any():
+        return None, None
+
+    rng = np.random.default_rng(seed)
+
+    n = len(y)
+
+    differences = np.empty(
+        iterations,
+        dtype=np.float64,
+    )
+
+    offset = 0
+
+    while offset < iterations:
+        current = min(
+            CHUNK_SIZE,
+            iterations - offset,
+        )
+
+        indices = rng.integers(
+            0,
+            n,
+            size=(current, n),
+        )
+
+        sampled_events = (
+            y[indices] > 0
+        )
+
+        sampled_combined = (
+            combined[indices]
+        )
+
+        combined_counts = (
+            sampled_combined
+            & sampled_events
+        ).sum(axis=1)
+
+        combined_n = (
+            sampled_combined.sum(axis=1)
+        )
+
+        baseline_counts = (
+            sampled_events.sum(axis=1)
+        )
+
+        baseline_rate = (
+            baseline_counts / n
+        )
+
+        combined_rate = np.divide(
+            combined_counts,
+            combined_n,
+            out=np.full(
+                current,
+                np.nan,
+                dtype=np.float64,
+            ),
+            where=combined_n > 0,
+        )
+
+        differences[
+            offset:offset + current
+        ] = (
+            combined_rate
+            - baseline_rate
+        )
+
+        offset += current
+
+    differences = differences[
+        np.isfinite(differences)
+    ]
+
+    if len(differences) < MIN_ROWS:
+        return None, None
 
     lower, upper = np.quantile(
         differences,
