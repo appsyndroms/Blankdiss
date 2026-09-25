@@ -192,78 +192,73 @@ def write_results(
         indent=2,
         ensure_ascii=False,
     )
-    report = f"""# AI Lab experiment
-## Experiment
-**ID:** `{spec["experiment_id"]}`
-**Type:** `{spec["experiment"]}`
-**Description:** {spec["description"]}
-## Status
-**{status}**
-## Execution
-- Started: `{execution["started_at"]}`
-- Finished: `{execution["finished_at"]}`
-## Result
-```json
-{result_json}
-
-“””
-
-(output_dir / "report.md").write_text(
-    report,
-    encoding="utf-8",
-)
-
-def main() -> int:
-parser = argparse.ArgumentParser(
-description=“Run a registered AI Lab experiment.”
-)
-
-parser.add_argument(
-    "spec",
-    type=Path,
-    help="Path to the experiment JSON specification.",
-)
-args = parser.parse_args()
-spec = load_spec(args.spec)
-validate_spec(spec)
-experiment_id = safe_experiment_id(
-    spec["experiment_id"]
-)
-execution = run_experiment(spec)
-output_dir = RESULTS_ROOT / experiment_id
-write_results(
-    output_dir,
-    spec,
-    execution,
-)
-print(
-    json.dumps(
-        {
-            "experiment_id": spec["experiment_id"],
-            "experiment": spec["experiment"],
-            "success": execution["success"],
-            "output_dir": str(output_dir),
-        },
-        indent=2,
-        ensure_ascii=False,
+    report = "\n".join(
+        [
+            "# AI Lab experiment",
+            "",
+            "## Experiment",
+            "",
+            f'**ID:** `{spec["experiment_id"]}`',
+            "",
+            f'**Type:** `{spec["experiment"]}`',
+            "",
+            f'**Description:** {spec["description"]}',
+            "",
+            "## Status",
+            "",
+            f"**{status}**",
+            "",
+            "## Execution",
+            "",
+            f'- Started: `{execution["started_at"]}`',
+            f'- Finished: `{execution["finished_at"]}`',
+            "",
+            "## Result",
+            "",
+            "```json",
+            result_json,
+            "```",
+            "",
+        ]
     )
-)
-return 0
-
-if name == “main”:
-raise SystemExit(main())
-
-Det viktiga är alltså slutet:
-```python
-{result_json}
-
-följt av att report.md faktiskt skrivs, och sedan en riktig:
-
+    (output_dir / "report.md").write_text(
+        report,
+        encoding="utf-8",
+    )
 def main() -> int:
-
-samt:
-
+    parser = argparse.ArgumentParser(
+        description="Run a registered AI Lab experiment."
+    )
+    parser.add_argument(
+        "spec",
+        type=Path,
+        help="Path to the experiment JSON specification.",
+    )
+    args = parser.parse_args()
+    spec = load_spec(args.spec)
+    validate_spec(spec)
+    experiment_id = safe_experiment_id(
+        spec["experiment_id"]
+    )
+    execution = run_experiment(spec)
+    output_dir = RESULTS_ROOT / experiment_id
+    write_results(
+        output_dir,
+        spec,
+        execution,
+    )
+    print(
+        json.dumps(
+            {
+                "experiment_id": spec["experiment_id"],
+                "experiment": spec["experiment"],
+                "success": execution["success"],
+                "output_dir": str(output_dir),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+    return 0
 if __name__ == "__main__":
     raise SystemExit(main())
-
-Nästa CI-körning bör därmed komma förbi SyntaxErrorn. Sedan kan vi se om smoke-testet faktiskt går hela vägen till PASS.
