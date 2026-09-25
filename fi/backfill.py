@@ -14,7 +14,11 @@ from typing import Iterable
 import pandas as pd
 import requests
 
-from .config import HEADERS
+from .config import (
+    FI_AGGREGATE_TIMEOUT,
+    FI_AGGREGATE_URL,
+    HEADERS,
+)
 from .errors import FIError
 from .normalize import now_stockholm
 from .storage import load_manifest, write_snapshot
@@ -41,6 +45,19 @@ COMMONCRAWL_RETRY_STATUSES = {
     503,
     504,
 }
+
+# FI:s aggregat-endpoint har historiskt testats med
+# flera möjliga parameternamn. Vi provar dem i turordning
+# och accepterar endast ett svar som faktiskt innehåller
+# det efterfrågade positionsdatumet.
+FI_DATE_PARAMETER_NAMES = (
+    "date",
+    "datum",
+    "source_date",
+    "position_date",
+    "positionDate",
+    "positionsdatum",
+)
 
 
 @dataclass(frozen=True)
@@ -127,10 +144,7 @@ def snapshot_dates() -> set[date]:
 
 
 def easter_sunday(year: int) -> date:
-    """
-    Beräknar påskdagen enligt
-    Gregorian computus.
-    """
+    """Beräknar påskdagen enligt Gregorian computus."""
 
     a = year % 19
     b = year // 100
@@ -222,22 +236,15 @@ def swedish_holidays(
     return {
         date(year, 1, 1),
         date(year, 1, 6),
-
         easter - timedelta(days=2),
         easter - timedelta(days=1),
         easter,
         easter + timedelta(days=1),
-
         date(year, 5, 1),
-
         easter + timedelta(days=39),
-
         date(year, 6, 6),
-
         midsummer_day(year),
-
         all_saints_day(year),
-
         date(year, 12, 25),
         date(year, 12, 26),
     }
@@ -246,10 +253,7 @@ def swedish_holidays(
 def is_expected_fi_day(
     value: date,
 ) -> bool:
-    """
-    Returnerar True för en vardag som inte
-    är svensk allmän helgdag.
-    """
+    """Returnerar True för vardag som inte är allmän helgdag."""
 
     if value.weekday() >= 5:
         return False
@@ -379,12 +383,7 @@ def is_fi_aggregate_url(
 def commoncrawl_index_sort_key(
     index_name: str,
 ) -> tuple[int, int]:
-    """
-    Returnerar (år, vecka) för Common Crawl-index.
-
-    Exempel:
-        CC-MAIN-2026-39 -> (2026, 39)
-    """
+    """Returnerar (år, vecka) för Common Crawl-index."""
 
     match = re.fullmatch(
         r"CC-MAIN-(\d{4})-(\d{2})",
@@ -403,12 +402,7 @@ def commoncrawl_index_sort_key(
 def get_commoncrawl_indexes(
     session: requests.Session,
 ) -> list[str]:
-    """
-    Hämtar Common Crawl-index och sorterar dem
-    kronologiskt.
-
-    Nyaste index kommer först.
-    """
+    """Hämtar Common Crawl-index, nyaste först."""
 
     headers = {
         **HEADERS,
@@ -903,40 +897,125 @@ def parse_position_date(
     return parsed.date().isoformat()
 
 
-def parse_xlsx(
+def parse_excel_records(
     content: bytes,
     source_date: date,
     source: str,
     source_url: str,
 ) -> list[dict]:
-    """Läser en historisk FI-XLSX."""
+    """
+    Läser FI:s Excel/ODS-data.
 
-    excel = pd.ExcelFile(
-        io.BytesIO(content),
-        engine="openpyxl",
-    )
+    FI:s aktuella aggregat-endpoint returnerar ODS,
+    medan arkiverade historiska filer kan vara XLSX.
+    Därför provar vi ODS först och XLSX därefter.
+    """
 
-    frames: list[pd.DataFrame] = []
+    excel: pd.ExcelFile
 
-    for sheet in excel.sheet_names:
-        frame = pd.read_excel(
-            excel,
-            sheet_name=sheet,
+    try:
+        excel = pd.ExcelFile(
+            io.BytesIO(content),
+            engine="odf",
         )
 
-        if not frame.empty:
-            frames.append(frame)
+        skiprows = 6
+
+        frames: list[pd.DataFrame] = []
+
+        for sheet in excel.sheet_names:
+            frame = pd.read_excel(
+                excel,
+                sheet_name=sheet,
+                skiprows=skiprows,
+                header=None,
+            )
+
+            if not frame.empty:
+                frames.append(frame)
+
+    except Exception:
+        try:
+            excel = pd.ExcelFile(
+                io.BytesIO(content),
+                engine="openpyxl",
+            )
+
+            frames = []
+
+            for sheet in excel.sheet_names:
+                frame = pd.read_excel(
+                    excel,
+                    sheet_name=sheet,
+                )
+
+                if not frame.empty:
+                    frames.append(frame)
+
+        except Exception as exc:
+            raise FIError(
+                "FI-historik: kunde inte läsa "
+                f"Excel/ODS-data: {exc}"
+            ) from exc
 
     if not frames:
         raise FIError(
-            "FI-historik: Excel-filen "
-            "innehåller inga tabeller."
+            "FI-historik: filen innehåller "
+            "inga tabeller."
         )
 
     frame = pd.concat(
         frames,
         ignore_index=True,
     )
+
+    # ODS-endpointen har ingen vanlig header
+    # efter skiprows=6. Arkiverade XLSX-filer
+    # har däremot normalt header.
+    #
+    # Om första raden fortfarande innehåller
+    # rubriker försöker vi använda den.
+    if all(
+        normalize_header(value)
+        for value in frame.iloc[0].tolist()
+    ):
+        possible_headers = {
+            normalize_header(value)
+            for value in frame.iloc[0].tolist()
+        }
+
+        if (
+            any(
+                "emittent" in value
+                for value in possible_headers
+            )
+            or "lei" in possible_headers
+            or any(
+                "summa_blankning" in value
+                for value in possible_headers
+            )
+        ):
+            frame = frame.iloc[1:].copy()
+
+    # För FI:s ODS-format är de första fyra
+    # kolumnerna:
+    #   emittent
+    #   lei
+    #   summa blankning
+    #   positionsdatum
+    #
+    # Det formatet har visat sig vara stabilt.
+    if len(frame.columns) >= 4:
+        first_four = frame.iloc[:, :4].copy()
+
+        first_four.columns = [
+            "issuer",
+            "lei",
+            "short_interest_pct",
+            "position_date",
+        ]
+
+        frame = first_four
 
     issuer_col = find_column(
         frame.columns,
@@ -945,6 +1024,7 @@ def parse_xlsx(
         "Emittent",
         "Issuer",
         "Company",
+        "issuer",
     )
 
     lei_col = find_column(
@@ -952,6 +1032,7 @@ def parse_xlsx(
         "Emittentens LEI-kod",
         "LEI",
         "Emittentens LEI",
+        "lei",
     )
 
     position_col = find_column(
@@ -961,6 +1042,7 @@ def parse_xlsx(
         "Position",
         "Aggregate short position",
         "Short position",
+        "short_interest_pct",
     )
 
     latest_date_col = find_column(
@@ -968,6 +1050,7 @@ def parse_xlsx(
         "Positionsdatum senaste position",
         "Positionsdatum",
         "Latest position date",
+        "position_date",
     )
 
     if issuer_col is None:
@@ -1048,6 +1131,22 @@ def parse_xlsx(
     return records
 
 
+def parse_xlsx(
+    content: bytes,
+    source_date: date,
+    source: str,
+    source_url: str,
+) -> list[dict]:
+    """Bakåtkompatibelt namn för arkiverade XLSX-filer."""
+
+    return parse_excel_records(
+        content,
+        source_date,
+        source,
+        source_url,
+    )
+
+
 def validate_records(
     records: list[dict],
     source_date: date,
@@ -1085,6 +1184,248 @@ def validate_records(
             )
 
 
+def extract_position_dates(
+    content: bytes,
+) -> set[date]:
+    """
+    Läser alla positionsdatum ur ett FI-aggregatsvar.
+
+    Används innan vi accepterar ett svar från
+    FI:s historiska endpoint. Det räcker alltså
+    inte att endpointen returnerar HTTP 200.
+    """
+
+    excel: pd.ExcelFile
+
+    try:
+        excel = pd.ExcelFile(
+            io.BytesIO(content),
+            engine="odf",
+        )
+
+        frames: list[pd.DataFrame] = []
+
+        for sheet in excel.sheet_names:
+            frame = pd.read_excel(
+                excel,
+                sheet_name=sheet,
+                skiprows=6,
+                header=None,
+            )
+
+            if not frame.empty:
+                frames.append(frame)
+
+    except Exception:
+        try:
+            excel = pd.ExcelFile(
+                io.BytesIO(content),
+                engine="openpyxl",
+            )
+
+            frames = []
+
+            for sheet in excel.sheet_names:
+                frame = pd.read_excel(
+                    excel,
+                    sheet_name=sheet,
+                )
+
+                if not frame.empty:
+                    frames.append(frame)
+
+        except Exception:
+            return set()
+
+    if not frames:
+        return set()
+
+    frame = pd.concat(
+        frames,
+        ignore_index=True,
+    )
+
+    if len(frame.columns) < 4:
+        return set()
+
+    values = frame.iloc[:, 3]
+
+    parsed = pd.to_datetime(
+        values,
+        errors="coerce",
+        dayfirst=False,
+    )
+
+    return {
+        value.date()
+        for value in parsed.dropna()
+    }
+
+
+def fetch_fi_historical_endpoint(
+    session: requests.Session,
+    source_date: date,
+) -> bytes | None:
+    """
+    Försöker hämta ett historiskt FI-aggregat
+    direkt från FI:s endpoint.
+
+    Ett svar accepteras endast om:
+      1. HTTP-status är 200
+      2. svaret går att läsa som Excel/ODS
+      3. det efterfrågade datumet faktiskt finns
+         i positionsdatumkolumnen.
+
+    Detta är viktigt eftersom FI kan ignorera en
+    okänd datumparameter och returnera dagens fil.
+    """
+
+    date_text = source_date.isoformat()
+
+    print(
+        "FI backfill: provar FI:s historiska "
+        f"aggregat-endpoint för {source_date}."
+    )
+
+    for parameter_name in (
+        FI_DATE_PARAMETER_NAMES
+    ):
+        params = {
+            parameter_name: date_text,
+        }
+
+        try:
+            response = session.get(
+                FI_AGGREGATE_URL,
+                params=params,
+                headers=HEADERS,
+                timeout=FI_AGGREGATE_TIMEOUT,
+            )
+
+        except requests.RequestException as exc:
+            print(
+                "FI backfill: "
+                f"{parameter_name} misslyckades: "
+                f"{exc}"
+            )
+            continue
+
+        print(
+            "FI backfill: "
+            f"{parameter_name} -> "
+            f"HTTP {response.status_code}, "
+            f"{len(response.content)} bytes."
+        )
+
+        if response.status_code != 200:
+            continue
+
+        content = response.content
+
+        if len(content) < 1000:
+            print(
+                "FI backfill: svaret är för litet."
+            )
+            continue
+
+        position_dates = extract_position_dates(
+            content
+        )
+
+        if source_date not in position_dates:
+            print(
+                "FI backfill: "
+                f"{parameter_name} gav inget "
+                f"positionsdatum {source_date}."
+            )
+            continue
+
+        print(
+            "FI backfill: HISTORIK FUNNEN via "
+            f"{parameter_name}={date_text}."
+        )
+
+        return content
+
+    print(
+        "FI backfill: FI:s historiska "
+        f"endpoint gav inget verifierat svar "
+        f"för {source_date}."
+    )
+
+    return None
+
+
+def recover_from_fi_endpoint(
+    session: requests.Session,
+    missing: list[date],
+    delay: float,
+) -> set[date]:
+    """
+    Försöker återställa saknade dagar direkt från FI.
+
+    Returnerar de datum som faktiskt sparades.
+    """
+
+    recovered_dates: set[date] = set()
+
+    for source_date in missing:
+        content = fetch_fi_historical_endpoint(
+            session,
+            source_date,
+        )
+
+        if content is None:
+            time.sleep(delay)
+            continue
+
+        try:
+            records = parse_excel_records(
+                content,
+                source_date,
+                "fi_endpoint",
+                FI_AGGREGATE_URL,
+            )
+
+            validate_records(
+                records,
+                source_date,
+            )
+
+        except (
+            FIError,
+            ValueError,
+            KeyError,
+        ) as exc:
+            print(
+                "FI backfill: FI-endpointets "
+                f"data kunde inte valideras "
+                f"för {source_date}: {exc}"
+            )
+
+            time.sleep(delay)
+            continue
+
+        path = write_snapshot(
+            records
+        )
+
+        print(
+            "FI backfill: återställde "
+            f"{source_date} direkt från FI: "
+            f"{len(records)} observationer "
+            f"-> {path}"
+        )
+
+        recovered_dates.add(
+            source_date
+        )
+
+        time.sleep(delay)
+
+    return recovered_dates
+
+
 def recover_missing_dates(
     start: date | None = None,
     end: date | None = None,
@@ -1092,6 +1433,12 @@ def recover_missing_dates(
 ) -> tuple[int, int]:
     """
     Försöker återställa saknade FI-dagar.
+
+    Ordning:
+
+    1. FI:s eget historiska aggregat-endpoint.
+    2. Common Crawl.
+    3. Wayback.
 
     Varje återställd dag sparas genom samma
     write_snapshot() som används av dagens
@@ -1151,14 +1498,53 @@ def recover_missing_dates(
         HEADERS
     )
 
-    search_start = min(missing)
-    search_end = max(missing)
+    # ---------------------------------------------------------
+    # STEG 1: FI:s eget endpoint
+    # ---------------------------------------------------------
+
+    print()
+    print(
+        "FI backfill: steg 1/3 - "
+        "provar FI:s eget aggregat-endpoint."
+    )
+
+    recovered_dates = recover_from_fi_endpoint(
+        session,
+        missing,
+        delay,
+    )
+
+    remaining = [
+        value
+        for value in missing
+        if value not in recovered_dates
+    ]
+
+    if not remaining:
+        return (
+            len(recovered_dates),
+            0,
+        )
+
+    print()
+    print(
+        "FI backfill: kvar efter FI-endpoint: "
+        f"{len(remaining)}."
+    )
+
+    # ---------------------------------------------------------
+    # STEG 2: Common Crawl
+    # ---------------------------------------------------------
+
+    search_start = min(remaining)
+    search_end = max(remaining)
 
     candidates: list[Candidate] = []
 
+    print()
     print(
-        "FI backfill: söker historiska "
-        "FI-filer."
+        "FI backfill: steg 2/3 - "
+        "söker Common Crawl."
     )
 
     indexes = get_commoncrawl_indexes(
@@ -1170,14 +1556,6 @@ def recover_missing_dates(
         f"att söka: {len(indexes)}"
     )
 
-    # Nyaste index först.
-    #
-    # Vi behöver inte söka hela Common Crawl-
-    # historiken varje gång. De senaste indexen
-    # är relevanta för de senaste luckorna.
-    #
-    # Om inga kandidater hittas går vi vidare
-    # till Wayback som fallback.
     for index_name in indexes[:12]:
         print(
             "FI backfill: söker Common Crawl "
@@ -1202,8 +1580,6 @@ def recover_missing_dates(
                 found
             )
 
-        # Respektera Common Crawls
-        # rate limiting.
         time.sleep(delay)
 
         found_dates = {
@@ -1213,20 +1589,21 @@ def recover_missing_dates(
 
         if all(
             value in found_dates
-            for value in missing
+            for value in remaining
         ):
             print(
-                "FI backfill: alla saknade "
+                "FI backfill: alla kvarvarande "
                 "datum hittades i Common Crawl."
             )
             break
 
-    # Wayback används som fallback och kan
-    # även ge alternativa kandidater för
-    # samma datum.
+    # ---------------------------------------------------------
+    # STEG 3: Wayback
+    # ---------------------------------------------------------
+
     unresolved_dates = {
         value
-        for value in missing
+        for value in remaining
         if not any(
             candidate.source_date == value
             for candidate in candidates
@@ -1234,9 +1611,10 @@ def recover_missing_dates(
     }
 
     if unresolved_dates:
+        print()
         print(
-            "FI backfill: söker kvarvarande "
-            "datum i Wayback."
+            "FI backfill: steg 3/3 - "
+            "söker kvarvarande datum i Wayback."
         )
 
         candidates.extend(
@@ -1258,10 +1636,10 @@ def recover_missing_dates(
             [],
         ).append(candidate)
 
-    recovered = 0
+    recovered_archive = 0
     unresolved = 0
 
-    for source_date in missing:
+    for source_date in remaining:
         candidates_for_date = (
             by_date.get(
                 source_date,
@@ -1294,7 +1672,7 @@ def recover_missing_dates(
                 continue
 
             try:
-                records = parse_xlsx(
+                records = parse_excel_records(
                     content,
                     source_date,
                     candidate.source,
@@ -1317,10 +1695,6 @@ def recover_missing_dates(
                 )
                 continue
 
-            # Samma lagringsväg som dagens FI-data.
-            #
-            # write_snapshot() skriver snapshotfilen
-            # och uppdaterar manifest.json.
             path = write_snapshot(
                 records
             )
@@ -1332,7 +1706,7 @@ def recover_missing_dates(
                 f"-> {path}"
             )
 
-            recovered += 1
+            recovered_archive += 1
             recovered_this_date = True
 
             break
@@ -1346,6 +1720,11 @@ def recover_missing_dates(
             unresolved += 1
 
         time.sleep(delay)
+
+    recovered = (
+        len(recovered_dates)
+        + recovered_archive
+    )
 
     return recovered, unresolved
 
