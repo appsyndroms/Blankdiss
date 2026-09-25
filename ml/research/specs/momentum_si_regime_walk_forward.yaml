@@ -1,0 +1,89 @@
+id: momentum_si_regime_walk_forward
+
+question: >
+  Tillför förändring i short interest information om downside-risk
+  inom negativa momentumregimer, trots att short-interest-förändring
+  inte förbättrar den globala modellen?
+
+mode: deep
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  stage: hypothesis_test
+  purpose: momentum_si_regime_walk_forward
+
+  hypothesis:
+    baseline: negative_5d_momentum
+    incremental_signal: short_interest_change
+    expected_effect: downside_risk_amplification
+
+  comparison:
+    baseline:
+      definition: negative_momentum_tail
+
+    combined:
+      definition: negative_momentum_tail_and_high_si_change
+
+    primary_metric:
+      name: absolute_event_rate_difference
+      definition: combined_event_rate_minus_baseline_event_rate
+
+    secondary_metrics:
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+
+  tails:
+    momentum:
+      direction: lower
+      fractions:
+        - 0.20
+        - 0.10
+        - 0.05
+        - 0.025
+
+    short_interest:
+      direction: upper
+      fractions:
+        - 0.20
+        - 0.10
+        - 0.05
+        - 0.025
+
+  note: >
+    2025 är test i window_1 och validation i window_2 och är därför
+    inte en oberoende period mellan de två windows.
