@@ -14,15 +14,15 @@
 
 ## Execution
 
-- Started: `2026-09-25T19:25:35.133856+00:00`
-- Finished: `2026-09-25T19:25:35.177111+00:00`
+- Started: `2026-09-25T19:41:20.374091+00:00`
+- Finished: `2026-09-25T19:41:20.396614+00:00`
 
 ## Result
 
 ```json
 {
   "state_version": 1,
-  "created_at_utc": "2026-09-25T19:25:35.177102+00:00",
+  "created_at_utc": "2026-09-25T19:41:20.396598+00:00",
   "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
   "repository": "appsyndroms/Blankdiss",
   "research": {
@@ -963,7 +963,7 @@
     ]
   },
   "ai_lab": {
-    "result_count": 1,
+    "result_count": 2,
     "results": [
       {
         "path": "data/ai_lab/results/ai_lab_smoke_test/results.json",
@@ -973,6 +973,15 @@
         "experiment": "smoke_test",
         "started_at": "2026-09-25T19:16:35.149390+00:00",
         "finished_at": "2026-09-25T19:16:35.149399+00:00"
+      },
+      {
+        "path": "data/ai_lab/results/research_state_snapshot/results.json",
+        "experiment_id": "research_state_snapshot",
+        "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
+        "success": true,
+        "experiment": "research_state",
+        "started_at": "2026-09-25T19:25:35.133856+00:00",
+        "finished_at": "2026-09-25T19:25:35.177111+00:00"
       }
     ]
   },
