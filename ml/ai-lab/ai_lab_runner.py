@@ -71,6 +71,10 @@ EXPERIMENT_REGISTRY: dict[
         "@file:ml/ai-lab/research_state.py",
         "build_research_state",
     ),
+    "experiment_planner": (
+        "@file:ml/ai-lab/experiment_planner.py",
+        "main",
+    ),
 }
 
 
@@ -377,7 +381,7 @@ def write_results(
         "execution": execution,
         "runner": {
             "name": "ai_lab_runner",
-            "version": 5,
+            "version": 6,
         },
     }
 
