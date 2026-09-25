@@ -58,372 +58,380 @@ jobs:
         run: |
           python -m analysis.update_market
 
-      - name: Build features
-        run: |
-          python -m analysis.build_features
-
-      - name: Verify feature dataset
-        run: |
-          test -f data/processed/analysis/features_metadata.json
-          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
-          echo "Feature-dataset finns."
-          echo
-          echo "Feature-filer:"
-          ls -lh data/processed/analysis/features_*.jsonl
-          echo
-          echo "Feature metadata:"
-          cat data/processed/analysis/features_metadata.json
-
-      - name: Verify FI price feature dataset
-        run: |
-          test -f data/processed/analysis/fi_price_features.jsonl
-          test -f data/processed/analysis/fi_price_features_metadata.json
-          echo "FI + pris-feature-dataset finns."
-          echo
-          ls -lh \
-            data/processed/analysis/fi_price_features.jsonl \
-            data/processed/analysis/fi_price_features_metadata.json
-          echo
-          echo "FI + pris metadata:"
-          cat data/processed/analysis/fi_price_features_metadata.json
-
-      - name: Kontrollera feature-storlek
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          paths = sorted(
-              Path("data/processed/analysis").glob("features_*.jsonl")
-          )
-
-          if not paths:
-              raise SystemExit("Inga feature-chunks hittades.")
-
-          limit = 20 * 1024 * 1024
-
-          for path in paths:
-              size = path.stat().st_size
-              mb = size / 1024 / 1024
-              print(f"{path.name}: {mb:.2f} MB")
-
-              if size > limit:
-                  raise SystemExit(
-                      f"{path.name} är större än 20 MB."
-                  )
-          PY
-
-      - name: Run Feature QC
-        run: |
-          python -m analysis.features_qc
-
-      - name: Kontrollera Feature QC-status
-        run: |
-          test -f data/processed/analysis/features_qc.json
-
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path(
-              "data/processed/analysis/features_qc.json"
-          )
-
-          data = json.loads(
-              path.read_text(
-                  encoding="utf-8"
-              )
-          )
-
-          status = data.get("status")
-
-          print(f"Feature QC status: {status}")
-
-          if status == "FAIL":
-              raise SystemExit(
-                  "Feature QC failed with status: FAIL"
-              )
-
-          if status == "WARN":
-              print(
-                  "Feature QC har status WARN. "
-                  "Varningar tillåts och workflow fortsätter."
-              )
-
-          elif status == "PASS":
-              print(
-                  "Feature QC har status PASS."
-              )
-
-          else:
-              raise SystemExit(
-                  f"Feature QC returnerade okänd status: {status}"
-              )
-          PY
-
-      - name: Build events
-        run: |
-          python -m events
-
-      - name: Analyze
-        run: |
-          python -m analysis
-
-      - name: Run ML walk-forward
-        run: |
-          python -u -m ml.train
-          test -f data/processed/ml/latest_run.json
-          test -f data/processed/ml/ml_results.jsonl
-          test -f data/processed/ml/oos_predictions.jsonl
-
-          echo "ML walk-forward klart."
-          echo
-          echo "ML-resultat:"
-          ls -lh data/processed/ml/
-
-      - name: Run economic backtest
-        run: |
-          python -u -m analysis.signal_backtest.run
-          test -f data/processed/ml/economic_results.json
-
-          echo "Ekonomiskt backtest klart."
-          echo
-          echo "Economic results:"
-          ls -lh data/processed/ml/economic_results.json
-
-      - name: Validate ML pipeline
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          ml_dir = Path("data/processed/ml")
-
-          latest_path = ml_dir / "latest_run.json"
-          results_path = ml_dir / "economic_results.json"
-
-          latest = json.loads(
-              latest_path.read_text(encoding="utf-8")
-          )
-
-          economic = json.loads(
-              results_path.read_text(encoding="utf-8")
-          )
-
-          if not latest:
-              raise SystemExit(
-                  "latest_run.json är tom."
-              )
-
-          experiments = economic.get("experiments", [])
-
-          if not experiments:
-              raise SystemExit(
-                  "economic_results.json innehåller inga experiment."
-              )
-
-          print("==========================================")
-          print("ML PIPELINE VALIDATION OK")
-          print("==========================================")
-
-          print(
-              f"Economic experiments: {len(experiments)}"
-          )
-
-          for experiment in experiments:
-              print(
-                  experiment.get("feature_set"),
-                  experiment.get("target"),
-                  experiment.get("model"),
-              )
-          PY
-
-      - name: Prepare legacy feature view for market cycles
-        run: |
-          set -e
-
-          python - <<'PY'
-          from pathlib import Path
-          import shutil
-
-          chunks = sorted(
-              Path("data/processed/analysis").glob("features_*.jsonl")
-          )
-
-          if not chunks:
-              raise SystemExit(
-                  "Inga feature-chunks hittades."
-              )
-
-          target = Path(
-              "data/processed/analysis/features.jsonl"
-          )
-
-          with target.open("wb") as output:
-              for chunk in chunks:
-                  print(
-                      f"Lägger till {chunk.name} ..."
-                  )
-
-                  with chunk.open("rb") as source:
-                      shutil.copyfileobj(source, output)
-
-          print(
-              f"Legacy featurefil skapad: {target}"
-          )
-          PY
-
-      - name: Analyze market and short cycles
-        run: |
-          python -m analysis.market_cycles
-
-      - name: Remove temporary legacy feature view
-        if: always()
-        run: |
-          rm -f data/processed/analysis/features.jsonl
-
-      - name: Build web
-        run: |
-          python web_build.py
-
-      - name: Validate web
-        run: |
-          set -e
-
-          test -f pages/index.html
-          test -f pages/style.css
-          test -f pages/data.json
-
-          grep -q -- "--bg: #0b1020" pages/style.css
-          grep -q -- "--surface: #121a2b" pages/style.css
-          grep -q -- "--accent: #72a7ff" pages/style.css
-
-          grep -q "./style.css?v=2" pages/index.html
-
-          echo "=========================================="
-          echo "WEBBVALIDERING OK"
-          echo "=========================================="
-
-          echo "Filer:"
-          ls -lah pages
-
-          echo
-          echo "CSS:"
-          grep -n -- "--bg:" pages/style.css
-          grep -n -- "--surface:" pages/style.css
-          grep -n -- "--accent:" pages/style.css
-
-          echo
-          echo "Stylesheet:"
-          grep -n "stylesheet" pages/index.html
-
-      - name: Archive large analysis datasets
-        uses: actions/upload-artifact@v4
-        with:
-          name: blankdiss-analysis-data-${{ github.run_id }}
-          path: |
-            data/processed/analysis/features_*.jsonl
-            data/processed/analysis/features_metadata.json
-            data/processed/analysis/features_qc.json
-            data/processed/analysis/fi_price_features.jsonl
-            data/processed/analysis/fi_price_features_metadata.json
-            data/processed/analysis/market_adjusted_returns.jsonl
-            data/processed/analysis/short_cycles.jsonl
-            data/processed/analysis/short_cycles_summary.json
-            data/processed/ml/ml_results.jsonl
-            data/processed/ml/latest_run.json
-            data/processed/ml/oos_predictions.jsonl
-            data/processed/ml/economic_results.json
-            data/processed/ml/runs/*.json
-          retention-days: 14
-          if-no-files-found: error
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Create Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: pages
-
-      - name: Commit generated data
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add data/
-
-          # fi_price_features.jsonl är ett stort runtime-dataset.
-          # Det sparas som GitHub Actions-artifact ovan men ska inte
-          # läggas in i Git/GitHub-repot.
-          git reset -- data/processed/analysis/fi_price_features.jsonl
-
-          # oos_predictions.jsonl är ett stort ML-mellanresultat.
-          # Det behövs för economic backtest och sparas som artifact ovan,
-          # men ska inte läggas in i Git/GitHub-repot.
-          git reset -- data/processed/ml/oos_predictions.jsonl
-
-          if git diff --cached --quiet; then
-            echo "Inga förändringar att committa."
-            exit 0
-          fi
-
-          echo "Filer som kommer att committas:"
-          git diff --cached --name-status
-
-          echo
-          echo "Stora runtime-dataset sparas endast som artifact:"
-
-          ls -lh \
-            data/processed/analysis/fi_price_features.jsonl \
-            data/processed/ml/oos_predictions.jsonl
-
-          git commit -m "Update Blankdiss data"
-
-          for attempt in 1 2 3 4 5; do
-            echo "Push attempt $attempt..."
-
-            git fetch origin main
-
-            if git rebase origin/main; then
-              if git push origin HEAD:main; then
-                echo "Push lyckades."
-                exit 0
-              fi
-            else
-              echo "Rebase misslyckades."
-              git rebase --abort || true
-            fi
-
-            if [ "$attempt" -lt 5 ]; then
-              echo "Remote ändrades, försöker igen..."
-              sleep 5
-            fi
-          done
-
-          echo "Kunde inte pusha efter 5 försök."
-          exit 1
-
-  deploy:
-    name: Publicera Blankdiss
-    needs: build
-    runs-on: ubuntu-latest
-
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Publicera Blankdiss
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Skriv ut webb-URL
-        run: |
-          echo "=========================================="
-          echo "BLANKDISS WEBB"
-          echo "${{ steps.deployment.outputs.page_url }}"
-          echo "=========================================="
+      # ==========================================================
+      # TILLFÄLLIGT AVSTÄNGT UNDER MIGRERING
+      #
+      # Feature generation och samtliga efterföljande analys-,
+      # ML-, backtest-, market cycle- och webbsteg är avstängda
+      # tills den nya research-arkitekturen är verifierad.
+      # ==========================================================
+
+      # - name: Build features
+      #   run: |
+      #     python -m analysis.build_features
+
+      # - name: Verify feature dataset
+      #   run: |
+      #     test -f data/processed/analysis/features_metadata.json
+      #     test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
+      #     echo "Feature-dataset finns."
+      #     echo
+      #     echo "Feature-filer:"
+      #     ls -lh data/processed/analysis/features_*.jsonl
+      #     echo
+      #     echo "Feature metadata:"
+      #     cat data/processed/analysis/features_metadata.json
+
+      # - name: Verify FI price feature dataset
+      #   run: |
+      #     test -f data/processed/analysis/fi_price_features.jsonl
+      #     test -f data/processed/analysis/fi_price_features_metadata.json
+      #     echo "FI + pris-feature-dataset finns."
+      #     echo
+      #     ls -lh \
+      #       data/processed/analysis/fi_price_features.jsonl \
+      #       data/processed/analysis/fi_price_features_metadata.json
+      #     echo
+      #     echo "FI + pris metadata:"
+      #     cat data/processed/analysis/fi_price_features_metadata.json
+
+      # - name: Kontrollera feature-storlek
+      #   run: |
+      #     python - <<'PY'
+      #     from pathlib import Path
+      #
+      #     paths = sorted(
+      #         Path("data/processed/analysis").glob("features_*.jsonl")
+      #     )
+      #
+      #     if not paths:
+      #         raise SystemExit("Inga feature-chunks hittades.")
+      #
+      #     limit = 20 * 1024 * 1024
+      #
+      #     for path in paths:
+      #         size = path.stat().st_size
+      #         mb = size / 1024 / 1024
+      #         print(f"{path.name}: {mb:.2f} MB")
+      #
+      #         if size > limit:
+      #             raise SystemExit(
+      #                 f"{path.name} är större än 20 MB."
+      #             )
+      #     PY
+
+      # - name: Run Feature QC
+      #   run: |
+      #     python -m analysis.features_qc
+
+      # - name: Kontrollera Feature QC-status
+      #   run: |
+      #     test -f data/processed/analysis/features_qc.json
+      #
+      #     python - <<'PY'
+      #     import json
+      #     from pathlib import Path
+      #
+      #     path = Path(
+      #         "data/processed/analysis/features_qc.json"
+      #     )
+      #
+      #     data = json.loads(
+      #         path.read_text(
+      #             encoding="utf-8"
+      #         )
+      #     )
+      #
+      #     status = data.get("status")
+      #
+      #     print(f"Feature QC status: {status}")
+      #
+      #     if status == "FAIL":
+      #         raise SystemExit(
+      #             "Feature QC failed with status: FAIL"
+      #         )
+      #
+      #     if status == "WARN":
+      #         print(
+      #             "Feature QC har status WARN. "
+      #             "Varningar tillåts och workflow fortsätter."
+      #         )
+      #
+      #     elif status == "PASS":
+      #         print(
+      #             "Feature QC har status PASS."
+      #         )
+      #
+      #     else:
+      #         raise SystemExit(
+      #             f"Feature QC returnerade okänd status: {status}"
+      #         )
+      #     PY
+
+      # - name: Build events
+      #   run: |
+      #     python -m events
+
+      # - name: Analyze
+      #   run: |
+      #     python -m analysis
+
+      # - name: Run ML walk-forward
+      #   run: |
+      #     python -u -m ml.train
+      #     test -f data/processed/ml/latest_run.json
+      #     test -f data/processed/ml/ml_results.jsonl
+      #     test -f data/processed/ml/oos_predictions.jsonl
+      #
+      #     echo "ML walk-forward klart."
+      #     echo
+      #     echo "ML-resultat:"
+      #     ls -lh data/processed/ml/
+
+      # - name: Run economic backtest
+      #   run: |
+      #     python -u -m analysis.signal_backtest.run
+      #     test -f data/processed/ml/economic_results.json
+      #
+      #     echo "Ekonomiskt backtest klart."
+      #     echo
+      #     echo "Economic results:"
+      #     ls -lh data/processed/ml/economic_results.json
+
+      # - name: Validate ML pipeline
+      #   run: |
+      #     python - <<'PY'
+      #     import json
+      #     from pathlib import Path
+      #
+      #     ml_dir = Path("data/processed/ml")
+      #
+      #     latest_path = ml_dir / "latest_run.json"
+      #     results_path = ml_dir / "economic_results.json"
+      #
+      #     latest = json.loads(
+      #         latest_path.read_text(encoding="utf-8")
+      #     )
+      #
+      #     economic = json.loads(
+      #         results_path.read_text(encoding="utf-8")
+      #     )
+      #
+      #     if not latest:
+      #         raise SystemExit(
+      #             "latest_run.json är tom."
+      #         )
+      #
+      #     experiments = economic.get("experiments", [])
+      #
+      #     if not experiments:
+      #         raise SystemExit(
+      #             "economic_results.json innehåller inga experiment."
+      #         )
+      #
+      #     print("==========================================")
+      #     print("ML PIPELINE VALIDATION OK")
+      #     print("==========================================")
+      #
+      #     print(
+      #         f"Economic experiments: {len(experiments)}"
+      #     )
+      #
+      #     for experiment in experiments:
+      #         print(
+      #             experiment.get("feature_set"),
+      #             experiment.get("target"),
+      #             experiment.get("model"),
+      #         )
+      #     PY
+
+      # - name: Prepare legacy feature view for market cycles
+      #   run: |
+      #     set -e
+      #
+      #     python - <<'PY'
+      #     from pathlib import Path
+      #     import shutil
+      #
+      #     chunks = sorted(
+      #         Path("data/processed/analysis").glob("features_*.jsonl")
+      #     )
+      #
+      #     if not chunks:
+      #         raise SystemExit(
+      #             "Inga feature-chunks hittades."
+      #         )
+      #
+      #     target = Path(
+      #         "data/processed/analysis/features.jsonl"
+      #     )
+      #
+      #     with target.open("wb") as output:
+      #         for chunk in chunks:
+      #             print(
+      #                 f"Lägger till {chunk.name} ..."
+      #             )
+      #
+      #             with chunk.open("rb") as source:
+      #                 shutil.copyfileobj(source, output)
+      #
+      #     print(
+      #         f"Legacy featurefil skapad: {target}"
+      #     )
+      #     PY
+
+      # - name: Analyze market and short cycles
+      #   run: |
+      #     python -m analysis.market_cycles
+
+      # - name: Remove temporary legacy feature view
+      #   if: always()
+      #   run: |
+      #     rm -f data/processed/analysis/features.jsonl
+
+      # - name: Build web
+      #   run: |
+      #     python web_build.py
+
+      # - name: Validate web
+      #   run: |
+      #     set -e
+      #
+      #     test -f pages/index.html
+      #     test -f pages/style.css
+      #     test -f pages/data.json
+      #
+      #     grep -q -- "--bg: #0b1020" pages/style.css
+      #     grep -q -- "--surface: #121a2b" pages/style.css
+      #     grep -q -- "--accent: #72a7ff" pages/style.css
+      #
+      #     grep -q "./style.css?v=2" pages/index.html
+      #
+      #     echo "=========================================="
+      #     echo "WEBBVALIDERING OK"
+      #     echo "=========================================="
+      #
+      #     echo "Filer:"
+      #     ls -lah pages
+      #
+      #     echo
+      #     echo "CSS:"
+      #     grep -n -- "--bg:" pages/style.css
+      #     grep -n -- "--surface:" pages/style.css
+      #     grep -n -- "--accent:" pages/style.css
+      #
+      #     echo
+      #     echo "Stylesheet:"
+      #     grep -n "stylesheet" pages/index.html
+
+      # - name: Archive large analysis datasets
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: blankdiss-analysis-data-${{ github.run_id }}
+      #     path: |
+      #       data/processed/analysis/features_*.jsonl
+      #       data/processed/analysis/features_metadata.json
+      #       data/processed/analysis/features_qc.json
+      #       data/processed/analysis/fi_price_features.jsonl
+      #       data/processed/analysis/fi_price_features_metadata.json
+      #       data/processed/analysis/market_adjusted_returns.jsonl
+      #       data/processed/analysis/short_cycles.jsonl
+      #       data/processed/analysis/short_cycles_summary.json
+      #       data/processed/ml/ml_results.jsonl
+      #       data/processed/ml/latest_run.json
+      #       data/processed/ml/oos_predictions.jsonl
+      #       data/processed/ml/economic_results.json
+      #       data/processed/ml/runs/*.json
+      #     retention-days: 14
+      #     if-no-files-found: error
+
+      # - name: Configure GitHub Pages
+      #   uses: actions/configure-pages@v5
+
+      # - name: Create Pages artifact
+      #   uses: actions/upload-pages-artifact@v4
+      #   with:
+      #     path: pages
+
+      # - name: Commit generated data
+      #   run: |
+      #     git config user.name "github-actions[bot]"
+      #     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #
+      #     git add data/
+      #
+      #     # fi_price_features.jsonl är ett stort runtime-dataset.
+      #     # Det sparas som GitHub Actions-artifact ovan men ska inte
+      #     # läggas in i Git/GitHub-repot.
+      #     git reset -- data/processed/analysis/fi_price_features.jsonl
+      #
+      #     # oos_predictions.jsonl är ett stort ML-mellanresultat.
+      #     # Det behövs för economic backtest och sparas som artifact ovan,
+      #     # men ska inte läggas in i Git/GitHub-repot.
+      #     git reset -- data/processed/ml/oos_predictions.jsonl
+      #
+      #     if git diff --cached --quiet; then
+      #       echo "Inga förändringar att committa."
+      #       exit 0
+      #     fi
+      #
+      #     echo "Filer som kommer att committas:"
+      #     git diff --cached --name-status
+      #
+      #     echo
+      #     echo "Stora runtime-dataset sparas endast som artifact:"
+      #
+      #     ls -lh \
+      #       data/processed/analysis/fi_price_features.jsonl \
+      #       data/processed/ml/oos_predictions.jsonl
+      #
+      #     git commit -m "Update Blankdiss data"
+      #
+      #     for attempt in 1 2 3 4 5; do
+      #       echo "Push attempt $attempt..."
+      #
+      #       git fetch origin main
+      #
+      #       if git rebase origin/main; then
+      #         if git push origin HEAD:main; then
+      #           echo "Push lyckades."
+      #           exit 0
+      #         fi
+      #       else
+      #         echo "Rebase misslyckades."
+      #         git rebase --abort || true
+      #       fi
+      #
+      #       if [ "$attempt" -lt 5 ]; then
+      #         echo "Remote ändrades, försöker igen..."
+      #         sleep 5
+      #       fi
+      #     done
+      #
+      #     echo "Kunde inte pusha efter 5 försök."
+      #     exit 1
+
+  # deploy:
+  #   name: Publicera Blankdiss
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #
+  #   permissions:
+  #     pages: write
+  #     id-token: write
+  #
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #
+  #   steps:
+  #     - name: Publicera Blankdiss
+  #       id: deployment
+  #       uses: actions/deploy-pages@v4
+  #
+  #     - name: Skriv ut webb-URL
+  #       run: |
+  #         echo "=========================================="
+  #         echo "BLANKDISS WEBB"
+  #         echo "${{ steps.deployment.outputs.page_url }}"
+  #         echo "=========================================="
