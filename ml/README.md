@@ -178,12 +178,29 @@ engine.py
 
 Kör den generiska analysen.
 
-Nuvarande analysformer:
+Engine innehåller återanvändbar analyslogik.
+
+Exempel på analysis types:
 
 * tail
 * interaction
+* incremental_model
 
-Engine beräknar bland annat:
+En analysis type beskriver en generell typ av forskningsanalys, inte en specifik hypotes.
+
+Exempel:
+
+incremental_model kan användas för att jämföra:
+
+M0 = baseline signal
+
+M1 = baseline signal + incremental signal
+
+M2 = baseline signal + incremental signal + interaction
+
+Den konkreta hypotesen ska sedan beskrivas i YAML.
+
+Engine beräknar standardiserade resultat såsom:
 
 * antal observationer
 * event count
@@ -193,7 +210,10 @@ Engine beräknar bland annat:
 * mean return
 * median return
 * return difference
+* modellmetrics
 * bootstrap-resultat i DEEP
+
+Gemensam analyslogik ska ligga centralt i Engine.
 
 ⸻
 
@@ -270,47 +290,86 @@ DEEP kan innehålla:
 
 6. När ska Python skrivas?
 
-Börja med YAML.
+Börja alltid med YAML.
 
-Om hypotesen kan beskrivas som:
+Innan ny Python skrivs ska följande kontrolleras:
 
-signal
-×
-tail
-×
-target
-×
-window
+1. Kan hypotesen uttryckas med befintlig Research Engine?
+2. Finns redan nödvändiga signaler?
+3. Finns redan nödvändiga targets?
+4. Finns redan nödvändiga cache-komponenter?
+5. Finns redan en lämplig analysis type?
 
-ska ingen ny experimentklass behövas.
+Om svaret är JA:
 
-Python används när hypotesen kräver exempelvis:
+Hypotes
+   ↓
+YAML
+   ↓
+Research Engine
 
-* specialiserad regression
-* permutationstest
-* komplex interaktion
-* event-sekvens
-* path dependence
-* specialiserad gruppering
-* mekanismanalys
+Ingen ny experimentklass ska skapas.
 
-Sådan kod hör normalt hemma i:
+Om svaret är NEJ ska nästa fråga vara:
+
+Är den saknade funktionaliteten generell?
+
+Om JA:
+
+Hypotes
+   ↓
+ny generell Engine-funktionalitet
+   ↓
+YAML
+   ↓
+Research Engine
+
+Exempel:
+
+Om Research Engine saknar incremental_model ska man inte skapa:
+
+momentum_incremental_si.py
+
+för den första hypotesen.
+
+I stället ska incremental_model implementeras generellt i Engine.
+
+Sedan ska:
+
+momentum + SI change
+
+beskrivas som en YAML-spec.
+
+Om funktionaliteten däremot är unik och inte rimligen ska bli en generell analysis type kan den placeras i:
 
 ml/research/custom/
 
-eller, om den är mer specialiserad:
+eller, om den kräver ett separat specialiserat experimentframework:
 
 ml/diagnostics/
 
+Grundregel:
+
+Ny hypotes
+    → YAML
+
+Ny generell analysform
+    → Engine + YAML
+
+Unik specialanalys
+    → custom / Diagnostics
+
 ⸻
 
-7. Diagnostics
+7. Research kontra Diagnostics
 
 Diagnostics är den specialiserade forskningsvägen.
 
-Den används när generisk Research Engine inte räcker.
+Den används när generisk Research Engine inte räcker efter att det har bedömts att den saknade logiken inte bör vara en generell Engine-funktion.
 
 Diagnostics ska inte användas som wrapper för analyser som enkelt kan uttryckas i YAML.
+
+Diagnostics ska inte heller användas enbart för att Research Engine ännu inte råkar stödja en viss generell analysform.
 
 ⸻
 
@@ -338,6 +397,10 @@ Den normala arbetsprocessen är:
 
 Hypotes
    ↓
+Läs README
+   ↓
+Kontrollera befintlig Engine
+   ↓
 Kan YAML beskriva den?
    │
    ├── JA → Research spec
@@ -346,7 +409,15 @@ Kan YAML beskriva den?
    │          ↓
    │        DEEP
    │
-   └── NEJ → custom / diagnostics
+   └── NEJ
+        ↓
+   Är den nya analysformen generell?
+        │
+        ├── JA → utöka Engine
+        │          ↓
+        │        Research spec
+        │
+        └── NEJ → custom / diagnostics
 
 Efter resultat:
 
@@ -364,6 +435,7 @@ Målet är kortast möjliga väg mellan idé och information.
 
 * Gemensam logik ska ligga centralt.
 * Hypoteser ska vara små.
+* Nya konkreta hypoteser ska normalt vara YAML.
 * SCAN ska vara billig.
 * DEEP ska användas selektivt.
 * OOS är den slutliga kontrollen.
@@ -372,6 +444,9 @@ Målet är kortast möjliga väg mellan idé och information.
 * Duplicerad kod ska undvikas.
 * Speciallogik ska vara explicit.
 * Död kod ska tas bort.
+* En ny generell analysform ska implementeras i Engine.
+* Diagnostics ska inte användas som fallback för saknad generell Engine-funktionalitet.
+* Legacy-implementationer ska tas bort efter verifierad migrering.
 
 ⸻
 
