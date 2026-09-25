@@ -1,4 +1,4 @@
-name: Blankdiss
+name: AI-lab research
 
 on:
   workflow_dispatch:
