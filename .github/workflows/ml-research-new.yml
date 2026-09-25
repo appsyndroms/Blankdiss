@@ -47,7 +47,7 @@ jobs:
           printf '%s\n' "$AI_LAB_SPEC" \
             > data/ai_lab/inbox/experiment.json
 
-          python -u -m ml.research.ai_lab_runner \
+          python -u ml/ai-lab/ai_lab_runner.py \
             data/ai_lab/inbox/experiment.json
 
       # ============================================================
