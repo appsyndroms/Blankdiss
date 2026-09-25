@@ -34,6 +34,7 @@ Det finns en tydlig separation mellan:
 
 framework
     = gemensam infrastruktur
+
 experiments
     = specifika forskningsfrågor
 
@@ -48,11 +49,14 @@ DiagnosticExperiment
 Exempel:
 
 from ml.diagnostics.framework import DiagnosticExperiment
+
 class MyExperiment(DiagnosticExperiment):
     name = "my_experiment"
+
     targets = (
         "down_5pct_5d",
     )
+
     def analyze_window(self, context):
         ...
 
@@ -142,20 +146,24 @@ class VolatilitySIInteractionExperiment(
     DiagnosticExperiment
 ):
     name = "volatility_si_interaction"
+
     targets = (
         "down_5pct_5d",
         "down_7pct_5d",
         "down_10pct_5d",
     )
+
     def analyze_window(self, context):
         volatility_bins = self.make_pretest_bins(
             context.test,
             "price_volatility_20d",
         )
+
         si_bins = self.make_pretest_bins(
             context.test,
             "short_interest_pct",
         )
+
         return self.build_2d_analysis(
             context.test,
             volatility_bins,
@@ -164,6 +172,40 @@ class VolatilitySIInteractionExperiment(
         )
 
 Poängen är att experimentet beskriver vad som ska analyseras, medan frameworket beskriver hur den gemensamma infrastrukturen fungerar.
+
+⸻
+
+När ska en hypotes bli Diagnostics?
+
+Diagnostics är inte en fallback för funktionalitet som ännu inte finns i Research Engine.
+
+Innan en ny Diagnostic skapas ska följande frågor ställas:
+
+1. Kan frågan uttryckas med befintlig Research Engine?
+2. Om inte, är den saknade analysformen generell?
+3. Kan samma analysform rimligen användas av flera framtida hypoteser?
+
+Om svaret är JA på fråga 2 och 3 ska Research Engine utökas.
+
+Därefter ska den konkreta hypotesen uttryckas som YAML.
+
+Om analysen däremot kräver verkligt unik och specialiserad logik kan Diagnostics vara rätt nivå.
+
+Exempel:
+
+Ny generell modelljämförelse
+    ↓
+Research Engine
+
+Specifik hypotes som använder modelljämförelsen
+    ↓
+YAML
+
+Unik mekanismanalys
+    ↓
+Diagnostics
+
+Det är alltså inte korrekt att skapa ett Diagnostic bara för att Research Engine saknar en generell analysform.
 
 ⸻
 
@@ -286,25 +328,22 @@ Om samma kod behövs av flera experiment ska den normalt flyttas till frameworke
 
 Nya experiment
 
-Processen är:
+Processen för Diagnostics är:
 
-1. Forskningsfråga
-       ↓
-2. Välj diagnostic
-       ↓
-3. Skapa experimentklass
-       ↓
-4. Återanvänd framework helpers
-       ↓
-5. Lägg eventuell generell ny logik i framework
-       ↓
-6. Registrera experimentet
-       ↓
-7. Kör walk-forward
-       ↓
-8. Inspektera OOS-resultat
+1. Formulera forskningsfrågan.
+2. Kontrollera Research Engine.
+3. Kontrollera om hypotesen kan uttryckas deklarativt.
+4. Kontrollera om eventuell saknad funktionalitet egentligen är generell Engine-funktionalitet.
+5. Om JA: utöka Research Engine och använd YAML.
+6. Om NEJ: bedöm om frågan kräver verkligt specialiserad Diagnostics-logik.
+7. Skapa experimentklass.
+8. Återanvänd framework helpers.
+9. Lägg eventuell generell ny logik i framework.
+10. Registrera experimentet.
+11. Kör walk-forward.
+12. Inspektera OOS-resultat.
 
-Ett nytt experiment ska alltså inte innebära att ett nytt stort standalone-script byggs.
+Ett nytt Diagnostics-experiment ska alltså inte skapas bara för att Research Engine ännu inte har implementerat en generell analysis type.
 
 ⸻
 
@@ -312,7 +351,7 @@ Designmål
 
 Diagnostics-systemet ska göra det möjligt att gå från:
 
-Ny hypotes
+Ny specialiserad hypotes
 
 till:
 
@@ -327,6 +366,16 @@ OOS
 Standardiserat resultat
 
 Det innebär att forskningslogiken blir mer återanvändbar och att nya experiment kan implementeras utan att duplicera infrastrukturen.
+
+Samtidigt ska generiska analyser stanna i Research Engine.
+
+Målet är därför:
+
+Generisk analys
+    → Research Engine + YAML
+
+Specialiserad analys
+    → Diagnostics
 
 ⸻
 
