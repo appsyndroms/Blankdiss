@@ -14,8 +14,8 @@
 
 ## Execution
 
-- Started: `2026-09-25T20:14:20.986044+00:00`
-- Finished: `2026-09-25T20:14:20.986089+00:00`
+- Started: `2026-09-25T20:21:00.738869+00:00`
+- Finished: `2026-09-25T20:21:00.738921+00:00`
 
 ## Result
 
@@ -24,10 +24,10 @@
   "planner_version": 2,
   "status": "proposal_created",
   "selection": {
-    "source_spec": "momentum_incremental_si",
+    "source_spec": "momentum_si_regime_walk_forward",
     "stage": "hypothesis_test",
     "locked": false,
-    "question": "Tillför förändring i short interest information om 5-dagars downside-risk utöver 20-dagars momentum, och tillför kombinationen av momentum och short-interest-förändring ytterligare information?\n"
+    "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n"
   },
   "parameters": {},
   "constraints": [
@@ -40,15 +40,14 @@
   ],
   "research_context": {
     "spec_count": 10,
-    "research_run_count": 0,
-    "completed_spec_count": 0,
+    "research_run_count": 1,
+    "completed_spec_count": 1,
     "open_question_count": 6,
     "locked_spec_count": 1
   },
   "warnings": [
     "Locked prospective-confirmation specification(s) exist but are not automatically selected by the planner.",
-    "Migration specifications are visible in the research state but are not treated as current research evidence or automatic planning candidates.",
-    "No research-engine runs are visible in the current research state."
+    "Migration specifications are visible in the research state but are not treated as current research evidence or automatic planning candidates."
   ]
 }
 ```

@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-09-25T20:21:06.889871+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_si_regime_walk_forward",
+      "mode": "deep",
+      "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n",
+      "result": "data/processed/ml/research/spec_runs/20260925T202106Z/momentum_si_regime_walk_forward.json",
+      "rows": 192
+    }
+  ]
+}
