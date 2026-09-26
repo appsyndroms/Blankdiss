@@ -11,12 +11,16 @@ from ml.research.reporting import write_json
 from ml.research.spec import load_spec
 
 from config import (
-    ADAPTIVE_PREFIX,
     ROOT,
     RUNS_DIR,
-    SOURCE_SPEC_ID,
     SPEC_DIR,
 )
+
+from adaptive_config import (
+    ADAPTIVE_PREFIX,
+    SOURCE_SPEC_ID,
+)
+
 from state import read_json
 
 
