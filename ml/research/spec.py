@@ -18,6 +18,7 @@ VALID_ANALYSIS_TYPES = {
     "regime_comparison",
     "multi_regime_comparison",
     "nested_regime_comparison",
+    "conditional_regime_comparison",
 }
 
 VALID_DIRECTIONS = {
@@ -232,6 +233,16 @@ def load_spec(
         raise ValueError(
             "nested_regime_comparison kräver "
             "exakt tre signaler."
+        )
+
+    if (
+        analysis_type
+        == "conditional_regime_comparison"
+        and len(signals) < 3
+    ):
+        raise ValueError(
+            "conditional_regime_comparison kräver "
+            "minst tre signaler."
         )
 
     bootstrap = bool(
