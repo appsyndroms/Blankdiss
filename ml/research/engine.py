@@ -3,7 +3,10 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from .bootstrap import bootstrap_binary_rate_difference
+from .bootstrap import (
+    bootstrap_binary_rate_difference,
+    bootstrap_binary_rate_difference_between_groups,
+)
 from .cache import ResearchCache, _tail_key
 from .spec import ResearchSpec, SignalSpec
 
@@ -571,14 +574,20 @@ def _analyse_nested_regime_comparison(
     spec_id: str,
 ) -> dict[str, Any]:
     """
-    Jämför en tvåsignal-baseline med samma baseline
-    plus en tredje inkrementell signal.
+    Testar om signal 3 tillför information efter att
+    signal 1 och signal 2 redan identifierat en baseline-regim.
 
     Baseline:
         signal 1 AND signal 2
 
-    Combined:
+    Incremental group:
         signal 1 AND signal 2 AND signal 3
+
+    Comparator group:
+        signal 1 AND signal 2 AND NOT signal 3
+
+    Skillnaden mäter event_rate(incremental)
+    minus event_rate(comparator).
     """
     if len(signals) != 3:
         raise ValueError(
@@ -617,18 +626,28 @@ def _analyse_nested_regime_comparison(
         & masks[1]
     )
 
-    combined_mask = (
+    incremental_mask = (
         baseline_mask
         & masks[2]
     )
 
-    baseline_in_window = (
+    comparator_mask = (
         baseline_mask
+        & ~masks[2]
+    )
+
+    incremental_in_window = (
+        incremental_mask
         & window_mask
     )
 
-    combined_in_window = (
-        combined_mask
+    comparator_in_window = (
+        comparator_mask
+        & window_mask
+    )
+
+    baseline_in_window = (
+        baseline_mask
         & window_mask
     )
 
@@ -637,40 +656,45 @@ def _analyse_nested_regime_comparison(
         baseline_in_window,
     )
 
-    combined_metrics = _regime_rate(
+    incremental_metrics = _regime_rate(
         target,
-        combined_in_window,
+        incremental_in_window,
     )
 
-    baseline_rate = (
-        baseline_metrics["event_rate"]
+    comparator_metrics = _regime_rate(
+        target,
+        comparator_in_window,
     )
 
-    combined_rate = (
-        combined_metrics["event_rate"]
+    incremental_rate = (
+        incremental_metrics["event_rate"]
+    )
+
+    comparator_rate = (
+        comparator_metrics["event_rate"]
     )
 
     absolute_difference = None
 
     if (
-        baseline_rate is not None
-        and combined_rate is not None
+        incremental_rate is not None
+        and comparator_rate is not None
     ):
         absolute_difference = (
-            combined_rate
-            - baseline_rate
+            incremental_rate
+            - comparator_rate
         )
 
     lift = None
 
     if (
-        baseline_rate is not None
-        and baseline_rate > 0
-        and combined_rate is not None
+        comparator_rate is not None
+        and comparator_rate > 0
+        and incremental_rate is not None
     ):
         lift = (
-            combined_rate
-            / baseline_rate
+            incremental_rate
+            / comparator_rate
         )
 
     seed = _stable_seed(
@@ -699,12 +723,14 @@ def _analyse_nested_regime_comparison(
         (
             ci_low,
             ci_high,
-        ) = bootstrap_binary_rate_difference(
-            target[window_mask],
-            baseline_mask[window_mask],
-            combined_in_window[window_mask],
-            iterations=bootstrap_iterations,
-            seed=seed,
+        ) = (
+            bootstrap_binary_rate_difference_between_groups(
+                target[window_mask],
+                comparator_mask[window_mask],
+                incremental_mask[window_mask],
+                iterations=bootstrap_iterations,
+                seed=seed,
+            )
         )
 
     return {
@@ -735,16 +761,25 @@ def _analyse_nested_regime_comparison(
             baseline_metrics["events"]
         ),
         "baseline_event_rate": (
-            baseline_rate
+            baseline_metrics["event_rate"]
         ),
-        "combined_n": (
-            combined_metrics["n"]
+        "incremental_n": (
+            incremental_metrics["n"]
         ),
-        "combined_events": (
-            combined_metrics["events"]
+        "incremental_events": (
+            incremental_metrics["events"]
         ),
-        "combined_event_rate": (
-            combined_rate
+        "incremental_event_rate": (
+            incremental_rate
+        ),
+        "comparator_n": (
+            comparator_metrics["n"]
+        ),
+        "comparator_events": (
+            comparator_metrics["events"]
+        ),
+        "comparator_event_rate": (
+            comparator_rate
         ),
         "absolute_event_rate_difference": (
             absolute_difference
@@ -859,6 +894,7 @@ def run_spec(
                         _analyse_nested_regime_comparison(
                             cache,
                             spec.signals,
+                            target_name,
                             target_name,
                             fractions,
                             window_name,
