@@ -3,6 +3,11 @@ name: AI-lab research
 on:
   workflow_dispatch:
 
+# Prevent two AI Lab runs from committing to main at the same time.
+concurrency:
+  group: ai-lab-research-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -13,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -293,4 +300,28 @@ jobs:
           fi
 
           git commit -m "Run AI Lab research planner"
-          git push origin HEAD:main
+
+          # The remote main branch may have moved after checkout.
+          # Rebase onto the latest main before pushing, with retries
+          # for a possible external push racing this workflow.
+          for attempt in 1 2 3; do
+            echo "Syncing with origin/main..."
+            git fetch origin main
+
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Push succeeded."
+                exit 0
+              fi
+            else
+              echo "Rebase failed; aborting rebase."
+              git rebase --abort || true
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              sleep 5
+            fi
+          done
+
+          echo "Failed to push generated data after 3 attempts."
+          exit 1
