@@ -245,15 +245,19 @@ def load_spec(
             "minst tre signaler."
         )
 
-        if any(
+    if (
+        analysis_type
+        == "conditional_regime_comparison"
+        and any(
             len(signal.bins) != 1
             for signal in signals[:-1]
-        ):
-            raise ValueError(
-                "conditional_regime_comparison kräver exakt en "
-                "bin för varje baseline-signal; endast den sista "
-                "signalen får ha flera bins."
-            )
+        )
+    ):
+        raise ValueError(
+            "conditional_regime_comparison kräver exakt en "
+            "bin för varje baseline-signal; endast den sista "
+            "signalen får ha flera bins."
+        )
 
     bootstrap = bool(
         raw_analysis.get(
