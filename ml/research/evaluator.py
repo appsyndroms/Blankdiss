@@ -7,24 +7,7 @@ from sklearn.metrics import roc_auc_score
 from ml.research.bootstrap import bootstrap_mean_ci
 from ml.research.cache import ResearchCache, _tail_key
 from ml.research.experiments import Experiment
-def _stable_seed(*parts: object) -> int:
-    """
-    Stable seed across Python processes/runs.
-    Python's built-in hash() is intentionally randomized between
-    processes, so it must not be used for reproducible bootstrap seeds.
-    """
-    payload = "|".join(
-        str(part)
-        for part in parts
-    ).encode("utf-8")
-    digest = hashlib.sha256(
-        payload
-    ).digest()
-    return int.from_bytes(
-        digest[:8],
-        byteorder="little",
-        signed=False,
-    ) % (2**32 - 1)
+from ml.research.state import _stable_seed
 def _safe_auc(
     y_true: np.ndarray,
     scores: np.ndarray,
@@ -253,8 +236,6 @@ def evaluate_experiment(
         if return_column
         else None
     )
-    # AUC is evaluated using the signal itself,
-    # not the binary tail.
     auc_mask = (
         window_mask
         & np.isfinite(signal)
@@ -280,9 +261,11 @@ def evaluate_experiment(
             seed=seed,
         )
     else:
-        returns_metrics = _return_metrics_without_bootstrap(
-            returns,
-            window_mask & selected,
+        returns_metrics = (
+            _return_metrics_without_bootstrap(
+                returns,
+                window_mask & selected,
+            )
         )
     result: dict[str, Any] = {
         "experiment_id": (
@@ -321,7 +304,6 @@ def evaluate_experiment(
         if window_mask.any()
         else None
     )
-    # Kept for compatibility with the existing evaluator structure.
     result["n_valid"] = int(
         mask.sum()
     )
