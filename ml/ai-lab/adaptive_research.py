@@ -46,9 +46,14 @@ if str(ROOT) not in sys.path:
 
 import yaml
 
+from ml.dataset import load_features
+from ml.research.cache import (
+    ResearchRequirement,
+    build_research_cache,
+)
 from ml.research.engine import run_spec
 from ml.research.reporting import write_json
-from ml.research.session import build_session
+from ml.research.session import ResearchSession
 from ml.research.spec import load_spec
 
 
@@ -704,10 +709,143 @@ def _write_and_read_spec(
     )
 
 
+def _build_shared_session(
+    source: dict[str, Any],
+) -> ResearchSession:
+    """Build one cache containing every requirement used by this AI Lab run.
+
+    The adaptive loop may execute many specs, but feature loading and cache
+    construction happen once per AI Lab process. All subsequent experiments
+    reuse this immutable research session.
+    """
+    source_signals = source.get(
+        "signals",
+        [],
+    )
+
+    if not source_signals:
+        raise ValueError(
+            "Source spec has no signals."
+        )
+
+    source_targets = [
+        str(value)
+        for value in source.get(
+            "targets",
+            [],
+        )
+    ]
+
+    if not source_targets:
+        raise ValueError(
+            "Source spec has no targets."
+        )
+
+    requirements: list[
+        ResearchRequirement
+    ] = []
+
+    seen: set[tuple] = set()
+
+    # Include both fractions already present in the source specification
+    # and every fraction in the predeclared adaptive parameter space.
+    fractions = {
+        float(value)
+        for signal in source_signals
+        for value in signal.get(
+            "bins",
+            [],
+        )
+    }
+
+    fractions.update(
+        float(value)
+        for value in ADAPTIVE_FRACTIONS
+    )
+
+    for signal in source_signals:
+        signal_name = str(
+            signal["name"]
+        )
+
+        direction = str(
+            signal.get(
+                "direction",
+                "lower",
+            )
+        )
+
+        for target_name in source_targets:
+            for fraction in sorted(
+                fractions
+            ):
+                key = (
+                    signal_name,
+                    target_name,
+                    fraction,
+                    direction,
+                )
+
+                if key in seen:
+                    continue
+
+                seen.add(
+                    key
+                )
+
+                requirements.append(
+                    ResearchRequirement(
+                        signal_name=signal_name,
+                        target_name=target_name,
+                        tail_fraction=fraction,
+                        tail_direction=direction,
+                    )
+                )
+
+    print(
+        "Loading features once for the complete AI Lab cycle...",
+        flush=True,
+    )
+
+    frame = load_features()
+
+    print(
+        f"Loaded {len(frame):,} feature rows",
+        flush=True,
+    )
+
+    print(
+        "AI Lab cache requirements: "
+        f"{len(requirements):,}",
+        flush=True,
+    )
+
+    print(
+        "Building AI Lab shared research cache once...",
+        flush=True,
+    )
+
+    cache = build_research_cache(
+        frame,
+        requirements,
+    )
+
+    print(
+        "AI Lab shared research cache ready.",
+        flush=True,
+    )
+
+    return ResearchSession(
+        frame=frame,
+        cache=cache,
+    )
+
+
 def _run_research_spec(
+    session: ResearchSession,
     spec: Any,
 ) -> Path:
-    """Execute one research specification and persist its result."""
+    """Execute one research specification using the shared session."""
     run_timestamp = (
         datetime.now(
             timezone.utc
@@ -719,10 +857,6 @@ def _run_research_spec(
     run_dir = (
         RUNS_DIR
         / run_timestamp
-    )
-
-    session = build_session(
-        [spec]
     )
 
     result = run_spec(
@@ -1342,6 +1476,7 @@ def _extend(
 
 def _execute_target_profile_extension(
     source: dict[str, Any],
+    shared_session: ResearchSession,
 ) -> dict[str, Any]:
     """Execute the newly created controlled extension experiment."""
     module_path = (
@@ -1409,17 +1544,8 @@ def _execute_target_profile_extension(
         ]
     ]
 
-    source_spec = load_spec(
-        SPEC_DIR
-        / f"{SOURCE_SPEC_ID}.yaml"
-    )
-
-    session = build_session(
-        [source_spec]
-    )
-
     result = module.run(
-        session.cache,
+        shared_session.cache,
         signal_name,
         direction,
         fraction,
@@ -1467,6 +1593,12 @@ def run() -> dict[str, Any]:
     ] = []
 
     source = _source_spec()
+
+    # Build the feature frame and research cache exactly once.
+    # Every adaptive experiment in this process reuses this session.
+    shared_session = _build_shared_session(
+        source
+    )
 
     while True:
         # ----------------------------------------------------------
@@ -1548,7 +1680,8 @@ def run() -> dict[str, Any]:
             # ------------------------------------------------------
             result_path = (
                 _run_research_spec(
-                    parsed_spec
+                    shared_session,
+                    parsed_spec,
                 )
             )
 
@@ -1681,7 +1814,8 @@ def run() -> dict[str, Any]:
         # Execute the new experiment family.
         executed = (
             _execute_target_profile_extension(
-                source
+                source,
+                shared_session,
             )
         )
 
