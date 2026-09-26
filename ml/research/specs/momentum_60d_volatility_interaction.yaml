@@ -24,7 +24,8 @@ targets:
 
 analysis:
   type: interaction
-  bootstrap: false
+  bootstrap: true
+  bootstrap_iterations: 2000
 
 windows:
   - window_1
@@ -50,14 +51,20 @@ metadata:
 
   comparison:
     primary_metric:
-      name: combined_event_rate
+      name: additive_interaction
       definition: >
-        downside event rate among observations satisfying both
-        negative_60d_momentum_20pct and high_20d_volatility_20pct
+        p11 - p10 - p01 + p00, där p11 är event rate när båda
+        signalerna är aktiva, p10 när endast signal 1 är aktiv,
+        p01 när endast signal 2 är aktiv och p00 när ingen av
+        signalerna är aktiv.
 
     contextual_metrics:
       - signal_1_event_rate
       - signal_2_event_rate
+      - combined_event_rate
+      - signal_1_only_event_rate
+      - signal_2_only_event_rate
+      - neither_event_rate
       - combined_n
       - combined_events
 
@@ -65,5 +72,6 @@ metadata:
     Detta är ett fristående discovery-test. Resultatet får inte
     användas för att ändra parametrar eller primärt endpoint i
     momentum_si_prospective_confirmation. Testet är avsett att
-    beskriva relationen mellan 60-dagars momentum och volatilitet
-    utan att använda resultatet för parameterurval.
+    undersöka en eventuell icke-additiv kombinationseffekt mellan
+    60-dagars momentum och 20-dagars volatilitet utan att använda
+    resultatet för parameterurval.
