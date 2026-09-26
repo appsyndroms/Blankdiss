@@ -1,0 +1,47 @@
+id: momentum_5d_tail_conditional_drawdown
+
+question: >
+  Tillför avstånd från 20-dagars högsta ytterligare downside-risk
+  inom olika nivåer av den negativa 5-dagars momentumsvansen?
+
+mode: scan
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+
+  - name: distance_from_20d_high
+    direction: lower
+    bins:
+      - 0.20
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: conditional_regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  stage: discovery
+  purpose: conditional_tail_scan
+
+  ai_lab_execution:
+    enabled: true
+    mode: once
