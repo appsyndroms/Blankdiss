@@ -5,9 +5,12 @@ from typing import Any
 
 from config import (
     ADAPTIVE_FRACTIONS,
-    ADAPTIVE_PREFIX,
     RUNS_DIR,
     SPEC_DIR,
+)
+
+from adaptive_config import (
+    ADAPTIVE_PREFIX,
 )
 
 
