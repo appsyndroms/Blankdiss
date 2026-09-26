@@ -1,11 +1,8 @@
 from __future__ import annotations
-import itertools
-import math
 from typing import Any
-from .cache import ResearchCache
 from .bootstrap import bootstrap_binary_rate_difference
-from .signals import SignalSpec, _tail_key
-from .spec import ResearchSpec
+from .cache import ResearchCache, _tail_key
+from .spec import ResearchSpec, SignalSpec
 from .state import _stable_seed
 def _regime_rate(
     target,
@@ -38,7 +35,11 @@ def _analyse_tail(
         window_name
     ][split_name]
     tail_mask = cache.tail_masks[
-        _tail_key(signal, fraction)
+        _tail_key(
+            signal.name,
+            signal.direction,
+            fraction,
+        )
     ]
     mask = (
         window_mask
@@ -78,13 +79,15 @@ def _analyse_interaction(
     ][split_name]
     first_mask = cache.tail_masks[
         _tail_key(
-            signals[0],
+            signals[0].name,
+            signals[0].direction,
             fractions[0],
         )
     ]
     second_mask = cache.tail_masks[
         _tail_key(
-            signals[1],
+            signals[1].name,
+            signals[1].direction,
             fractions[1],
         )
     ]
@@ -165,13 +168,15 @@ def _analyse_regime_comparison(
     ][split_name]
     baseline_mask = cache.tail_masks[
         _tail_key(
-            signals[0],
+            signals[0].name,
+            signals[0].direction,
             fractions[0],
         )
     ]
     incremental_mask = cache.tail_masks[
         _tail_key(
-            signals[1],
+            signals[1].name,
+            signals[1].direction,
             fractions[1],
         )
     ]
@@ -322,7 +327,8 @@ def _analyse_multi_regime_comparison(
     masks = [
         cache.tail_masks[
             _tail_key(
-                signal,
+                signal.name,
+                signal.direction,
                 fraction,
             )
         ]
@@ -386,6 +392,7 @@ def _analyse_multi_regime_comparison(
             )
             for part in (
                 signal.name,
+                signal.direction,
                 fraction,
             )
         ),
@@ -461,15 +468,12 @@ def run_spec(
     spec: ResearchSpec,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
-    for signal in spec.signals:
-        for fraction in signal.bins:
-            for target_name in spec.targets:
-                for window_name in spec.windows:
-                    for split_name in spec.splits:
-                        if (
-                            spec.analysis.type
-                            == "tail"
-                        ):
+    if spec.analysis.type == "tail":
+        for signal in spec.signals:
+            for fraction in signal.bins:
+                for target_name in spec.targets:
+                    for window_name in spec.windows:
+                        for split_name in spec.splits:
                             results.append(
                                 _analyse_tail(
                                     cache,
@@ -480,7 +484,7 @@ def run_spec(
                                     split_name,
                                 )
                             )
-    if spec.analysis.type == "interaction":
+    elif spec.analysis.type == "interaction":
         if len(spec.signals) != 2:
             raise ValueError(
                 "interaction requires exactly "
@@ -503,10 +507,7 @@ def run_spec(
                             split_name,
                         )
                     )
-    elif (
-        spec.analysis.type
-        == "regime_comparison"
-    ):
+    elif spec.analysis.type == "regime_comparison":
         if len(spec.signals) != 2:
             raise ValueError(
                 "regime_comparison requires exactly "
@@ -516,9 +517,7 @@ def run_spec(
             signal.bins[0]
             for signal in spec.signals
         )
-        bootstrap = (
-            spec.analysis.bootstrap
-        )
+        bootstrap = spec.analysis.bootstrap
         for target_name in spec.targets:
             for window_name in spec.windows:
                 for split_name in spec.splits:
@@ -538,10 +537,7 @@ def run_spec(
                             spec_id=spec.id,
                         )
                     )
-    elif (
-        spec.analysis.type
-        == "multi_regime_comparison"
-    ):
+    elif spec.analysis.type == "multi_regime_comparison":
         if len(spec.signals) < 3:
             raise ValueError(
                 "multi_regime_comparison requires "
@@ -551,9 +547,7 @@ def run_spec(
             signal.bins[0]
             for signal in spec.signals
         )
-        bootstrap = (
-            spec.analysis.bootstrap
-        )
+        bootstrap = spec.analysis.bootstrap
         for target_name in spec.targets:
             for window_name in spec.windows:
                 for split_name in spec.splits:
@@ -573,6 +567,11 @@ def run_spec(
                             spec_id=spec.id,
                         )
                     )
+    else:
+        raise ValueError(
+            f"Unsupported analysis type: "
+            f"{spec.analysis.type}"
+        )
     return {
         "spec_id": spec.id,
         "question": spec.question,
