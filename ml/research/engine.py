@@ -895,7 +895,6 @@ def run_spec(
                             cache,
                             spec.signals,
                             target_name,
-                            target_name,
                             fractions,
                             window_name,
                             split_name,
