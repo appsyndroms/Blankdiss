@@ -292,3 +292,151 @@ def bootstrap_binary_rate_difference(
         float(lower),
         float(upper),
     )
+
+
+def bootstrap_binary_rate_difference_between_groups(
+    target: np.ndarray,
+    comparator_selected: np.ndarray,
+    incremental_selected: np.ndarray,
+    *,
+    iterations: int = DEFAULT_ITERATIONS,
+    seed: int,
+) -> tuple[float | None, float | None]:
+    """
+    Bootstrap CI for:
+
+        event_rate(incremental)
+        - event_rate(comparator)
+
+    comparator_selected and incremental_selected define
+    two separate comparison groups.
+
+    The groups are resampled independently.
+    """
+    target = np.asarray(
+        target,
+        dtype=np.float64,
+    )
+
+    comparator_selected = np.asarray(
+        comparator_selected,
+        dtype=bool,
+    )
+
+    incremental_selected = np.asarray(
+        incremental_selected,
+        dtype=bool,
+    )
+
+    valid = (
+        np.isfinite(target)
+        & (
+            comparator_selected
+            | incremental_selected
+        )
+    )
+
+    if valid.sum() < MIN_ROWS:
+        return None, None
+
+    comparator = (
+        comparator_selected[valid]
+    )
+
+    incremental = (
+        incremental_selected[valid]
+    )
+
+    y = target[valid]
+
+    comparator_values = y[
+        comparator
+    ]
+
+    incremental_values = y[
+        incremental
+    ]
+
+    if (
+        len(comparator_values) < MIN_ROWS
+        or len(incremental_values) < MIN_ROWS
+    ):
+        return None, None
+
+    rng = np.random.default_rng(seed)
+
+    comparator_n = len(
+        comparator_values
+    )
+
+    incremental_n = len(
+        incremental_values
+    )
+
+    differences = np.empty(
+        iterations,
+        dtype=np.float64,
+    )
+
+    offset = 0
+
+    while offset < iterations:
+        current = min(
+            CHUNK_SIZE,
+            iterations - offset,
+        )
+
+        comparator_indices = (
+            rng.integers(
+                0,
+                comparator_n,
+                size=(
+                    current,
+                    comparator_n,
+                ),
+            )
+        )
+
+        incremental_indices = (
+            rng.integers(
+                0,
+                incremental_n,
+                size=(
+                    current,
+                    incremental_n,
+                ),
+            )
+        )
+
+        comparator_rates = (
+            comparator_values[
+                comparator_indices
+            ]
+            .mean(axis=1)
+        )
+
+        incremental_rates = (
+            incremental_values[
+                incremental_indices
+            ]
+            .mean(axis=1)
+        )
+
+        differences[
+            offset:offset + current
+        ] = (
+            incremental_rates
+            - comparator_rates
+        )
+
+        offset += current
+
+    lower, upper = np.quantile(
+        differences,
+        [0.025, 0.975],
+    )
+
+    return (
+        float(lower),
+        float(upper),
+    )
