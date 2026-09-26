@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from adaptive_config import (
-    AI_LAB_RESULTS_DIR,
     ROOT,
 )
 from config import RUNS_DIR
@@ -32,7 +31,8 @@ def run_experiment(
     experiment,
 ) -> tuple[Path, Any]:
     path = (
-        AI_LAB_RESULTS_DIR
+        RUNS_DIR
+        / "experiments"
         / f"{experiment.id}.json"
     )
 
