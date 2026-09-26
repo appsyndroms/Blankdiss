@@ -4,68 +4,197 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
+from ml.research.engine import run_spec
+from ml.research.reporting import write_json
+from ml.research.spec import load_spec
+
 from config import (
     ROOT,
     RUNS_DIR,
-)
-from ml.research.engine import run_spec
-from ml.research.spec import ResearchSpec
-from state import (
-    read_json,
-    write_json,
+    SPEC_DIR,
 )
 
+from adaptive_config import (
+    ADAPTIVE_PREFIX,
+    SOURCE_SPEC_ID,
+)
 
-def _write_experiment(
-    path: Path,
-    payload: dict[str, Any],
-) -> None:
-    write_json(
-        path,
-        payload,
+from state import read_json
+
+
+def safe_id(
+    value: str,
+) -> str:
+    import re
+
+    return re.sub(
+        r"[^A-Za-z0-9_-]+",
+        "_",
+        value,
+    ).strip("_")
+
+
+def build_adaptive_spec(
+    source: dict[str, Any],
+    baseline_fraction: float,
+    incremental_fraction: float,
+    target: str,
+) -> dict[str, Any]:
+    source_signals = source.get(
+        "signals",
+        [],
     )
 
+    if len(source_signals) != 2:
+        raise ValueError(
+            "Adaptive source must define exactly two signals."
+        )
 
-def run_experiment(
-    session,
-    experiment,
-) -> tuple[Path, Any]:
-    path = (
-        RUNS_DIR
-        / "experiments"
-        / f"{experiment.id}.json"
+    baseline_signal = source_signals[0]
+    incremental_signal = source_signals[1]
+
+    spec_id = (
+        f"{ADAPTIVE_PREFIX}"
+        f"b{baseline_fraction:.3f}_"
+        f"si{incremental_fraction:.3f}_"
+        f"{safe_id(target)}"
+    ).replace(
+        ".",
+        "p",
     )
 
-    payload = {
-        "id": experiment.id,
-        "question": experiment.question,
-        "mode": experiment.mode,
-        "code": experiment.code,
+    return {
+        "id": spec_id,
+        "question": (
+            "Kontrollerad förfining av den "
+            "fördefinierade momentum/SI-regimen. "
+            "Vilket utfall observeras för denna "
+            "parameterpunkt i validation-data?"
+        ),
+        "mode": "deep",
+        "signals": [
+            {
+                "name": baseline_signal[
+                    "name"
+                ],
+                "direction": baseline_signal.get(
+                    "direction",
+                    "lower",
+                ),
+                "bins": [
+                    baseline_fraction
+                ],
+            },
+            {
+                "name": incremental_signal[
+                    "name"
+                ],
+                "direction": incremental_signal.get(
+                    "direction",
+                    "upper",
+                ),
+                "bins": [
+                    incremental_fraction
+                ],
+            },
+        ],
+        "targets": [
+            target
+        ],
+        "analysis": {
+            "type": "regime_comparison",
+            "bootstrap": True,
+            "bootstrap_iterations": 2000,
+        },
+        "windows": list(
+            source.get(
+                "windows",
+                [
+                    "window_1",
+                    "window_2",
+                ],
+            )
+        ),
+        "splits": [
+            "validation"
+        ],
+        "metadata": {
+            "stage": "adaptive_refinement",
+            "purpose": (
+                "controlled_parameter_space_exploration"
+            ),
+            "source_spec": SOURCE_SPEC_ID,
+            "selection_policy": (
+                "fixed_predeclared_grid_order"
+            ),
+            "candidate": {
+                "baseline_fraction": (
+                    baseline_fraction
+                ),
+                "incremental_fraction": (
+                    incremental_fraction
+                ),
+                "target": target,
+            },
+            "rules": [
+                "validation_only_for_adaptation",
+                "test_data_never_selects_parameters",
+                "no_result_based_candidate_ranking",
+                "no_locked_spec_modification",
+                "no_locked_confirmation_execution",
+            ],
+        },
     }
 
-    _write_experiment(
-        path,
-        payload,
+
+def write_and_read_spec(
+    payload: dict[str, Any],
+):
+    path = (
+        SPEC_DIR
+        / f"{payload['id']}.yaml"
     )
 
-    parsed = read_json(
+    if path.exists():
+        existing = yaml.safe_load(
+            path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        if existing != payload:
+            raise ValueError(
+                "Refusing to overwrite existing spec: "
+                f"{path}"
+            )
+
+    else:
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        path.write_text(
+            yaml.safe_dump(
+                payload,
+                sort_keys=False,
+                allow_unicode=True,
+            ),
+            encoding="utf-8",
+        )
+
+    # The persisted YAML is the executable specification.
+    parsed = load_spec(
         path
     )
 
-    if parsed is None:
-        raise ValueError(
-            "Experiment could not be read back: "
-            f"{path}"
-        )
-
-    if parsed.get(
-        "id"
-    ) != payload[
+    if parsed.id != payload[
         "id"
     ]:
         raise ValueError(
-            "Experiment read-back changed the "
-            "experiment id."
+            "Spec read-back changed the experiment id."
         )
 
     return (
