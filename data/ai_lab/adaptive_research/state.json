@@ -1,6 +1,6 @@
 {
   "state_version": 1,
-  "updated_at_utc": "2026-09-26T06:17:30.027357+00:00",
+  "updated_at_utc": "2026-09-26T06:47:14.877031+00:00",
   "phase": "COMPLETE",
   "history": [
     {
@@ -334,6 +334,12 @@
           }
         ]
       }
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_tail_threshold_analysis",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T064702755059Z/momentum_tail_threshold_analysis.json"
     }
   ],
   "next_candidate": null,
