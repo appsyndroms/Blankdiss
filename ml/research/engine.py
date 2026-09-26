@@ -8,6 +8,9 @@ from .bootstrap import (
     bootstrap_binary_rate_difference_between_groups,
 )
 from .cache import ResearchCache, _tail_key
+from .conditional import (
+    analyse_conditional_regime_comparison,
+)
 from .interaction import analyse_interaction
 from .spec import ResearchSpec, SignalSpec
 
@@ -804,6 +807,40 @@ def run_spec(
                 for split_name in spec.splits:
                     results.append(
                         _analyse_nested_regime_comparison(
+                            cache,
+                            spec.signals,
+                            target_name,
+                            fractions,
+                            window_name,
+                            split_name,
+                            bootstrap=bootstrap,
+                            bootstrap_iterations=(
+                                spec.analysis
+                                .bootstrap_iterations
+                            ),
+                            spec_id=spec.id,
+                        )
+                    )
+
+    elif spec.analysis.type == "conditional_regime_comparison":
+        if len(spec.signals) < 3:
+            raise ValueError(
+                "conditional_regime_comparison requires "
+                "at least three signals."
+            )
+
+        fractions = tuple(
+            signal.bins[0]
+            for signal in spec.signals
+        )
+
+        bootstrap = spec.analysis.bootstrap
+
+        for target_name in spec.targets:
+            for window_name in spec.windows:
+                for split_name in spec.splits:
+                    results.append(
+                        analyse_conditional_regime_comparison(
                             cache,
                             spec.signals,
                             target_name,
