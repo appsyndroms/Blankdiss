@@ -1,6 +1,4 @@
-Du har rätt. Problemet är att gränssnittet verkar lägga metadata på kodblocken när jag försöker ge hela dokumentet som ett enda block. Jag ska inte göra det.
-
-Här är README:n som vanlig text, med kodexempel indragna med fyra mellanslag. Då blir det ren Markdown utan konstig blockformatering:
+Absolut. Här är hela README:n, inklusive den nya operativa minnesdelen. Jag har också korrigerat formuleringen om resultatkontrollen så att den beskriver spec_id korrekt.
 
 Blankdiss AI Lab
 
@@ -55,13 +53,17 @@ Workflowet startar endast AI Lab:
 
 Workflow → AI Lab → Research Engine → spec
 
-En ny forskningsfråga ska därför normalt kunna läggas till genom att skapa eller ändra en YAML-specifikation. AI Lab ska inte behöva ändras för varje ny hypotes.
+En ny forskningsfråga ska därför normalt kunna läggas till genom att skapa eller ändra en YAML-specifikation.
+
+AI Lab ska inte behöva ändras för varje ny hypotes.
 
 ⸻
 
 Forskningsspecifikationer
 
-Forskningslogiken deklareras i ml/research/specs/*.yaml.
+Forskningslogiken deklareras i:
+
+ml/research/specs/*.yaml
 
 En spec beskriver exempelvis:
 
@@ -193,7 +195,9 @@ ANALYZE
 
 Den adaptiva delen har ett fördefinierat parameterutrymme.
 
-AI Lab får alltså inte fritt uppfinna nya parametrar eller Python-kod baserat på ett attraktivt resultat. Kandidater väljs från det deklarerade utrymmet och resultaten används för att avgöra nästa forskningssteg.
+AI Lab får alltså inte fritt uppfinna nya parametrar eller Python-kod baserat på ett attraktivt resultat.
+
+Kandidater väljs från det deklarerade utrymmet och resultaten används för att avgöra nästa forskningssteg.
 
 ⸻
 
@@ -246,6 +250,8 @@ Exempel på generiska analysformer är:
 * tail
 * interaction
 * regime_comparison
+* multi_regime_comparison
+* nested_regime_comparison
 
 En AI Lab-spec beskriver vad som ska undersökas.
 
@@ -278,7 +284,7 @@ Där sparas bland annat:
 
 Manifestet innehåller information om den körda specen och resultatets sökväg.
 
-AI Lab läser dessutom tillbaka det persisterade resultatet efter körningen och verifierar att resultatets id motsvarar den körda specen.
+AI Lab läser dessutom tillbaka det persisterade resultatet efter körningen och verifierar att resultatets spec_id motsvarar den körda specen.
 
 Det gör forskningskedjan kontrollerbar även efter att Python-processen avslutats.
 
@@ -350,6 +356,242 @@ execution:
 AI Lab upptäcker specen automatiskt, inkluderar dess krav i den gemensamma research-cachen och kör den genom Research Engine.
 
 Själva forskningsfrågan behöver därmed inte byggas in i AI Lab-koden.
+
+⸻
+
+AI LAB ARKITEKTUR – OPERATIV MINNESDEL
+
+Denna del ska läsas som aktuell arbetsinstruktion inför och efter varje AI Lab-körning.
+
+Den finns för att undvika att tidigare arkitekturbeslut tappas bort mellan körningar.
+
+⸻
+
+1. YAML ÄR FORSKNINGSKONTRAKTET
+
+När en ny forskningshypotes ska testas är normalfallet att endast en YAML-spec ska behöva läggas till eller ändras.
+
+Flödet är:
+
+YAML
+  ↓
+controlled_specs.py
+  ↓
+adaptive_research.py
+  ↓
+experiments.py
+  ↓
+Research Engine
+  ↓
+persisted result
+
+En ny hypotes ska normalt inte kräva:
+
+* ändring av workflow
+* ändring av adaptive_research.py
+* ny Python-specialgren för spec-id
+* ny experimentkod
+* ändring av Research Engine
+
+Om en ny YAML-spec kräver kodändring ska det först betraktas som ett potentiellt arkitekturproblem i den generiska motorn eller orchestration-lagret.
+
+Lägg inte in en spec-specifik patch bara för att få en enskild hypotes att köra.
+
+⸻
+
+2. CONTROLLED SPECS MÅSTE OPTA IN
+
+controlled_specs.py söker i:
+
+ml/research/specs/*.yaml
+
+Men en YAML-spec körs inte automatiskt bara för att den ligger där.
+
+För att köras av AI Lab ska den normalt ha:
+
+metadata:
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+Supported mode är för närvarande:
+
+once
+
+En låst prospective_confirmation-spec ska inte optas in eller köras av discovery/controlled research om arkitekturen uttryckligen skyddar den.
+
+⸻
+
+3. ONCE-SEMANTIK
+
+En once-spec ska köras en gång och därefter betraktas som genomförd baserat på persisterat resultat/state, inte enbart Python-processens minne.
+
+Om körningen avbryts innan resultatet persisterats ska specen kunna köras igen.
+
+⸻
+
+4. RESULTATKONTRAKTET
+
+Research Engine returnerar ett resultat på toppnivå med bland annat:
+
+{
+    "spec_id": spec.id,
+    "question": spec.question,
+    "mode": spec.mode,
+    "analysis": spec.analysis.type,
+    "results": [...],
+}
+
+Det är därför spec_id som ska användas när experiments.py verifierar att ett persisterat research-resultat hör till den spec som kördes.
+
+Kontrollen ska vara:
+
+if persisted.get("spec_id") != spec.id:
+    raise ValueError(...)
+
+Blanda inte ihop detta med experiment-artifaktets eget id.
+
+run_experiment() använder fortfarande experimentets id.
+
+run_research_spec() verifierar Research Engines spec_id.
+
+⸻
+
+5. GENERISK RESEARCH ENGINE
+
+Research Engine ska hantera analysformer generiskt.
+
+En ny YAML-spec ska använda befintliga analysformer när de räcker.
+
+Exempel på analysformer som redan används:
+
+* tail
+* interaction
+* regime_comparison
+* multi_regime_comparison
+* nested_regime_comparison
+
+nested_regime_comparison kräver exakt tre signaler:
+
+signal 1 AND signal 2
+        =
+baseline
+signal 1 AND signal 2 AND signal 3
+        =
+incremental
+signal 1 AND signal 2 AND NOT signal 3
+        =
+comparator
+
+Det är en generell analysform och ska därför inte få en spec-specifik implementation.
+
+⸻
+
+6. NESTED CONTRIBUTION-TESTERNA
+
+Två YAML-specar har skapats för att testa ordningsberoende och villkorligt bidrag.
+
+momentum_60d_then_volatility_nested.yaml
+
+Baslinje:
+
+* negativt 5-dagars momentum, 20 %
+* negativt 60-dagars momentum, 20 %
+
+Incremental:
+
+* hög 20-dagars volatilitet, 20 %
+
+momentum_volatility_then_60d_nested.yaml
+
+Baslinje:
+
+* negativt 5-dagars momentum, 20 %
+* hög 20-dagars volatilitet, 20 %
+
+Incremental:
+
+* negativt 60-dagars momentum, 20 %
+
+Båda ska köras som hypothesis_test med:
+
+ai_lab_execution:
+  enabled: true
+  mode: once
+
+De är discovery/hypothesis tests och får inte användas för att ändra parametrar eller primärt endpoint i den låsta prospective-confirmation-specen:
+
+momentum_si_prospective_confirmation
+
+⸻
+
+7. AKTUELLT ARKITEKTURBESLUT
+
+Efter en AI Lab-körning ska första frågan vara:
+
+Var detta ett YAML-problem, ett orchestration-problem eller ett generellt motorproblem?
+
+Gör inte en Python-ändring bara för att kompensera för att en YAML-spec inte upptäcks eller att en spec saknar rätt metadata.
+
+Om discovery inte hittar en YAML-spec:
+
+1. kontrollera först metadata.ai_lab_execution
+2. kontrollera att enabled är true
+3. kontrollera att mode är en stödd modell
+
+Om specen upptäcks men inte kan köras:
+
+1. kontrollera att analysis.type stöds generiskt av Research Engine
+2. kontrollera att specens struktur uppfyller den generiska analysens kontrakt
+
+Om en redan stödd analysform ger fel på resultatkontraktet:
+
+fixa kontraktet generellt i infrastrukturen, inte för den specifika specen.
+
+⸻
+
+8. SENASTE FEL OCH LÄRDOM
+
+Senaste kedjan var:
+
+1. nested YAML-specarna lades i repot men kördes inte
+2. controlled_specs.py visade att opt-in krävs
+3. ai_lab_execution.enabled: true och mode: once lades till
+4. specarna upptäcktes därefter korrekt
+5. första körningen nådde momentum_60d_then_volatility_nested
+6. körningen stoppade i experiments.py eftersom read-back kontrollerade persisted["id"]
+7. Research Engine använder däremot persisted["spec_id"]
+
+Det korrekta generella fixet är därför att run_research_spec() verifierar:
+
+persisted["spec_id"]
+
+mot:
+
+spec.id
+
+En felaktig manuell version av experiments.py introducerade dessutom en import av AI_LAB_RESULTS_DIR från adaptive_config som inte finns där.
+
+Den ska inte återinföras.
+
+Behåll befintliga imports och ändra endast den generella read-back-kontrollen.
+
+⸻
+
+9. ARBETSREGEL FÖR FRAMTIDA KÖRNINGAR
+
+Efter varje CI-körning ska denna README användas som arkitekturankare.
+
+Innan kod ändras:
+
+1. Läs denna README.
+2. Kontrollera aktuell YAML-spec.
+3. Kontrollera discovery-reglerna.
+4. Kontrollera Research Engines befintliga analysis types.
+5. Kontrollera resultatkontraktet.
+6. Ändra kod endast om problemet är generellt och inte kan lösas deklarativt.
+
+Målet är att nästa nya forskningsfråga ska kunna läggas till med YAML och därefter köras av samma generiska pipeline.
 
 ⸻
 
