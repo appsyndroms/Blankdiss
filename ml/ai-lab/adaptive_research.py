@@ -1,16 +1,12 @@
 """Controlled adaptive research refinement for Blankdiss AI Lab.
 
-This module proposes bounded follow-up specifications after the predefined
-research inventory is exhausted. It never changes an existing specification
-and never touches locked confirmation specs.
+Adaptive refinement is deliberately restricted to validation data. It may
+generate a new exploratory specification, but it never changes an existing
+specification and never touches locked prospective confirmation.
 
-The adaptive loop is intentionally finite and conservative:
-- at most three generated refinement experiments;
-- only completed, non-locked research results are inspected;
-- the strongest stable parameter cell is used only to define a narrower
-  exploratory validation scan;
-- generated scans use validation data, not test data;
-- locked confirmation remains a separate final checkpoint.
+The first adaptive family is regime-comparison research, because the
+momentum/short-interest walk-forward experiment already provides validation
+splits that can be used for controlled parameter refinement.
 """
 
 from __future__ import annotations
@@ -26,16 +22,19 @@ ROOT = Path(__file__).resolve().parents[2]
 MAX_ADAPTIVE_ITERATIONS = 3
 MIN_VALID_N = 100
 
+SUPPORTED_SOURCE = "momentum_si_regime_walk_forward"
+
 
 def _completed_ids(
-    research_runs: list[dict[str, Any]],
+    runs: list[dict[str, Any]],
 ) -> set[str]:
-    result: set[str] = set()
+    """Return all research specification IDs already executed."""
+    completed: set[str] = set()
 
-    for run in research_runs:
+    for run in runs:
         for item in run.get("specs", []):
             if isinstance(item, str):
-                result.add(item)
+                completed.add(item)
                 continue
 
             if not isinstance(item, dict):
@@ -46,62 +45,112 @@ def _completed_ids(
                 "spec_id",
                 "experiment_id",
             ):
-                if item.get(key) is not None:
-                    result.add(
-                        str(item[key])
-                    )
+                value = item.get(key)
+
+                if value is not None:
+                    completed.add(str(value))
                     break
 
-    return result
+    return completed
 
 
-def _latest_result(
+def _specs_by_id(
     research_state: dict[str, Any],
-) -> tuple[
-    dict[str, Any],
-    dict[str, Any],
-] | None:
-    research = research_state.get(
-        "research",
-        {},
+) -> dict[str, dict[str, Any]]:
+    """Return research specifications indexed by ID."""
+    specs = (
+        research_state
+        .get("research", {})
+        .get("specs", [])
     )
 
-    specs = {
+    if not isinstance(specs, list):
+        return {}
+
+    return {
         str(spec.get("id")): spec
-        for spec in research.get(
-            "specs",
-            [],
-        )
+        for spec in specs
         if (
             isinstance(spec, dict)
             and spec.get("id")
         )
     }
 
-    runs = sorted(
+
+def _runs(
+    research_state: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return normalized research runs."""
+    runs = (
         research_state
-        .get(
-            "research_runs",
-            {},
-        )
-        .get(
-            "runs",
-            [],
-        ),
-        key=lambda item: str(
-            item.get(
+        .get("research_runs", {})
+        .get("runs", [])
+    )
+
+    if not isinstance(runs, list):
+        return []
+
+    return [
+        run
+        for run in runs
+        if isinstance(run, dict)
+    ]
+
+
+def _result_path(
+    manifest_item: dict[str, Any],
+) -> Path | None:
+    """Resolve a research result path inside the repository."""
+    result = manifest_item.get("result")
+
+    if not result:
+        return None
+
+    path = ROOT / str(result)
+
+    if not path.is_file():
+        return None
+
+    return path
+
+
+def _latest_eligible_result(
+    research_state: dict[str, Any],
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+] | None:
+    """Find the newest result from the supported adaptive family.
+
+    The first adaptive family is intentionally narrow. This prevents the
+    adaptive engine from interpreting unrelated research result schemas as
+    if they were compatible with regime-comparison experiments.
+    """
+    specs = _specs_by_id(
+        research_state
+    )
+
+    candidates: list[
+        tuple[
+            str,
+            dict[str, Any],
+            dict[str, Any],
+        ]
+    ] = []
+
+    for run in _runs(
+        research_state
+    ):
+        created = str(
+            run.get(
                 "created_at_utc",
                 "",
             )
-        ),
-    )
+        )
 
-    for run in reversed(runs):
-        for item in reversed(
-            run.get(
-                "specs",
-                [],
-            )
+        for item in run.get(
+            "specs",
+            [],
         ):
             if not isinstance(
                 item,
@@ -114,6 +163,9 @@ def _latest_result(
                 or item.get("spec_id")
             )
 
+            if spec_id is None:
+                continue
+
             spec = specs.get(
                 str(spec_id)
             )
@@ -121,46 +173,43 @@ def _latest_result(
             if not spec:
                 continue
 
-            stage = str(
-                spec.get(
-                    "stage",
-                    "",
-                )
-            ).lower()
-
             if spec.get(
                 "locked"
             ) is True:
                 continue
 
+            stage = str(
+                spec.get(
+                    "stage",
+                    "",
+                )
+            ).strip().lower()
+
             if stage == "migration":
                 continue
 
-            if stage not in {
-                "signal_mapping",
-                "hypothesis_test",
-                "adaptive_refinement",
-            }:
-                continue
-
-            result_path = item.get(
-                "result"
+            normalized_id = str(
+                spec_id
             )
 
-            if not result_path:
+            if (
+                normalized_id != SUPPORTED_SOURCE
+                and not normalized_id.startswith(
+                    "adaptive_"
+                )
+            ):
                 continue
 
-            path = (
-                ROOT
-                / str(result_path)
+            result_path = _result_path(
+                item
             )
 
-            if not path.exists():
+            if result_path is None:
                 continue
 
             try:
                 payload = json.loads(
-                    path.read_text(
+                    result_path.read_text(
                         encoding="utf-8"
                     )
                 )
@@ -174,17 +223,75 @@ def _latest_result(
                 payload,
                 dict,
             ):
-                return (
-                    spec,
-                    payload,
+                candidates.append(
+                    (
+                        created,
+                        spec,
+                        payload,
+                    )
                 )
 
-    return None
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda item: item[0]
+    )
+
+    _, spec, payload = candidates[-1]
+
+    return (
+        spec,
+        payload,
+    )
 
 
-def _stable_candidate(
+def _refined_values(
+    value: float,
+) -> list[float]:
+    """Build a small bounded neighbourhood around a candidate value.
+
+    These values are exploratory only. They never modify the source
+    specification or the locked confirmation specification.
+    """
+    raw_values = (
+        value * 0.75,
+        value,
+        value * 1.25,
+    )
+
+    values = {
+        round(
+            max(
+                0.01,
+                min(
+                    0.50,
+                    candidate,
+                ),
+            ),
+            4,
+        )
+        for candidate in raw_values
+    }
+
+    return sorted(
+        values,
+        reverse=True,
+    )
+
+
+def _stable_validation_candidate(
     payload: dict[str, Any],
 ) -> dict[str, Any] | None:
+    """Find a stable candidate using validation results only.
+
+    A candidate must:
+    - occur in at least two validation windows;
+    - have sufficient sample size in every window;
+    - have a positive incremental event-rate difference in every window.
+
+    No test result is considered by this function.
+    """
     rows = payload.get(
         "results",
         [],
@@ -197,7 +304,11 @@ def _stable_candidate(
         return None
 
     groups: dict[
-        tuple[float, float, str],
+        tuple[
+            float,
+            float,
+            str,
+        ],
         list[dict[str, Any]],
     ] = {}
 
@@ -208,32 +319,47 @@ def _stable_candidate(
         ):
             continue
 
+        if str(
+            row.get(
+                "split",
+                "",
+            )
+        ).lower() != "validation":
+            continue
+
         try:
-            fraction_x = float(
-                row["fraction_x"]
+            baseline_fraction = float(
+                row[
+                    "baseline_fraction"
+                ]
             )
 
-            fraction_y = float(
-                row["fraction_y"]
+            incremental_fraction = float(
+                row[
+                    "incremental_fraction"
+                ]
             )
 
             target = str(
                 row["target"]
             )
 
-            lift = float(
-                row["lift"]
-            )
-
             n = int(
                 row.get(
-                    "n_valid",
+                    "combined_n",
                     row.get(
                         "n",
                         0,
                     ),
                 )
             )
+
+            difference = float(
+                row[
+                    "absolute_event_rate_difference"
+                ]
+            )
+
         except (
             KeyError,
             TypeError,
@@ -242,7 +368,7 @@ def _stable_candidate(
             continue
 
         if not math.isfinite(
-            lift
+            difference
         ):
             continue
 
@@ -250,8 +376,8 @@ def _stable_candidate(
             continue
 
         key = (
-            fraction_x,
-            fraction_y,
+            baseline_fraction,
+            incremental_fraction,
             target,
         )
 
@@ -266,8 +392,8 @@ def _stable_candidate(
 
     for (
         (
-            fraction_x,
-            fraction_y,
+            baseline_fraction,
+            incremental_fraction,
             target,
         ),
         group,
@@ -284,17 +410,19 @@ def _stable_candidate(
         if len(windows) < 2:
             continue
 
-        lifts = [
+        differences = [
             float(
-                row["lift"]
+                row[
+                    "absolute_event_rate_difference"
+                ]
             )
             for row in group
         ]
 
-        ns = [
+        sample_sizes = [
             int(
                 row.get(
-                    "n_valid",
+                    "combined_n",
                     row.get(
                         "n",
                         0,
@@ -304,31 +432,33 @@ def _stable_candidate(
             for row in group
         ]
 
-        # Require the candidate to remain above baseline
-        # in every observed window.
+        # Require the incremental effect to remain positive in
+        # every validation window.
         if any(
-            lift <= 1.0
-            for lift in lifts
+            difference <= 0.0
+            for difference in differences
         ):
             continue
 
-        mean_lift = (
-            sum(lifts)
-            / len(lifts)
-        )
-
-        min_lift = min(
-            lifts
-        )
-
         candidates.append(
             {
-                "fraction_x": fraction_x,
-                "fraction_y": fraction_y,
+                "baseline_fraction": (
+                    baseline_fraction
+                ),
+                "incremental_fraction": (
+                    incremental_fraction
+                ),
                 "target": target,
-                "mean_lift": mean_lift,
-                "min_lift": min_lift,
-                "min_n": min(ns),
+                "mean_difference": (
+                    sum(differences)
+                    / len(differences)
+                ),
+                "min_difference": min(
+                    differences
+                ),
+                "min_n": min(
+                    sample_sizes
+                ),
                 "windows": sorted(
                     windows
                 ),
@@ -338,10 +468,11 @@ def _stable_candidate(
     if not candidates:
         return None
 
+    # Stability first, then average effect, then sample size.
     candidates.sort(
         key=lambda item: (
-            item["min_lift"],
-            item["mean_lift"],
+            item["min_difference"],
+            item["mean_difference"],
             item["min_n"],
         ),
         reverse=True,
@@ -350,74 +481,25 @@ def _stable_candidate(
     return candidates[0]
 
 
-def _refined_values(
-    value: float,
-) -> list[float]:
-    """Return a small neighbourhood around a candidate fraction.
-
-    These values are exploratory only. They are never used to modify
-    a locked confirmation specification.
-    """
-    values = {
-        round(
-            value,
-            4,
-        ),
-        round(
-            max(
-                0.01,
-                value * 0.75,
-            ),
-            4,
-        ),
-        round(
-            min(
-                0.25,
-                value * 1.25,
-            ),
-            4,
-        ),
-    }
-
-    return sorted(
-        values,
-        reverse=True,
-    )
-
-
 def build_adaptive_plan(
     research_state: dict[str, Any],
 ) -> dict[str, Any]:
     """Build one bounded adaptive research proposal."""
-
-    research = research_state.get(
-        "research",
-        {}
-    )
-
-    runs = (
+    runs = _runs(
         research_state
-        .get(
-            "research_runs",
-            {},
-        )
-        .get(
-            "runs",
-            [],
-        )
     )
 
     completed = _completed_ids(
         runs
     )
 
-    adaptive_ids = [
+    adaptive_ids = {
         spec_id
         for spec_id in completed
         if spec_id.startswith(
             "adaptive_"
         )
-    ]
+    }
 
     if len(adaptive_ids) >= (
         MAX_ADAPTIVE_ITERATIONS
@@ -434,7 +516,7 @@ def build_adaptive_plan(
             ),
         }
 
-    latest = _latest_result(
+    latest = _latest_eligible_result(
         research_state
     )
 
@@ -444,7 +526,7 @@ def build_adaptive_plan(
                 "no_adaptive_proposal"
             ),
             "reason": (
-                "no_eligible_completed_result"
+                "no_validation_result_for_supported_family"
             ),
             "iteration_count": len(
                 adaptive_ids
@@ -453,7 +535,7 @@ def build_adaptive_plan(
 
     source_spec, payload = latest
 
-    candidate = _stable_candidate(
+    candidate = _stable_validation_candidate(
         payload
     )
 
@@ -463,8 +545,7 @@ def build_adaptive_plan(
                 "no_adaptive_proposal"
             ),
             "reason": (
-                "no_stable_candidate_with_"
-                "sufficient_sample"
+                "no_stable_validation_candidate"
             ),
             "source_spec": source_spec.get(
                 "id"
@@ -501,116 +582,118 @@ def build_adaptive_plan(
             "iteration_count": iteration,
         }
 
-    source_signals = (
-        source_spec.get(
-            "signals"
-        )
-        or []
+    source_signals = source_spec.get(
+        "signals"
     )
 
-    if len(source_signals) < 2:
+    if (
+        not isinstance(
+            source_signals,
+            list,
+        )
+        or len(source_signals) != 2
+    ):
         return {
             "status": (
                 "no_adaptive_proposal"
             ),
             "reason": (
                 "source_spec_does_not_have_"
-                "two_signals"
+                "exactly_two_signals"
             ),
             "source_spec": source_id,
         }
 
-    signals = []
+    baseline_signal = source_signals[0]
+    incremental_signal = source_signals[1]
 
-    for index, signal in enumerate(
-        source_signals[:2]
-    ):
-        if not isinstance(
-            signal,
+    if (
+        not isinstance(
+            baseline_signal,
             dict,
-        ):
-            return {
-                "status": (
-                    "no_adaptive_proposal"
-                ),
-                "reason": (
-                    "invalid_source_signal_definition"
-                ),
-                "source_spec": source_id,
-            }
-
-        fraction = (
-            candidate[
-                "fraction_x"
-            ]
-            if index == 0
-            else candidate[
-                "fraction_y"
-            ]
         )
-
-        signals.append(
-            {
-                "name": signal.get(
-                    "name"
-                ),
-                "direction": signal.get(
-                    "direction",
-                    "upper",
-                ),
-                "bins": _refined_values(
-                    float(fraction)
-                ),
-            }
+        or not isinstance(
+            incremental_signal,
+            dict,
         )
+    ):
+        return {
+            "status": (
+                "no_adaptive_proposal"
+            ),
+            "reason": (
+                "invalid_source_signal_definition"
+            ),
+            "source_spec": source_id,
+        }
 
-    source_analysis = (
-        source_spec.get(
-            "analysis"
+    baseline_direction = str(
+        baseline_signal.get(
+            "direction",
+            "lower",
         )
     )
 
-    if isinstance(
-        source_analysis,
-        dict,
-    ):
-        analysis_type = source_analysis.get(
-            "type",
-            "interaction",
+    incremental_direction = str(
+        incremental_signal.get(
+            "direction",
+            "upper",
         )
-    else:
-        analysis_type = "interaction"
+    )
 
     generated_spec = {
         "id": new_id,
         "question": (
-            f"Adaptive refinement of "
-            f"{source_id}: "
-            "test whether the strongest "
-            "stable interaction remains "
-            "informative in a narrower "
-            "parameter neighbourhood."
+            f"Kontrollerad adaptiv förfining av "
+            f"{source_id}: är den stabila "
+            "validation-effekten fortsatt synlig "
+            "i ett smalare parameterområde?"
         ),
         "mode": source_spec.get(
             "mode",
-            "scan",
+            "deep",
         ),
-        "signals": signals,
+        "signals": [
+            {
+                "name": baseline_signal.get(
+                    "name"
+                ),
+                "direction": baseline_direction,
+                "bins": _refined_values(
+                    candidate[
+                        "baseline_fraction"
+                    ]
+                ),
+            },
+            {
+                "name": incremental_signal.get(
+                    "name"
+                ),
+                "direction": incremental_direction,
+                "bins": _refined_values(
+                    candidate[
+                        "incremental_fraction"
+                    ]
+                ),
+            },
+        ],
         "targets": [
-            candidate["target"]
+            candidate[
+                "target"
+            ]
         ],
         "analysis": {
-            "type": analysis_type,
+            "type": (
+                "regime_comparison"
+            ),
             "bootstrap": False,
         },
-        "windows": (
-            source_spec.get(
-                "windows"
-            )
-            or [
+        "windows": source_spec.get(
+            "windows",
+            [
                 "window_1",
                 "window_2",
-            ]
+            ],
         ),
         "splits": [
             "validation"
@@ -620,27 +703,23 @@ def build_adaptive_plan(
                 "adaptive_refinement"
             ),
             "purpose": (
-                "controlled_parameter_refinement"
+                "controlled_validation_"
+                "parameter_refinement"
             ),
             "source_spec": source_id,
             "adaptive_iteration": iteration,
             "selection_policy": (
-                "stable_multi_window_candidate"
+                "stable_multi_window_"
+                "validation_effect"
             ),
-            "selection_source": (
-                "previous_exploratory_result"
-            ),
-            "min_valid_n": MIN_VALID_N,
             "candidate": candidate,
-            "note": (
-                "Generated automatically "
-                "as an exploratory validation "
-                "scan. It must not be treated "
-                "as confirmation and must not "
-                "modify the locked "
-                "prospective-confirmation "
-                "specification."
-            ),
+            "constraints": [
+                "Validation data only.",
+                "No test-data threshold selection.",
+                "Do not modify any existing specification.",
+                "Do not modify the locked prospective confirmation.",
+                "This experiment is exploratory and is not confirmation.",
+            ],
         },
     }
 
@@ -651,11 +730,30 @@ def build_adaptive_plan(
         "iteration_count": iteration,
         "source_spec": source_id,
         "generated_spec": generated_spec,
-        "analysis": {
-            "candidate": candidate,
-            "source_result": payload.get(
-                "id",
-                source_id,
-            ),
-        },
+        "output_path": (
+            f"ml/research/specs/"
+            f"{new_id}.yaml"
+        ),
     }
+
+
+def main(
+    experiment: dict[str, Any],
+) -> dict[str, Any]:
+    """Entry point used by the AI Lab runner."""
+    research_state = experiment.get(
+        "research_state"
+    )
+
+    if not isinstance(
+        research_state,
+        dict,
+    ):
+        raise ValueError(
+            "adaptive_research requires "
+            "a research_state object."
+        )
+
+    return build_adaptive_plan(
+        research_state
+    )
