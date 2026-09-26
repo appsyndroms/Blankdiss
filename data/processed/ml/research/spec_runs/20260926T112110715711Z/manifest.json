@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-09-26T11:21:10.810870+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_triple_conditional_si_acceleration_scan",
+      "mode": "scan",
+      "question": "Tillför short-interest acceleration ytterligare downside-risk efter att negativt 5-dagars momentum, negativt 60-dagars momentum och hög 20-dagars volatilitet redan har identifierat riskpopulationen?\n",
+      "result": "data/processed/ml/research/spec_runs/20260926T112110715711Z/momentum_triple_conditional_si_acceleration_scan.json",
+      "rows": 12
+    }
+  ]
+}
