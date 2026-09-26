@@ -1,0 +1,69 @@
+id: momentum_60d_volatility_interaction
+
+question: >
+  Finns det en särskild kombinationseffekt mellan negativt 60-dagars
+  momentum och hög 20-dagars prisvolatilitet för downside-risk?
+
+mode: deep
+
+signals:
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: interaction
+  bootstrap: false
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  stage: hypothesis_test
+  purpose: momentum_60d_volatility_interaction
+
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  hypothesis:
+    signal_1: negative_60d_momentum_20pct
+    signal_2: high_20d_volatility_20pct
+    expected_effect: >
+      combined_downside_risk_exceeds_individual_signal_regimes
+
+  comparison:
+    primary_metric:
+      name: combined_event_rate
+      definition: >
+        downside event rate among observations satisfying both
+        negative_60d_momentum_20pct and high_20d_volatility_20pct
+
+    contextual_metrics:
+      - signal_1_event_rate
+      - signal_2_event_rate
+      - combined_n
+      - combined_events
+
+  note: >
+    Detta är ett fristående discovery-test. Resultatet får inte
+    användas för att ändra parametrar eller primärt endpoint i
+    momentum_si_prospective_confirmation. Testet är avsett att
+    beskriva relationen mellan 60-dagars momentum och volatilitet
+    utan att använda resultatet för parameterurval.
