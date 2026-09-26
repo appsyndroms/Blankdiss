@@ -1,27 +1,55 @@
 from __future__ import annotations
+
+import hashlib
 from typing import Any
+
 from .bootstrap import bootstrap_binary_rate_difference
 from .cache import ResearchCache, _tail_key
 from .spec import ResearchSpec, SignalSpec
-from .state import _stable_seed
+
+
+def _stable_seed(
+    *parts: object,
+) -> int:
+    payload = "|".join(
+        str(part)
+        for part in parts
+    ).encode("utf-8")
+
+    digest = hashlib.sha256(
+        payload
+    ).digest()
+
+    return int.from_bytes(
+        digest[:8],
+        byteorder="little",
+        signed=False,
+    ) % (2**32 - 1)
+
+
 def _regime_rate(
     target,
     mask,
 ) -> dict[str, Any]:
     selected = target[mask]
     n = int(selected.shape[0])
+
     if n == 0:
         return {
             "n": 0,
             "events": 0,
             "event_rate": None,
         }
+
     events = int(selected.sum())
+
     return {
         "n": n,
         "events": events,
         "event_rate": events / n,
     }
+
+
 def _analyse_tail(
     cache: ResearchCache,
     signal: SignalSpec,
@@ -31,9 +59,11 @@ def _analyse_tail(
     split_name: str,
 ) -> dict[str, Any]:
     target = cache.targets[target_name]
+
     window_mask = cache.window_masks[
         window_name
     ][split_name]
+
     tail_mask = cache.tail_masks[
         _tail_key(
             signal.name,
@@ -41,14 +71,17 @@ def _analyse_tail(
             fraction,
         )
     ]
+
     mask = (
         window_mask
         & tail_mask
     )
+
     metrics = _regime_rate(
         target,
         mask,
     )
+
     return {
         "analysis": "tail",
         "signal": signal.name,
@@ -61,6 +94,8 @@ def _analyse_tail(
         "events": metrics["events"],
         "event_rate": metrics["event_rate"],
     }
+
+
 def _analyse_interaction(
     cache: ResearchCache,
     signals: tuple[SignalSpec, ...],
@@ -73,10 +108,13 @@ def _analyse_interaction(
         raise ValueError(
             "interaction requires exactly two signals."
         )
+
     target = cache.targets[target_name]
+
     window_mask = cache.window_masks[
         window_name
     ][split_name]
+
     first_mask = cache.tail_masks[
         _tail_key(
             signals[0].name,
@@ -84,6 +122,7 @@ def _analyse_interaction(
             fractions[0],
         )
     ]
+
     second_mask = cache.tail_masks[
         _tail_key(
             signals[1].name,
@@ -91,27 +130,34 @@ def _analyse_interaction(
             fractions[1],
         )
     ]
+
     first = (
         window_mask
         & first_mask
     )
+
     second = (
         window_mask
         & second_mask
     )
+
     combined = first & second
+
     first_metrics = _regime_rate(
         target,
         first,
     )
+
     second_metrics = _regime_rate(
         target,
         second,
     )
+
     combined_metrics = _regime_rate(
         target,
         combined,
     )
+
     return {
         "analysis": "interaction",
         "signal_1": signals[0].name,
@@ -145,6 +191,8 @@ def _analyse_interaction(
             combined_metrics["event_rate"]
         ),
     }
+
+
 def _analyse_regime_comparison(
     cache: ResearchCache,
     signals: tuple[SignalSpec, ...],
@@ -162,10 +210,13 @@ def _analyse_regime_comparison(
             "regime_comparison requires exactly "
             "two signals."
         )
+
     target = cache.targets[target_name]
+
     window_mask = cache.window_masks[
         window_name
     ][split_name]
+
     baseline_mask = cache.tail_masks[
         _tail_key(
             signals[0].name,
@@ -173,6 +224,7 @@ def _analyse_regime_comparison(
             fractions[0],
         )
     ]
+
     incremental_mask = cache.tail_masks[
         _tail_key(
             signals[1].name,
@@ -180,30 +232,38 @@ def _analyse_regime_comparison(
             fractions[1],
         )
     ]
+
     baseline_in_window = (
         baseline_mask
         & window_mask
     )
+
     combined_in_window = (
         baseline_mask
         & incremental_mask
         & window_mask
     )
+
     baseline_metrics = _regime_rate(
         target,
         baseline_in_window,
     )
+
     combined_metrics = _regime_rate(
         target,
         combined_in_window,
     )
+
     baseline_rate = (
         baseline_metrics["event_rate"]
     )
+
     combined_rate = (
         combined_metrics["event_rate"]
     )
+
     absolute_difference = None
+
     if (
         baseline_rate is not None
         and combined_rate is not None
@@ -212,7 +272,9 @@ def _analyse_regime_comparison(
             combined_rate
             - baseline_rate
         )
+
     lift = None
+
     if (
         baseline_rate is not None
         and baseline_rate > 0
@@ -222,18 +284,23 @@ def _analyse_regime_comparison(
             combined_rate
             / baseline_rate
         )
+
     seed = _stable_seed(
         spec_id,
         signals[0].name,
+        signals[0].direction,
         fractions[0],
         signals[1].name,
+        signals[1].direction,
         fractions[1],
         target_name,
         window_name,
         split_name,
     )
+
     ci_low = None
     ci_high = None
+
     if bootstrap:
         (
             ci_low,
@@ -241,10 +308,11 @@ def _analyse_regime_comparison(
         ) = bootstrap_binary_rate_difference(
             target[window_mask],
             baseline_mask[window_mask],
-            combined_in_window,
+            combined_in_window[window_mask],
             iterations=bootstrap_iterations,
             seed=seed,
         )
+
     return {
         "analysis": "regime_comparison",
         "baseline_signal": (
@@ -289,6 +357,8 @@ def _analyse_regime_comparison(
         "bootstrap_ci_low": ci_low,
         "bootstrap_ci_high": ci_high,
     }
+
+
 def _analyse_multi_regime_comparison(
     cache: ResearchCache,
     signals: tuple[SignalSpec, ...],
@@ -305,8 +375,10 @@ def _analyse_multi_regime_comparison(
     Testar om en kombinerad multi-signal-regim har
     annan downside-risk än den första signalens
     baseline-regim.
+
     Baseline:
         första signalens tail.
+
     Combined:
         AND av alla signalers tails.
     """
@@ -315,15 +387,19 @@ def _analyse_multi_regime_comparison(
             "multi_regime_comparison kräver "
             "minst tre signaler."
         )
+
     if len(signals) != len(fractions):
         raise ValueError(
             "Number of signals must match "
             "number of fractions."
         )
+
     target = cache.targets[target_name]
+
     window_mask = cache.window_masks[
         window_name
     ][split_name]
+
     masks = [
         cache.tail_masks[
             _tail_key(
@@ -337,33 +413,44 @@ def _analyse_multi_regime_comparison(
             fractions,
         )
     ]
+
     baseline_mask = masks[0]
+
     combined_mask = masks[0].copy()
+
     for mask in masks[1:]:
         combined_mask &= mask
+
     baseline_in_window = (
         baseline_mask
         & window_mask
     )
+
     combined_in_window = (
         combined_mask
         & window_mask
     )
+
     baseline_metrics = _regime_rate(
         target,
         baseline_in_window,
     )
+
     combined_metrics = _regime_rate(
         target,
         combined_in_window,
     )
+
     baseline_rate = (
         baseline_metrics["event_rate"]
     )
+
     combined_rate = (
         combined_metrics["event_rate"]
     )
+
     absolute_difference = None
+
     if (
         baseline_rate is not None
         and combined_rate is not None
@@ -372,7 +459,9 @@ def _analyse_multi_regime_comparison(
             combined_rate
             - baseline_rate
         )
+
     lift = None
+
     if (
         baseline_rate is not None
         and baseline_rate > 0
@@ -382,6 +471,7 @@ def _analyse_multi_regime_comparison(
             combined_rate
             / baseline_rate
         )
+
     seed = _stable_seed(
         spec_id,
         *(
@@ -400,8 +490,10 @@ def _analyse_multi_regime_comparison(
         window_name,
         split_name,
     )
+
     ci_low = None
     ci_high = None
+
     if bootstrap:
         (
             ci_low,
@@ -409,10 +501,11 @@ def _analyse_multi_regime_comparison(
         ) = bootstrap_binary_rate_difference(
             target[window_mask],
             baseline_mask[window_mask],
-            combined_in_window,
+            combined_in_window[window_mask],
             iterations=bootstrap_iterations,
             seed=seed,
         )
+
     return {
         "analysis": "multi_regime_comparison",
         "baseline_signal": (
@@ -463,11 +556,14 @@ def _analyse_multi_regime_comparison(
         "bootstrap_ci_low": ci_low,
         "bootstrap_ci_high": ci_high,
     }
+
+
 def run_spec(
     cache: ResearchCache,
     spec: ResearchSpec,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
+
     if spec.analysis.type == "tail":
         for signal in spec.signals:
             for fraction in signal.bins:
@@ -484,16 +580,19 @@ def run_spec(
                                     split_name,
                                 )
                             )
+
     elif spec.analysis.type == "interaction":
         if len(spec.signals) != 2:
             raise ValueError(
                 "interaction requires exactly "
                 "two signals."
             )
+
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
         )
+
         for target_name in spec.targets:
             for window_name in spec.windows:
                 for split_name in spec.splits:
@@ -507,17 +606,21 @@ def run_spec(
                             split_name,
                         )
                     )
+
     elif spec.analysis.type == "regime_comparison":
         if len(spec.signals) != 2:
             raise ValueError(
                 "regime_comparison requires exactly "
                 "two signals."
             )
+
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
         )
+
         bootstrap = spec.analysis.bootstrap
+
         for target_name in spec.targets:
             for window_name in spec.windows:
                 for split_name in spec.splits:
@@ -537,17 +640,21 @@ def run_spec(
                             spec_id=spec.id,
                         )
                     )
+
     elif spec.analysis.type == "multi_regime_comparison":
         if len(spec.signals) < 3:
             raise ValueError(
                 "multi_regime_comparison requires "
                 "at least three signals."
             )
+
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
         )
+
         bootstrap = spec.analysis.bootstrap
+
         for target_name in spec.targets:
             for window_name in spec.windows:
                 for split_name in spec.splits:
@@ -567,11 +674,13 @@ def run_spec(
                             spec_id=spec.id,
                         )
                     )
+
     else:
         raise ValueError(
             f"Unsupported analysis type: "
             f"{spec.analysis.type}"
         )
+
     return {
         "spec_id": spec.id,
         "question": spec.question,
