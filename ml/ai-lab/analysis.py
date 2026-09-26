@@ -4,12 +4,12 @@ import math
 from typing import Any
 
 from config import (
-    ADAPTIVE_PREFIX,
     MIN_VALID_N,
     ROOT,
     RUNS_DIR,
     SIGN_EPSILON,
 )
+from adaptive_config import ADAPTIVE_PREFIX
 from state import read_json
 
 
