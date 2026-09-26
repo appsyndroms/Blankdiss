@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import hashlib
 import yaml
 
 from ml.research.engine import run_spec
@@ -22,6 +23,51 @@ from adaptive_config import (
 )
 
 from state import read_json
+
+
+EXECUTION_FINGERPRINT_VERSION = "1"
+
+
+def execution_fingerprint(
+    spec,
+) -> str:
+    """Return a fingerprint for the exact spec and research execution code."""
+    digest = hashlib.sha256()
+
+    spec_path = (
+        SPEC_DIR
+        / f"{spec.id}.yaml"
+    )
+
+    digest.update(
+        spec_path.read_bytes()
+    )
+
+    for relative_path in (
+        "ml/research/engine.py",
+        "ml/research/conditional.py",
+        "ml/research/spec.py",
+        "ml/research/signals.py",
+    ):
+        path = ROOT / relative_path
+
+        digest.update(
+            relative_path.encode(
+                "utf-8"
+            )
+        )
+
+        digest.update(
+            path.read_bytes()
+        )
+
+    digest.update(
+        EXECUTION_FINGERPRINT_VERSION.encode(
+            "utf-8"
+        )
+    )
+
+    return digest.hexdigest()
 
 
 def safe_id(
@@ -185,7 +231,6 @@ def write_and_read_spec(
             encoding="utf-8",
         )
 
-    # The persisted YAML is the executable specification.
     parsed = load_spec(
         path
     )
@@ -260,6 +305,11 @@ def run_research_spec(
                         [],
                     )
                 ),
+                "execution_fingerprint": (
+                    execution_fingerprint(
+                        spec
+                    )
+                ),
             }
         ],
     }
@@ -270,7 +320,6 @@ def run_research_spec(
         manifest,
     )
 
-    # Read the persisted result back.
     persisted = read_json(
         result_path
     )
