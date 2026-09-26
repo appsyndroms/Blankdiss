@@ -6,9 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from config import (
-    LOCKED_CONFIRMATION_ID,
     ROOT,
     STATE_PATH,
+)
+
+from adaptive_config import (
+    LOCKED_CONFIRMATION_ID,
 )
 
 
