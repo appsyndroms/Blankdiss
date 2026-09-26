@@ -7,7 +7,7 @@
     "experiment": "experiment_planner",
     "research_state": {
       "state_version": 2,
-      "created_at_utc": "2026-09-26T05:07:13.462462+00:00",
+      "created_at_utc": "2026-09-26T05:12:16.423068+00:00",
       "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
       "repository": "appsyndroms/Blankdiss",
       "research": {
@@ -941,8 +941,8 @@
             "description": "Controlled experiment proposal generated from the current Blankdiss research state.",
             "success": true,
             "experiment": "experiment_planner",
-            "started_at": "2026-09-25T20:47:21.149359+00:00",
-            "finished_at": "2026-09-25T20:47:21.149409+00:00"
+            "started_at": "2026-09-26T05:07:13.555069+00:00",
+            "finished_at": "2026-09-26T05:07:13.555119+00:00"
           },
           {
             "path": "data/ai_lab/results/research_state_snapshot/results.json",
@@ -950,13 +950,13 @@
             "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
             "success": true,
             "experiment": "research_state",
-            "started_at": "2026-09-25T20:47:21.014373+00:00",
-            "finished_at": "2026-09-25T20:47:21.057895+00:00"
+            "started_at": "2026-09-26T05:07:13.415730+00:00",
+            "finished_at": "2026-09-26T05:07:13.462470+00:00"
           }
         ]
       },
       "research_runs": {
-        "run_count": 3,
+        "run_count": 4,
         "runs": [
           {
             "path": "data/processed/ml/research/spec_runs/20260925T201426Z/manifest.json",
@@ -1002,24 +1002,39 @@
                 "rows": 324
               }
             ]
+          },
+          {
+            "path": "data/processed/ml/research/spec_runs/20260926T050722Z/manifest.json",
+            "created_at_utc": "2026-09-26T05:07:22.508441+00:00",
+            "feature_rows": 202240,
+            "spec_count": 1,
+            "specs": [
+              {
+                "id": "event_risk_signal_scan",
+                "mode": "scan",
+                "question": "Vilka enskilda signaler är associerade med framtida downside-event-risk, och på vilka tidshorisonter är sambanden tydligast?\n",
+                "result": "data/processed/ml/research/spec_runs/20260926T050722Z/event_risk_signal_scan.json",
+                "rows": 324
+              }
+            ]
           }
         ]
       }
     }
   },
   "execution": {
-    "started_at": "2026-09-26T05:07:13.555069+00:00",
-    "finished_at": "2026-09-26T05:07:13.555119+00:00",
+    "started_at": "2026-09-26T05:12:16.517539+00:00",
+    "finished_at": "2026-09-26T05:12:16.517612+00:00",
     "success": true,
     "experiment": "experiment_planner",
     "result": {
       "planner_version": 2,
       "status": "proposal_created",
       "selection": {
-        "source_spec": "event_risk_signal_scan",
+        "source_spec": "fi_change_volatility_interaction_scan",
         "stage": "discovery",
         "locked": false,
-        "question": "Vilka enskilda signaler är associerade med framtida downside-event-risk, och på vilka tidshorisonter är sambanden tydligast?\n"
+        "question": "Är downside-event-risk särskilt hög när short interest ökar samtidigt som volatiliteten är hög?\n"
       },
       "parameters": {},
       "constraints": [
@@ -1032,8 +1047,8 @@
       ],
       "research_context": {
         "spec_count": 10,
-        "research_run_count": 3,
-        "completed_spec_count": 3,
+        "research_run_count": 4,
+        "completed_spec_count": 4,
         "open_question_count": 6,
         "locked_spec_count": 1
       },
