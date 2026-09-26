@@ -1,0 +1,69 @@
+{
+  "id": "adaptive_momentum_si_b0p300_si0p025_down_7pct_5d",
+  "question": "Kontrollerad förfining av den fördefinierade momentum/SI-regimen. Vilket utfall observeras för denna parameterpunkt i validation-data?",
+  "mode": "deep",
+  "metadata": {
+    "stage": "adaptive_refinement",
+    "purpose": "controlled_parameter_space_exploration",
+    "source_spec": "momentum_si_regime_walk_forward",
+    "selection_policy": "fixed_predeclared_grid_order",
+    "candidate": {
+      "baseline_fraction": 0.3,
+      "incremental_fraction": 0.025,
+      "target": "down_7pct_5d"
+    },
+    "rules": [
+      "validation_only_for_adaptation",
+      "test_data_never_selects_parameters",
+      "no_result_based_candidate_ranking",
+      "no_locked_spec_modification",
+      "no_locked_confirmation_execution"
+    ]
+  },
+  "results": [
+    {
+      "analysis": "regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.3,
+      "incremental_signal": "short_interest_change",
+      "incremental_direction": "upper",
+      "incremental_fraction": 0.025,
+      "target": "down_7pct_5d",
+      "window": "window_1",
+      "split": "validation",
+      "baseline_n": 8363,
+      "baseline_events": 694,
+      "baseline_event_rate": 0.08298457491330861,
+      "combined_n": 254,
+      "combined_events": 28,
+      "combined_event_rate": 0.11023622047244094,
+      "absolute_event_rate_difference": 0.02725164555913233,
+      "lift": 1.3283941092377862,
+      "bootstrap_ci_low": -0.008140787774435325,
+      "bootstrap_ci_high": 0.06552128066083962
+    },
+    {
+      "analysis": "regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.3,
+      "incremental_signal": "short_interest_change",
+      "incremental_direction": "upper",
+      "incremental_fraction": 0.025,
+      "target": "down_7pct_5d",
+      "window": "window_2",
+      "split": "validation",
+      "baseline_n": 9167,
+      "baseline_events": 877,
+      "baseline_event_rate": 0.0956692483909676,
+      "combined_n": 353,
+      "combined_events": 47,
+      "combined_event_rate": 0.13314447592067988,
+      "absolute_event_rate_difference": 0.037475227529712274,
+      "lift": 1.3917165459120553,
+      "bootstrap_ci_low": 0.004608477229939131,
+      "bootstrap_ci_high": 0.07132560992660444
+    }
+  ]
+}

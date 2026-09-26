@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-09-26T05:47:06.477121+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "adaptive_momentum_si_b0p300_si0p200_down_5pct_5d",
+      "mode": "deep",
+      "question": "Kontrollerad förfining av den fördefinierade momentum/SI-regimen. Vilket utfall observeras för denna parameterpunkt i validation-data?",
+      "result": "data/processed/ml/research/spec_runs/20260926T054700909456Z/adaptive_momentum_si_b0p300_si0p200_down_5pct_5d.json",
+      "rows": 2
+    }
+  ]
+}

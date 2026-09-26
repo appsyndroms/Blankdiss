@@ -1,0 +1,23 @@
+{
+  "experiment_family": "adaptive_target_profile_experiment",
+  "rows": [
+    {
+      "target": "down_5pct_5d",
+      "n": 6075,
+      "events": 1036,
+      "event_rate": 0.1705349794238683
+    },
+    {
+      "target": "down_7pct_5d",
+      "n": 6075,
+      "events": 634,
+      "event_rate": 0.10436213991769547
+    },
+    {
+      "target": "down_10pct_5d",
+      "n": 6075,
+      "events": 320,
+      "event_rate": 0.05267489711934156
+    }
+  ]
+}

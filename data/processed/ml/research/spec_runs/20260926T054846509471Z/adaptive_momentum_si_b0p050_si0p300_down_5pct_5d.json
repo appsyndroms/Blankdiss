@@ -1,0 +1,69 @@
+{
+  "id": "adaptive_momentum_si_b0p050_si0p300_down_5pct_5d",
+  "question": "Kontrollerad förfining av den fördefinierade momentum/SI-regimen. Vilket utfall observeras för denna parameterpunkt i validation-data?",
+  "mode": "deep",
+  "metadata": {
+    "stage": "adaptive_refinement",
+    "purpose": "controlled_parameter_space_exploration",
+    "source_spec": "momentum_si_regime_walk_forward",
+    "selection_policy": "fixed_predeclared_grid_order",
+    "candidate": {
+      "baseline_fraction": 0.05,
+      "incremental_fraction": 0.3,
+      "target": "down_5pct_5d"
+    },
+    "rules": [
+      "validation_only_for_adaptation",
+      "test_data_never_selects_parameters",
+      "no_result_based_candidate_ranking",
+      "no_locked_spec_modification",
+      "no_locked_confirmation_execution"
+    ]
+  },
+  "results": [
+    {
+      "analysis": "regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.05,
+      "incremental_signal": "short_interest_change",
+      "incremental_direction": "upper",
+      "incremental_fraction": 0.3,
+      "target": "down_5pct_5d",
+      "window": "window_1",
+      "split": "validation",
+      "baseline_n": 1285,
+      "baseline_events": 269,
+      "baseline_event_rate": 0.20933852140077822,
+      "combined_n": 94,
+      "combined_events": 26,
+      "combined_event_rate": 0.2765957446808511,
+      "absolute_event_rate_difference": 0.06725722328007286,
+      "lift": 1.3212845052598277,
+      "bootstrap_ci_low": -0.01473631923172447,
+      "bootstrap_ci_high": 0.15906094358904324
+    },
+    {
+      "analysis": "regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.05,
+      "incremental_signal": "short_interest_change",
+      "incremental_direction": "upper",
+      "incremental_fraction": 0.3,
+      "target": "down_5pct_5d",
+      "window": "window_2",
+      "split": "validation",
+      "baseline_n": 1418,
+      "baseline_events": 317,
+      "baseline_event_rate": 0.22355430183356842,
+      "combined_n": 113,
+      "combined_events": 25,
+      "combined_event_rate": 0.22123893805309736,
+      "absolute_event_rate_difference": -0.0023153637804710636,
+      "lift": 0.9896429468747383,
+      "bootstrap_ci_low": -0.07465861007821516,
+      "bootstrap_ci_high": 0.07367566717006815
+    }
+  ]
+}
