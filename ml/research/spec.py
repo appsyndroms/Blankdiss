@@ -238,11 +238,11 @@ def load_spec(
     if (
         analysis_type
         == "conditional_regime_comparison"
-        and len(signals) < 3
+        and len(signals) < 2
     ):
         raise ValueError(
             "conditional_regime_comparison kräver "
-            "minst tre signaler."
+            "minst två signaler."
         )
 
     bootstrap = bool(
