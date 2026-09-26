@@ -48,14 +48,13 @@ AI_LAB_DIR = (
 # AI Lab contains local modules such as analysis.py, candidates.py,
 # config.py, experiments.py, extension.py, session.py and state.py.
 #
-# AI_LAB_DIR must therefore have priority over the repository root.
-# Otherwise Python may resolve:
+# AI_LAB_DIR must have priority over the repository root.
+# Otherwise:
 #
 #     from analysis import ...
 #
-# to the repository-level analysis package instead of:
-#
-#     ml/ai-lab/analysis.py
+# may resolve to the repository-level analysis package instead of
+# ml/ai-lab/analysis.py.
 if str(AI_LAB_DIR) not in sys.path:
     sys.path.insert(
         0,
@@ -66,7 +65,7 @@ if str(AI_LAB_DIR) not in sys.path:
 #
 #     from ml.research...
 #
-# Keep it available, but after the AI Lab directory.
+# Keep it available after the AI Lab directory.
 if str(ROOT) not in sys.path:
     sys.path.append(
         str(ROOT),
@@ -184,19 +183,18 @@ def source_spec() -> dict[str, Any]:
 
 
 def run() -> dict[str, Any]:
-    history: list[
-        dict[str, Any]
-    ] = []
-
-    source = source_spec()
-
     # --------------------------------------------------------------
     # OBSERVE
     # --------------------------------------------------------------
     #
-    # State is persistent and disk-backed.
-    # Results/specifications on disk remain the source of truth.
+    # The AI Lab state is persistent and disk-backed.
     #
+    # Previous history must be restored before continuing. Otherwise
+    # a new Python process would forget which extension families have
+    # already been materialized/executed and could try to create them
+    # again.
+    # --------------------------------------------------------------
+
     previous_state = read_state()
 
     if previous_state:
@@ -209,6 +207,38 @@ def run() -> dict[str, Any]:
             "No existing AI Lab state found.",
             flush=True,
         )
+
+    previous_history = []
+
+    if isinstance(
+        previous_state,
+        dict,
+    ):
+        stored_history = previous_state.get(
+            "history",
+            [],
+        )
+
+        if isinstance(
+            stored_history,
+            list,
+        ):
+            previous_history = [
+                item
+                for item in stored_history
+                if isinstance(
+                    item,
+                    dict,
+                )
+            ]
+
+    history: list[
+        dict[str, Any]
+    ] = list(
+        previous_history
+    )
+
+    source = source_spec()
 
     print(
         "=== START AI LAB RESEARCH ===",
@@ -235,6 +265,10 @@ def run() -> dict[str, Any]:
         # ----------------------------------------------------------
 
         # Re-read state from disk.
+        #
+        # The persistent history loaded above remains the working
+        # history for this process. The read here keeps the explicit
+        # OBSERVE step in the research loop.
         _ = read_state()
 
         # ----------------------------------------------------------
@@ -374,9 +408,13 @@ def run() -> dict[str, Any]:
         # ----------------------------------------------------------
         #
         # There are no more candidates in the predeclared parameter
-        # space. This is not treated as a failed proposal.
+        # space.
         #
-        # The next step is a new research family.
+        # This is not treated as a failed proposal.
+        #
+        # Previously materialized extension families are detected from
+        # the restored persistent history and are not materialized
+        # again.
         # ----------------------------------------------------------
 
         summaries = (
@@ -391,12 +429,17 @@ def run() -> dict[str, Any]:
 
         completed_extensions = {
             item.get(
-                "extension_family"
+                "extension_family",
+                item.get(
+                    "family"
+                ),
             )
             for item in history
-            if item.get(
-                "phase"
-            ) == "EXTEND"
+            if (
+                item.get(
+                    "phase"
+                ) == "EXTEND"
+            )
         }
 
         family = next(
