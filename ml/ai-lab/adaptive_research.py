@@ -76,13 +76,15 @@ from analysis import (
     all_adaptive_summaries,
     summarize_result,
 )
+from adaptive_config import (
+    LOCKED_CONFIRMATION_ID,
+    SOURCE_SPEC_ID,
+)
 from candidates import (
     choose_next_candidate,
 )
 from config import (
     EXTENSION_FAMILIES,
-    LOCKED_CONFIRMATION_ID,
-    SOURCE_SPEC_ID,
     SPEC_DIR,
 )
 from experiments import (
