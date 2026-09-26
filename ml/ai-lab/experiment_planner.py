@@ -1,455 +1,291 @@
-"""
-Deterministic planner for the Blankdiss AI Lab.
-
-The planner does not execute research experiments. It inspects the
-current research state and proposes the next eligible existing
-research specification.
-
-Design principles:
-- deterministic
-- conservative
-- no modification of research specifications
-- no parameter optimization
-- no test-set selection
-- no automatic selection of locked prospective confirmations
-- already executed specifications are skipped
-- hypothesis tests have priority over discovery scans
-"""
-
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+import yaml
 
-PLANNER_VERSION = 2
+from ml.research.engine import run_spec
+from ml.research.reporting import write_json
+from ml.research.spec import load_spec
+
+from config import (
+    ROOT,
+    RUNS_DIR,
+    SPEC_DIR,
+)
+
+from adaptive_config import (
+    ADAPTIVE_PREFIX,
+    SOURCE_SPEC_ID,
+)
+
+from state import read_json
 
 
-def _spec_id(spec: dict[str, Any]) -> str:
-    """Return the specification identifier."""
-    value = spec.get("id")
+def safe_id(
+    value: str,
+) -> str:
+    import re
 
-    if value is None:
-        value = spec.get("spec_id")
+    return re.sub(
+        r"[^A-Za-z0-9_-]+",
+        "_",
+        value,
+    ).strip("_")
 
-    if value is None:
+
+def build_adaptive_spec(
+    source: dict[str, Any],
+    baseline_fraction: float,
+    incremental_fraction: float,
+    target: str,
+) -> dict[str, Any]:
+    source_signals = source.get(
+        "signals",
+        [],
+    )
+
+    if len(source_signals) != 2:
         raise ValueError(
-            "Research specification is missing an id/spec_id."
+            "Adaptive source must define exactly two signals."
         )
 
-    return str(value)
+    baseline_signal = source_signals[0]
+    incremental_signal = source_signals[1]
 
-
-def _stage(spec: dict[str, Any]) -> str:
-    """Return the normalized research stage."""
-    return str(
-        spec.get("stage", "")
-    ).strip().lower()
-
-
-def _is_locked(spec: dict[str, Any]) -> bool:
-    """Return whether the specification is locked."""
-    return bool(
-        spec.get("locked", False)
+    spec_id = (
+        f"{ADAPTIVE_PREFIX}"
+        f"b{baseline_fraction:.3f}_"
+        f"si{incremental_fraction:.3f}_"
+        f"{safe_id(target)}"
+    ).replace(
+        ".",
+        "p",
     )
-
-
-def _run_spec_ids(
-    research_runs: list[dict[str, Any]],
-) -> set[str]:
-    """Return spec IDs already represented in research run manifests."""
-    completed: set[str] = set()
-
-    for run in research_runs:
-        specs = run.get("specs", [])
-
-        if not isinstance(specs, list):
-            continue
-
-        for item in specs:
-            if isinstance(item, str):
-                completed.add(item)
-                continue
-
-            if not isinstance(item, dict):
-                continue
-
-            for key in (
-                "id",
-                "spec_id",
-                "experiment_id",
-            ):
-                value = item.get(key)
-
-                if value is not None:
-                    completed.add(str(value))
-                    break
-
-    return completed
-
-
-def _select_existing_spec(
-    specs: list[dict[str, Any]],
-    research_runs: list[dict[str, Any]],
-) -> tuple[
-    dict[str, Any] | None,
-    str,
-]:
-    """Select the next eligible existing spec.
-
-    Locked prospective-confirmation specifications are never selected
-    automatically. They are controlled checkpoints that require their
-    own execution decision.
-
-    Selection priority:
-        1. unexecuted hypothesis tests
-        2. unexecuted discovery/signal-mapping specs
-
-    Already represented research specs are skipped so the planner does
-    not repeatedly propose the same experiment.
-    """
-    completed_ids = _run_spec_ids(
-        research_runs
-    )
-
-    hypothesis = [
-        spec
-        for spec in specs
-        if _stage(spec) == "hypothesis_test"
-        and not _is_locked(spec)
-        and _spec_id(spec) not in completed_ids
-    ]
-
-    if hypothesis:
-        return (
-            hypothesis[0],
-            "hypothesis_test",
-        )
-
-    discovery = [
-        spec
-        for spec in specs
-        if _stage(spec) == "signal_mapping"
-        and not _is_locked(spec)
-        and _spec_id(spec) not in completed_ids
-    ]
-
-    if discovery:
-        return (
-            discovery[0],
-            "discovery",
-        )
-
-    return None, "none"
-
-
-def _copy_locked_parameters(
-    spec: dict[str, Any],
-) -> dict[str, Any]:
-    """Copy parameters from a locked specification.
-
-    This is intentionally a shallow structural copy. The planner does
-    not alter parameter values.
-    """
-    parameters = spec.get(
-        "parameters",
-        {},
-    )
-
-    if not isinstance(parameters, dict):
-        return {}
-
-    return dict(parameters)
-
-
-def _build_constraints(
-    spec: dict[str, Any],
-) -> list[str]:
-    """Build conservative execution constraints."""
-    constraints = [
-        "Do not modify the research specification.",
-        "Do not introduce arbitrary parameters.",
-        "Do not optimize thresholds on the test set.",
-        "Do not select the test data based on observed outcomes.",
-        "Do not declare the research hypothesis confirmed from the planner output.",
-        "Do not automatically select a locked prospective-confirmation specification.",
-    ]
-
-    if _is_locked(spec):
-        constraints.extend(
-            [
-                "Treat all locked parameters as immutable.",
-                "Do not add new bins.",
-                "Do not optimize thresholds.",
-                "Do not switch the primary endpoint.",
-                "Do not use test-data results to alter the specification.",
-            ]
-        )
-
-    return constraints
-
-
-def _open_question_ids(
-    research_state: dict[str, Any],
-) -> set[str]:
-    """Return specification IDs currently represented as open questions."""
-    questions = (
-        research_state
-        .get("research", {})
-        .get("open_questions", [])
-    )
-
-    if not isinstance(questions, list):
-        return set()
-
-    result: set[str] = set()
-
-    for item in questions:
-        if not isinstance(item, dict):
-            continue
-
-        value = item.get("spec_id")
-
-        if value is not None:
-            result.add(str(value))
-
-    return result
-
-
-def build_experiment_plan(
-    research_state: dict[str, Any],
-) -> dict[str, Any]:
-    """Build a deterministic next-experiment proposal."""
-    research = research_state.get(
-        "research",
-        {},
-    )
-
-    if not isinstance(research, dict):
-        research = {}
-
-    specs = research.get(
-        "specs",
-        [],
-    )
-
-    if not isinstance(specs, list):
-        specs = []
-
-    normalized_specs = [
-        spec
-        for spec in specs
-        if isinstance(spec, dict)
-    ]
-
-    research_runs_section = research_state.get(
-        "research_runs",
-        {},
-    )
-
-    if not isinstance(
-        research_runs_section,
-        dict,
-    ):
-        research_runs_section = {}
-
-    research_runs = research_runs_section.get(
-        "runs",
-        [],
-    )
-
-    if not isinstance(research_runs, list):
-        research_runs = []
-
-    research_runs = [
-        run
-        for run in research_runs
-        if isinstance(run, dict)
-    ]
-
-    completed_spec_ids = _run_spec_ids(
-        research_runs
-    )
-
-    selected_spec, stage = _select_existing_spec(
-        normalized_specs,
-        research_runs,
-    )
-
-    locked_specs = [
-        spec
-        for spec in normalized_specs
-        if _is_locked(spec)
-    ]
-
-    locked_confirmation_specs = [
-        spec
-        for spec in locked_specs
-        if _stage(spec) == "prospective_confirmation"
-    ]
-
-    warnings: list[str] = []
-
-    if locked_confirmation_specs:
-        warnings.append(
-            "Locked prospective-confirmation specification(s) "
-            "exist but are not automatically selected by the planner."
-        )
-
-    migration_specs = [
-        spec
-        for spec in normalized_specs
-        if _stage(spec) == "migration"
-    ]
-
-    if migration_specs:
-        warnings.append(
-            "Migration specifications are visible in the research "
-            "state but are not treated as current research evidence "
-            "or automatic planning candidates."
-        )
-
-    if not research_runs:
-        warnings.append(
-            "No research-engine runs are visible in the current "
-            "research state."
-        )
-
-    if selected_spec is None:
-        remaining_hypothesis = [
-            spec
-            for spec in normalized_specs
-            if _stage(spec) == "hypothesis_test"
-            and not _is_locked(spec)
-            and _spec_id(spec) not in completed_spec_ids
-        ]
-
-        remaining_discovery = [
-            spec
-            for spec in normalized_specs
-            if _stage(spec) == "signal_mapping"
-            and not _is_locked(spec)
-            and _spec_id(spec) not in completed_spec_ids
-        ]
-
-        if not remaining_hypothesis and not remaining_discovery:
-            warnings.append(
-                "No unexecuted hypothesis-test or discovery "
-                "specification is available for automatic planning."
-            )
-
-        return {
-            "planner_version": PLANNER_VERSION,
-            "status": "no_proposal",
-            "selection": {
-                "source_spec": None,
-                "stage": "none",
-                "locked": False,
-            },
-            "parameters": {},
-            "constraints": [
-                "Do not create a new research specification "
-                "automatically.",
-                "Do not modify existing research specifications.",
-                "Do not automatically select a locked "
-                "prospective-confirmation specification.",
-            ],
-            "research_context": {
-                "spec_count": len(
-                    normalized_specs
-                ),
-                "research_run_count": len(
-                    research_runs
-                ),
-                "completed_spec_count": len(
-                    completed_spec_ids
-                ),
-                "open_question_count": len(
-                    _open_question_ids(
-                        research_state
-                    )
-                ),
-                "locked_spec_count": len(
-                    locked_specs
-                ),
-            },
-            "warnings": warnings,
-        }
-
-    selected_id = _spec_id(
-        selected_spec
-    )
-
-    selection = {
-        "source_spec": selected_id,
-        "stage": stage,
-        "locked": _is_locked(
-            selected_spec
-        ),
-    }
-
-    parameters = _copy_locked_parameters(
-        selected_spec
-    )
-
-    constraints = _build_constraints(
-        selected_spec
-    )
-
-    question = selected_spec.get(
-        "question"
-    )
-
-    if question is not None:
-        selection["question"] = str(
-            question
-        )
 
     return {
-        "planner_version": PLANNER_VERSION,
-        "status": "proposal_created",
-        "selection": selection,
-        "parameters": parameters,
-        "constraints": constraints,
-        "research_context": {
-            "spec_count": len(
-                normalized_specs
-            ),
-            "research_run_count": len(
-                research_runs
-            ),
-            "completed_spec_count": len(
-                completed_spec_ids
-            ),
-            "open_question_count": len(
-                _open_question_ids(
-                    research_state
-                )
-            ),
-            "locked_spec_count": len(
-                locked_specs
-            ),
+        "id": spec_id,
+        "question": (
+            "Kontrollerad förfining av den "
+            "fördefinierade momentum/SI-regimen. "
+            "Vilket utfall observeras för denna "
+            "parameterpunkt i validation-data?"
+        ),
+        "mode": "deep",
+        "signals": [
+            {
+                "name": baseline_signal[
+                    "name"
+                ],
+                "direction": baseline_signal.get(
+                    "direction",
+                    "lower",
+                ),
+                "bins": [
+                    baseline_fraction
+                ],
+            },
+            {
+                "name": incremental_signal[
+                    "name"
+                ],
+                "direction": incremental_signal.get(
+                    "direction",
+                    "upper",
+                ),
+                "bins": [
+                    incremental_fraction
+                ],
+            },
+        ],
+        "targets": [
+            target
+        ],
+        "analysis": {
+            "type": "regime_comparison",
+            "bootstrap": True,
+            "bootstrap_iterations": 2000,
         },
-        "warnings": warnings,
+        "windows": list(
+            source.get(
+                "windows",
+                [
+                    "window_1",
+                    "window_2",
+                ],
+            )
+        ),
+        "splits": [
+            "validation"
+        ],
+        "metadata": {
+            "stage": "adaptive_refinement",
+            "purpose": (
+                "controlled_parameter_space_exploration"
+            ),
+            "source_spec": SOURCE_SPEC_ID,
+            "selection_policy": (
+                "fixed_predeclared_grid_order"
+            ),
+            "candidate": {
+                "baseline_fraction": (
+                    baseline_fraction
+                ),
+                "incremental_fraction": (
+                    incremental_fraction
+                ),
+                "target": target,
+            },
+            "rules": [
+                "validation_only_for_adaptation",
+                "test_data_never_selects_parameters",
+                "no_result_based_candidate_ranking",
+                "no_locked_spec_modification",
+                "no_locked_confirmation_execution",
+            ],
+        },
     }
 
 
-def main(
-    experiment: dict[str, Any],
-) -> dict[str, Any]:
-    """Entry point used by the AI Lab runner."""
-    research_state = experiment.get(
-        "research_state"
+def write_and_read_spec(
+    payload: dict[str, Any],
+):
+    path = (
+        SPEC_DIR
+        / f"{payload['id']}.yaml"
     )
 
-    if not isinstance(
-        research_state,
-        dict,
-    ):
-        raise ValueError(
-            "experiment_planner requires a "
-            "research_state object."
+    if path.exists():
+        existing = yaml.safe_load(
+            path.read_text(
+                encoding="utf-8"
+            )
         )
 
-    return build_experiment_plan(
-        research_state
+        if existing != payload:
+            raise ValueError(
+                "Refusing to overwrite existing spec: "
+                f"{path}"
+            )
+
+    else:
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        path.write_text(
+            yaml.safe_dump(
+                payload,
+                sort_keys=False,
+                allow_unicode=True,
+            ),
+            encoding="utf-8",
+        )
+
+    # The persisted YAML is the executable specification.
+    parsed = load_spec(
+        path
     )
+
+    if parsed.id != payload[
+        "id"
+    ]:
+        raise ValueError(
+            "Spec read-back changed the experiment id."
+        )
+
+    return (
+        path,
+        parsed,
+    )
+
+
+def run_research_spec(
+    session,
+    spec,
+) -> Path:
+    run_timestamp = (
+        datetime.now(
+            timezone.utc
+        ).strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
+    )
+
+    run_dir = (
+        RUNS_DIR
+        / run_timestamp
+    )
+
+    result = run_spec(
+        session.cache,
+        spec,
+    )
+
+    result_path = (
+        run_dir
+        / f"{spec.id}.json"
+    )
+
+    write_json(
+        result_path,
+        result,
+    )
+
+    manifest = {
+        "created_at_utc": (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        ),
+        "feature_rows": int(
+            len(session.frame)
+        ),
+        "specs": [
+            {
+                "id": spec.id,
+                "mode": spec.mode,
+                "question": spec.question,
+                "result": str(
+                    result_path.relative_to(
+                        ROOT
+                    )
+                ),
+                "rows": len(
+                    result.get(
+                        "results",
+                        [],
+                    )
+                ),
+            }
+        ],
+    }
+
+    write_json(
+        run_dir
+        / "manifest.json",
+        manifest,
+    )
+
+    # Read the persisted result back.
+    persisted = read_json(
+        result_path
+    )
+
+    if persisted is None:
+        raise ValueError(
+            "Research result could not be read back: "
+            f"{result_path}"
+        )
+
+    if persisted.get(
+        "spec_id"
+    ) != spec.id:
+        raise ValueError(
+            "Research result read-back has unexpected spec_id."
+        )
+
+    return result_path
