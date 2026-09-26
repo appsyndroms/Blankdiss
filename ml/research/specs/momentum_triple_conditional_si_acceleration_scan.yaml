@@ -1,0 +1,95 @@
+id: momentum_triple_conditional_si_acceleration_scan
+
+question: >
+  Tillför short-interest acceleration ytterligare downside-risk
+  efter att negativt 5-dagars momentum, negativt 60-dagars momentum
+  och hög 20-dagars volatilitet redan har identifierat
+  riskpopulationen?
+
+mode: scan
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+  - name: short_interest_acceleration
+    direction: upper
+    bins:
+      - 0.05
+      - 0.10
+      - 0.20
+      - 0.30
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: conditional_regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  stage: discovery
+  purpose: conditional_signal_scan
+
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  baseline:
+    definition: >
+      negative_5d_momentum_20pct_and_negative_60d_momentum_20pct_and_high_20d_volatility_20pct
+
+  incremental_signal:
+    name: short_interest_acceleration
+    purpose: >
+      Testa om acceleration i blankning tillför information
+      inom den redan definierade trippelregimen.
+
+  scan:
+    fixed_signals:
+      - negative_5d_momentum_20pct
+      - negative_60d_momentum_20pct
+      - high_20d_volatility_20pct
+
+    scanned_signal:
+      - short_interest_acceleration_upper_5pct
+      - short_interest_acceleration_upper_10pct
+      - short_interest_acceleration_upper_20pct
+      - short_interest_acceleration_upper_30pct
+
+    primary_comparison: >
+      Event rate för baseline AND acceleration jämförs med
+      event rate för baseline AND NOT acceleration.
+
+  hypothesis:
+    expected_effect: additional_downside_risk
+
+  note: >
+    Fristående discovery-scan. De tre befintliga baseline-signalerna
+    är fixerade. Resultatet används endast för att avgöra om
+    short-interest acceleration motiverar en separat djupare analys.
+    Resultatet får inte användas för att ändra parametrar eller
+    primärt endpoint i momentum_si_prospective_confirmation.
