@@ -1,6 +1,6 @@
 {
   "state_version": 1,
-  "updated_at_utc": "2026-09-26T13:15:06.648835+00:00",
+  "updated_at_utc": "2026-09-26T14:25:14.411245+00:00",
   "phase": "COMPLETE",
   "history": [
     {
@@ -388,6 +388,72 @@
       "spec_id": "momentum_triple_conditional_si_acceleration_scan",
       "mode": "once",
       "result_path": "data/processed/ml/research/spec_runs/20260926T112110715711Z/momentum_triple_conditional_si_acceleration_scan.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_then_volatility_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142456476769Z/momentum_60d_then_volatility_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_additive_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142456705532Z/momentum_60d_volatility_additive_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142503127482Z/momentum_60d_volatility_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142509498337Z/momentum_60d_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_drawdown_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142510328095Z/momentum_drawdown_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_horizon_20d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142511152042Z/momentum_horizon_20d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_horizon_60d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142511980056Z/momentum_horizon_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_tail_threshold_analysis",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142512821058Z/momentum_tail_threshold_analysis.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_triple_conditional_si_acceleration_scan",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142512827030Z/momentum_triple_conditional_si_acceleration_scan.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142513294184Z/momentum_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260926T142514116945Z/momentum_volatility_then_60d_nested.json"
     }
   ],
   "next_candidate": null,
