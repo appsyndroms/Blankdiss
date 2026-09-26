@@ -99,6 +99,14 @@ def analyse_conditional_regime_comparison(
             "number of fractions."
         )
 
+    if any(
+        len(signal.bins) != 1
+        for signal in signals[:-1]
+    ):
+        raise ValueError(
+            "Baseline signals must each have exactly one bin."
+        )
+
     target = cache.targets[target_name]
 
     window_mask = cache.window_masks[
