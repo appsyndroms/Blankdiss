@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from .bootstrap import MIN_ROWS
+from .cache import _tail_key
 
 
 def _stable_seed(
@@ -342,7 +343,7 @@ def analyse_interaction(
     ][split_name]
 
     first_mask = cache.tail_masks[
-        (
+        _tail_key(
             signals[0].name,
             signals[0].direction,
             fractions[0],
@@ -350,7 +351,7 @@ def analyse_interaction(
     ]
 
     second_mask = cache.tail_masks[
-        (
+        _tail_key(
             signals[1].name,
             signals[1].direction,
             fractions[1],
