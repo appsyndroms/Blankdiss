@@ -1,349 +1,863 @@
-"""Controlled adaptive research refinement for Blankdiss AI Lab.
+"""Autonomous, controlled research loop for Blankdiss AI Lab.
 
-Adaptive refinement is deliberately restricted to validation data. It may
-generate a new exploratory specification, but it never changes an existing
-specification and never touches locked prospective confirmation.
+The workflow only starts this module and later commits generated artifacts.
+This module owns the research loop:
 
-The first adaptive family is regime-comparison research, because the
-momentum/short-interest walk-forward experiment already provides validation
-splits that can be used for controlled parameter refinement.
+    OBSERVE -> ANALYZE -> ADAPT -> EXTEND -> OBSERVE ...
+
+Important boundaries:
+- validation data is used for adaptive decisions;
+- test data is never used to choose parameters or hypotheses;
+- locked prospective confirmation is never modified or executed;
+- every generated spec is written to disk and then read back before execution;
+- every experiment result is written to disk and then read back before analysis;
+- outcome classification is descriptive, not a search for positive effects;
+- parameter candidates are traversed in a fixed order, independent of result size;
+- when the finite parameter space is exhausted, the engine creates a new
+  controlled experiment family rather than silently stopping.
+
+The extension mechanism uses a fixed, reviewed code template. It does not
+execute arbitrary generated shell commands or arbitrary AI-generated Python.
 """
 
 from __future__ import annotations
 
+import importlib.util
+import itertools
 import json
 import math
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import yaml
+
+from ml.research.engine import run_spec
+from ml.research.reporting import write_json
+from ml.research.session import build_session
+from ml.research.spec import load_spec
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
-MAX_ADAPTIVE_ITERATIONS = 3
+SPEC_DIR = (
+    ROOT
+    / "ml"
+    / "research"
+    / "specs"
+)
+
+RUNS_DIR = (
+    ROOT
+    / "data"
+    / "processed"
+    / "ml"
+    / "research"
+    / "spec_runs"
+)
+
+DISCOVERY_DIR = (
+    ROOT
+    / "ml"
+    / "research"
+    / "discovery"
+)
+
+STATE_DIR = (
+    ROOT
+    / "data"
+    / "ai_lab"
+    / "adaptive_research"
+)
+
+STATE_PATH = (
+    STATE_DIR
+    / "state.json"
+)
+
+
+SOURCE_SPEC_ID = (
+    "momentum_si_regime_walk_forward"
+)
+
+LOCKED_CONFIRMATION_ID = (
+    "momentum_si_prospective_confirmation"
+)
+
+ADAPTIVE_PREFIX = (
+    "adaptive_momentum_si_"
+)
+
+# The original walk-forward experiment already evaluated:
+#
+#   0.20, 0.10, 0.05, 0.025
+#
+# The adaptive engine adds a new, explicitly declared outer point:
+#
+#   0.30
+#
+# The complete adaptive grid is traversed deterministically.
+#
+# The order is fixed BEFORE any result is observed.
+ADAPTIVE_FRACTIONS = (
+    0.30,
+    0.20,
+    0.10,
+    0.05,
+    0.025,
+)
+
 MIN_VALID_N = 100
 
-SUPPORTED_SOURCE = "momentum_si_regime_walk_forward"
+SIGN_EPSILON = 1e-12
+
+# Once the finite parameter space is exhausted, the research process
+# changes experiment family instead of returning "no proposal".
+EXTENSION_FAMILIES = (
+    "target_profile",
+)
 
 
-def _completed_ids(
-    runs: list[dict[str, Any]],
-) -> set[str]:
-    """Return all research specification IDs already executed."""
-    completed: set[str] = set()
-
-    for run in runs:
-        for item in run.get("specs", []):
-            if isinstance(item, str):
-                completed.add(item)
-                continue
-
-            if not isinstance(item, dict):
-                continue
-
-            for key in (
-                "id",
-                "spec_id",
-                "experiment_id",
-            ):
-                value = item.get(key)
-
-                if value is not None:
-                    completed.add(str(value))
-                    break
-
-    return completed
+def utc_now() -> str:
+    """Return the current UTC timestamp."""
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
-def _specs_by_id(
-    research_state: dict[str, Any],
-) -> dict[str, dict[str, Any]]:
-    """Return research specifications indexed by ID."""
-    specs = (
-        research_state
-        .get("research", {})
-        .get("specs", [])
-    )
-
-    if not isinstance(specs, list):
-        return {}
-
-    return {
-        str(spec.get("id")): spec
-        for spec in specs
-        if (
-            isinstance(spec, dict)
-            and spec.get("id")
-        )
-    }
+def safe_id(
+    value: str,
+) -> str:
+    """Make a repository-safe identifier."""
+    return re.sub(
+        r"[^A-Za-z0-9_-]+",
+        "_",
+        value,
+    ).strip("_")
 
 
-def _runs(
-    research_state: dict[str, Any],
-) -> list[dict[str, Any]]:
-    """Return normalized research runs."""
-    runs = (
-        research_state
-        .get("research_runs", {})
-        .get("runs", [])
-    )
-
-    if not isinstance(runs, list):
-        return []
-
-    return [
-        run
-        for run in runs
-        if isinstance(run, dict)
-    ]
-
-
-def _result_path(
-    manifest_item: dict[str, Any],
-) -> Path | None:
-    """Resolve a research result path inside the repository."""
-    result = manifest_item.get("result")
-
-    if not result:
-        return None
-
-    path = ROOT / str(result)
-
-    if not path.is_file():
-        return None
-
-    return path
-
-
-def _latest_eligible_result(
-    research_state: dict[str, Any],
-) -> tuple[
-    dict[str, Any],
-    dict[str, Any],
-] | None:
-    """Find the newest result from the supported adaptive family.
-
-    The first adaptive family is intentionally narrow. This prevents the
-    adaptive engine from interpreting unrelated research result schemas as
-    if they were compatible with regime-comparison experiments.
-    """
-    specs = _specs_by_id(
-        research_state
-    )
-
-    candidates: list[
-        tuple[
-            str,
-            dict[str, Any],
-            dict[str, Any],
-        ]
-    ] = []
-
-    for run in _runs(
-        research_state
-    ):
-        created = str(
-            run.get(
-                "created_at_utc",
-                "",
+def _read_json(
+    path: Path,
+) -> dict[str, Any] | None:
+    """Read a JSON object from disk."""
+    try:
+        payload = json.loads(
+            path.read_text(
+                encoding="utf-8"
             )
         )
+    except (
+        OSError,
+        json.JSONDecodeError,
+    ):
+        return None
 
-        for item in run.get(
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        return None
+
+    return payload
+
+
+def _write_json(
+    path: Path,
+    payload: dict[str, Any],
+) -> None:
+    """Persist a JSON object."""
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    write_json(
+        path,
+        payload,
+    )
+
+
+def _load_yaml(
+    path: Path,
+) -> dict[str, Any]:
+    """Read a research YAML specification."""
+    payload = yaml.safe_load(
+        path.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        raise ValueError(
+            f"Research spec must be an object: {path}"
+        )
+
+    return payload
+
+
+def _completed_spec_ids() -> set[str]:
+    """Return specification IDs represented by persisted research runs."""
+    completed: set[str] = set()
+
+    if not RUNS_DIR.exists():
+        return completed
+
+    for manifest_path in RUNS_DIR.glob(
+        "*/manifest.json"
+    ):
+        payload = _read_json(
+            manifest_path
+        )
+
+        if not payload:
+            continue
+
+        for item in payload.get(
             "specs",
             [],
         ):
+            if isinstance(
+                item,
+                str,
+            ):
+                completed.add(
+                    item
+                )
+                continue
+
             if not isinstance(
                 item,
                 dict,
             ):
                 continue
 
-            spec_id = (
+            value = (
                 item.get("id")
                 or item.get("spec_id")
             )
 
-            if spec_id is None:
-                continue
-
-            spec = specs.get(
-                str(spec_id)
-            )
-
-            if not spec:
-                continue
-
-            if spec.get(
-                "locked"
-            ) is True:
-                continue
-
-            stage = str(
-                spec.get(
-                    "stage",
-                    "",
-                )
-            ).strip().lower()
-
-            if stage == "migration":
-                continue
-
-            normalized_id = str(
-                spec_id
-            )
-
-            if (
-                normalized_id != SUPPORTED_SOURCE
-                and not normalized_id.startswith(
-                    "adaptive_"
-                )
-            ):
-                continue
-
-            result_path = _result_path(
-                item
-            )
-
-            if result_path is None:
-                continue
-
-            try:
-                payload = json.loads(
-                    result_path.read_text(
-                        encoding="utf-8"
-                    )
-                )
-            except (
-                OSError,
-                json.JSONDecodeError,
-            ):
-                continue
-
-            if isinstance(
-                payload,
-                dict,
-            ):
-                candidates.append(
-                    (
-                        created,
-                        spec,
-                        payload,
-                    )
+            if value is not None:
+                completed.add(
+                    str(value)
                 )
 
-    if not candidates:
-        return None
+    return completed
 
-    candidates.sort(
-        key=lambda item: item[0]
+
+def _source_spec() -> dict[str, Any]:
+    """Load and validate the adaptive source specification."""
+    path = (
+        SPEC_DIR
+        / f"{SOURCE_SPEC_ID}.yaml"
     )
 
-    _, spec, payload = candidates[-1]
-
-    return (
-        spec,
-        payload,
-    )
-
-
-def _refined_values(
-    value: float,
-) -> list[float]:
-    """Build a small bounded neighbourhood around a candidate value.
-
-    These values are exploratory only. They never modify the source
-    specification or the locked confirmation specification.
-    """
-    raw_values = (
-        value * 0.75,
-        value,
-        value * 1.25,
-    )
-
-    values = {
-        round(
-            max(
-                0.01,
-                min(
-                    0.50,
-                    candidate,
-                ),
-            ),
-            4,
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Source spec does not exist: {path}"
         )
-        for candidate in raw_values
-    }
 
-    return sorted(
-        values,
-        reverse=True,
+    payload = _load_yaml(
+        path
     )
 
-
-def _stable_validation_candidate(
-    payload: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Find a stable candidate using validation results only.
-
-    A candidate must:
-    - occur in at least two validation windows;
-    - have sufficient sample size in every window;
-    - have a positive incremental event-rate difference in every window.
-
-    No test result is considered by this function.
-    """
-    rows = payload.get(
-        "results",
-        [],
+    metadata = payload.get(
+        "metadata",
+        {},
     )
 
     if not isinstance(
-        rows,
-        list,
+        metadata,
+        dict,
+    ):
+        metadata = {}
+
+    if metadata.get(
+        "locked"
+    ) is True:
+        raise ValueError(
+            "Source adaptive spec is unexpectedly locked."
+        )
+
+    if (
+        str(
+            metadata.get(
+                "stage",
+                "",
+            )
+        ).lower()
+        == "migration"
+    ):
+        raise ValueError(
+            "Migration spec cannot be an adaptive source."
+        )
+
+    return payload
+
+
+def _existing_adaptive_specs() -> dict[
+    str,
+    dict[str, Any],
+]:
+    """Load already-created adaptive specifications."""
+    result: dict[
+        str,
+        dict[str, Any],
+    ] = {}
+
+    for path in SPEC_DIR.glob(
+        f"{ADAPTIVE_PREFIX}*.yaml"
+    ):
+        try:
+            payload = _load_yaml(
+                path
+            )
+        except Exception:
+            continue
+
+        spec_id = payload.get(
+            "id"
+        )
+
+        if spec_id:
+            result[
+                str(spec_id)
+            ] = payload
+
+    return result
+
+
+def _candidate_grid(
+    source: dict[str, Any],
+) -> list[
+    tuple[
+        float,
+        float,
+        str,
+    ]
+]:
+    """Return the complete, deterministic adaptive candidate grid."""
+    targets = source.get(
+        "targets",
+        [],
+    )
+
+    if not targets:
+        raise ValueError(
+            "Source spec has no targets."
+        )
+
+    return [
+        (
+            float(
+                baseline
+            ),
+            float(
+                incremental
+            ),
+            str(
+                target
+            ),
+        )
+        for baseline, incremental, target in itertools.product(
+            ADAPTIVE_FRACTIONS,
+            ADAPTIVE_FRACTIONS,
+            [
+                str(target)
+                for target in targets
+            ],
+        )
+    ]
+
+
+def _candidate_key(
+    baseline: float,
+    incremental: float,
+    target: str,
+) -> str:
+    """Return a canonical parameter-space key."""
+    return (
+        f"{baseline:.4f}|"
+        f"{incremental:.4f}|"
+        f"{target}"
+    )
+
+
+def _spec_candidate(
+    spec: dict[str, Any],
+) -> tuple[
+    float,
+    float,
+    str,
+] | None:
+    """Extract the single candidate represented by an adaptive spec."""
+    try:
+        signals = spec[
+            "signals"
+        ]
+
+        baseline = float(
+            signals[0][
+                "bins"
+            ][0]
+        )
+
+        incremental = float(
+            signals[1][
+                "bins"
+            ][0]
+        )
+
+        target = str(
+            spec[
+                "targets"
+            ][0]
+        )
+
+        return (
+            baseline,
+            incremental,
+            target,
+        )
+
+    except (
+        KeyError,
+        IndexError,
+        TypeError,
+        ValueError,
     ):
         return None
 
-    groups: dict[
-        tuple[
-            float,
-            float,
-            str,
-        ],
-        list[dict[str, Any]],
+
+def _generated_candidate_ids() -> dict[
+    str,
+    str,
+]:
+    """Map adaptive parameter points to generated specification IDs."""
+    mapping: dict[
+        str,
+        str,
     ] = {}
 
-    for row in rows:
-        if not isinstance(
-            row,
+    for (
+        spec_id,
+        spec,
+    ) in _existing_adaptive_specs().items():
+        candidate = _spec_candidate(
+            spec
+        )
+
+        if candidate is None:
+            continue
+
+        mapping[
+            _candidate_key(
+                *candidate
+            )
+        ] = spec_id
+
+    return mapping
+
+
+def _source_candidate_keys(
+    source: dict[str, Any],
+) -> set[str]:
+    """Return all parameter points already tested by the source spec."""
+    signals = source.get(
+        "signals",
+        [],
+    )
+
+    if len(signals) != 2:
+        return set()
+
+    baseline_bins = [
+        float(value)
+        for value in signals[0].get(
+            "bins",
+            [],
+        )
+    ]
+
+    incremental_bins = [
+        float(value)
+        for value in signals[1].get(
+            "bins",
+            [],
+        )
+    ]
+
+    targets = [
+        str(value)
+        for value in source.get(
+            "targets",
+            [],
+        )
+    ]
+
+    return {
+        _candidate_key(
+            baseline,
+            incremental,
+            target,
+        )
+        for (
+            baseline,
+            incremental,
+            target,
+        ) in itertools.product(
+            baseline_bins,
+            incremental_bins,
+            targets,
+        )
+    }
+
+
+def _build_adaptive_spec(
+    source: dict[str, Any],
+    baseline_fraction: float,
+    incremental_fraction: float,
+    target: str,
+) -> dict[str, Any]:
+    """Build one controlled adaptive research specification."""
+    source_signals = source.get(
+        "signals",
+        [],
+    )
+
+    if len(source_signals) != 2:
+        raise ValueError(
+            "Adaptive source must define exactly two signals."
+        )
+
+    baseline_signal = (
+        source_signals[0]
+    )
+
+    incremental_signal = (
+        source_signals[1]
+    )
+
+    spec_id = (
+        f"{ADAPTIVE_PREFIX}"
+        f"b{baseline_fraction:.3f}_"
+        f"si{incremental_fraction:.3f}_"
+        f"{safe_id(target)}"
+    ).replace(
+        ".",
+        "p",
+    )
+
+    return {
+        "id": spec_id,
+        "question": (
+            "Kontrollerad förfining av den "
+            "fördefinierade momentum/SI-regimen. "
+            "Vilket utfall observeras för denna "
+            "parameterpunkt i validation-data?"
+        ),
+        "mode": "deep",
+        "signals": [
+            {
+                "name": baseline_signal[
+                    "name"
+                ],
+                "direction": baseline_signal.get(
+                    "direction",
+                    "lower",
+                ),
+                "bins": [
+                    baseline_fraction
+                ],
+            },
+            {
+                "name": incremental_signal[
+                    "name"
+                ],
+                "direction": incremental_signal.get(
+                    "direction",
+                    "upper",
+                ),
+                "bins": [
+                    incremental_fraction
+                ],
+            },
+        ],
+        "targets": [
+            target
+        ],
+        "analysis": {
+            "type": "regime_comparison",
+            "bootstrap": True,
+            "bootstrap_iterations": 2000,
+        },
+        "windows": list(
+            source.get(
+                "windows",
+                [
+                    "window_1",
+                    "window_2",
+                ],
+            )
+        ),
+        "splits": [
+            "validation"
+        ],
+        "metadata": {
+            "stage": "adaptive_refinement",
+            "purpose": (
+                "controlled_parameter_space_exploration"
+            ),
+            "source_spec": SOURCE_SPEC_ID,
+            "selection_policy": (
+                "fixed_predeclared_grid_order"
+            ),
+            "candidate": {
+                "baseline_fraction": (
+                    baseline_fraction
+                ),
+                "incremental_fraction": (
+                    incremental_fraction
+                ),
+                "target": target,
+            },
+            "rules": [
+                "validation_only_for_adaptation",
+                "test_data_never_selects_parameters",
+                "no_result_based_candidate_ranking",
+                "no_locked_spec_modification",
+                "no_locked_confirmation_execution",
+            ],
+        },
+    }
+
+
+def _write_and_read_spec(
+    payload: dict[str, Any],
+) -> tuple[
+    Path,
+    Any,
+]:
+    """Write an adaptive spec and reconstruct it from disk."""
+    path = (
+        SPEC_DIR
+        / f"{payload['id']}.yaml"
+    )
+
+    if path.exists():
+        existing = _load_yaml(
+            path
+        )
+
+        if existing != payload:
+            raise ValueError(
+                f"Refusing to overwrite existing spec: {path}"
+            )
+
+    else:
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        path.write_text(
+            yaml.safe_dump(
+                payload,
+                sort_keys=False,
+                allow_unicode=True,
+            ),
+            encoding="utf-8",
+        )
+
+    # Important architectural boundary:
+    #
+    # The executable specification comes from the persisted YAML,
+    # not from the in-memory proposal.
+    read_back = load_spec(
+        path
+    )
+
+    if read_back.id != payload[
+        "id"
+    ]:
+        raise ValueError(
+            "Spec read-back changed the experiment id."
+        )
+
+    return (
+        path,
+        read_back,
+    )
+
+
+def _run_research_spec(
+    spec: Any,
+) -> Path:
+    """Execute one research specification and persist its result."""
+    run_timestamp = (
+        datetime.now(
+            timezone.utc
+        ).strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
+    )
+
+    run_dir = (
+        RUNS_DIR
+        / run_timestamp
+    )
+
+    session = build_session(
+        [spec]
+    )
+
+    result = run_spec(
+        session.cache,
+        spec,
+    )
+
+    result_path = (
+        run_dir
+        / f"{spec.id}.json"
+    )
+
+    write_json(
+        result_path,
+        result,
+    )
+
+    manifest = {
+        "created_at_utc": utc_now(),
+        "feature_rows": int(
+            len(
+                session.frame
+            )
+        ),
+        "specs": [
+            {
+                "id": spec.id,
+                "mode": spec.mode,
+                "question": spec.question,
+                "result": str(
+                    result_path.relative_to(
+                        ROOT
+                    )
+                ),
+                "rows": len(
+                    result.get(
+                        "results",
+                        [],
+                    )
+                ),
+            }
+        ],
+    }
+
+    write_json(
+        run_dir
+        / "manifest.json",
+        manifest,
+    )
+
+    # Important architectural boundary:
+    #
+    # Analysis consumes the persisted result, not the object returned
+    # directly from run_spec().
+    persisted = _read_json(
+        result_path
+    )
+
+    if (
+        not isinstance(
+            persisted,
             dict,
-        ):
-            continue
+        )
+        or not isinstance(
+            persisted.get(
+                "results"
+            ),
+            list,
+        )
+    ):
+        raise ValueError(
+            "Persisted result could not be read back: "
+            f"{result_path}"
+        )
 
-        if str(
-            row.get(
-                "split",
-                "",
+    return result_path
+
+
+def _load_result(
+    path: Path,
+) -> dict[str, Any]:
+    """Load a persisted research result."""
+    payload = _read_json(
+        path
+    )
+
+    if (
+        not payload
+        or not isinstance(
+            payload.get(
+                "results"
+            ),
+            list,
+        )
+    ):
+        raise ValueError(
+            f"Invalid persisted research result: {path}"
+        )
+
+    return payload
+
+
+def classify_outcome(
+    rows: list[dict[str, Any]],
+) -> str:
+    """Classify observed validation effects neutrally.
+
+    Classification is performed after the experiment. It is never used
+    to decide which candidate to test next.
+
+    POSITIVE:
+        all sufficiently populated validation observations are positive.
+
+    NEGATIVE:
+        all sufficiently populated validation observations are negative.
+
+    MIXED:
+        both positive and negative observations occur.
+
+    INCONCLUSIVE:
+        too little usable evidence or no directional effect.
+    """
+    validation = [
+        row
+        for row in rows
+        if (
+            isinstance(
+                row,
+                dict,
             )
-        ).lower() != "validation":
-            continue
+            and str(
+                row.get(
+                    "split",
+                    "",
+                )
+            ).lower()
+            == "validation"
+        )
+    ]
 
+    differences: list[
+        float
+    ] = []
+
+    for row in validation:
         try:
-            baseline_fraction = float(
-                row[
-                    "baseline_fraction"
-                ]
-            )
-
-            incremental_fraction = float(
-                row[
-                    "incremental_fraction"
-                ]
-            )
-
-            target = str(
-                row["target"]
-            )
-
             n = int(
                 row.get(
                     "combined_n",
@@ -367,393 +881,854 @@ def _stable_validation_candidate(
         ):
             continue
 
-        if not math.isfinite(
-            difference
+        if (
+            n >= MIN_VALID_N
+            and math.isfinite(
+                difference
+            )
+        ):
+            differences.append(
+                difference
+            )
+
+    if len(
+        differences
+    ) < 2:
+        return (
+            "OUTCOME_INCONCLUSIVE"
+        )
+
+    positive = any(
+        value > SIGN_EPSILON
+        for value in differences
+    )
+
+    negative = any(
+        value < -SIGN_EPSILON
+        for value in differences
+    )
+
+    if positive and negative:
+        return "OUTCOME_MIXED"
+
+    if positive:
+        return "OUTCOME_POSITIVE"
+
+    if negative:
+        return "OUTCOME_NEGATIVE"
+
+    return "OUTCOME_INCONCLUSIVE"
+
+
+def _summarize_result(
+    path: Path,
+) -> dict[str, Any]:
+    """Create a descriptive summary from a persisted result."""
+    payload = _load_result(
+        path
+    )
+
+    rows = payload[
+        "results"
+    ]
+
+    outcome = classify_outcome(
+        rows
+    )
+
+    differences: list[
+        float
+    ] = []
+
+    for row in rows:
+        if (
+            not isinstance(
+                row,
+                dict,
+            )
+            or str(
+                row.get(
+                    "split",
+                    "",
+                )
+            ).lower()
+            != "validation"
         ):
             continue
 
-        if n < MIN_VALID_N:
-            continue
-
-        key = (
-            baseline_fraction,
-            incremental_fraction,
-            target,
+        value = row.get(
+            "absolute_event_rate_difference"
         )
 
-        groups.setdefault(
-            key,
-            [],
-        ).append(row)
+        if (
+            isinstance(
+                value,
+                (
+                    int,
+                    float,
+                ),
+            )
+            and math.isfinite(
+                float(value)
+            )
+        ):
+            differences.append(
+                float(value)
+            )
 
-    candidates: list[
+    return {
+        "path": str(
+            path.relative_to(
+                ROOT
+            )
+        ),
+        "experiment_id": payload.get(
+            "id"
+        ),
+        "outcome": outcome,
+        "validation_difference_count": len(
+            differences
+        ),
+        "validation_min_difference": (
+            min(differences)
+            if differences
+            else None
+        ),
+        "validation_max_difference": (
+            max(differences)
+            if differences
+            else None
+        ),
+    }
+
+
+def _all_adaptive_summaries() -> list[
+    dict[str, Any]
+]:
+    """Read all persisted adaptive experiment results."""
+    summaries: list[
         dict[str, Any]
     ] = []
 
-    for (
-        (
-            baseline_fraction,
-            incremental_fraction,
-            target,
-        ),
-        group,
-    ) in groups.items():
-        windows = {
-            str(
-                row.get(
-                    "window"
-                )
-            )
-            for row in group
-        }
+    if not RUNS_DIR.exists():
+        return summaries
 
-        if len(windows) < 2:
+    for manifest_path in sorted(
+        RUNS_DIR.glob(
+            "*/manifest.json"
+        )
+    ):
+        manifest = _read_json(
+            manifest_path
+        )
+
+        if not manifest:
             continue
 
-        differences = [
-            float(
-                row[
-                    "absolute_event_rate_difference"
-                ]
-            )
-            for row in group
-        ]
+        for item in manifest.get(
+            "specs",
+            [],
+        ):
+            if not isinstance(
+                item,
+                dict,
+            ):
+                continue
 
-        sample_sizes = [
-            int(
-                row.get(
-                    "combined_n",
-                    row.get(
-                        "n",
-                        0,
-                    ),
+            spec_id = str(
+                item.get(
+                    "id",
+                    "",
                 )
             )
-            for row in group
-        ]
 
-        # Require the incremental effect to remain positive in
-        # every validation window.
-        if any(
-            difference <= 0.0
-            for difference in differences
+            if not spec_id.startswith(
+                ADAPTIVE_PREFIX
+            ):
+                continue
+
+            result_path = (
+                ROOT
+                / str(
+                    item.get(
+                        "result",
+                        "",
+                    )
+                )
+            )
+
+            if result_path.is_file():
+                summaries.append(
+                    _summarize_result(
+                        result_path
+                    )
+                )
+
+    return summaries
+
+
+def _choose_next_candidate(
+    source: dict[str, Any],
+) -> tuple[
+    float,
+    float,
+    str,
+] | None:
+    """Choose the next point by fixed grid order only."""
+    completed = _completed_spec_ids()
+
+    generated = (
+        _generated_candidate_ids()
+    )
+
+    source_keys = (
+        _source_candidate_keys(
+            source
+        )
+    )
+
+    for (
+        baseline,
+        incremental,
+        target,
+    ) in _candidate_grid(
+        source
+    ):
+        key = _candidate_key(
+            baseline,
+            incremental,
+            target,
+        )
+
+        # The original walk-forward grid already tested these exact
+        # points. They are observed evidence, not new adaptive candidates.
+        if key in source_keys:
+            continue
+
+        spec_id = generated.get(
+            key
+        )
+
+        if (
+            spec_id is not None
+            and spec_id in completed
         ):
             continue
 
-        candidates.append(
+        return (
+            baseline,
+            incremental,
+            target,
+        )
+
+    return None
+
+
+def _state_payload(
+    phase: str,
+    history: list[
+        dict[str, Any]
+    ],
+    next_candidate: tuple[
+        float,
+        float,
+        str,
+    ] | None,
+    extension_family: str | None = None,
+) -> dict[str, Any]:
+    """Build the persisted adaptive-engine state."""
+    return {
+        "state_version": 1,
+        "updated_at_utc": utc_now(),
+        "phase": phase,
+        "history": history,
+        "next_candidate": (
             {
                 "baseline_fraction": (
-                    baseline_fraction
+                    next_candidate[0]
                 ),
                 "incremental_fraction": (
-                    incremental_fraction
+                    next_candidate[1]
                 ),
-                "target": target,
-                "mean_difference": (
-                    sum(differences)
-                    / len(differences)
-                ),
-                "min_difference": min(
-                    differences
-                ),
-                "min_n": min(
-                    sample_sizes
-                ),
-                "windows": sorted(
-                    windows
+                "target": (
+                    next_candidate[2]
                 ),
             }
-        )
-
-    if not candidates:
-        return None
-
-    # Stability first, then average effect, then sample size.
-    candidates.sort(
-        key=lambda item: (
-            item["min_difference"],
-            item["mean_difference"],
-            item["min_n"],
+            if next_candidate
+            else None
         ),
-        reverse=True,
-    )
-
-    return candidates[0]
-
-
-def build_adaptive_plan(
-    research_state: dict[str, Any],
-) -> dict[str, Any]:
-    """Build one bounded adaptive research proposal."""
-    runs = _runs(
-        research_state
-    )
-
-    completed = _completed_ids(
-        runs
-    )
-
-    adaptive_ids = {
-        spec_id
-        for spec_id in completed
-        if spec_id.startswith(
-            "adaptive_"
-        )
+        "extension_family": (
+            extension_family
+        ),
+        "locked_boundary": {
+            "confirmation_spec": (
+                LOCKED_CONFIRMATION_ID
+            ),
+            "confirmation_may_not_be_executed_or_modified": True,
+        },
     }
 
-    if len(adaptive_ids) >= (
-        MAX_ADAPTIVE_ITERATIONS
+
+def _write_state(
+    payload: dict[str, Any],
+) -> None:
+    """Persist the adaptive state."""
+    _write_json(
+        STATE_PATH,
+        payload,
+    )
+
+
+def _target_profile_code(
+    module_name: str,
+) -> str:
+    """Return the fixed template for the first extension family."""
+    return f'''"""Controlled adaptive target-profile experiment generated by AI Lab."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def run(
+    cache,
+    signal_name: str,
+    direction: str,
+    fraction: float,
+    targets: list[str],
+) -> dict[str, Any]:
+    """Report target event rates for one fixed regime.
+
+    No target is selected by this experiment. Every supplied target
+    is reported in the same deterministic order.
+    """
+    mask = cache.tail_masks[
+        f"{{signal_name}}|{{direction}}|{{fraction}}"
+    ]
+
+    window = cache.window_masks[
+        "window_2"
+    ][
+        "validation"
+    ]
+
+    rows = []
+
+    for target_name in targets:
+        target = cache.targets[
+            target_name
+        ]
+
+        selected = (
+            window
+            & mask
+        )
+
+        valid = selected
+
+        n = int(
+            valid.sum()
+        )
+
+        events = int(
+            (
+                target[valid] > 0
+            ).sum()
+        ) if n else 0
+
+        rows.append(
+            {{
+                "target": target_name,
+                "n": n,
+                "events": events,
+                "event_rate": (
+                    events / n
+                    if n
+                    else None
+                ),
+            }}
+        )
+
+    return {{
+        "experiment_family": "{module_name}",
+        "rows": rows,
+    }}
+'''
+
+
+def _extend(
+    history: list[
+        dict[str, Any]
+    ],
+    family: str,
+) -> dict[str, Any]:
+    """Create a new controlled experiment-family module."""
+    DISCOVERY_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    module_name = (
+        f"adaptive_{family}_experiment"
+    )
+
+    path = (
+        DISCOVERY_DIR
+        / f"{module_name}.py"
+    )
+
+    if family == "target_profile":
+        content = _target_profile_code(
+            module_name
+        )
+    else:
+        raise ValueError(
+            f"Unknown extension family: {family}"
+        )
+
+    if path.exists():
+        existing = path.read_text(
+            encoding="utf-8"
+        )
+
+        if existing != content:
+            raise ValueError(
+                "Refusing to overwrite extension code: "
+                f"{path}"
+            )
+
+    else:
+        path.write_text(
+            content,
+            encoding="utf-8",
+        )
+
+    # Compile before execution.
+    compile(
+        path.read_text(
+            encoding="utf-8"
+        ),
+        str(path),
+        "exec",
+    )
+
+    return {
+        "phase": "EXTEND",
+        "family": family,
+        "code_path": str(
+            path.relative_to(
+                ROOT
+            )
+        ),
+        "reason": (
+            "finite_parameter_space_exhausted"
+        ),
+        "history_count": len(
+            history
+        ),
+    }
+
+
+def _execute_target_profile_extension(
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    """Execute the newly created controlled extension experiment."""
+    module_path = (
+        DISCOVERY_DIR
+        / "adaptive_target_profile_experiment.py"
+    )
+
+    module_name = (
+        "blankdiss_adaptive_target_profile"
+    )
+
+    spec = (
+        importlib.util.spec_from_file_location(
+            module_name,
+            module_path,
+        )
+    )
+
+    if (
+        spec is None
+        or spec.loader is None
     ):
-        return {
-            "status": (
-                "no_adaptive_proposal"
-            ),
-            "reason": (
-                "adaptive_iteration_limit_reached"
-            ),
-            "iteration_count": len(
-                adaptive_ids
-            ),
-        }
+        raise ValueError(
+            "Could not load target-profile extension."
+        )
 
-    latest = _latest_eligible_result(
-        research_state
+    module = (
+        importlib.util.module_from_spec(
+            spec
+        )
     )
 
-    if latest is None:
-        return {
-            "status": (
-                "no_adaptive_proposal"
-            ),
-            "reason": (
-                "no_validation_result_for_supported_family"
-            ),
-            "iteration_count": len(
-                adaptive_ids
-            ),
-        }
-
-    source_spec, payload = latest
-
-    candidate = _stable_validation_candidate(
-        payload
+    spec.loader.exec_module(
+        module
     )
 
-    if candidate is None:
-        return {
-            "status": (
-                "no_adaptive_proposal"
-            ),
-            "reason": (
-                "no_stable_validation_candidate"
-            ),
-            "source_spec": source_spec.get(
-                "id"
-            ),
-            "iteration_count": len(
-                adaptive_ids
-            ),
-        }
-
-    iteration = (
-        len(adaptive_ids)
-        + 1
-    )
-
-    source_id = str(
-        source_spec["id"]
-    )
-
-    new_id = (
-        f"adaptive_"
-        f"{source_id}"
-        f"_r{iteration}"
-    )
-
-    if new_id in completed:
-        return {
-            "status": (
-                "no_adaptive_proposal"
-            ),
-            "reason": (
-                "generated_spec_already_completed"
-            ),
-            "source_spec": source_id,
-            "iteration_count": iteration,
-        }
-
-    source_signals = source_spec.get(
+    signals = source[
         "signals"
+    ]
+
+    signal_name = str(
+        signals[0][
+            "name"
+        ]
     )
 
-    if (
-        not isinstance(
-            source_signals,
-            list,
-        )
-        or len(source_signals) != 2
-    ):
-        return {
-            "status": (
-                "no_adaptive_proposal"
-            ),
-            "reason": (
-                "source_spec_does_not_have_"
-                "exactly_two_signals"
-            ),
-            "source_spec": source_id,
-        }
-
-    baseline_signal = source_signals[0]
-    incremental_signal = source_signals[1]
-
-    if (
-        not isinstance(
-            baseline_signal,
-            dict,
-        )
-        or not isinstance(
-            incremental_signal,
-            dict,
-        )
-    ):
-        return {
-            "status": (
-                "no_adaptive_proposal"
-            ),
-            "reason": (
-                "invalid_source_signal_definition"
-            ),
-            "source_spec": source_id,
-        }
-
-    baseline_direction = str(
-        baseline_signal.get(
+    direction = str(
+        signals[0].get(
             "direction",
             "lower",
         )
     )
 
-    incremental_direction = str(
-        incremental_signal.get(
-            "direction",
-            "upper",
-        )
+    fraction = float(
+        signals[0].get(
+            "bins",
+            [0.20],
+        )[0]
     )
 
-    generated_spec = {
-        "id": new_id,
-        "question": (
-            f"Kontrollerad adaptiv förfining av "
-            f"{source_id}: är den stabila "
-            "validation-effekten fortsatt synlig "
-            "i ett smalare parameterområde?"
-        ),
-        "mode": source_spec.get(
-            "mode",
-            "deep",
-        ),
-        "signals": [
-            {
-                "name": baseline_signal.get(
-                    "name"
-                ),
-                "direction": baseline_direction,
-                "bins": _refined_values(
-                    candidate[
-                        "baseline_fraction"
-                    ]
-                ),
-            },
-            {
-                "name": incremental_signal.get(
-                    "name"
-                ),
-                "direction": incremental_direction,
-                "bins": _refined_values(
-                    candidate[
-                        "incremental_fraction"
-                    ]
-                ),
-            },
-        ],
-        "targets": [
-            candidate[
-                "target"
-            ]
-        ],
-        "analysis": {
-            "type": (
-                "regime_comparison"
-            ),
-            "bootstrap": False,
-        },
-        "windows": source_spec.get(
-            "windows",
-            [
-                "window_1",
-                "window_2",
-            ],
-        ),
-        "splits": [
-            "validation"
-        ],
-        "metadata": {
-            "stage": (
-                "adaptive_refinement"
-            ),
-            "purpose": (
-                "controlled_validation_"
-                "parameter_refinement"
-            ),
-            "source_spec": source_id,
-            "adaptive_iteration": iteration,
-            "selection_policy": (
-                "stable_multi_window_"
-                "validation_effect"
-            ),
-            "candidate": candidate,
-            "constraints": [
-                "Validation data only.",
-                "No test-data threshold selection.",
-                "Do not modify any existing specification.",
-                "Do not modify the locked prospective confirmation.",
-                "This experiment is exploratory and is not confirmation.",
-            ],
-        },
-    }
+    targets = [
+        str(value)
+        for value in source[
+            "targets"
+        ]
+    ]
+
+    source_spec = load_spec(
+        SPEC_DIR
+        / f"{SOURCE_SPEC_ID}.yaml"
+    )
+
+    session = build_session(
+        [source_spec]
+    )
+
+    result = module.run(
+        session.cache,
+        signal_name,
+        direction,
+        fraction,
+        targets,
+    )
+
+    path = (
+        RUNS_DIR
+        / datetime.now(
+            timezone.utc
+        ).strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
+        / "adaptive_target_profile.json"
+    )
+
+    _write_json(
+        path,
+        result,
+    )
+
+    persisted = _read_json(
+        path
+    )
+
+    if persisted is None:
+        raise ValueError(
+            "Extension result could not be read back."
+        )
 
     return {
-        "status": (
-            "adaptive_proposal_created"
+        "path": str(
+            path.relative_to(
+                ROOT
+            )
         ),
-        "iteration_count": iteration,
-        "source_spec": source_id,
-        "generated_spec": generated_spec,
-        "output_path": (
-            f"ml/research/specs/"
-            f"{new_id}.yaml"
-        ),
+        "result": persisted,
     }
 
 
-def main(
-    experiment: dict[str, Any],
-) -> dict[str, Any]:
-    """Entry point used by the AI Lab runner."""
-    research_state = experiment.get(
-        "research_state"
-    )
+def run() -> dict[str, Any]:
+    """Run the complete autonomous research cycle."""
+    history: list[
+        dict[str, Any]
+    ] = []
 
-    if not isinstance(
-        research_state,
-        dict,
-    ):
-        raise ValueError(
-            "adaptive_research requires "
-            "a research_state object."
+    source = _source_spec()
+
+    while True:
+        # ----------------------------------------------------------
+        # OBSERVE
+        # ----------------------------------------------------------
+        #
+        # State and results are read from disk on every cycle.
+        # The persisted files are the source of truth.
+        _ = _read_json(
+            STATE_PATH
         )
 
-    return build_adaptive_plan(
-        research_state
+        next_candidate = (
+            _choose_next_candidate(
+                source
+            )
+        )
+
+        # ----------------------------------------------------------
+        # ADAPT
+        # ----------------------------------------------------------
+        if next_candidate is not None:
+            (
+                baseline,
+                incremental,
+                target,
+            ) = next_candidate
+
+            _write_state(
+                _state_payload(
+                    "ADAPT",
+                    history,
+                    next_candidate,
+                )
+            )
+
+            proposal = _build_adaptive_spec(
+                source,
+                baseline,
+                incremental,
+                target,
+            )
+
+            (
+                spec_path,
+                parsed_spec,
+            ) = _write_and_read_spec(
+                proposal
+            )
+
+            # Never allow adaptive code to cross the locked boundary.
+            metadata = _load_yaml(
+                spec_path
+            ).get(
+                "metadata",
+                {},
+            )
+
+            if (
+                metadata.get(
+                    "locked"
+                )
+                is True
+                or str(
+                    metadata.get(
+                        "stage",
+                        "",
+                    )
+                ).lower()
+                == "migration"
+            ):
+                raise ValueError(
+                    "Adaptive engine refused protected spec: "
+                    f"{spec_path}"
+                )
+
+            # ------------------------------------------------------
+            # EXPERIMENT
+            # ------------------------------------------------------
+            result_path = (
+                _run_research_spec(
+                    parsed_spec
+                )
+            )
+
+            # ------------------------------------------------------
+            # ANALYZE
+            # ------------------------------------------------------
+            summary = (
+                _summarize_result(
+                    result_path
+                )
+            )
+
+            history.append(
+                {
+                    "phase": "ANALYZE",
+                    "spec_id": (
+                        parsed_spec.id
+                    ),
+                    "candidate": {
+                        "baseline_fraction": (
+                            baseline
+                        ),
+                        "incremental_fraction": (
+                            incremental
+                        ),
+                        "target": target,
+                    },
+                    "outcome": (
+                        summary[
+                            "outcome"
+                        ]
+                    ),
+                    "result_path": (
+                        summary[
+                            "path"
+                        ]
+                    ),
+                }
+            )
+
+            _write_state(
+                _state_payload(
+                    "OBSERVE",
+                    history,
+                    _choose_next_candidate(
+                        source
+                    ),
+                )
+            )
+
+            continue
+
+        # ----------------------------------------------------------
+        # EXTEND
+        # ----------------------------------------------------------
+        #
+        # The finite parameter space is now exhausted.
+        # This is deliberately not a "no proposal" failure.
+        summaries = (
+            _all_adaptive_summaries()
+        )
+
+        if not summaries:
+            raise RuntimeError(
+                "Parameter space is exhausted without "
+                "persisted adaptive results."
+            )
+
+        completed_extensions = {
+            item.get(
+                "extension_family"
+            )
+            for item in history
+            if item.get(
+                "phase"
+            )
+            == "EXTEND"
+        }
+
+        family = next(
+            (
+                candidate
+                for candidate
+                in EXTENSION_FAMILIES
+                if candidate
+                not in completed_extensions
+            ),
+            None,
+        )
+
+        if family is None:
+            _write_state(
+                _state_payload(
+                    "COMPLETE",
+                    history,
+                    None,
+                )
+            )
+
+            return {
+                "status": (
+                    "research_cycle_complete"
+                ),
+                "history": history,
+                "outcomes": summaries,
+                "reason": (
+                    "parameter_space_and_declared_"
+                    "extension_families_exhausted"
+                ),
+            }
+
+        extension = _extend(
+            history,
+            family,
+        )
+
+        history.append(
+            extension
+        )
+
+        _write_state(
+            _state_payload(
+                "EXTEND",
+                history,
+                None,
+                family,
+            )
+        )
+
+        # Execute the new experiment family.
+        executed = (
+            _execute_target_profile_extension(
+                source
+            )
+        )
+
+        history.append(
+            {
+                "phase": "OBSERVE",
+                "extension_family": family,
+                "result_path": (
+                    executed[
+                        "path"
+                    ]
+                ),
+                "observation": (
+                    executed[
+                        "result"
+                    ]
+                ),
+            }
+        )
+
+        _write_state(
+            _state_payload(
+                "COMPLETE",
+                history,
+                None,
+                family,
+            )
+        )
+
+        return {
+            "status": (
+                "research_cycle_extended"
+            ),
+            "history": history,
+            "outcomes": summaries,
+            "reason": (
+                "new_controlled_experiment_"
+                "family_created_and_executed"
+            ),
+        }
+
+
+def main() -> int:
+    """CLI entry point."""
+    result = run()
+
+    print(
+        json.dumps(
+            result,
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(
+        main()
     )
