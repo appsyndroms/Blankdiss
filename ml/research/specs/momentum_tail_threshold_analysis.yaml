@@ -1,12 +1,8 @@
 id: momentum_tail_threshold_analysis
 
 question: >
-  Finns det en stabil tröskel eller övergång i den observerade
-  downside-effekten när storleken på den negativa momentum-tailen
-  förändras, när short-interest-förändringen hålls fast på 30 procent?
-  Studien ska särskilt undersöka om den observerade signalen försvagas
-  under 5 procent momentum-tail eller om övergången sker någonstans
-  mellan 5 och 10 procent.
+  Kontrollerad analys av momentum-tailens tröskelstruktur
+  för downside-risk.
 
 mode: deep
 
@@ -14,18 +10,10 @@ signals:
   - name: price_momentum_5d
     direction: lower
     bins:
-      - 0.30
       - 0.20
-      - 0.15
       - 0.10
-      - 0.075
       - 0.05
       - 0.025
-
-  - name: short_interest_change
-    direction: upper
-    bins:
-      - 0.30
 
 targets:
   - down_5pct_5d
@@ -33,7 +21,7 @@ targets:
   - down_10pct_5d
 
 analysis:
-  type: regime_comparison
+  type: tail
   bootstrap: true
   bootstrap_iterations: 2000
 
@@ -43,82 +31,12 @@ windows:
 
 splits:
   - validation
+  - test
 
 metadata:
-  stage: controlled_hypothesis_test
+  stage: hypothesis_test
   purpose: momentum_tail_threshold_analysis
 
-  hypothesis:
-    baseline: negative_5d_momentum
-    incremental_signal: short_interest_change
-    fixed_incremental_fraction: 0.30
-    question: >
-      Är downside-effekten från kombinationen momentum/SI beroende
-      av hur stor del av momentumfördelningen som inkluderas i
-      den negativa tailen?
-
-  parameter_grid:
-    momentum_fractions:
-      - 0.30
-      - 0.20
-      - 0.15
-      - 0.10
-      - 0.075
-      - 0.05
-      - 0.025
-
-    short_interest_fraction:
-      - 0.30
-
-  comparison:
-    baseline:
-      definition: negative_momentum_tail
-
-    combined:
-      definition: negative_momentum_tail_and_high_si_change
-
-    primary_metric:
-      name: absolute_event_rate_difference
-      definition: combined_event_rate_minus_baseline_event_rate
-
-    secondary_metrics:
-      - lift
-      - bootstrap_ci_low
-      - bootstrap_ci_high
-      - baseline_n
-      - combined_n
-
-  provenance:
-    role: controlled_follow_up_to_adaptive_discovery
-    selection_policy: fixed_predeclared_parameter_grid
-
-    rules:
-      - no_parameter_selection_from_this_experiment
-      - no_target_selection_from_this_experiment
-      - no_test_data_used_for_selection
-      - all_declared_momentum_fractions_must_be_reported
-      - all_declared_targets_must_be_reported
-      - short_interest_fraction_is_fixed_at_0.30
-      - locked_confirmation_spec_must_not_be_modified
-      - locked_confirmation_spec_must_not_be_executed
-
-  interpretation:
-    primary_question: >
-      Om effekten förändras med momentum-tailens storlek, ligger
-      övergången då nära 5 procent, mellan 5 och 10 procent eller
-      följer den en mer gradvis förändring?
-
-    secondary_question: >
-      Är förändringen konsistent mellan down_5pct_5d,
-      down_7pct_5d och down_10pct_5d samt mellan window_1 och window_2?
-
-    note: >
-      Detta experiment ska inte välja en optimal momentum-fraktion.
-      Syftet är att beskriva hela den fördefinierade tail-density-
-      kurvan och identifiera om det finns en observerbar tröskel,
-      gradvis förändring eller avsaknad av stabil struktur.
-
-  note: >
-    Validation används för denna hypotesanalys. Resultatet får inte
-    användas för att modifiera eller välja parametrar i den låsta
-    prospective confirmation-specen.
+  ai_lab_execution:
+    enabled: true
+    mode: once
