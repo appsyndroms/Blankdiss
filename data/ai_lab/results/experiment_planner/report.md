@@ -14,8 +14,8 @@
 
 ## Execution
 
-- Started: `2026-09-26T05:12:16.517539+00:00`
-- Finished: `2026-09-26T05:12:16.517612+00:00`
+- Started: `2026-09-26T05:16:00.527298+00:00`
+- Finished: `2026-09-26T05:16:00.527351+00:00`
 
 ## Result
 
@@ -24,10 +24,10 @@
   "planner_version": 2,
   "status": "proposal_created",
   "selection": {
-    "source_spec": "fi_change_volatility_interaction_scan",
+    "source_spec": "fi_volatility_interaction_scan",
     "stage": "discovery",
     "locked": false,
-    "question": "Är downside-event-risk särskilt hög när short interest ökar samtidigt som volatiliteten är hög?\n"
+    "question": "Är downside-event-risk särskilt hög när short interest och marknadsvolatilitet samtidigt ligger högt?\n"
   },
   "parameters": {},
   "constraints": [
@@ -40,8 +40,8 @@
   ],
   "research_context": {
     "spec_count": 10,
-    "research_run_count": 4,
-    "completed_spec_count": 4,
+    "research_run_count": 5,
+    "completed_spec_count": 5,
     "open_question_count": 6,
     "locked_spec_count": 1
   },
