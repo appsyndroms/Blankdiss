@@ -42,6 +42,10 @@ splits:
   - test
 
 metadata:
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
   stage: hypothesis_test
   purpose: nested_contribution
 
