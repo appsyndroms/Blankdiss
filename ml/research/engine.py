@@ -893,8 +893,8 @@ def run_spec(
                         _analyse_multi_regime_comparison(
                             cache,
                             spec.signals,
-                            fractions,
                             target_name,
+                            fractions,
                             window_name,
                             split_name,
                             bootstrap=bootstrap,
