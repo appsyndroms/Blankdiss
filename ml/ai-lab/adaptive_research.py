@@ -21,6 +21,10 @@ When the finite parameter space is exhausted:
     new controlled experiment family
         ↓
     OBSERVE
+
+Separately, explicitly enabled research specs in
+ml/research/specs/ may be executed once through the generic
+controlled-spec discovery mechanism.
 """
 
 from __future__ import annotations
@@ -46,7 +50,8 @@ AI_LAB_DIR = (
 )
 
 # AI Lab contains local modules such as analysis.py, candidates.py,
-# config.py, experiments.py, extension.py, session.py and state.py.
+# config.py, controlled_specs.py, experiments.py, extension.py,
+# session.py and state.py.
 #
 # AI_LAB_DIR must have priority over the repository root.
 # Otherwise:
@@ -86,6 +91,10 @@ from candidates import (
 from config import (
     EXTENSION_FAMILIES,
     SPEC_DIR,
+)
+from controlled_specs import (
+    discover_controlled_specs,
+    pending_controlled_specs,
 )
 from experiments import (
     build_adaptive_spec,
@@ -242,6 +251,62 @@ def run() -> dict[str, Any]:
 
     source = source_spec()
 
+    # --------------------------------------------------------------
+    # CONTROLLED RESEARCH SPECS
+    # --------------------------------------------------------------
+    #
+    # Research specs can opt into AI Lab execution declaratively:
+    #
+    # metadata:
+    #   ai_lab_execution:
+    #     enabled: true
+    #     mode: once
+    #
+    # No research-specific spec ID is hardcoded here.
+    # --------------------------------------------------------------
+
+    controlled_specs = (
+        discover_controlled_specs()
+    )
+
+    pending_specs = (
+        pending_controlled_specs()
+    )
+
+    if controlled_specs:
+        print(
+            "=== CONTROLLED RESEARCH SPECS ===",
+            flush=True,
+        )
+
+        for spec in controlled_specs:
+            print(
+                f"  discovered: {spec.id}",
+                flush=True,
+            )
+    else:
+        print(
+            "No controlled research specs discovered.",
+            flush=True,
+        )
+
+    if pending_specs:
+        print(
+            "=== PENDING CONTROLLED SPECS ===",
+            flush=True,
+        )
+
+        for spec in pending_specs:
+            print(
+                f"  pending: {spec.id}",
+                flush=True,
+            )
+    else:
+        print(
+            "No pending controlled research specs.",
+            flush=True,
+        )
+
     print(
         "=== START AI LAB RESEARCH ===",
         flush=True,
@@ -257,9 +322,99 @@ def run() -> dict[str, Any]:
     # build_research_cache()
     #
     # therefore happen exactly once for this process.
+    #
+    # The shared cache contains requirements for both:
+    #
+    #   1. the existing adaptive research loop
+    #   2. pending controlled research specs
+    #
     shared_session = build_shared_session(
-        source
+        source,
+        controlled_specs=pending_specs,
     )
+
+    # --------------------------------------------------------------
+    # CONTROLLED SPEC EXECUTION
+    # --------------------------------------------------------------
+    #
+    # These specs are completely independent of the adaptive
+    # momentum/SI candidate loop below.
+    #
+    # mode=once is enforced by pending_controlled_specs(), which
+    # checks persisted research manifests.
+    # --------------------------------------------------------------
+
+    for spec in pending_specs:
+        print(
+            f"=== RUN CONTROLLED SPEC: {spec.id} ===",
+            flush=True,
+        )
+
+        metadata = spec.metadata.get(
+            "ai_lab_execution",
+            {},
+        )
+
+        if not isinstance(
+            metadata,
+            dict,
+        ):
+            raise ValueError(
+                "Invalid ai_lab_execution metadata "
+                f"for spec: {spec.id}"
+            )
+
+        if metadata.get(
+            "enabled"
+        ) is not True:
+            continue
+
+        mode = str(
+            metadata.get(
+                "mode",
+                "",
+            )
+        ).lower()
+
+        if mode != "once":
+            raise ValueError(
+                "Unsupported AI Lab execution mode "
+                f"'{mode}' for spec: {spec.id}"
+            )
+
+        result_path = (
+            run_research_spec(
+                shared_session,
+                spec,
+            )
+        )
+
+        history.append(
+            {
+                "phase": "CONTROLLED_SPEC",
+                "spec_id": spec.id,
+                "mode": mode,
+                "result_path": str(
+                    result_path.relative_to(
+                        ROOT
+                    )
+                ),
+            }
+        )
+
+        print(
+            f"Controlled spec completed: {spec.id}",
+            flush=True,
+        )
+
+        print(
+            f"Result: {result_path}",
+            flush=True,
+        )
+
+    # --------------------------------------------------------------
+    # ADAPTIVE RESEARCH LOOP
+    # --------------------------------------------------------------
 
     while True:
         # ----------------------------------------------------------
