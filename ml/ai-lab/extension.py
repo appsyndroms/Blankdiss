@@ -30,12 +30,11 @@ def run(
     fraction: float,
     targets: list[str],
 ) -> dict[str, Any]:
-    """Report every supplied target for one fixed regime.
+    """Report target event rates for one fixed regime.
 
-    No target is selected by this experiment.
-    Every supplied target is reported in the same deterministic order.
+    No target is selected by this experiment. Every supplied target
+    is reported in the same deterministic order.
     """
-
     mask = cache.tail_masks[
         f"{{signal_name}}|{{direction}}|{{fraction}}"
     ]
@@ -58,13 +57,15 @@ def run(
             & mask
         )
 
+        valid = selected
+
         n = int(
-            selected.sum()
+            valid.sum()
         )
 
         events = int(
             (
-                target[selected] > 0
+                target[valid] > 0
             ).sum()
         ) if n else 0
 
@@ -115,6 +116,12 @@ def extend(
             f"Unknown extension family: {family}"
         )
 
+    # Existing extension source is immutable.
+    #
+    # A previously generated extension must never be silently
+    # overwritten. If the source differs from the current canonical
+    # implementation, fail explicitly so that the research history
+    # cannot be silently changed.
     if path.exists():
         existing = path.read_text(
             encoding="utf-8"
@@ -122,7 +129,8 @@ def extend(
 
         if existing != content:
             raise ValueError(
-                "Refusing to overwrite extension code: "
+                "Existing extension code differs from the canonical "
+                "implementation. Refusing to overwrite: "
                 f"{path}"
             )
 
@@ -144,6 +152,7 @@ def extend(
     return {
         "phase": "EXTEND",
         "family": family,
+        "extension_family": family,
         "code_path": str(
             path.relative_to(
                 ROOT
@@ -166,6 +175,12 @@ def execute_target_profile_extension(
         DISCOVERY_DIR
         / "adaptive_target_profile_experiment.py"
     )
+
+    if not module_path.is_file():
+        raise FileNotFoundError(
+            "Target-profile extension does not exist: "
+            f"{module_path}"
+        )
 
     module_name = (
         "blankdiss_adaptive_target_profile"
