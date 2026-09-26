@@ -1,298 +1,206 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any
 
-import yaml
-
-
-VALID_MODES = {
-    "scan",
-    "deep",
-}
-
-VALID_ANALYSIS_TYPES = {
-    "interaction",
-    "tail",
-    "regime_comparison",
-}
 
 VALID_DIRECTIONS = {
     "upper",
     "lower",
 }
 
+VALID_ANALYSIS_TYPES = {
+    "interaction",
+    "tail",
+    "regime_comparison",
+    "multi_regime_comparison",
+}
+
 
 @dataclass(frozen=True)
 class SignalSpec:
     name: str
-    direction: str = "upper"
-    bins: tuple[float, ...] = (0.10,)
+    direction: str
+    bins: tuple[float, ...]
 
 
 @dataclass(frozen=True)
 class AnalysisSpec:
-    type: str = "tail"
+    type: str
     bootstrap: bool = False
     bootstrap_iterations: int = 2000
+
+
+@dataclass(frozen=True)
+class MetadataSpec:
+    stage: str | None
+    purpose: str | None
+    raw: dict[str, Any]
 
 
 @dataclass(frozen=True)
 class ResearchSpec:
     id: str
     question: str
+    mode: str
     signals: tuple[SignalSpec, ...]
     targets: tuple[str, ...]
-
-    analysis: AnalysisSpec = field(
-        default_factory=AnalysisSpec
-    )
-
-    mode: str = "scan"
-
-    windows: tuple[str, ...] = (
-        "window_1",
-        "window_2",
-    )
-
-    splits: tuple[str, ...] = (
-        "test",
-    )
-
-    metadata: dict[str, Any] = field(
-        default_factory=dict
-    )
+    analysis: AnalysisSpec
+    windows: tuple[str, ...]
+    splits: tuple[str, ...]
+    metadata: MetadataSpec
 
 
-def _tuple_floats(
-    values: Any,
-) -> tuple[float, ...]:
-    if values is None:
+def _as_tuple(value: Any) -> tuple[Any, ...]:
+    if value is None:
         return ()
+    if isinstance(value, (list, tuple)):
+        return tuple(value)
+    return (value,)
 
-    return tuple(
+
+def parse_signal(data: dict[str, Any]) -> SignalSpec:
+    name = data["name"]
+    direction = data["direction"]
+    bins = tuple(
         float(value)
-        for value in values
+        for value in _as_tuple(data.get("bins"))
+    )
+
+    if direction not in VALID_DIRECTIONS:
+        raise ValueError(
+            f"Invalid signal direction: {direction}"
+        )
+
+    if not bins:
+        raise ValueError(
+            f"Signal '{name}' must define at least one bin."
+        )
+
+    for fraction in bins:
+        if not 0 < fraction <= 1:
+            raise ValueError(
+                f"Invalid bin fraction for '{name}': "
+                f"{fraction}"
+            )
+
+    return SignalSpec(
+        name=name,
+        direction=direction,
+        bins=bins,
     )
 
 
-def load_spec(
-    path: str | Path,
-) -> ResearchSpec:
-    path = Path(path)
+def parse_analysis(data: dict[str, Any]) -> AnalysisSpec:
+    analysis_type = data["type"]
 
-    payload = yaml.safe_load(
-        path.read_text(
-            encoding="utf-8"
+    if analysis_type not in VALID_ANALYSIS_TYPES:
+        raise ValueError(
+            f"Invalid analysis type: {analysis_type}"
         )
+
+    bootstrap = bool(
+        data.get("bootstrap", False)
     )
 
-    if not isinstance(payload, dict):
-        raise ValueError(
-            f"Research spec måste vara ett objekt: {path}"
-        )
-
-    spec_id = payload.get("id")
-    question = payload.get("question")
-
-    if not spec_id:
-        raise ValueError(
-            f"Research spec saknar id: {path}"
-        )
-
-    if not question:
-        raise ValueError(
-            f"Research spec saknar question: {path}"
-        )
-
-    mode = str(
-        payload.get(
-            "mode",
-            "scan",
-        )
-    ).lower()
-
-    if mode not in VALID_MODES:
-        raise ValueError(
-            f"Ogiltigt mode '{mode}' i {path}"
-        )
-
-    raw_signals = payload.get(
-        "signals",
-        [],
+    bootstrap_iterations = int(
+        data.get("bootstrap_iterations", 2000)
     )
 
-    if not raw_signals:
+    if bootstrap_iterations <= 0:
         raise ValueError(
-            f"Research spec saknar signals: {path}"
+            "bootstrap_iterations must be > 0."
         )
 
-    signals: list[SignalSpec] = []
+    return AnalysisSpec(
+        type=analysis_type,
+        bootstrap=bootstrap,
+        bootstrap_iterations=bootstrap_iterations,
+    )
 
-    for item in raw_signals:
-        if not isinstance(item, dict):
-            raise ValueError(
-                f"Ogiltig signaldefinition i {path}"
-            )
 
-        name = item.get("name")
+def parse_metadata(
+    data: dict[str, Any] | None,
+) -> MetadataSpec:
+    raw = dict(data or {})
 
-        if not name:
-            raise ValueError(
-                f"Signal saknar name i {path}"
-            )
+    return MetadataSpec(
+        stage=raw.get("stage"),
+        purpose=raw.get("purpose"),
+        raw=raw,
+    )
 
-        direction = str(
-            item.get(
-                "direction",
-                "upper",
-            )
-        ).lower()
 
-        if direction not in VALID_DIRECTIONS:
-            raise ValueError(
-                f"Ogiltig direction '{direction}' "
-                f"för signal '{name}'."
-            )
+def parse_spec(data: dict[str, Any]) -> ResearchSpec:
+    signals = tuple(
+        parse_signal(signal)
+        for signal in data.get("signals", [])
+    )
 
-        bins = _tuple_floats(
-            item.get(
-                "bins",
-                (0.10,),
-            )
-        )
-
-        if not bins:
-            raise ValueError(
-                f"Signal '{name}' saknar bins."
-            )
-
-        for fraction in bins:
-            if not 0 < fraction <= 1:
-                raise ValueError(
-                    f"Ogiltig bin {fraction} "
-                    f"för signal '{name}'."
-                )
-
-        signals.append(
-            SignalSpec(
-                name=str(name),
-                direction=direction,
-                bins=bins,
-            )
+    if not signals:
+        raise ValueError(
+            "Research spec must define at least one signal."
         )
 
     targets = tuple(
         str(target)
-        for target in payload.get(
-            "targets",
-            [],
+        for target in _as_tuple(
+            data.get("targets")
         )
     )
 
     if not targets:
         raise ValueError(
-            f"Research spec saknar targets: {path}"
+            "Research spec must define at least one target."
         )
-
-    raw_analysis = payload.get(
-        "analysis",
-        {},
-    )
-
-    if not isinstance(raw_analysis, dict):
-        raise ValueError(
-            f"analysis måste vara ett objekt: {path}"
-        )
-
-    analysis_type = str(
-        raw_analysis.get(
-            "type",
-            "tail",
-        )
-    ).lower()
-
-    if analysis_type not in VALID_ANALYSIS_TYPES:
-        raise ValueError(
-            f"Okänd analysis.type "
-            f"'{analysis_type}' i {path}"
-        )
-
-    bootstrap = bool(
-        raw_analysis.get(
-            "bootstrap",
-            False,
-        )
-    )
-
-    bootstrap_iterations = int(
-        raw_analysis.get(
-            "bootstrap_iterations",
-            2000,
-        )
-    )
-
-    if bootstrap_iterations < 1:
-        raise ValueError(
-            "bootstrap_iterations måste vara > 0."
-        )
-
-    analysis = AnalysisSpec(
-        type=analysis_type,
-        bootstrap=bootstrap,
-        bootstrap_iterations=(
-            bootstrap_iterations
-        ),
-    )
 
     windows = tuple(
         str(window)
-        for window in payload.get(
-            "windows",
-            (
-                "window_1",
-                "window_2",
-            ),
+        for window in _as_tuple(
+            data.get("windows")
+        )
+    )
+
+    splits = tuple(
+        str(split)
+        for split in _as_tuple(
+            data.get("splits")
         )
     )
 
     if not windows:
         raise ValueError(
-            "Research spec måste ha minst ett window."
+            "Research spec must define at least one window."
         )
-
-    splits = tuple(
-        str(split)
-        for split in payload.get(
-            "splits",
-            ("test",),
-        )
-    )
 
     if not splits:
         raise ValueError(
-            "Research spec måste ha minst ett split."
+            "Research spec must define at least one split."
         )
 
-    metadata = payload.get(
-        "metadata",
-        {},
+    analysis = parse_analysis(
+        data["analysis"]
     )
 
-    if not isinstance(metadata, dict):
+    if (
+        analysis.type == "multi_regime_comparison"
+        and len(signals) < 3
+    ):
         raise ValueError(
-            f"metadata måste vara ett objekt: {path}"
+            "multi_regime_comparison requires "
+            "at least three signals."
         )
 
     return ResearchSpec(
-        id=str(spec_id),
-        question=str(question),
-        signals=tuple(signals),
+        id=str(data["id"]),
+        question=str(data["question"]),
+        mode=str(data.get("mode", "deep")),
+        signals=signals,
         targets=targets,
         analysis=analysis,
-        mode=mode,
         windows=windows,
         splits=splits,
-        metadata=dict(metadata),
+        metadata=parse_metadata(
+            data.get("metadata")
+        ),
     )
