@@ -27,9 +27,22 @@ import itertools
 import json
 import math
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# When this file is executed directly as:
+#
+#     python -u ml/ai-lab/adaptive_research.py
+#
+# Python puts ml/ai-lab on sys.path, not the repository root. Add the
+# repository root explicitly so imports such as `ml.research.engine`
+# resolve independently of the current working directory.
+ROOT = Path(__file__).resolve().parents[2]
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import yaml
 
@@ -38,8 +51,6 @@ from ml.research.reporting import write_json
 from ml.research.session import build_session
 from ml.research.spec import load_spec
 
-
-ROOT = Path(__file__).resolve().parents[2]
 
 SPEC_DIR = (
     ROOT
