@@ -45,20 +45,33 @@ AI_LAB_DIR = (
     / "ai-lab"
 )
 
-if str(ROOT) not in sys.path:
-    sys.path.insert(
-        0,
-        str(ROOT),
-    )
-
+# AI Lab contains local modules such as analysis.py, candidates.py,
+# config.py, experiments.py, extension.py, session.py and state.py.
+#
+# AI_LAB_DIR must therefore have priority over the repository root.
+# Otherwise Python may resolve:
+#
+#     from analysis import ...
+#
+# to the repository-level analysis package instead of:
+#
+#     ml/ai-lab/analysis.py
 if str(AI_LAB_DIR) not in sys.path:
     sys.path.insert(
         0,
         str(AI_LAB_DIR),
     )
 
+# The repository root is still required for imports such as:
+#
+#     from ml.research...
+#
+# Keep it available, but after the AI Lab directory.
+if str(ROOT) not in sys.path:
+    sys.path.append(
+        str(ROOT),
+    )
 
-from ml.research.spec import load_spec
 
 from analysis import (
     all_adaptive_summaries,
@@ -72,7 +85,6 @@ from config import (
     LOCKED_CONFIRMATION_ID,
     SOURCE_SPEC_ID,
     SPEC_DIR,
-    STATE_PATH,
 )
 from experiments import (
     build_adaptive_spec,
@@ -88,7 +100,6 @@ from session import (
 )
 from state import (
     build_state,
-    read_json,
     read_state,
     write_state,
 )
