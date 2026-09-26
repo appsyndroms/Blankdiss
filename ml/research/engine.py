@@ -8,6 +8,7 @@ from .bootstrap import (
     bootstrap_binary_rate_difference_between_groups,
 )
 from .cache import ResearchCache, _tail_key
+from .interaction import analyse_interaction
 from .spec import ResearchSpec, SignalSpec
 
 
@@ -96,103 +97,6 @@ def _analyse_tail(
         "n": metrics["n"],
         "events": metrics["events"],
         "event_rate": metrics["event_rate"],
-    }
-
-
-def _analyse_interaction(
-    cache: ResearchCache,
-    signals: tuple[SignalSpec, ...],
-    fractions: tuple[float, ...],
-    target_name: str,
-    window_name: str,
-    split_name: str,
-) -> dict[str, Any]:
-    if len(signals) != 2:
-        raise ValueError(
-            "interaction requires exactly two signals."
-        )
-
-    target = cache.targets[target_name]
-
-    window_mask = cache.window_masks[
-        window_name
-    ][split_name]
-
-    first_mask = cache.tail_masks[
-        _tail_key(
-            signals[0].name,
-            signals[0].direction,
-            fractions[0],
-        )
-    ]
-
-    second_mask = cache.tail_masks[
-        _tail_key(
-            signals[1].name,
-            signals[1].direction,
-            fractions[1],
-        )
-    ]
-
-    first = (
-        window_mask
-        & first_mask
-    )
-
-    second = (
-        window_mask
-        & second_mask
-    )
-
-    combined = first & second
-
-    first_metrics = _regime_rate(
-        target,
-        first,
-    )
-
-    second_metrics = _regime_rate(
-        target,
-        second,
-    )
-
-    combined_metrics = _regime_rate(
-        target,
-        combined,
-    )
-
-    return {
-        "analysis": "interaction",
-        "signal_1": signals[0].name,
-        "signal_1_direction": (
-            signals[0].direction
-        ),
-        "signal_1_fraction": fractions[0],
-        "signal_2": signals[1].name,
-        "signal_2_direction": (
-            signals[1].direction
-        ),
-        "signal_2_fraction": fractions[1],
-        "target": target_name,
-        "window": window_name,
-        "split": split_name,
-        "signal_1_n": first_metrics["n"],
-        "signal_1_events": first_metrics["events"],
-        "signal_1_event_rate": (
-            first_metrics["event_rate"]
-        ),
-        "signal_2_n": second_metrics["n"],
-        "signal_2_events": second_metrics["events"],
-        "signal_2_event_rate": (
-            second_metrics["event_rate"]
-        ),
-        "combined_n": combined_metrics["n"],
-        "combined_events": (
-            combined_metrics["events"]
-        ),
-        "combined_event_rate": (
-            combined_metrics["event_rate"]
-        ),
     }
 
 
@@ -825,17 +729,25 @@ def run_spec(
             for signal in spec.signals
         )
 
+        bootstrap = spec.analysis.bootstrap
+
         for target_name in spec.targets:
             for window_name in spec.windows:
                 for split_name in spec.splits:
                     results.append(
-                        _analyse_interaction(
+                        analyse_interaction(
                             cache,
                             spec.signals,
                             fractions,
                             target_name,
                             window_name,
                             split_name,
+                            bootstrap=bootstrap,
+                            bootstrap_iterations=(
+                                spec.analysis
+                                .bootstrap_iterations
+                            ),
+                            spec_id=spec.id,
                         )
                     )
 
