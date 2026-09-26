@@ -3,7 +3,6 @@ name: AI-lab research
 on:
   workflow_dispatch:
 
-# Prevent two AI Lab runs from committing to main at the same time.
 concurrency:
   group: ai-lab-research-main
   cancel-in-progress: false
@@ -34,388 +33,103 @@ jobs:
 
       # ============================================================
       # AI LAB
+      #
+      # Workflowet startar bara forskningsmotorn.
+      # Forskningslogiken ligger i adaptive_research.py.
       # ============================================================
 
-      - name: Run AI Lab research state
+      - name: Run autonomous AI Lab research
         run: |
-          mkdir -p data/ai_lab/inbox
-          mkdir -p data/ai_lab/results
+          echo "=== START AI LAB RESEARCH ==="
 
-          cat > data/ai_lab/inbox/experiment.json <<'EOF'
-          {
-            "experiment_id": "research_state_snapshot",
-            "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
-            "experiment": "research_state"
-          }
-          EOF
+          python -u ml/ai-lab/adaptive_research.py
 
-          echo "=== AI LAB EXPERIMENT ==="
-          cat data/ai_lab/inbox/experiment.json
-          echo "========================="
-
-          python -u ml/ai-lab/ai_lab_runner.py \
-            data/ai_lab/inbox/experiment.json
-
-      # ============================================================
-      # AI LAB PLANNER
-      # ============================================================
-
-      - name: Run AI Lab experiment planner
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          source = Path(
-              "data/ai_lab/results/research_state_snapshot/results.json"
-          )
-
-          with source.open(
-              "r",
-              encoding="utf-8",
-          ) as handle:
-              payload = json.load(handle)
-
-          execution = payload.get(
-              "execution",
-              {},
-          )
-
-          research_state = execution.get(
-              "result"
-          )
-
-          if not isinstance(
-              research_state,
-              dict,
-          ):
-              raise ValueError(
-                  "research_state_snapshot does not contain "
-                  "a valid execution.result object."
-              )
-
-          planner_spec = {
-              "experiment_id": "experiment_planner",
-              "description": (
-                  "Controlled experiment proposal generated "
-                  "from the current Blankdiss research state."
-              ),
-              "experiment": "experiment_planner",
-              "research_state": research_state,
-          }
-
-          output = Path(
-              "data/ai_lab/inbox/experiment_planner.json"
-          )
-
-          with output.open(
-              "w",
-              encoding="utf-8",
-          ) as handle:
-              json.dump(
-                  planner_spec,
-                  handle,
-                  indent=2,
-                  ensure_ascii=False,
-              )
-              handle.write("\n")
-          PY
-
-          echo "=== AI LAB EXPERIMENT PLANNER ==="
-          cat data/ai_lab/inbox/experiment_planner.json
-          echo "================================="
-
-          python -u ml/ai-lab/ai_lab_runner.py \
-            data/ai_lab/inbox/experiment_planner.json
-
-      # ============================================================
-      # EXECUTE PLANNER PROPOSAL / LOCKED CONFIRMATION
-      # ============================================================
-
-      - name: Execute selected research proposal
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          planner_path = Path(
-              "data/ai_lab/results/experiment_planner/results.json"
-          )
-
-          with planner_path.open(
-              "r",
-              encoding="utf-8",
-          ) as handle:
-              payload = json.load(handle)
-
-          execution = payload.get(
-              "execution",
-              {},
-          )
-
-          result = execution.get(
-              "result",
-              {},
-          )
-
-          status = result.get(
-              "status"
-          )
-
-          selection = result.get(
-              "selection",
-              {},
-          )
-
-          if status == "proposal_created":
-              spec_id = selection.get(
-                  "source_spec"
-              )
-
-              stage = selection.get(
-                  "stage"
-              )
-
-              locked = selection.get(
-                  "locked"
-              )
-
-              if not spec_id:
-                  raise ValueError(
-                      "Planner proposal has no source_spec."
-                  )
-
-              if locked is True:
-                  raise ValueError(
-                      "Refusing to execute a locked "
-                      "research specification."
-                  )
-
-              if stage == "migration":
-                  raise ValueError(
-                      "Refusing to execute a migration "
-                      "specification."
-                  )
-
-              print(
-                  "Execution mode: planner proposal"
-              )
-
-          elif status == "no_proposal":
-              root = Path(
-                  "data/processed/ml/research/spec_runs"
-              )
-
-              walk_forward_results = list(
-                  root.glob(
-                      "*/momentum_si_regime_walk_forward.json"
-                  )
-              )
-
-              confirmation_results = list(
-                  root.glob(
-                      "*/momentum_si_prospective_confirmation.json"
-                  )
-              )
-
-              if not walk_forward_results:
-                  raise SystemExit(
-                      "Planner returned no_proposal and the "
-                      "walk-forward prerequisite is not present."
-                  )
-
-              if confirmation_results:
-                  raise SystemExit(
-                      "Planner returned no_proposal and the locked "
-                      "confirmation has already been executed."
-                  )
-
-              spec_id = (
-                  "momentum_si_prospective_confirmation"
-              )
-
-              stage = "prospective_confirmation"
-              locked = True
-
-              print(
-                  "Execution mode: locked prospective confirmation"
-              )
-              print(
-                  "Walk-forward prerequisite found."
-              )
-              print(
-                  "Confirmation result not found; executing "
-                  "the locked confirmation spec exactly as defined."
-              )
-
-          else:
-              raise SystemExit(
-                  "AI Lab planner returned an unexpected status: "
-                  f"{status!r}"
-              )
-
-          spec_path = (
-              Path("ml/research/specs")
-              / f"{spec_id}.yaml"
-          )
-
-          if not spec_path.exists():
-              raise FileNotFoundError(
-                  f"Selected spec does not exist: {spec_path}"
-              )
-
-          # A locked specification is allowed only for the one
-          # explicitly approved prospective confirmation.
-          if (
-              locked is True
-              and spec_id != "momentum_si_prospective_confirmation"
-          ):
-              raise ValueError(
-                  "Refusing to execute an unexpected locked "
-                  "research specification."
-              )
-
-          if stage == "migration":
-              raise ValueError(
-                  "Refusing to execute a migration "
-                  "specification."
-              )
-
-          print(
-              f"Selected spec: {spec_id}"
-          )
-          print(
-              f"Stage: {stage}"
-          )
-          print(
-              f"Spec: {spec_path}"
-          )
-          PY
-
-          SPEC_ID=$(python - <<'PY'
-          import json
-          from pathlib import Path
-
-          planner_path = Path(
-              "data/ai_lab/results/experiment_planner/results.json"
-          )
-
-          with planner_path.open(
-              "r",
-              encoding="utf-8",
-          ) as handle:
-              payload = json.load(handle)
-
-          result = payload.get(
-              "execution",
-              {},
-          ).get(
-              "result",
-              {},
-          )
-
-          status = result.get(
-              "status"
-          )
-
-          if status == "proposal_created":
-              print(
-                  result[
-                      "selection"
-                  ][
-                      "source_spec"
-                  ]
-              )
-              raise SystemExit
-
-          if status == "no_proposal":
-              root = Path(
-                  "data/processed/ml/research/spec_runs"
-              )
-
-              walk_forward_results = list(
-                  root.glob(
-                      "*/momentum_si_regime_walk_forward.json"
-                  )
-              )
-
-              confirmation_results = list(
-                  root.glob(
-                      "*/momentum_si_prospective_confirmation.json"
-                  )
-              )
-
-              if (
-                  walk_forward_results
-                  and not confirmation_results
-              ):
-                  print(
-                      "momentum_si_prospective_confirmation"
-                  )
-                  raise SystemExit
-
-          raise SystemExit(
-              "No executable research spec was selected."
-          )
-          PY
-          )
-
-          PYTHONPATH=. python -u ml/research/runner.py \
-            "ml/research/specs/${SPEC_ID}.yaml"
+          echo "=== AI LAB RESEARCH FINISHED ==="
 
       # ============================================================
       # SHOW RESULTS
       # ============================================================
 
-      - name: Show AI Lab results
+      - name: Show AI Lab research state
         if: always()
         run: |
-          echo "=== AI LAB RESULTS ==="
+          echo "=== AI LAB STATE ==="
 
-          if [ -d data/ai_lab/results ]; then
-            find data/ai_lab/results -maxdepth 3 -type f -print
+          if [ -f data/ai_lab/adaptive_research/state.json ]; then
+            cat data/ai_lab/adaptive_research/state.json
           else
-            echo "No results directory found."
+            echo "No adaptive research state found."
           fi
 
-          echo "=== RESEARCH ENGINE RESULTS ==="
+          echo "===================="
+
+      - name: Show generated research artifacts
+        if: always()
+        run: |
+          echo "=== GENERATED ADAPTIVE SPECS ==="
+
+          if [ -d ml/research/specs ]; then
+            find ml/research/specs \
+              -maxdepth 1 \
+              -type f \
+              -name 'adaptive_*.yaml' \
+              -print
+          else
+            echo "No research specs directory found."
+          fi
+
+          echo "=== GENERATED EXPERIMENT CODE ==="
+
+          if [ -d ml/research/discovery ]; then
+            find ml/research/discovery \
+              -maxdepth 1 \
+              -type f \
+              -name 'adaptive_*.py' \
+              -print
+          else
+            echo "No discovery directory found."
+          fi
+
+          echo "=== RESEARCH RESULTS ==="
 
           if [ -d data/processed/ml/research/spec_runs ]; then
-            find data/processed/ml/research/spec_runs -maxdepth 2 -type f -print
+            find data/processed/ml/research/spec_runs \
+              -maxdepth 2 \
+              -type f \
+              -print
           else
-            echo "No research engine results directory found."
+            echo "No research results directory found."
           fi
 
-          echo "======================"
+          echo "========================"
 
       # ============================================================
-      # COMMIT GENERATED DATA
+      # COMMIT GENERATED DATA / SPECS / CODE
       # ============================================================
 
-      - name: Commit generated data
+      - name: Commit generated research artifacts
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/ai_lab/
-
-          if [ -d data/processed/ml/research/spec_runs ]; then
-            git add data/processed/ml/research/spec_runs/
-          fi
+          git add \
+            data/ai_lab/adaptive_research/ \
+            data/processed/ml/research/spec_runs/ \
+            ml/research/specs/adaptive_*.yaml \
+            ml/research/discovery/adaptive_*.py
 
           if git diff --cached --quiet; then
-            echo "No AI Lab or research changes to commit."
+            echo "No AI Lab research changes to commit."
             exit 0
           fi
 
-          git commit -m "Run AI Lab research planner"
+          git commit \
+            -m "Run autonomous AI Lab research"
 
-          # The remote main branch may have moved after checkout.
-          # Rebase onto the latest main before pushing, with retries
-          # for a possible external push racing this workflow.
           for attempt in 1 2 3; do
             echo "Syncing with origin/main..."
+
             git fetch origin main
 
             if git rebase origin/main; then
@@ -433,5 +147,5 @@ jobs:
             fi
           done
 
-          echo "Failed to push generated data after 3 attempts."
+          echo "Failed to push generated research artifacts after 3 attempts."
           exit 1
