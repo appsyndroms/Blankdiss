@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from adaptive_config import (
+from config import (
     ROOT,
+    RUNS_DIR,
 )
-from config import RUNS_DIR
-from research.engine import run_spec
-from research.spec import ResearchSpec
+from ml.research.engine import run_spec
+from ml.research.spec import ResearchSpec
 from state import (
     read_json,
     write_json,
