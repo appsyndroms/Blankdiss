@@ -87,24 +87,16 @@ def analyse_conditional_regime_comparison(
     Antalet baseline-signaler är inte låst till två.
     """
 
-    if len(signals) < 3:
+    if len(signals) < 2:
         raise ValueError(
             "conditional_regime_comparison kräver "
-            "minst tre signaler."
+            "minst två signaler."
         )
 
     if len(signals) != len(fractions):
         raise ValueError(
             "Number of signals must match "
             "number of fractions."
-        )
-
-    if any(
-        len(signal.bins) != 1
-        for signal in signals[:-1]
-    ):
-        raise ValueError(
-            "Baseline signals must each have exactly one bin."
         )
 
     target = cache.targets[target_name]
