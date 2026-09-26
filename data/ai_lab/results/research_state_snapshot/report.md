@@ -14,15 +14,15 @@
 
 ## Execution
 
-- Started: `2026-09-25T20:47:21.014373+00:00`
-- Finished: `2026-09-25T20:47:21.057895+00:00`
+- Started: `2026-09-26T05:07:13.415730+00:00`
+- Finished: `2026-09-26T05:07:13.462470+00:00`
 
 ## Result
 
 ```json
 {
   "state_version": 2,
-  "created_at_utc": "2026-09-25T20:47:21.057885+00:00",
+  "created_at_utc": "2026-09-26T05:07:13.462462+00:00",
   "purpose": "Controlled research-state snapshot for Blankdiss AI Lab.",
   "repository": "appsyndroms/Blankdiss",
   "research": {
@@ -956,8 +956,8 @@
         "description": "Controlled experiment proposal generated from the current Blankdiss research state.",
         "success": true,
         "experiment": "experiment_planner",
-        "started_at": "2026-09-25T20:21:00.738869+00:00",
-        "finished_at": "2026-09-25T20:21:00.738921+00:00"
+        "started_at": "2026-09-25T20:47:21.149359+00:00",
+        "finished_at": "2026-09-25T20:47:21.149409+00:00"
       },
       {
         "path": "data/ai_lab/results/research_state_snapshot/results.json",
@@ -965,13 +965,13 @@
         "description": "Read-only snapshot of the current Blankdiss research state for AI Lab reasoning.",
         "success": true,
         "experiment": "research_state",
-        "started_at": "2026-09-25T20:21:00.588233+00:00",
-        "finished_at": "2026-09-25T20:21:00.632950+00:00"
+        "started_at": "2026-09-25T20:47:21.014373+00:00",
+        "finished_at": "2026-09-25T20:47:21.057895+00:00"
       }
     ]
   },
   "research_runs": {
-    "run_count": 2,
+    "run_count": 3,
     "runs": [
       {
         "path": "data/processed/ml/research/spec_runs/20260925T201426Z/manifest.json",
@@ -1000,6 +1000,21 @@
             "question": "Tillför förändring i short interest information om downside-risk inom negativa momentumregimer, trots att short-interest-förändring inte förbättrar den globala modellen?\n",
             "result": "data/processed/ml/research/spec_runs/20260925T202106Z/momentum_si_regime_walk_forward.json",
             "rows": 192
+          }
+        ]
+      },
+      {
+        "path": "data/processed/ml/research/spec_runs/20260925T204730Z/manifest.json",
+        "created_at_utc": "2026-09-25T20:47:30.719097+00:00",
+        "feature_rows": 202240,
+        "spec_count": 1,
+        "specs": [
+          {
+            "id": "direction_signal_scan",
+            "mode": "scan",
+            "question": "Har signalerna en riktad relation till framtida upp- respektive nedgång, eller beskriver de huvudsakligen generell event-risk?\n",
+            "result": "data/processed/ml/research/spec_runs/20260925T204730Z/direction_signal_scan.json",
+            "rows": 324
           }
         ]
       }
