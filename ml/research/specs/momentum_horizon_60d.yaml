@@ -1,0 +1,71 @@
+id: momentum_horizon_60d
+
+question: >
+  Tillför längre 60-dagars negativt momentum information om
+  downside-risk inom de 20 procent mest negativa 5-dagars
+  momentumobservationerna?
+
+mode: deep
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.20
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  stage: hypothesis_test
+  purpose: momentum_horizon_60d
+
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  hypothesis:
+    baseline: negative_5d_momentum_20pct
+    incremental_signal: negative_60d_momentum_20pct
+    expected_effect: additional_downside_risk
+
+  comparison:
+    baseline:
+      definition: negative_5d_momentum_20pct
+
+    combined:
+      definition: negative_5d_momentum_20pct_and_negative_60d_momentum_20pct
+
+    primary_metric:
+      name: absolute_event_rate_difference
+      definition: combined_event_rate_minus_baseline_event_rate
+
+    secondary_metrics:
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+
+  note: >
+    Detta är ett fristående discovery-test. Resultatet får inte
+    användas för att ändra parametrar eller primärt endpoint i
+    momentum_si_prospective_confirmation.
