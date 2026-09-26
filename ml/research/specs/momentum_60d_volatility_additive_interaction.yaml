@@ -1,0 +1,79 @@
+id: momentum_60d_volatility_additive_interaction
+
+question: >
+  Finns det en icke-additiv kombinationseffekt mellan negativt
+  60-dagars momentum och hög 20-dagars prisvolatilitet för
+  downside-risk?
+
+mode: deep
+
+signals:
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: interaction
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  stage: hypothesis_test
+  purpose: momentum_60d_volatility_additive_interaction
+
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  hypothesis:
+    signal_1: negative_60d_momentum_20pct
+    signal_2: high_20d_volatility_20pct
+    expected_effect: >
+      combined_downside_risk_exceeds_additive_expectation
+
+  comparison:
+    primary_metric:
+      name: additive_interaction
+      definition: >
+        p11 - p10 - p01 + p00, där p11 är event rate när båda
+        signalerna är aktiva, p10 när endast signal 1 är aktiv,
+        p01 när endast signal 2 är aktiv och p00 när ingen av
+        signalerna är aktiv.
+
+    contextual_metrics:
+      - signal_1_event_rate
+      - signal_2_event_rate
+      - combined_event_rate
+      - signal_1_only_event_rate
+      - signal_2_only_event_rate
+      - neither_event_rate
+      - combined_n
+      - combined_events
+
+  note: >
+    Detta är ett fristående discovery-test. Resultatet får inte
+    användas för att ändra parametrar eller primärt endpoint i
+    momentum_si_prospective_confirmation. Testet är avsett att
+    undersöka en eventuell icke-additiv kombinationseffekt mellan
+    60-dagars momentum och 20-dagars volatilitet utan att använda
+    resultatet för parameterurval eller modifiering av den låsta
+    prospektiva bekräftelsen.
