@@ -129,7 +129,7 @@ jobs:
             data/ai_lab/inbox/experiment_planner.json
 
       # ============================================================
-      # EXECUTE PLANNER PROPOSAL
+      # EXECUTE PLANNER PROPOSAL / LOCKED CONFIRMATION
       # ============================================================
 
       - name: Execute selected research proposal
@@ -138,11 +138,11 @@ jobs:
           import json
           from pathlib import Path
 
-          source = Path(
+          planner_path = Path(
               "data/ai_lab/results/experiment_planner/results.json"
           )
 
-          with source.open(
+          with planner_path.open(
               "r",
               encoding="utf-8",
           ) as handle:
@@ -158,46 +158,100 @@ jobs:
               {},
           )
 
-          if result.get(
+          status = result.get(
               "status"
-          ) != "proposal_created":
-              raise SystemExit(
-                  "AI Lab planner did not create "
-                  "an executable proposal."
-              )
+          )
 
           selection = result.get(
               "selection",
               {},
           )
 
-          spec_id = selection.get(
-              "source_spec"
-          )
-
-          stage = selection.get(
-              "stage"
-          )
-
-          locked = selection.get(
-              "locked"
-          )
-
-          if not spec_id:
-              raise ValueError(
-                  "Planner proposal has no source_spec."
+          if status == "proposal_created":
+              spec_id = selection.get(
+                  "source_spec"
               )
 
-          if locked is True:
-              raise ValueError(
-                  "Refusing to execute a locked "
-                  "research specification."
+              stage = selection.get(
+                  "stage"
               )
 
-          if stage == "migration":
-              raise ValueError(
-                  "Refusing to execute a migration "
-                  "specification."
+              locked = selection.get(
+                  "locked"
+              )
+
+              if not spec_id:
+                  raise ValueError(
+                      "Planner proposal has no source_spec."
+                  )
+
+              if locked is True:
+                  raise ValueError(
+                      "Refusing to execute a locked "
+                      "research specification."
+                  )
+
+              if stage == "migration":
+                  raise ValueError(
+                      "Refusing to execute a migration "
+                      "specification."
+                  )
+
+              print(
+                  "Execution mode: planner proposal"
+              )
+
+          elif status == "no_proposal":
+              root = Path(
+                  "data/processed/ml/research/spec_runs"
+              )
+
+              walk_forward_results = list(
+                  root.glob(
+                      "*/momentum_si_regime_walk_forward.json"
+                  )
+              )
+
+              confirmation_results = list(
+                  root.glob(
+                      "*/momentum_si_prospective_confirmation.json"
+                  )
+              )
+
+              if not walk_forward_results:
+                  raise SystemExit(
+                      "Planner returned no_proposal and the "
+                      "walk-forward prerequisite is not present."
+                  )
+
+              if confirmation_results:
+                  raise SystemExit(
+                      "Planner returned no_proposal and the locked "
+                      "confirmation has already been executed."
+                  )
+
+              spec_id = (
+                  "momentum_si_prospective_confirmation"
+              )
+
+              stage = "prospective_confirmation"
+              locked = True
+
+              print(
+                  "Execution mode: locked prospective confirmation"
+              )
+              print(
+                  "Walk-forward prerequisite found."
+              )
+              print(
+                  "Confirmation result not found; executing "
+                  "the locked confirmation spec exactly as defined."
+              )
+
+          else:
+              raise SystemExit(
+                  "AI Lab planner returned an unexpected status: "
+                  f"{status!r}"
               )
 
           spec_path = (
@@ -207,12 +261,28 @@ jobs:
 
           if not spec_path.exists():
               raise FileNotFoundError(
-                  f"Planner selected missing spec: "
-                  f"{spec_path}"
+                  f"Selected spec does not exist: {spec_path}"
+              )
+
+          # A locked specification is allowed only for the one
+          # explicitly approved prospective confirmation.
+          if (
+              locked is True
+              and spec_id != "momentum_si_prospective_confirmation"
+          ):
+              raise ValueError(
+                  "Refusing to execute an unexpected locked "
+                  "research specification."
+              )
+
+          if stage == "migration":
+              raise ValueError(
+                  "Refusing to execute a migration "
+                  "specification."
               )
 
           print(
-              f"Executing planner proposal: {spec_id}"
+              f"Selected spec: {spec_id}"
           )
           print(
               f"Stage: {stage}"
@@ -226,26 +296,66 @@ jobs:
           import json
           from pathlib import Path
 
-          path = Path(
+          planner_path = Path(
               "data/ai_lab/results/experiment_planner/results.json"
           )
 
-          with path.open(
+          with planner_path.open(
               "r",
               encoding="utf-8",
           ) as handle:
               payload = json.load(handle)
 
-          print(
-              payload[
-                  "execution"
-              ][
-                  "result"
-              ][
-                  "selection"
-              ][
-                  "source_spec"
-              ]
+          result = payload.get(
+              "execution",
+              {},
+          ).get(
+              "result",
+              {},
+          )
+
+          status = result.get(
+              "status"
+          )
+
+          if status == "proposal_created":
+              print(
+                  result[
+                      "selection"
+                  ][
+                      "source_spec"
+                  ]
+              )
+              raise SystemExit
+
+          if status == "no_proposal":
+              root = Path(
+                  "data/processed/ml/research/spec_runs"
+              )
+
+              walk_forward_results = list(
+                  root.glob(
+                      "*/momentum_si_regime_walk_forward.json"
+                  )
+              )
+
+              confirmation_results = list(
+                  root.glob(
+                      "*/momentum_si_prospective_confirmation.json"
+                  )
+              )
+
+              if (
+                  walk_forward_results
+                  and not confirmation_results
+              ):
+                  print(
+                      "momentum_si_prospective_confirmation"
+                  )
+                  raise SystemExit
+
+          raise SystemExit(
+              "No executable research spec was selected."
           )
           PY
           )
