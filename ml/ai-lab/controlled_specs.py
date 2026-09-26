@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from config import (
     LOCKED_CONFIRMATION_ID,
     SPEC_DIR,
 )
 from experiments import load_yaml
-from spec import load_spec
+from ml.research.spec import load_spec
 
 
 def discover_controlled_specs():
@@ -53,12 +51,10 @@ def discover_controlled_specs():
                 "be registered as an AI Lab controlled spec."
             )
 
-        spec = load_spec(path)
-
         specs.append(
             (
                 path,
-                spec,
+                load_spec(path),
             )
         )
 
