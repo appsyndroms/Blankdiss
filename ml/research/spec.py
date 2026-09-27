@@ -26,6 +26,15 @@ VALID_DIRECTIONS = {
     "lower",
 }
 
+ANALYSIS_SIGNAL_REQUIREMENTS = {
+    "tail": (1, None),
+    "interaction": (2, 2),
+    "regime_comparison": (2, 2),
+    "multi_regime_comparison": (3, None),
+    "nested_regime_comparison": (3, 3),
+    "conditional_regime_comparison": (2, None),
+}
+
 
 @dataclass(frozen=True)
 class SignalSpec:
@@ -73,6 +82,36 @@ def _tuple_floats(
         float(value)
         for value in values
     )
+
+
+def _validate_analysis_signal_count(
+    analysis_type: str,
+    signal_count: int,
+) -> None:
+    min_signals, max_signals = (
+        ANALYSIS_SIGNAL_REQUIREMENTS[analysis_type]
+    )
+
+    if signal_count < min_signals:
+        if max_signals == min_signals:
+            raise ValueError(
+                f"{analysis_type} kräver "
+                f"exakt {min_signals} signaler."
+            )
+
+        raise ValueError(
+            f"{analysis_type} kräver "
+            f"minst {min_signals} signaler."
+        )
+
+    if (
+        max_signals is not None
+        and signal_count > max_signals
+    ):
+        raise ValueError(
+            f"{analysis_type} kräver "
+            f"exakt {max_signals} signaler."
+        )
 
 
 def load_spec(
@@ -217,33 +256,10 @@ def load_spec(
             f"'{analysis_type}' i {path}"
         )
 
-    if (
-        analysis_type == "multi_regime_comparison"
-        and len(signals) < 3
-    ):
-        raise ValueError(
-            "multi_regime_comparison kräver "
-            "minst tre signaler."
-        )
-
-    if (
-        analysis_type == "nested_regime_comparison"
-        and len(signals) != 3
-    ):
-        raise ValueError(
-            "nested_regime_comparison kräver "
-            "exakt tre signaler."
-        )
-
-    if (
-        analysis_type
-        == "conditional_regime_comparison"
-        and len(signals) < 2
-    ):
-        raise ValueError(
-            "conditional_regime_comparison kräver "
-            "minst två signaler."
-        )
+    _validate_analysis_signal_count(
+        analysis_type,
+        len(signals),
+    )
 
     bootstrap = bool(
         raw_analysis.get(
