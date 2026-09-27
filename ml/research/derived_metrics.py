@@ -4,13 +4,6 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import Any
 from .spec import ResearchSpec
-def _safe_divide(
-    numerator: int | float | None,
-    denominator: int | float | None,
-) -> float | None:
-    if numerator is None or denominator in (None, 0):
-        return None
-    return float(numerator) / float(denominator)
 def _legacy_definitions(
     metadata: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -27,7 +20,7 @@ def _legacy_definitions(
         [
             {
                 "name": "p_down_10_given_down_7",
-                "formula": "...",
+                "formula": "..."
             }
         ]
     This keeps existing YAML files backwards compatible.
@@ -170,26 +163,6 @@ def _generic_counts(
             f"{regime}_events"
         ] = row.get("events")
     return dict(counts)
-def _regime_from_name(
-    name: str,
-) -> tuple[str | None, str]:
-    """
-    Resolve optional regime suffixes used by formulas.
-    Examples:
-        p_x_incremental -> ("incremental", "p_x")
-        p_x_baseline    -> ("baseline", "p_x")
-        p_x_comparator  -> ("comparator", "p_x")
-        p_x             -> (None, "p_x")
-    """
-    for regime in (
-        "incremental",
-        "baseline",
-        "comparator",
-    ):
-        suffix = f"_{regime}"
-        if name.endswith(suffix):
-            return regime, name[: -len(suffix)]
-    return None, name
 def _safe_numeric_operation(
     operator: ast.operator,
     left: float | None,
@@ -319,6 +292,38 @@ def _result_values(
                 f"{name}_{regime}"
             ] = value
     return values
+def _formula_uses_regime_reference(
+    formula: str,
+    regimes: tuple[str, ...],
+) -> bool:
+    """
+    Detect cross-regime references from the parsed expression rather
+    than from substring matching.
+    For example:
+        p_down_10_given_down_7_incremental
+        p_down_10_given_down_7_baseline
+    are regime references, while an arbitrary piece of text
+    containing '_baseline' is not.
+    """
+    try:
+        tree = ast.parse(
+            formula,
+            mode="eval",
+        )
+    except SyntaxError as exc:
+        raise ValueError(
+            f"Ogiltigt derived metric-uttryck: {formula!r}"
+        ) from exc
+    names = {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+    }
+    return any(
+        name.endswith(f"_{regime}")
+        for name in names
+        for regime in regimes
+    )
 def _calculate_metrics(
     definitions: list[dict[str, Any]],
     counts: dict[str, dict[str, int | float | None]],
@@ -349,11 +354,10 @@ def _calculate_metrics(
     for definition in definitions:
         name = str(definition["name"])
         formula = str(definition["formula"])
-        regime_references = any(
-            f"_{regime}" in formula
-            for regime in regimes
-        )
-        if regime_references:
+        if _formula_uses_regime_reference(
+            formula,
+            regimes,
+        ):
             continue
         for regime in regimes:
             formula_values = _base_values_for_regime(
@@ -370,11 +374,10 @@ def _calculate_metrics(
     for definition in definitions:
         name = str(definition["name"])
         formula = str(definition["formula"])
-        regime_references = any(
-            f"_{regime}" in formula
-            for regime in regimes
-        )
-        if not regime_references:
+        if not _formula_uses_regime_reference(
+            formula,
+            regimes,
+        ):
             continue
         formula_values = _result_values(
             values
