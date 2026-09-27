@@ -1,28 +1,245 @@
-Blankdiss Research Engine
+Absolut. Jag har utgått från den faktiska README:n på main och uppdaterat bara det som behöver ändras för den nya Research Engine-strukturen. Jag skulle samtidigt lägga in ett tydligare avsnitt om ansvarsfördelningen mellan spec.py, engine.py och analysmodulerna.
 
-ml/research/ är Blankdiss generiska forskningsmotor.
+Här är hela README:n:
 
-Målet är att göra nya forskningshypoteser billiga att formulera, köra och iterera.
-
-Grundflödet är:
-
-hypotes
-   ↓
-YAML research spec
-   ↓
+# Blankdiss
+Blankdiss är ett forskningsprojekt för att undersöka om offentlig information om bolag, blankning, prisrörelser, rapporter och andra marknadsvariabler innehåller statistiskt och ekonomiskt användbara mönster.
+Projektet kombinerar:
+* datainsamling
+* feature engineering
+* datakvalitet
+* ML
+* walk-forward evaluation
+* hypotesdriven research
+* automatiserade analyser
+* reproducerbara resultat
+Målet är inte att bygga en samling fristående analyser, utan en återanvändbar forskningspipeline där nya hypoteser kan testas snabbt, systematiskt och utan onödig specialkod.
+⸻
+## Översikt
+                         Blankdiss
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+        Data collection                ML / Research
+              │                           │
+       ┌──────┴──────┐             ┌──────┴──────┐
+       │             │             │             │
+      FI           Prices       Research     Diagnostics
+       │             │             │             │
+       └──────┬──────┘             │             │
+              ▼                    │             │
+       Feature generation           │             │
+              │                    │             │
+              ▼                    ▼             ▼
+       Feature dataset        ml/research/   ml/diagnostics/
+              │                    │             │
+              ▼                    └──────┬──────┘
+         Feature QC                      │
+              │                          │
+              └──────────────┬───────────┘
+                             ▼
+                        OOS results
+                             │
+                             ▼
+                       AI / analysis
+⸻
+## Forskningsflödet
+Den normala vägen från idé till resultat är:
+Ny hypotes
+    ↓
+Kan befintlig Research Engine uttrycka den?
+    │
+    ├── JA
+    │    ↓
+    │  YAML research spec
+    │    ↓
+    │  SCAN
+    │
+    └── NEJ
+         ↓
+    Behövs en ny generell analysform?
+         │
+         ├── JA
+         │    ↓
+         │  Utöka Research Engine
+         │    ↓
+         │  YAML research spec
+         │    ↓
+         │  SCAN
+         │
+         └── NEJ
+              ↓
+         custom / Diagnostics
 SCAN
-   ↓
-intressant resultat
-   ↓
+    ↓
+Intressant resultat?
+    ↓
 DEEP
-   ↓
-robusthet / specialanalys
-   ↓
+    ↓
+Robusthet / specialanalys
+    ↓
 OOS-resultat
+Målet är att en ny vanlig hypotes ska kunna testas utan att en ny Python-fil, experimentklass eller workflow behöver byggas.
+⸻
+## Viktig arkitekturregel
+En ny hypotes och en ny analysform är två olika saker.
+### Ny hypotes
+YAML
+### Ny generell analysform
+Research Engine + YAML
+### Unik specialanalys
+custom/ eller Diagnostics
+Man ska inte skapa standalone-analyser bara för att den första hypotesen av en viss typ kräver ny Engine-funktionalitet.
+Om Research Engine exempelvis saknar stöd för en generell analysform ska analysformen implementeras som generell Engine-funktionalitet.
+Därefter uttrycks den konkreta hypotesen som YAML.
+Det ska alltså inte bli:
+Ny hypotes
+    ↓
+ny Python-fil
+    ↓
+ny experimentklass
+    ↓
+ny registry
+    ↓
+ny workflow
+⸻
+## Research Engine
+Research Engine är den generiska körmotorn för deklarativ hypotesdriven research.
+Ansvarsfördelningen är:
+```text
+spec.py
+    │
+    │ deklarativa regler och kontrakt
+    ▼
+engine.py
+    │
+    │ dispatch + orchestration
+    ▼
+analysis modules
+    │
+    │ konkret analyslogik
+    ▼
+analysis_utils.py
+    │
+    │ gemensamma implementation-hjälpare
+    ▼
+results
+
+spec.py
+
+spec.py definierar Research Specs och deras deklarativa kontrakt.
+
+Det omfattar bland annat:
+
+* analysis types
+* signaler
+* targets
+* windows
+* splits
+* bootstrap-konfiguration
+* krav på antal signaler för olika analysis types
+
+Exempelvis är antalet signaler en egenskap hos analysformen och inte något som ska avgöras av engine.py.
+
+Det betyder att:
+
+spec.py
+    ↓
+"conditional_regime_comparison kräver minst 2 signaler"
+
+medan den konkreta analysimplementationen fortfarande får kontrollera sina egna runtime-invarianter.
+
+engine.py
+
+engine.py ska främst vara orchestration och dispatch.
+
+Den ansvarar för att:
+
+* läsa en ResearchSpec
+* iterera över targets, windows och splits
+* kombinera YAML-specens parametrar
+* välja rätt analysis module
+* samla resultaten
+
+engine.py ska inte innehålla den fullständiga implementationen av varje analysform.
+
+Exempel:
+
+analysis.type
+    │
+    ├── tail
+    ├── interaction
+    ├── regime_comparison
+    ├── multi_regime_comparison
+    ├── nested_regime_comparison
+    └── conditional_regime_comparison
+
+Engine väljer rätt analysmodul.
+
+Analysis modules
+
+Varje generell analysform ska ha sin egen implementation när logiken är tillräckligt omfattande.
+
+ml/research/
+├── interaction.py
+├── conditional.py
+├── regime.py
+├── multi_regime.py
+└── nested_regime.py
+
+Ansvar:
+
+* interaction.py → interaction-analyser
+* conditional.py → conditional regime-analyser
+* regime.py → tvåsignal regime_comparison
+* multi_regime.py → tre eller fler signaler i kombinerad regim
+* nested_regime.py → inkrementell signal efter etablerad baseline-regim
+
+Analysmodulerna äger den konkreta runtime-logiken och sina implementation-invarianter.
+
+analysis_utils.py
+
+analysis_utils.py innehåller gemensamma implementation-hjälpare som används av flera analysmoduler.
+
+Exempel:
+
+* stabil seed-generering
+* gemensam beräkning av event rate
+
+Detta är inte en egen analysis type.
+
+Syftet är att undvika att samma implementation ligger duplicerad i flera analysis modules eller som privata helpers i engine.py.
+
+Runtime-invarianter
+
+Deklarativa krav och runtime-skydd har olika ansvar.
+
+Exempel:
+
+spec.py
+    ↓
+conditional_regime_comparison
+måste ha minst 2 signaler
+
+och:
+
+conditional.py
+    ↓
+kontrollerar fortfarande
+att runtime-anropet faktiskt
+har tillräckligt många signaler
+
+Detta är avsiktligt.
+
+spec.py definierar kontraktet.
+
+Analysis module skyddar sin implementation.
 
 ⸻
 
-Arkitektur
+Research Engine-struktur
+
+Den generiska researchdelen ligger under:
 
 ml/research/
 ├── spec.py
@@ -33,364 +250,228 @@ ml/research/
 ├── runner.py
 ├── reporting.py
 ├── bootstrap.py
-│
+├── analysis_utils.py
+├── interaction.py
+├── conditional.py
+├── regime.py
+├── multi_regime.py
+├── nested_regime.py
 ├── specs/
-│   └── *.yaml
-│
 └── custom/
-    └── *.py
 
-⸻
+Övergripande ansvar:
 
 spec.py
-
-Definierar det deklarativa research-formatet.
-
-En spec beskriver:
-
-* forskningsfråga
-* signaler
-* signalriktning
-* tail fractions
-* targets
-* analys
-* mode
-* windows
-* splits
-* metadata
-
-Vanliga hypoteser ska normalt börja här.
-
-⸻
-
+    ↓
+deklarativa Research Specs
 session.py
-
-Skapar en gemensam ResearchSession.
-
-Sessionen:
-
-1. laddar feature-datasetet
-2. identifierar gemensamma krav från alla specs
-3. bygger ResearchCache
-4. återanvänder samma data mellan analyser
-
-Det gör att flera hypoteser kan köras utan att samma dyra förberedelser upprepas.
-
-⸻
-
+    ↓
+research-session / körningskontext
 cache.py
-
-Cachelagret innehåller återanvändbara komponenter:
-
-* signaler
-* targets
-* forward returns
-* tail masks
-* walk-forward masks
-
-Princip:
-
-1 × data preparation
-N × research hypotheses
-
-inte:
-
-N × data preparation
-N × research hypotheses
-
-⸻
-
+    ↓
+förberäknade masks och data
 signals.py
-
-Innehåller standardiserade signaldefinitioner.
-
-Exempel:
-
-* short_interest_level
-* short_interest_change
-* short_interest_acceleration
-* price_momentum_5d
-* price_momentum_20d
-* price_momentum_60d
-* price_volatility_20d
-* distance_from_20d_high
-* distance_from_60d_high
-
-Nya återanvändbara signaler ska läggas här.
+    ↓
+signalrelaterad logik
+engine.py
+    ↓
+dispatch och orchestration
+analysis modules
+    ↓
+konkret generell analyslogik
+analysis_utils.py
+    ↓
+gemensamma implementation-hjälpare
+bootstrap.py
+    ↓
+statistisk bootstrap-logik
+runner.py
+    ↓
+körning av research specs
+reporting.py
+    ↓
+resultat och rapportering
+specs/
+    ↓
+konkreta YAML-hypoteser
+custom/
+    ↓
+specialiserade analyser
 
 ⸻
 
-engine.py
+Data → Features → Research
 
-Den generiska analysmotorn.
+FI data
+│
+├──────────────┐
+│              │
+▼              ▼
+FI aggregation   Prices
+│              │
+└──────┬───────┘
+▼
+Feature generation
+│
+▼
+Feature dataset
+│
+▼
+Feature QC
+│
+▼
+ML / Research
+│
+┌────┴────┐
+│         │
+▼         ▼
+Research  Diagnostics
+│         │
+└────┬────┘
+▼
+OOS results
 
-Engine ska innehålla återanvändbara analysis types.
+⸻
+
+ML-systemet
+
+ML-systemet finns under ml/.
+
+ml/
+├── config.py
+├── dataset.py
+├── walk_forward.py
+│
+├── research/
+│   ├── spec.py
+│   ├── session.py
+│   ├── cache.py
+│   ├── signals.py
+│   ├── engine.py
+│   ├── runner.py
+│   ├── reporting.py
+│   ├── bootstrap.py
+│   ├── analysis_utils.py
+│   ├── interaction.py
+│   ├── conditional.py
+│   ├── regime.py
+│   ├── multi_regime.py
+│   ├── nested_regime.py
+│   ├── specs/
+│   └── custom/
+│
+└── diagnostics/
+    ├── framework/
+    └── experiments/
+
+config.py innehåller gemensamma targets och walk-forward-konfiguration.
+
+dataset.py ansvarar för att läsa och förbereda feature-datasetet.
+
+walk_forward.py innehåller den gemensamma walk-forward-logiken.
+
+research/ är den generiska forskningsmotorn.
+
+diagnostics/ innehåller analyser som kräver mer specialiserad experimentlogik.
+
+⸻
+
+Research och Diagnostics
+
+Research
+
+Research används för generisk och bred hypotes-screening.
 
 Exempel:
 
+signal
+  ×
 tail
-interaction
-incremental_model
+  ×
+target
+  ×
+window
 
-En analysis type är en generell analysförmåga.
+Research är deklarativ när det är möjligt.
 
-Den ska inte vara namngiven efter en specifik forskningshypotes.
+Diagnostics
+
+Diagnostics används när frågan kräver egen analyslogik.
 
 Exempel:
 
-Rätt:
+* komplexa interaktioner
+* mekanismanalyser
+* specialiserade modeller
+* event-sekvenser
+* path dependence
+* avancerad ekonomisk analys
 
-incremental_model
+Principen är:
 
-Fel:
+Använd Research när frågan är generell.
 
-momentum_incremental_si
+Om Research Engine saknar den generella analysförmåga som behövs ska Engine utökas innan hypotesen flyttas till Diagnostics.
 
-Det konkreta experimentet ska beskrivas av YAML-specen.
-
-Engine ansvarar för standardiserade mått såsom:
-
-* observation count
-* event count
-* event rate
-* baseline event rate
-* lift
-* mean return
-* median return
-* return difference
-* modellmetrics
-* bootstrap CI i DEEP
-
-Analyslogik som återkommer mellan hypoteser ska flyttas hit.
+Använd Diagnostics när frågan kräver verkligt specialiserad logik.
 
 ⸻
 
 Införande av nya forskningshypoteser
 
-När en ny hypotes ska införas ska följande ordning alltid användas:
+När en ny forskningsidé uppstår ska följande ordning användas:
 
 1. Formulera forskningsfrågan.
-2. Läs denna README.
-3. Kontrollera spec.py.
-4. Kontrollera befintliga analysis types i engine.py.
-5. Kontrollera signals.py.
-6. Kontrollera cache.py.
-7. Avgör om hypotesen kan uttryckas med befintlig Engine.
-8. Om JA: skapa YAML-spec.
-9. Om NEJ: avgör om den saknade analysformen är generell.
-10. Om generell: implementera den i Engine.
-11. Skapa därefter YAML-specen.
-12. Kör research runner.
-13. Verifiera resultat och OOS.
-14. Ta bort eventuell legacy-implementation när migreringen är verifierad.
-
-Den viktiga distinktionen är:
-
-Ny hypotes
-    → YAML
-
-Ny generell analysis type
-    → Engine
-
-Ny hypotes som använder den nya analysis typen
-    → YAML
-
-En första hypotes som kräver ny Engine-funktionalitet ska alltså inte implementeras som standalone Python.
+2. Läs relevant README-dokumentation.
+3. Kontrollera befintliga Research Engine-analysis types.
+4. Kontrollera befintliga signaler, targets och cache-funktionalitet.
+5. Avgör om hypotesen redan kan beskrivas med YAML.
+6. Om JA: skapa en YAML research spec.
+7. Om NEJ: identifiera vilken generell funktionalitet som saknas.
+8. Om den saknade funktionaliteten är generell: implementera den i Research Engine.
+9. Uttryck därefter den konkreta hypotesen i YAML.
+10. Om analysen inte är generell och kräver verkligt specialiserad logik: använd custom/ eller Diagnostics.
+11. Kör SCAN/DEEP.
+12. Verifiera OOS-resultat.
+13. Ta bort eventuell äldre standalone-/legacy-implementation när den nya vägen är verifierad.
 
 Exempel:
 
 Hypotes:
 
-M0 = momentum
+momentum
+    +
+short-interest change
+    +
+interaction
 
-M1 = momentum + SI change
+Kontroll:
 
-M2 = momentum + SI change + momentum × SI change
-
-Om Engine saknar incremental_model ska man inte skapa:
-
-ml/research/momentum_incremental_si_analysis.py
-
-för den nya hypotesen.
-
-I stället:
-
-incremental_model
-    ↓
-engine.py
-
-och:
-
-momentum_incremental_si.yaml
-    ↓
-Research Engine
-
-Det gör att nästa liknande hypotes kan använda samma analysis type utan ny specialkod.
-
-⸻
-
-runner.py
-
-Runnern orkestrerar hela research-körningen.
-
-YAML specs
-    ↓
-ResearchSession
-    ↓
-ResearchCache
-    ↓
-Engine
-    ↓
-Results
-    ↓
-Manifest
-
-Alla specs i samma körning delar session och cache.
-
-Exempel:
-
-python -m ml.research.runner
-
-En specifik spec:
-
-python -m ml.research.runner \
-  ml/research/specs/my_hypothesis.yaml
-
-⸻
-
-SCAN
-
-SCAN är första filtret.
-
-Syftet är:
-
-Hitta hypoteser som förtjänar mer analys.
-
-SCAN ska vara:
-
-* bred
-* snabb
-* billig
-* reproducerbar
-
-Typiskt:
-
-många signaler
-×
-flera tails
-×
-flera targets
-×
-OOS windows
-
-Dyra analyser ska normalt vänta.
-
-⸻
-
-DEEP
-
-DEEP används när SCAN visar något som är värt att undersöka.
-
-Exempel:
-
-* bootstrap
-* confidence intervals
-* alternativa cutoffs
-* robusthetskontroller
-* placebo
-* kontrollgrupper
-* fler tidsperioder
-* specialiserad analys
-
-Princip:
-
-Gör inte en dyr analys av något som först borde ha screenats bort.
-
-⸻
-
-Research specs
-
-Research specs finns under:
-
-ml/research/specs/
-
-En vanlig spec kan exempelvis definiera:
-
-id: example_scan
-question: >
-  Hypotesen som ska testas.
-mode: scan
-signals:
-  - name: short_interest_change
-    direction: upper
-    bins: [0.20, 0.10, 0.05, 0.01]
-targets:
-  - down_5pct_5d
-analysis:
-  type: tail
-  bootstrap: false
-windows:
-  - window_1
-  - window_2
-splits:
-  - test
-
-Specen beskriver vad som ska testas.
-
-Engine beskriver hur den generiska analysen genomförs.
-
-⸻
-
-Custom research
-
-All research passar inte YAML.
-
-Specialiserad research som fortfarande hör hemma i Research-lagret placeras under:
-
-ml/research/custom/
-
-Exempel:
-
-* permutationstest
-* path dependence
-* komplexa event-sekvenser
-* specialiserad regression
-* ovanlig gruppering
-* avancerad mekanismanalys
-
-Custom-kod ska fortfarande återanvända Research Engine där det är möjligt.
-
-Custom ska inte användas enbart för att en generell analysis type ännu saknas i Engine.
-
-Om samma analyslogik kan användas av flera framtida hypoteser ska den normalt införas som en generell Engine-funktion i stället.
-
-⸻
-
-Research kontra Diagnostics
-
-Tumregel:
-
-Kan frågan beskrivas deklarativt?
+Finns analysis type?
         │
-       JA
-        ↓
-     Research
+        ├── JA
+        │    ↓
+        │  YAML
         │
-       NEJ
-        ↓
- custom / Diagnostics
-
-Men innan en fråga flyttas till custom eller Diagnostics ska det kontrolleras om den egentligen representerar en generell analysis type som saknas i Engine.
-
-Diagnostics används när analysen kräver ett mer specialiserat experimentframework.
+        └── NEJ
+             ↓
+        Är analysformen generell?
+             │
+             ├── JA
+             │    ↓
+             │  Engine
+             │    ↓
+             │  YAML
+             │
+             └── NEJ
+                  ↓
+             custom / Diagnostics
 
 ⸻
 
 Walk-forward och OOS
 
-Research ska respektera walk-forward-gränser.
-
-Grundprincip:
+All modell- och hypotesutvärdering ska respektera tidsordningen:
 
 TRAIN
    ↓
@@ -402,175 +483,77 @@ REFIT
    ↓
 OOS TEST
 
-Testperioden får inte användas för att optimera hypotesen.
+Testdata får inte användas för:
 
-Det gäller även:
-
-* thresholds
-* feature selection
 * modellval
-* cutoffs
-* population definitions
+* feature selection
+* threshold selection
+* optimering
+* efterhandsjustering av hypotesen
+
+Detta gäller även diagnostics.
 
 ⸻
 
 Resultat
 
-Resultat skrivs under:
+Research-resultat skrivs under:
+
+data/processed/ml/research/
+
+Nya deklarativa körningar använder:
 
 data/processed/ml/research/spec_runs/
 
-Exempel:
+Resultaten ska vara maskinläsbara och lämpade för vidare analys.
 
-spec_runs/
-└── 20260924T123456Z/
-    ├── manifest.json
-    ├── hypothesis_a.json
-    └── hypothesis_b.json
-
-Resultat ska vara maskinläsbara.
-
-Den normala kedjan är:
+Den avsedda kedjan är:
 
 Research
    ↓
-JSON / artifacts
+Machine-readable results
    ↓
 AI / human analysis
    ↓
 Next hypothesis
 
-⸻
-
-När ny Python behövs
-
-Skriv inte en ny experimentklass bara för att testa en vanlig hypotes.
-
-Börja med YAML.
-
-Om hypotesen kan uttryckas med befintlig analysis type ska endast YAML-specen behöva skapas.
-
-Om hypotesen inte kan uttryckas med befintlig analysis type:
-
-1. Identifiera vilken funktionalitet som saknas.
-2. Avgör om den är generell.
-3. Om generell: lägg den i Engine.
-4. Skapa därefter YAML-specen.
-5. Om unik: överväg custom/ eller Diagnostics.
-
-Exempel:
-
-Ny hypotes
-    ↓
-befintlig Engine?
-    │
-    ├── JA → YAML
-    │
-    └── NEJ
-         ↓
-    generell analysform?
-         │
-         ├── JA → Engine → YAML
-         │
-         └── NEJ → custom / Diagnostics
-
-Om samma logik sedan används av flera analyser ska den finnas centralt i Engine.
+Terminaloutput är främst för körningsstatus och felsökning.
 
 ⸻
 
-Legacy och migration
+Designprinciper
 
-När en äldre standalone-analys ersätts av Research Engine ska migreringen ske i följande ordning:
-
-1. Identifiera vilken generell analysförmåga legacy-koden representerar.
-2. Implementera den generellt i Engine.
-3. Skapa en YAML-spec som reproducerar hypotesen.
-4. Kör gammal och ny implementation parallellt under verifieringen.
-5. Jämför resultat.
-6. Verifiera OOS och output.
-7. När den nya vägen är verifierad: ta bort legacy-koden.
-8. Ta bort eventuell duplicerad registry-/workflow-logik.
-
-Det ska inte finnas två permanenta implementationsvägar för samma analys.
-
-⸻
-
-Designprincip
-
-Research Engine är optimerad för:
+1. Hypotes före implementation.
+2. Generisk research före specialkod.
+3. Kontrollera befintlig Engine innan ny Python skrivs.
+4. Ny generell analysförmåga ska implementeras i Engine.
+5. Konkreta hypoteser ska normalt vara YAML.
+6. SCAN före dyra analyser.
+7. OOS före slutsats.
+8. Ingen test leakage.
+9. Gemensam logik ska återanvändas.
+10. Resultat ska vara maskinläsbara.
+11. Specialanalys ska vara explicit.
+12. Död och duplicerad kod ska inte ligga kvar.
+13. Legacy-implementationer ska tas bort efter verifierad migrering.
+14. Deklarativa kontrakt ska ligga i spec.py.
+15. engine.py ska orkestrera, inte äga analysimplementationerna.
+16. Gemensamma implementation-hjälpare ska återanvändas via analysis_utils.py.
+17. Runtime-invarianter ska skyddas i respektive analysis module.
+18. Optimera för:
 
 idé → information
 
-inte:
-
-idé
- ↓
-ny Python-fil
- ↓
-ny klass
- ↓
-registry
- ↓
-wrapper
- ↓
-workflow
- ↓
-körning
-
-Den deklarativa vägen är standard.
-
-Den generiska Engine-funktionen ska byggas först när en ny analysform behövs.
-
-Den konkreta forskningshypotesen ska därefter beskrivas deklarativt.
-
-Research Engine
-
-engine.py ansvarar för orchestration och dispatch mellan deklarerade
-analysis types.
-
-Själva analysimplementationerna ligger i separata moduler när de
-representerar egna generella analysformer:
-
-* interaction.py – tvåsignal-interaktion
-* conditional.py – generell conditional-regime-analys
-* regime.py – tvåsignal regime comparison
-* multi_regime.py – multi-signal regime comparison
-* nested_regime.py – trestegs nested regime comparison
-* analysis_utils.py – gemensam hjälplogik som används av flera analyser
-
-spec.py definierar ResearchSpec-kontraktet och signal-count-kraven för
-analysis types.
-
-Principen är:
-
-spec.py
-    ↓
-ResearchSpec-kontrakt
-    ↓
-engine.py
-    ↓
-analysis module
-
-Engine ska inte innehålla den konkreta implementationen av separata
-analysis forms när dessa kan ligga i egna återanvändbara moduler.
-Runtime-guards hör däremot hemma i respektive analysimplementation
-och skyddar dess interna invariants.
+inte för mängden kod.
 
 ⸻
 
-Migration status
+Dokumentation
 
-Den gamla experiment-/registry-arkitekturen är inte en del av den slutliga Research Engine.
+* ml/README.md – ML-arkitekturen
+* ml/research/README.md – Research Engine
+* ml/diagnostics/README.md – Diagnostics
+* bolagsverket/README.md – Bolagsverket-ingestion
+* README.md – övergripande projektarkitektur
 
-Efter migreringen ska:
-
-* generiska experiment vara YAML
-* gemensam logik finnas i Engine
-* nya generella analysis types finnas i Engine
-* specialiserad Research finnas i custom/
-* Diagnostics endast innehålla verkligt specialiserade analyser
-* legacy-filer vara borttagna
-* död kod vara borttagen
-* duplicerad analyslogik vara borttagen
-
-Det finns ingen anledning att behålla en gammal implementation parallellt när den nya funktionaliteten är verifierad.
+Det här är den version jag skulle använda. **Ingen forskningslogik ändras** av README-uppdateringen; den dokumenterar den struktur som redan körs framgångsrikt på `main`.
