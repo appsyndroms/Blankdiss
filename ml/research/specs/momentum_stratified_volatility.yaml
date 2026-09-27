@@ -1,0 +1,181 @@
+id: momentum_stratified_volatility
+
+question: >
+  Tillför hög 20-dagars prisvolatilitet information om framtida
+  negativa kursfall efter att styrkan i både 5-dagars och
+  60-dagars momentum redan har kontrollerats?
+  Undersök detta genom disjunkta styrkeband för 5-dagars och
+  60-dagars momentum och jämför hög volatilitet mot normal
+  volatilitet inom varje momentumregim.
+
+mode: deep
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.50
+      - 1.00
+
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.50
+      - 1.00
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+targets:
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: stratified_regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  stage: hypothesis_test
+  purpose: stratified_momentum_volatility_incremental_information
+
+  hypothesis:
+    baseline:
+      definition: >
+        Styrkan i negativt 5-dagars momentum och negativt
+        60-dagars momentum delas upp i disjunkta band.
+        Varje kombination av banden utgör en separat
+        momentumregim.
+
+    incremental:
+      definition: >
+        Inom varje momentumregim jämförs den översta 20 procenten
+        av 20-dagars prisvolatilitet med resterande observationer.
+
+    primary_question: >
+      Finns det en kvarvarande skillnad i framtida downside-risk
+      mellan hög och normal volatilitet när momentumstyrkan
+      redan är kontrollerad?
+
+  stratification:
+    momentum_5d:
+      direction: lower
+      bands:
+        - 0.00_to_0.20
+        - 0.20_to_0.50
+        - 0.50_to_1.00
+
+    momentum_60d:
+      direction: lower
+      bands:
+        - 0.00_to_0.20
+        - 0.20_to_0.50
+        - 0.50_to_1.00
+
+    volatility:
+      direction: upper
+      fraction: 0.20
+
+  evaluation:
+
+    detection:
+      targets:
+        - down_7pct_5d
+        - down_10pct_5d
+      metric: event_rate
+      purpose: >
+        Mäta om hög volatilitet fortfarande identifierar fler
+        negativa fall inom samma momentumstyrka.
+
+    comparison:
+      primary:
+        - incremental_event_rate
+        - comparator_event_rate
+        - absolute_event_rate_difference
+        - lift
+
+      uncertainty:
+        - bootstrap_ci_low
+        - bootstrap_ci_high
+
+  comparisons:
+    - high_volatility_vs_normal_within_momentum_stratum
+    - momentum_stratum_vs_momentum_stratum
+    - window_1_vs_window_2
+    - validation_vs_test
+
+  reporting:
+    required:
+      - window
+      - split
+      - target
+      - stratum
+      - signal_1_band
+      - signal_2_band
+      - volatility_fraction
+      - baseline_n
+      - baseline_events
+      - baseline_event_rate
+      - incremental_n
+      - incremental_events
+      - incremental_event_rate
+      - comparator_n
+      - comparator_events
+      - comparator_event_rate
+      - absolute_event_rate_difference
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+
+  rules:
+    - momentum_bands_must_be_disjoint
+    - momentum_bands_must_be_predeclared
+    - volatility_threshold_must_be_predeclared
+    - no_threshold_optimization
+    - no_result_based_candidate_ranking
+    - no_test_based_parameter_selection
+    - validation_and_test_must_be_reported_separately
+    - windows_must_be_reported_separately
+    - exact_event_counts_must_be_reported
+    - high_volatility_must_be_compared_within_same_momentum_stratum
+
+  interpretation:
+    positive_incremental_difference: >
+      Om hög volatilitet har högre event_rate än normal volatilitet
+      inom samma momentumregim innebär det att volatilitet kan
+      tillföra information utöver momentumstyrkan i den regimen.
+
+    zero_or_small_difference: >
+      Om skillnaden försvinner inom momentumregimer tyder det på
+      att den tidigare observerade volatilitetseffekten till stor
+      del kan vara en konsekvens av skillnader i momentumstyrka.
+
+    consistency: >
+      Effekten ska bedömas separat för varje kalenderperiod.
+      Window 1 test och Window 2 validation representerar samma
+      kalenderperiod och ska därför inte räknas som två oberoende
+      bekräftelser.
+
+  note: >
+    Detta experiment är avsett att separera två möjliga
+    förklaringar till volatilitetssignalen:
+    1. volatilitet tillför en egen dimension av information,
+    eller
+    2. volatilitet fungerar huvudsakligen som proxy för hur
+    extremt negativt momentum redan är.
