@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T12:00:28.642158+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_60d_volatility_severity",
+      "mode": "deep",
+      "question": "När både negativt 5-dagars och negativt 60-dagars momentum redan har identifierats, förändrar hög 20-dagars prisvolatilitet severity-fördelningen inom -7%-fallen? Är P(-10% | -7%) högre för momentum + hög volatilitet än för momentum-baslinjen, och är sambandet stabilt mellan window 1 och window 2?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T120028496828Z/momentum_60d_volatility_severity.json",
+      "rows": 8,
+      "execution_fingerprint": "234882c0cee177b945d08b785c706b270ec591c0ef738a5e3eca01585f9237f7"
+    }
+  ]
+}

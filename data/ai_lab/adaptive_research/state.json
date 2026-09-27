@@ -1,6 +1,6 @@
 {
   "state_version": 1,
-  "updated_at_utc": "2026-09-27T11:50:52.363018+00:00",
+  "updated_at_utc": "2026-09-27T12:00:28.708780+00:00",
   "phase": "COMPLETE",
   "history": [
     {
@@ -706,6 +706,12 @@
       "spec_id": "momentum_volatility_then_60d_nested",
       "mode": "once",
       "result_path": "data/processed/ml/research/spec_runs/20260927T112940163096Z/momentum_volatility_then_60d_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_severity",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260927T120028496828Z/momentum_60d_volatility_severity.json"
     }
   ],
   "next_candidate": null,
