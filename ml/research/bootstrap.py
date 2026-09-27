@@ -440,3 +440,144 @@ def bootstrap_binary_rate_difference_between_groups(
         float(lower),
         float(upper),
     )
+
+
+def bootstrap_binary_rate_difference_in_differences(
+    target: np.ndarray,
+    reference_high_selected: np.ndarray,
+    reference_normal_selected: np.ndarray,
+    comparison_high_selected: np.ndarray,
+    comparison_normal_selected: np.ndarray,
+    *,
+    iterations: int = DEFAULT_ITERATIONS,
+    seed: int,
+) -> tuple[float | None, float | None]:
+    """
+    Bootstrap CI for a difference-in-differences of binary rates:
+
+        (comparison_high - comparison_normal)
+        - (reference_high - reference_normal)
+
+    The four cells are disjoint comparison groups and are
+    resampled independently.
+    """
+    target = np.asarray(
+        target,
+        dtype=np.float64,
+    )
+
+    reference_high_selected = np.asarray(
+        reference_high_selected,
+        dtype=bool,
+    )
+
+    reference_normal_selected = np.asarray(
+        reference_normal_selected,
+        dtype=bool,
+    )
+
+    comparison_high_selected = np.asarray(
+        comparison_high_selected,
+        dtype=bool,
+    )
+
+    comparison_normal_selected = np.asarray(
+        comparison_normal_selected,
+        dtype=bool,
+    )
+
+    valid = (
+        np.isfinite(target)
+        & (
+            reference_high_selected
+            | reference_normal_selected
+            | comparison_high_selected
+            | comparison_normal_selected
+        )
+    )
+
+    if valid.sum() < MIN_ROWS:
+        return None, None
+
+    y = target[valid]
+
+    groups = (
+        y[reference_high_selected[valid]],
+        y[reference_normal_selected[valid]],
+        y[comparison_high_selected[valid]],
+        y[comparison_normal_selected[valid]],
+    )
+
+    if any(
+        len(values) < MIN_ROWS
+        for values in groups
+    ):
+        return None, None
+
+    rng = np.random.default_rng(seed)
+
+    differences = np.empty(
+        iterations,
+        dtype=np.float64,
+    )
+
+    offset = 0
+
+    while offset < iterations:
+        current = min(
+            CHUNK_SIZE,
+            iterations - offset,
+        )
+
+        sampled_rates = []
+
+        for values in groups:
+            indices = rng.integers(
+                0,
+                len(values),
+                size=(
+                    current,
+                    len(values),
+                ),
+            )
+
+            sampled_rates.append(
+                (values[indices] > 0)
+                .mean(axis=1)
+            )
+
+        reference_effect = (
+            sampled_rates[0]
+            - sampled_rates[1]
+        )
+
+        comparison_effect = (
+            sampled_rates[2]
+            - sampled_rates[3]
+        )
+
+        differences[
+            offset:offset + current
+        ] = (
+            comparison_effect
+            - reference_effect
+        )
+
+        offset += current
+
+    differences = differences[
+        np.isfinite(differences)
+    ]
+
+    if len(differences) < MIN_ROWS:
+        return None, None
+
+    lower, upper = np.quantile(
+        differences,
+        [0.025, 0.975],
+    )
+
+    return (
+        float(lower),
+        float(upper),
+    )
