@@ -14,6 +14,9 @@ from .multi_regime import analyse_multi_regime_comparison
 from .nested_regime import analyse_nested_regime_comparison
 from .regime import analyse_regime_comparison
 from .spec import ResearchSpec, SignalSpec
+from .stratified_interaction import (
+    analyse_stratified_interaction,
+)
 from .stratified_regime import (
     analyse_stratified_regime_comparison,
 )
@@ -255,6 +258,37 @@ def run_spec(
                 for split_name in spec.splits:
                     results.extend(
                         analyse_stratified_regime_comparison(
+                            cache,
+                            spec.signals,
+                            target_name,
+                            fractions,
+                            window_name,
+                            split_name,
+                            bootstrap=bootstrap,
+                            bootstrap_iterations=(
+                                spec.analysis
+                                .bootstrap_iterations
+                            ),
+                            spec_id=spec.id,
+                        )
+                    )
+
+    elif (
+        spec.analysis.type
+        == "stratified_interaction"
+    ):
+        fractions = tuple(
+            signal.bins[0]
+            for signal in spec.signals
+        )
+
+        bootstrap = spec.analysis.bootstrap
+
+        for target_name in spec.targets:
+            for window_name in spec.windows:
+                for split_name in spec.splits:
+                    results.extend(
+                        analyse_stratified_interaction(
                             cache,
                             spec.signals,
                             target_name,
