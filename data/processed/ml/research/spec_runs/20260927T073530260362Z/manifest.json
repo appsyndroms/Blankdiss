@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T07:35:30.494169+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_volatility_then_60d_nested",
+      "mode": "deep",
+      "question": "Tillför negativt 60-dagars momentum ytterligare downside-risk efter att både negativt 5-dagars momentum och hög 20-dagars prisvolatilitet redan har identifierats?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T073530260362Z/momentum_volatility_then_60d_nested.json",
+      "rows": 12,
+      "execution_fingerprint": "4d956b037063bbc7c61771eb8bde4278bc38ba1b458daf447f582f88624997de"
+    }
+  ]
+}
