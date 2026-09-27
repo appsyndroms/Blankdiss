@@ -1,0 +1,83 @@
+id: momentum_vs_si_detection
+question: >
+  Ger short-interest-förändring självständig information om negativa
+  5-dagars kursutfall, och hur skiljer sig dess signal från de
+  20 procent mest negativa 5-dagars momentumobservationerna?
+mode: deep
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.30
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+analysis:
+  type: regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+windows:
+  - window_1
+  - window_2
+splits:
+  - validation
+  - test
+metadata:
+  stage: hypothesis_test
+  purpose: momentum_vs_si_detection
+  hypothesis:
+    baseline: neutral_population
+    incremental_signal: price_momentum_5d_or_short_interest_change
+    expected_effect: additional_downside_detection
+  comparisons:
+    - momentum_20pct
+    - momentum_30pct
+    - si_change_20pct
+    - si_change_10pct
+    - si_change_5pct
+    - si_change_2_5pct
+  evaluation:
+    targets:
+      - down_5pct_5d
+      - down_7pct_5d
+      - down_10pct_5d
+    metric: event_rate
+  reporting:
+    required:
+      - window
+      - split
+      - signal
+      - threshold
+      - target
+      - baseline_n
+      - baseline_events
+      - baseline_event_rate
+      - incremental_n
+      - incremental_events
+      - incremental_event_rate
+      - absolute_event_rate_difference
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+  rules:
+    - momentum_definition_must_remain_fixed
+    - si_change_thresholds_must_remain_predeclared
+    - windows_must_be_reported_separately
+    - no_threshold_optimization
+    - no_result_based_candidate_ranking
+    - no_test_based_parameter_selection
+    - exact_event_counts_must_be_reported
+    - confirmation_spec_must_remain_untouched
+  note: >
+    Detta är ett fristående discovery-test. Resultatet får inte
+    användas för att ändra parametrar eller primärt endpoint i
+    momentum_si_prospective_confirmation.
