@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T06:52:59.244031+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_60d_volatility_interaction",
+      "mode": "deep",
+      "question": "Finns det en särskild kombinationseffekt mellan negativt 60-dagars momentum och hög 20-dagars prisvolatilitet för downside-risk?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T065253475045Z/momentum_60d_volatility_interaction.json",
+      "rows": 12,
+      "execution_fingerprint": "fbec965800a20a7081a8796db042236703666aefc3d1b599fbf19fb49f716c27"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T06:52:59.938821+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_60d_volatility_regime",
+      "mode": "deep",
+      "question": "Tillför samtidig negativt 60-dagars momentum och hög 20-dagars prisvolatilitet information om downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T065259244497Z/momentum_60d_volatility_regime.json",
+      "rows": 12,
+      "execution_fingerprint": "c69f62de75776950cb813098ecd4bd4a27b759ff3d24a2a9b19cd7c2b681e696"
+    }
+  ]
+}
