@@ -523,6 +523,39 @@ Den generiska Engine-funktionen ska byggas först när en ny analysform behövs.
 
 Den konkreta forskningshypotesen ska därefter beskrivas deklarativt.
 
+Research Engine
+
+engine.py ansvarar för orchestration och dispatch mellan deklarerade
+analysis types.
+
+Själva analysimplementationerna ligger i separata moduler när de
+representerar egna generella analysformer:
+
+* interaction.py – tvåsignal-interaktion
+* conditional.py – generell conditional-regime-analys
+* regime.py – tvåsignal regime comparison
+* multi_regime.py – multi-signal regime comparison
+* nested_regime.py – trestegs nested regime comparison
+* analysis_utils.py – gemensam hjälplogik som används av flera analyser
+
+spec.py definierar ResearchSpec-kontraktet och signal-count-kraven för
+analysis types.
+
+Principen är:
+
+spec.py
+    ↓
+ResearchSpec-kontrakt
+    ↓
+engine.py
+    ↓
+analysis module
+
+Engine ska inte innehålla den konkreta implementationen av separata
+analysis forms när dessa kan ligga i egna återanvändbara moduler.
+Runtime-guards hör däremot hemma i respektive analysimplementation
+och skyddar dess interna invariants.
+
 ⸻
 
 Migration status
