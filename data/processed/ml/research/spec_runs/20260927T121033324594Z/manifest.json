@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T12:10:34.342850+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_volatility_regime",
+      "mode": "deep",
+      "question": "Tillför hög 20-dagars prisvolatilitet information om downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T121033324594Z/momentum_volatility_regime.json",
+      "rows": 12,
+      "execution_fingerprint": "eda9384f11ca52ade0627f79121034e193a65cecb0376a48784b5e49747d6df1"
+    }
+  ]
+}

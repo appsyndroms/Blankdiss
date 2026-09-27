@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T12:10:32.813344+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_stratified_volatility",
+      "mode": "deep",
+      "question": "Tillför hög 20-dagars prisvolatilitet information om framtida negativa kursfall efter att styrkan i både 5-dagars och 60-dagars momentum redan har kontrollerats? Undersök detta genom disjunkta styrkeband för 5-dagars och 60-dagars momentum och jämför hög volatilitet mot normal volatilitet inom varje momentumregim.\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T121030483340Z/momentum_stratified_volatility.json",
+      "rows": 72,
+      "execution_fingerprint": "3af64915d625ffb5c2f000ae0b359208b38188a3fdd2d4d3aa7cf6b6f24720cc"
+    }
+  ]
+}

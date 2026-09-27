@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T12:10:09.926090+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_5d_tail_conditional_volatility",
+      "mode": "scan",
+      "question": "Tillför hög 20-dagars volatilitet ytterligare downside-risk inom olika nivåer av den negativa 5-dagars momentumsvansen?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T121008680033Z/momentum_5d_tail_conditional_volatility.json",
+      "rows": 48,
+      "execution_fingerprint": "2d68810687363cfbc2c316f758ea19fcff81f98577abd65e06223724f2e0ba85"
+    }
+  ]
+}
