@@ -19,6 +19,7 @@ VALID_ANALYSIS_TYPES = {
     "multi_regime_comparison",
     "nested_regime_comparison",
     "conditional_regime_comparison",
+    "stratified_regime_comparison",
 }
 
 VALID_DIRECTIONS = {
@@ -33,6 +34,7 @@ ANALYSIS_SIGNAL_REQUIREMENTS = {
     "multi_regime_comparison": (3, None),
     "nested_regime_comparison": (3, 3),
     "conditional_regime_comparison": (2, None),
+    "stratified_regime_comparison": (3, 3),
 }
 
 
