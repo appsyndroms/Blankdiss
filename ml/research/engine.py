@@ -722,12 +722,6 @@ def run_spec(
                             )
 
     elif spec.analysis.type == "interaction":
-        if len(spec.signals) != 2:
-            raise ValueError(
-                "interaction requires exactly "
-                "two signals."
-            )
-
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
@@ -756,12 +750,6 @@ def run_spec(
                     )
 
     elif spec.analysis.type == "regime_comparison":
-        if len(spec.signals) != 2:
-            raise ValueError(
-                "regime_comparison requires exactly "
-                "two signals."
-            )
-
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
@@ -790,12 +778,6 @@ def run_spec(
                     )
 
     elif spec.analysis.type == "nested_regime_comparison":
-        if len(spec.signals) != 3:
-            raise ValueError(
-                "nested_regime_comparison requires "
-                "exactly three signals."
-            )
-
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
@@ -824,12 +806,6 @@ def run_spec(
                     )
 
     elif spec.analysis.type == "conditional_regime_comparison":
-        if len(spec.signals) < 3:
-            raise ValueError(
-                "conditional_regime_comparison requires "
-                "at least three signals."
-            )
-
         bootstrap = spec.analysis.bootstrap
 
         baseline_fraction_options = [
@@ -867,12 +843,6 @@ def run_spec(
                             )
 
     elif spec.analysis.type == "multi_regime_comparison":
-        if len(spec.signals) < 3:
-            raise ValueError(
-                "multi_regime_comparison requires "
-                "at least three signals."
-            )
-
         fractions = tuple(
             signal.bins[0]
             for signal in spec.signals
