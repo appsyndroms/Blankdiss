@@ -1,20 +1,16 @@
 id: momentum_si_severity_decomposition
-
 question: >
   När momentum redan identifierar negativa 5-dagars utfall, förändrar
   short-interest-förändring fördelningen av severity inom -7%-fallen?
   Är P(-10% | -7%) högre för momentum + SI-change än för
   momentum-baslinjen, och är sambandet stabilt mellan window 1 och
   window 2?
-
 mode: deep
-
 signals:
   - name: price_momentum_5d
     direction: lower
     bins:
       - 0.20
-
   - name: short_interest_change
     direction: upper
     bins:
@@ -22,34 +18,27 @@ signals:
       - 0.10
       - 0.05
       - 0.025
-
 targets:
   - down_7pct_5d
   - down_10pct_5d
-
 analysis:
   type: conditional_regime_comparison
   bootstrap: true
   bootstrap_iterations: 2000
-
 windows:
   - window_1
   - window_2
-
 splits:
   - validation
   - test
-
 metadata:
   stage: hypothesis_test
   purpose: momentum_si_severity_decomposition
-
   hypothesis:
     baseline:
       signal: price_momentum_5d
       direction: lower
       fraction: 0.20
-
     incremental:
       signal: short_interest_change
       direction: upper
@@ -58,16 +47,13 @@ metadata:
         - 0.10
         - 0.05
         - 0.025
-
     primary_metric: p_down_10_given_down_7
-
   evaluation:
     detection:
       target: down_7pct_5d
       metric: event_rate
       purpose: >
         Mäta om SI-change identifierar fler negativa momentumfall.
-
     severity:
       conditioning_target: down_7pct_5d
       target: down_10pct_5d
@@ -75,27 +61,22 @@ metadata:
       definition: >
         antal down_10pct_5d-event dividerat med antal down_7pct_5d-event
         inom samma population.
-
   derived_metrics:
     p_down_10_given_down_7:
       formula: >
         down_10pct_5d_events / down_7pct_5d_events
-
     conditional_severity_difference:
       formula: >
         p_down_10_given_down_7_incremental -
         p_down_10_given_down_7_baseline
-
     conditional_severity_lift:
       formula: >
         p_down_10_given_down_7_incremental /
         p_down_10_given_down_7_baseline
-
   comparisons:
     - baseline_vs_incremental
     - window_1_vs_window_2
     - si_change_20pct_vs_10pct_vs_5pct_vs_2_5pct
-
   reporting:
     required:
       - window
@@ -115,24 +96,20 @@ metadata:
       - lift
       - bootstrap_ci_low
       - bootstrap_ci_high
-
     conditional_probability:
       numerator: down_10pct_5d_events
       denominator: down_7pct_5d_events
       rule: >
         Ska alltid beräknas från exakta event-counts och får inte
         rekonstrueras från avrundade event rates.
-
   interpretation:
     detection_effect: >
       Ett högre down_7pct_5d event_rate för incremental-regimen betyder
       att SI-change identifierar fler negativa momentumfall.
-
     severity_effect: >
       Ett högre P(-10% | -7%) för incremental-regimen betyder att
       SI-change dessutom koncentrerar de identifierade -7%-fallen mot
       den extrema -10%-svansen.
-
   rules:
     - momentum_definition_must_remain_fixed
     - si_change_thresholds_must_remain_predeclared
@@ -142,7 +119,6 @@ metadata:
     - no_test_based_parameter_selection
     - exact_event_counts_must_be_reported
     - conditional_probability_must_use_exact_counts
-
   note: >
     Analysen ska separera detection-effekten från severity-effekten.
     Down_7pct_5d mäter om SI-change identifierar fler negativa fall.
