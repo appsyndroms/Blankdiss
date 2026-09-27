@@ -8,6 +8,7 @@ from .cache import ResearchCache, _tail_key
 from .conditional import (
     analyse_conditional_regime_comparison,
 )
+from .derived_metrics import apply_derived_metrics
 from .interaction import analyse_interaction
 from .multi_regime import analyse_multi_regime_comparison
 from .nested_regime import analyse_nested_regime_comparison
@@ -238,6 +239,11 @@ def run_spec(
             f"Unsupported analysis type: "
             f"{spec.analysis.type}"
         )
+
+    results = apply_derived_metrics(
+        spec,
+        results,
+    )
 
     return {
         "spec_id": spec.id,
