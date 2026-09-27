@@ -1,0 +1,104 @@
+id: momentum_si_incremental_detection
+question: >
+  Tillför short-interest-förändring ytterligare information om
+  negativa 5-dagars kursutfall när negativt 5-dagars momentum redan
+  är fixerat? Testet jämför momentum-baslinjen med momentum plus
+  short-interest-förändring.
+mode: deep
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.30
+  - name: short_interest_change
+    direction: upper
+    bins:
+      - 0.20
+      - 0.10
+      - 0.05
+      - 0.025
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+analysis:
+  type: regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+windows:
+  - window_1
+  - window_2
+splits:
+  - validation
+  - test
+metadata:
+  stage: hypothesis_test
+  purpose: momentum_si_incremental_detection
+  hypothesis:
+    baseline:
+      definition: negative_5d_momentum
+    incremental:
+      definition: negative_5d_momentum_and_positive_short_interest_change
+    primary_metric:
+      name: absolute_event_rate_difference
+      definition: combined_event_rate_minus_baseline_event_rate
+  momentum_fractions:
+    - 0.20
+    - 0.30
+  si_change_fractions:
+    - 0.20
+    - 0.10
+    - 0.05
+    - 0.025
+  evaluation:
+    detection:
+      targets:
+        - down_5pct_5d
+        - down_7pct_5d
+        - down_10pct_5d
+      metric: event_rate
+  reporting:
+    required:
+      - window
+      - split
+      - momentum_fraction
+      - si_change_fraction
+      - target
+      - baseline_n
+      - baseline_events
+      - baseline_event_rate
+      - incremental_n
+      - incremental_events
+      - incremental_event_rate
+      - absolute_event_rate_difference
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+  comparisons:
+    - momentum_20_vs_momentum_20_plus_si
+    - momentum_30_vs_momentum_30_plus_si
+    - window_1_vs_window_2
+    - si_change_20pct_vs_10pct_vs_5pct_vs_2_5pct
+  interpretation:
+    detection_effect: >
+      Ett högre event_rate för combined-regimen än för
+      momentum-baslinjen innebär att SI-change tillför ytterligare
+      detection-information efter att momentum redan är fixerat.
+    null_effect: >
+      En liten skillnad med bootstrap-intervall som omfattar noll
+      innebär att någon stabil inkrementell detection-effekt inte
+      kan identifieras.
+  rules:
+    - momentum_definition_must_remain_fixed
+    - si_change_thresholds_must_remain_predeclared
+    - windows_must_be_reported_separately
+    - no_threshold_optimization
+    - no_result_based_candidate_ranking
+    - no_test_based_parameter_selection
+    - exact_event_counts_must_be_reported
+    - confirmation_spec_must_remain_untouched
+  note: >
+    Detta är ett fristående discovery-test. Resultatet får inte
+    användas för att ändra parametrar eller primärt endpoint i
+    momentum_si_prospective_confirmation.
