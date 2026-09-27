@@ -46,27 +46,11 @@ metadata:
 
   hypothesis:
     baseline:
-      definition: >
-        price_momentum_5d lower 20% tail
-
-    incremental:
-      definition: >
-        price_momentum_5d lower 20% tail AND
-        short_interest_change upper tail
-
-    primary_question:
-      metric: p_down_10_given_down_7
-      definition: >
-        antal down_10pct_5d-event dividerat med antal
-        down_7pct_5d-event inom samma regim
-
-  locked:
-    momentum:
       signal: price_momentum_5d
       direction: lower
       fraction: 0.20
 
-    si_change_grid:
+    incremental:
       signal: short_interest_change
       direction: upper
       fractions:
@@ -75,155 +59,93 @@ metadata:
         - 0.05
         - 0.025
 
-    targets:
-      conditioning_target: down_7pct_5d
-      severity_target: down_10pct_5d
+    primary_metric: p_down_10_given_down_7
 
-  decomposition:
+  evaluation:
     detection:
-      metric: p_down_7
-      definition: >
-        event_rate för down_7pct_5d inom momentum-baseline respektive
-        momentum + SI-change-regim.
+      target: down_7pct_5d
+      metric: event_rate
+      purpose: >
+        Mäta om SI-change identifierar fler negativa momentumfall.
 
     severity:
-      metric: p_down_10_given_down_7
-      numerator: down_10pct_5d
-      denominator: down_7pct_5d
+      conditioning_target: down_7pct_5d
+      target: down_10pct_5d
+      metric: conditional_event_rate
       definition: >
         antal down_10pct_5d-event dividerat med antal down_7pct_5d-event
         inom samma population.
 
-    interpretation:
-      detection_effect: >
-        Ett högre event_rate för down_7pct_5d innebär att SI-change
-        identifierar fler negativa momentumfall.
-
-      severity_effect: >
-        Ett högre p_down_10_given_down_7 innebär att SI-change dessutom
-        koncentrerar de identifierade down_7-fallen mot den extrema
-        down_10-svansen.
-
-  comparisons:
-    primary:
-      - baseline_vs_incremental
-      - window_1_vs_window_2
-      - si_change_20pct_vs_10pct_vs_5pct_vs_2_5pct
-
-    secondary:
-      - incremental_vs_comparator
-
-  evaluation:
-    - baseline_n
-    - baseline_events
-    - baseline_event_rate
-    - incremental_n
-    - incremental_events
-    - incremental_event_rate
-    - comparator_n
-    - comparator_events
-    - comparator_event_rate
-    - absolute_event_rate_difference
-    - lift
-    - bootstrap_ci_low
-    - bootstrap_ci_high
-
   derived_metrics:
-    conditional_severity:
-      name: p_down_10_given_down_7
-      numerator: down_10pct_5d_events
-      denominator: down_7pct_5d_events
+    p_down_10_given_down_7:
       formula: >
         down_10pct_5d_events / down_7pct_5d_events
 
-    severity_difference:
-      name: conditional_severity_difference
+    conditional_severity_difference:
       formula: >
         p_down_10_given_down_7_incremental -
         p_down_10_given_down_7_baseline
 
-    severity_lift:
-      name: conditional_severity_lift
+    conditional_severity_lift:
       formula: >
         p_down_10_given_down_7_incremental /
         p_down_10_given_down_7_baseline
 
+  comparisons:
+    - baseline_vs_incremental
+    - window_1_vs_window_2
+    - si_change_20pct_vs_10pct_vs_5pct_vs_2_5pct
+
   reporting:
-    required_dimensions:
+    required:
       - window
       - split
       - si_change_fraction
       - target
-
-    required_counts:
       - baseline_n
       - baseline_events
+      - baseline_event_rate
       - incremental_n
       - incremental_events
+      - incremental_event_rate
       - comparator_n
       - comparator_events
+      - comparator_event_rate
+      - absolute_event_rate_difference
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
 
     conditional_probability:
-      - p_down_10_given_down_7_baseline
-      - p_down_10_given_down_7_incremental
-      - conditional_severity_difference
-      - conditional_severity_lift
+      numerator: down_10pct_5d_events
+      denominator: down_7pct_5d_events
+      rule: >
+        Ska alltid beräknas från exakta event-counts och får inte
+        rekonstrueras från avrundade event rates.
 
-    rule: >
-      p_down_10_given_down_7 ska alltid beräknas från exakta event-counts.
-      Den får inte rekonstrueras från avrundade event rates.
+  interpretation:
+    detection_effect: >
+      Ett högre down_7pct_5d event_rate för incremental-regimen betyder
+      att SI-change identifierar fler negativa momentumfall.
 
-  severity_bands:
-    enabled: true
-
-    bands:
-      - name: down_7_to_10pct
-        definition: >
-          down_7pct_5d är sant men down_10pct_5d är falskt
-
-      - name: down_10pct_or_worse
-        definition: >
-          down_10pct_5d är sant
-
-    interpretation: >
-      Fördelningen mellan dessa två band används för att avgöra om
-      SI-change bara identifierar fler down_7-fall eller också flyttar
-      populationen mot den extrema down_10-svansen.
-
-  severity_curve:
-    enabled: false
-    reason: >
-      Den nuvarande researchmotorn exponerar target-baserade
-      event-counts men har ingen deklarativ severity-curve-analysis.
-      Severity-kurvan bör därför läggas till separat i researchmotorn
-      innan den deklareras som en spec-funktion.
+    severity_effect: >
+      Ett högre P(-10% | -7%) för incremental-regimen betyder att
+      SI-change dessutom koncentrerar de identifierade -7%-fallen mot
+      den extrema -10%-svansen.
 
   rules:
     - momentum_definition_must_remain_fixed
     - si_change_thresholds_must_remain_predeclared
     - windows_must_be_reported_separately
-    - validation_and_test_must_be_reported_separately
     - no_threshold_optimization
     - no_result_based_candidate_ranking
     - no_test_based_parameter_selection
     - exact_event_counts_must_be_reported
-    - conditional_probability_must_not_be_reconstructed_from_rounded_rates
-    - p_down_10_given_down_7_must_use_matching_population
-
-  expected_question:
-    window_1: >
-      Koncentrerar SI-change de negativa momentumfallen mot den extrema
-      -10%-svansen, utöver att identifiera fler -7%-fall?
-
-    window_2: >
-      Finns samma severity-effekt i window 2, eller kvarstår endast
-      ökningen i sannolikheten för -7%-fall?
+    - conditional_probability_must_use_exact_counts
 
   note: >
-    Analysen separerar detection-effekten från severity-effekten.
-    Down_7-resultatet mäter hur väl SI-change identifierar fler negativa
-    momentumfall. För varje SI-threshold beräknas därefter
-    P(-10% | -7%) från de exakta event-counts för down_10pct_5d och
-    down_7pct_5d. Window 1 och window 2 analyseras separat för att
-    synliggöra eventuell tidsvarierande interaktion mellan momentum,
-    short-interest-förändring och downside severity.
+    Analysen ska separera detection-effekten från severity-effekten.
+    Down_7pct_5d mäter om SI-change identifierar fler negativa fall.
+    Down_10pct_5d i relation till down_7pct_5d mäter därefter om
+    populationen samtidigt förskjuts mot extrema nedgångar.
+    Window 1 och window 2 ska analyseras separat.
