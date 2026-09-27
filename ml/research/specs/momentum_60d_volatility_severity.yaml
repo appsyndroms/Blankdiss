@@ -1,5 +1,4 @@
 id: momentum_60d_volatility_severity
-
 question: >
   När både negativt 5-dagars och negativt 60-dagars momentum redan
   har identifierats, förändrar hög 20-dagars prisvolatilitet
@@ -7,64 +6,50 @@ question: >
   Är P(-10% | -7%) högre för momentum + hög volatilitet än för
   momentum-baslinjen, och är sambandet stabilt mellan window 1
   och window 2?
-
 mode: deep
-
 signals:
   - name: price_momentum_5d
     direction: lower
     bins:
       - 0.20
-
   - name: price_momentum_60d
     direction: lower
     bins:
       - 0.20
-
   - name: price_volatility_20d
     direction: upper
     bins:
       - 0.20
-
 targets:
   - down_7pct_5d
   - down_10pct_5d
-
 analysis:
   type: nested_regime_comparison
   bootstrap: true
   bootstrap_iterations: 2000
-
 windows:
   - window_1
   - window_2
-
 splits:
   - validation
   - test
-
 metadata:
   stage: hypothesis_test
   purpose: nested_volatility_severity_decomposition
-
   hypothesis:
     baseline:
       definition: >
         negative_5d_momentum_20pct_and_negative_60d_momentum_20pct
-
     incremental:
       definition: >
         negative_5d_momentum_20pct_and_negative_60d_momentum_20pct
         and_high_20d_volatility_20pct
-
     primary_metric:
       name: p_down_10_given_down_7
       definition: >
         antal down_10pct_5d-events dividerat med antal
         down_7pct_5d-events inom samma population.
-
   evaluation:
-
     detection:
       target: down_7pct_5d
       metric: event_rate
@@ -72,7 +57,6 @@ metadata:
         Mäta om hög 20-dagars volatilitet identifierar fler
         negativa -7%-fall efter att negativt 5-dagars och
         60-dagars momentum redan är fixerat.
-
     severity:
       conditioning_target: down_7pct_5d
       target: down_10pct_5d
@@ -80,28 +64,22 @@ metadata:
       definition: >
         Mäta hur stor andel av -7%-fallen som fortsätter till
         minst -10%.
-
   derived_metrics:
-
     p_down_10_given_down_7:
       formula: >
         down_10pct_5d_events / down_7pct_5d_events
-
     conditional_severity_difference:
       formula: >
         p_down_10_given_down_7_incremental -
         p_down_10_given_down_7_baseline
-
     conditional_severity_lift:
       formula: >
         p_down_10_given_down_7_incremental /
         p_down_10_given_down_7_baseline
-
   comparisons:
     - baseline_vs_incremental
     - window_1_vs_window_2
     - validation_vs_test
-
   reporting:
     required:
       - window
@@ -116,26 +94,21 @@ metadata:
       - conditional_severity_lift
       - bootstrap_ci_low
       - bootstrap_ci_high
-
     conditional_probability:
       numerator: down_10pct_5d_events
       denominator: down_7pct_5d_events
       rule: >
         Ska alltid beräknas från exakta event-counts och får inte
         rekonstrueras från avrundade event rates.
-
   interpretation:
-
     detection_effect: >
       Ett högre down_7pct_5d event_rate för incremental-regimen
       innebär att hög volatilitet identifierar fler negativa fall
       inom den redan fixerade momentum-populationen.
-
     severity_effect: >
       Ett högre P(-10% | -7%) för incremental-regimen innebär att
       volatilitet dessutom koncentrerar de identifierade -7%-fallen
       mot den extrema -10%-svansen.
-
   rules:
     - momentum_definition_must_remain_fixed
     - volatility_threshold_must_remain_predeclared
@@ -147,7 +120,6 @@ metadata:
     - exact_event_counts_must_be_reported
     - conditional_probability_must_use_exact_counts
     - detection_and_severity_must_be_reported_separately
-
   note: >
     Detta är ett fristående hypothesis-test ovanpå den befintliga
     nested-regimen. Ingen ny volatilitetströskel ska sökas eller
