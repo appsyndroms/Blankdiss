@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-27T11:29:20.509841+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_5d_tail_conditional_60d",
+      "mode": "scan",
+      "question": "Tillför negativt 60-dagars momentum ytterligare downside-risk inom olika nivåer av den negativa 5-dagars momentumsvansen?\n",
+      "result": "data/processed/ml/research/spec_runs/20260927T112919399096Z/momentum_5d_tail_conditional_60d.json",
+      "rows": 48,
+      "execution_fingerprint": "5c0332bacde41f4b0293671e16b8ef565611e5c84a847c68f9bec9b1487ce8a5"
+    }
+  ]
+}
