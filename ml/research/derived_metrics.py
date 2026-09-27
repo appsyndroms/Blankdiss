@@ -7,55 +7,6 @@ from typing import Any
 from .spec import ResearchSpec
 
 
-def _regime_name(result: dict[str, Any]) -> str:
-    if "incremental_signal" in result:
-        return "incremental"
-
-    if "baseline_signals" in result:
-        return "baseline"
-
-    if "regime" in result:
-        return str(result["regime"])
-
-    return "result"
-
-
-def _result_groups(
-    results: list[dict[str, Any]],
-) -> dict[tuple[str, str, str], list[dict[str, Any]]]:
-    groups: dict[
-        tuple[str, str, str],
-        list[dict[str, Any]],
-    ] = defaultdict(list)
-
-    for result in results:
-        key = (
-            str(result.get("window", "")),
-            str(result.get("split", "")),
-            _regime_name(result),
-        )
-        groups[key].append(result)
-
-    return groups
-
-
-def _target_event_counts(
-    rows: list[dict[str, Any]],
-) -> dict[str, int]:
-    counts: dict[str, int] = {}
-
-    for row in rows:
-        target = row.get("target")
-        events = row.get("events")
-
-        if target is None or events is None:
-            continue
-
-        counts[str(target)] = int(events)
-
-    return counts
-
-
 def _safe_rate(
     numerator: int | float | None,
     denominator: int | float | None,
@@ -111,8 +62,14 @@ def _legacy_definitions(
             {
                 "name": "conditional_severity_difference",
                 "type": "rate_difference",
-                "left": "incremental.p_down_10_given_down_7",
-                "right": "baseline.p_down_10_given_down_7",
+                "left": (
+                    "incremental."
+                    "p_down_10_given_down_7"
+                ),
+                "right": (
+                    "baseline."
+                    "p_down_10_given_down_7"
+                ),
             }
         )
 
@@ -121,8 +78,14 @@ def _legacy_definitions(
             {
                 "name": "conditional_severity_lift",
                 "type": "rate_ratio",
-                "numerator": "incremental.p_down_10_given_down_7",
-                "denominator": "baseline.p_down_10_given_down_7",
+                "numerator": (
+                    "incremental."
+                    "p_down_10_given_down_7"
+                ),
+                "denominator": (
+                    "baseline."
+                    "p_down_10_given_down_7"
+                ),
             }
         )
 
@@ -153,29 +116,33 @@ def _definitions(
     )
 
 
-def _conditional_event_rate(
-    definition: dict[str, Any],
+def _target_events(
     rows: list[dict[str, Any]],
-) -> float | None:
-    counts = _target_event_counts(rows)
+    target: str,
+) -> dict[str, int | None]:
+    """
+    Extract exact regime event counts for one target from the
+    current nested_regime_comparison result shape.
+    """
+    for row in rows:
+        if row.get("target") != target:
+            continue
 
-    numerator_target = definition.get(
-        "numerator_target"
-    )
-    denominator_target = definition.get(
-        "denominator_target"
-    )
+        return {
+            "baseline": row.get("baseline_events"),
+            "incremental": row.get(
+                "incremental_events"
+            ),
+            "comparator": row.get(
+                "comparator_events"
+            ),
+        }
 
-    if not numerator_target or not denominator_target:
-        raise ValueError(
-            "conditional_event_rate kräver "
-            "numerator_target och denominator_target."
-        )
-
-    return _safe_rate(
-        counts.get(str(numerator_target)),
-        counts.get(str(denominator_target)),
-    )
+    return {
+        "baseline": None,
+        "incremental": None,
+        "comparator": None,
+    }
 
 
 def _resolve_reference(
@@ -185,45 +152,89 @@ def _resolve_reference(
     parts = str(reference).split(".", 1)
 
     if len(parts) == 1:
-        return values.get("result", {}).get(parts[0])
+        return values.get(
+            "result",
+            {},
+        ).get(parts[0])
 
     regime, metric = parts
-    return values.get(regime, {}).get(metric)
+
+    return values.get(
+        regime,
+        {},
+    ).get(metric)
 
 
-def _calculate_group_metrics(
+def _nested_severity_metrics(
     definitions: list[dict[str, Any]],
-    grouped_rows: dict[
-        str,
-        list[dict[str, Any]],
-    ],
+    rows: list[dict[str, Any]],
 ) -> dict[str, dict[str, float | None]]:
+    """
+    Calculate derived metrics from the actual nested-regime output.
+
+    A nested result contains all three regime counts on every target
+    row. Conditional probabilities must therefore be calculated by
+    matching numerator/denominator targets, not by treating rows as
+    separate regimes.
+    """
     values: dict[
         str,
         dict[str, float | None],
     ] = defaultdict(dict)
 
-    for regime, rows in grouped_rows.items():
-        for definition in definitions:
-            if definition.get("type") != "conditional_event_rate":
-                continue
+    # First calculate metrics that depend directly on event counts.
+    for definition in definitions:
+        metric_type = definition.get("type")
+        name = definition.get("name")
 
-            name = definition.get("name")
-            if not name:
-                raise ValueError(
-                    "Derived metric saknar name."
-                )
-
-            values[regime][str(name)] = (
-                _conditional_event_rate(
-                    definition,
-                    rows,
-                )
+        if not name:
+            raise ValueError(
+                "Derived metric saknar name."
             )
 
+        if metric_type != "conditional_event_rate":
+            continue
+
+        numerator_target = definition.get(
+            "numerator_target"
+        )
+        denominator_target = definition.get(
+            "denominator_target"
+        )
+
+        if (
+            not numerator_target
+            or not denominator_target
+        ):
+            raise ValueError(
+                "conditional_event_rate kräver "
+                "numerator_target och "
+                "denominator_target."
+            )
+
+        numerator = _target_events(
+            rows,
+            str(numerator_target),
+        )
+        denominator = _target_events(
+            rows,
+            str(denominator_target),
+        )
+
+        for regime in (
+            "baseline",
+            "incremental",
+            "comparator",
+        ):
+            values[regime][str(name)] = _safe_rate(
+                numerator[regime],
+                denominator[regime],
+            )
+
+    # Then calculate metrics that depend on derived values.
     for definition in definitions:
-        name = definition.get("name")
         metric_type = definition.get("type")
+        name = definition.get("name")
 
         if not name:
             raise ValueError(
@@ -270,63 +281,302 @@ def _calculate_group_metrics(
     return values
 
 
+def _apply_nested_metrics(
+    definitions: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Apply derived metrics independently for every window/split.
+
+    This prevents validation/test or window_1/window_2 observations
+    from being mixed together.
+    """
+    grouped: dict[
+        tuple[str, str],
+        list[dict[str, Any]],
+    ] = defaultdict(list)
+
+    for row in results:
+        grouped[
+            (
+                str(row.get("window", "")),
+                str(row.get("split", "")),
+            )
+        ].append(row)
+
+    metrics_by_group: dict[
+        tuple[str, str],
+        dict[str, dict[str, float | None]],
+    ] = {}
+
+    for key, rows in grouped.items():
+        metrics_by_group[key] = _nested_severity_metrics(
+            definitions,
+            rows,
+        )
+
+    enriched: list[dict[str, Any]] = []
+
+    for row in results:
+        key = (
+            str(row.get("window", "")),
+            str(row.get("split", "")),
+        )
+
+        values = metrics_by_group[key]
+
+        updated = deepcopy(row)
+
+        updated["derived_metrics"] = {
+            "baseline": dict(
+                values.get(
+                    "baseline",
+                    {},
+                )
+            ),
+            "incremental": dict(
+                values.get(
+                    "incremental",
+                    {},
+                )
+            ),
+            "comparator": dict(
+                values.get(
+                    "comparator",
+                    {},
+                )
+            ),
+            "result": dict(
+                values.get(
+                    "result",
+                    {},
+                )
+            ),
+        }
+
+        enriched.append(updated)
+
+    return enriched
+
+
+def _apply_generic_metrics(
+    definitions: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Compatibility path for result formats where each regime is
+    represented as its own row.
+    """
+    groups: dict[
+        tuple[str, str, str],
+        list[dict[str, Any]],
+    ] = defaultdict(list)
+
+    for result in results:
+        if "incremental_signal" in result:
+            regime = "incremental"
+        elif "baseline_signals" in result:
+            regime = "baseline"
+        elif "regime" in result:
+            regime = str(result["regime"])
+        else:
+            regime = "result"
+
+        groups[
+            (
+                str(result.get("window", "")),
+                str(result.get("split", "")),
+                regime,
+            )
+        ].append(result)
+
+    by_window_split: dict[
+        tuple[str, str],
+        dict[str, list[dict[str, Any]]],
+    ] = defaultdict(
+        lambda: defaultdict(list)
+    )
+
+    for (
+        window,
+        split,
+        regime,
+    ), rows in groups.items():
+        by_window_split[
+            (window, split)
+        ][regime].extend(rows)
+
+    enriched: list[dict[str, Any]] = []
+
+    for row in results:
+        key = (
+            str(row.get("window", "")),
+            str(row.get("split", "")),
+        )
+
+        regime_rows = by_window_split[key]
+
+        values: dict[
+            str,
+            dict[str, float | None],
+        ] = defaultdict(dict)
+
+        for regime, rows in regime_rows.items():
+            for definition in definitions:
+                if (
+                    definition.get("type")
+                    != "conditional_event_rate"
+                ):
+                    continue
+
+                name = definition.get("name")
+
+                if not name:
+                    raise ValueError(
+                        "Derived metric saknar name."
+                    )
+
+                counts = {
+                    str(item.get("target")): item.get(
+                        "events"
+                    )
+                    for item in rows
+                    if item.get("target") is not None
+                }
+
+                values[regime][str(name)] = _safe_rate(
+                    counts.get(
+                        str(
+                            definition.get(
+                                "numerator_target"
+                            )
+                        )
+                    ),
+                    counts.get(
+                        str(
+                            definition.get(
+                                "denominator_target"
+                            )
+                        )
+                    ),
+                )
+
+        for definition in definitions:
+            name = definition.get("name")
+            metric_type = definition.get("type")
+
+            if not name:
+                raise ValueError(
+                    "Derived metric saknar name."
+                )
+
+            if metric_type == "rate_difference":
+                left = _resolve_reference(
+                    str(definition.get("left")),
+                    values,
+                )
+                right = _resolve_reference(
+                    str(definition.get("right")),
+                    values,
+                )
+
+                values["result"][str(name)] = (
+                    None
+                    if left is None or right is None
+                    else left - right
+                )
+
+            elif metric_type == "rate_ratio":
+                values["result"][str(name)] = _safe_rate(
+                    _resolve_reference(
+                        str(
+                            definition.get(
+                                "numerator"
+                            )
+                        ),
+                        values,
+                    ),
+                    _resolve_reference(
+                        str(
+                            definition.get(
+                                "denominator"
+                            )
+                        ),
+                        values,
+                    ),
+                )
+
+            elif metric_type != "conditional_event_rate":
+                raise ValueError(
+                    f"Okänd derived metric type "
+                    f"'{metric_type}'."
+                )
+
+        updated = deepcopy(row)
+
+        updated["derived_metrics"] = {
+            **dict(
+                values.get(
+                    "baseline",
+                    {},
+                )
+            ),
+            **dict(
+                values.get(
+                    "incremental",
+                    {},
+                )
+            ),
+            **dict(
+                values.get(
+                    "result",
+                    {},
+                )
+            ),
+        }
+
+        enriched.append(updated)
+
+    return enriched
+
+
 def apply_derived_metrics(
     spec: ResearchSpec,
     results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """
-    Add declarative derived metrics without changing legacy results.
+    Add declarative derived metrics.
 
     Specs without metadata.derived_metrics are returned unchanged.
-    All conditional probabilities are calculated from exact event
-    counts in the raw result rows.
+
+    For nested_regime_comparison, calculations use the exact
+    baseline/incremental/comparator event counts from the raw result
+    rows. No rounded event rates are used.
     """
-    definitions = _definitions(spec.metadata)
+    definitions = _definitions(
+        spec.metadata
+    )
 
     if not definitions:
         return results
 
-    groups = _result_groups(results)
-
-    by_window_split: dict[
-        tuple[str, str],
-        dict[str, list[dict[str, Any]]],
-    ] = defaultdict(lambda: defaultdict(list))
-
-    for (window, split, regime), rows in groups.items():
-        by_window_split[(window, split)][regime].extend(rows)
-
-    derived_by_row: dict[int, dict[str, float | None]] = {}
-
-    for (window, split), regime_rows in by_window_split.items():
-        values = _calculate_group_metrics(
+    if (
+        spec.analysis.type
+        == "nested_regime_comparison"
+        and results
+        and all(
+            "baseline_events" in row
+            and "incremental_events" in row
+            and "comparator_events" in row
+            for row in results
+        )
+    ):
+        return _apply_nested_metrics(
             definitions,
-            regime_rows,
+            results,
         )
 
-        for (group_window, group_split, regime), rows in groups.items():
-            if (
-                group_window != window
-                or group_split != split
-            ):
-                continue
-
-            metrics = dict(values.get(regime, {}))
-            metrics.update(values.get("result", {}))
-
-            for row in rows:
-                derived_by_row[id(row)] = metrics
-
-    enriched: list[dict[str, Any]] = []
-
-    for row in results:
-        updated = deepcopy(row)
-        metrics = derived_by_row.get(id(row))
-
-        if metrics:
-            updated["regime"] = _regime_name(row)
-            updated["derived_metrics"] = metrics
-
-        enriched.append(updated)
-
-    return enriched
+    return _apply_generic_metrics(
+        definitions,
+        results,
+    )
