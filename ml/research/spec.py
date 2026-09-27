@@ -12,6 +12,7 @@ VALID_MODES = {
     "deep",
 }
 
+
 VALID_ANALYSIS_TYPES = {
     "interaction",
     "tail",
@@ -20,12 +21,15 @@ VALID_ANALYSIS_TYPES = {
     "nested_regime_comparison",
     "conditional_regime_comparison",
     "stratified_regime_comparison",
+    "stratified_interaction",
 }
+
 
 VALID_DIRECTIONS = {
     "upper",
     "lower",
 }
+
 
 ANALYSIS_SIGNAL_REQUIREMENTS = {
     "tail": (1, None),
@@ -35,6 +39,7 @@ ANALYSIS_SIGNAL_REQUIREMENTS = {
     "nested_regime_comparison": (3, 3),
     "conditional_regime_comparison": (2, None),
     "stratified_regime_comparison": (3, 3),
+    "stratified_interaction": (3, 3),
 }
 
 
