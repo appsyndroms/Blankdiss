@@ -151,18 +151,6 @@ def verify_evaluation(
     candidate: CandidateSpec,
     evaluation: EvaluationSpec,
 ) -> None:
-    """
-    Full verification före prospective evaluation.
-
-    Ordningen är medveten:
-
-    1. frozen
-    2. identity
-    3. training period
-    4. temporal separation
-    5. target
-    """
-
     if candidate.status != "frozen":
         raise ValueError(
             "Evaluation kräver en frozen candidate."
@@ -183,6 +171,11 @@ def verify_evaluation(
     )
 
     verify_evaluation_targets(
+        candidate,
+        evaluation,
+    )
+
+    verify_all_walk_forward_windows(
         candidate,
         evaluation,
     )
