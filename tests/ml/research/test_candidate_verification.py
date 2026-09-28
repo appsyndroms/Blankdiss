@@ -4,16 +4,17 @@ from dataclasses import replace
 
 import pytest
 
-from research.candidates.spec import (
+from ml.research.candidates.spec import (
     CandidateAnalysis,
     CandidateFeature,
     CandidatePeriod,
     CandidateSpec,
     CandidateTarget,
 )
-from research.candidates.verification import (
+from ml.research.candidates.verification import (
     candidate_fingerprint,
     candidate_snapshot,
+    verify_candidate,
     verify_candidate_fingerprint,
     verify_candidate_frozen,
     verify_candidate_identity,
@@ -79,6 +80,14 @@ def test_frozen_candidate_is_accepted():
     candidate = make_candidate()
 
     verify_candidate_frozen(
+        candidate
+    )
+
+
+def test_complete_frozen_candidate_is_accepted():
+    candidate = make_candidate()
+
+    verify_candidate(
         candidate
     )
 
