@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping
 
 import pandas as pd
 
@@ -61,7 +62,10 @@ def _candidate_signal(
 
     parameter = parameters[feature_name]
 
-    if not isinstance(parameter, dict):
+    if not isinstance(
+        parameter,
+        Mapping,
+    ):
         raise ValueError(
             "Candidate parameter måste vara ett objekt: "
             f"{feature_name}"
@@ -112,26 +116,35 @@ def _build_research_spec(
         ),
         question=candidate.question,
         signals=signals,
-        targets=(candidate.target.name,),
+        targets=(
+            candidate.target.name,
+        ),
         analysis=AnalysisSpec(
-            type=evaluation.analysis.type,
-            bootstrap=evaluation.analysis.bootstrap,
+            type=candidate.analysis.type,
+            bootstrap=candidate.analysis.bootstrap,
             bootstrap_iterations=(
-                evaluation.analysis.bootstrap_iterations
+                candidate.analysis
+                .bootstrap_iterations
             ),
         ),
         mode="deep",
         windows=(window_name,),
         splits=("test",),
         metadata={
-            "source": "research.evaluation.runner",
+            "source": (
+                "research.evaluation.runner"
+            ),
             "candidate_id": candidate.id,
-            "candidate_version": candidate.version,
+            "candidate_version": (
+                candidate.version
+            ),
             "candidate_fingerprint": (
                 candidate_fingerprint(candidate)
             ),
             "evaluation_id": evaluation.id,
-            "evaluation_version": evaluation.version,
+            "evaluation_version": (
+                evaluation.version
+            ),
         },
     )
 
@@ -150,7 +163,7 @@ def _build_evaluation_mask(
     end_ts = pd.Timestamp(end)
 
     return (
-        (dates > start_ts)
+        (dates >= start_ts)
         & (dates <= end_ts)
     ).to_numpy()
 
@@ -219,8 +232,16 @@ def _windows(
     return (
         WalkForwardWindow(
             name="evaluation",
-            start=evaluation.evaluation_period.start,
-            end=evaluation.evaluation_period.end,
+            start=(
+                evaluation
+                .evaluation_period
+                .start
+            ),
+            end=(
+                evaluation
+                .evaluation_period
+                .end
+            ),
         ),
     )
 
@@ -300,7 +321,9 @@ def run_evaluation(
         "evaluation": {
             "id": evaluation.id,
             "version": evaluation.version,
-            "candidate_id": evaluation.candidate_id,
+            "candidate_id": (
+                evaluation.candidate_id
+            ),
             "candidate_version": (
                 evaluation.candidate_version
             ),
@@ -309,15 +332,21 @@ def run_evaluation(
             ),
             "evaluation_period": {
                 "start": (
-                    evaluation.evaluation_period.start
+                    evaluation
+                    .evaluation_period
+                    .start
                 ),
                 "end": (
-                    evaluation.evaluation_period.end
+                    evaluation
+                    .evaluation_period
+                    .end
                 ),
             },
             "walk_forward": {
                 "enabled": (
-                    evaluation.walk_forward.enabled
+                    evaluation
+                    .walk_forward
+                    .enabled
                 ),
                 "windows": [
                     {
@@ -326,19 +355,14 @@ def run_evaluation(
                         "end": window.end,
                     }
                     for window
-                    in evaluation.walk_forward.windows
+                    in evaluation
+                    .walk_forward
+                    .windows
                 ],
             },
             "metrics": list(
                 evaluation.metrics
             ),
-            "analysis": {
-                "type": evaluation.analysis.type,
-                "bootstrap": evaluation.analysis.bootstrap,
-                "bootstrap_iterations": (
-                    evaluation.analysis.bootstrap_iterations
-                ),
-            },
         },
         "verification": {
             "status": "passed",
@@ -365,14 +389,22 @@ def run_evaluation(
         {
             "run_id": run_id,
             "candidate_id": candidate.id,
-            "candidate_version": candidate.version,
+            "candidate_version": (
+                candidate.version
+            ),
             "candidate_fingerprint": (
-                candidate_fingerprint(candidate)
+                candidate_fingerprint(
+                    candidate
+                )
             ),
             "evaluation_id": evaluation.id,
-            "evaluation_version": evaluation.version,
+            "evaluation_version": (
+                evaluation.version
+            ),
             "result": str(
-                output_path.relative_to(ROOT)
+                output_path.relative_to(
+                    ROOT
+                )
             ),
             "verification": "passed",
         },
@@ -384,7 +416,8 @@ def run_evaluation(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Blankdiss prospective candidate evaluation runner."
+            "Blankdiss prospective "
+            "candidate evaluation runner."
         )
     )
 
