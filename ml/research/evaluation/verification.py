@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from research.candidates.spec import CandidateSpec
-from research.candidates.verification import (
+import pandas as pd
+
+from ml.config import TARGETS
+from ml.research.candidates.spec import CandidateSpec
+from ml.research.candidates.verification import (
     candidate_fingerprint,
 )
-from research.evaluation.spec import (
+from ml.research.evaluation.spec import (
     EvaluationSpec,
 )
 
@@ -137,14 +140,14 @@ def verify_temporal_separation(
             "före starten."
         )
 
-    if freeze_at <= discovery_cutoff:
+    if discovery_cutoff >= freeze_at:
         raise ValueError(
             "Temporal separation violation: "
-            "candidate.freeze_at måste ligga "
-            "efter candidate.discovery_cutoff."
+            "discovery_cutoff måste ligga "
+            "före freeze_at."
         )
 
-    if start <= freeze_at:
+    if freeze_at >= start:
         raise ValueError(
             "Temporal separation violation: "
             "evaluation måste börja efter "
@@ -185,23 +188,13 @@ def verify_training_period(
 
 def verify_walk_forward_window(
     candidate: CandidateSpec,
-    evaluation: EvaluationSpec,
     start: str,
     end: str,
+    evaluation: EvaluationSpec | None = None,
 ) -> None:
     freeze_at = _parse_boundary(
         candidate.freeze_at,
         "candidate.freeze_at",
-    )
-
-    evaluation_start = _parse_boundary(
-        evaluation.evaluation_period.start,
-        "evaluation_period.start",
-    )
-
-    evaluation_end = _parse_boundary(
-        evaluation.evaluation_period.end,
-        "evaluation_period.end",
     )
 
     window_start = _parse_boundary(
@@ -226,17 +219,28 @@ def verify_walk_forward_window(
             "efter candidate.freeze_at."
         )
 
-    if window_start < evaluation_start:
-        raise ValueError(
-            "Walk-forward-window måste ligga "
-            "inom evaluation_period."
+    if evaluation is not None:
+        evaluation_start = _parse_boundary(
+            evaluation.evaluation_period.start,
+            "evaluation_period.start",
         )
 
-    if window_end > evaluation_end:
-        raise ValueError(
-            "Walk-forward-window måste ligga "
-            "inom evaluation_period."
+        evaluation_end = _parse_boundary(
+            evaluation.evaluation_period.end,
+            "evaluation_period.end",
         )
+
+        if window_start < evaluation_start:
+            raise ValueError(
+                "Walk-forward-window måste ligga "
+                "inom evaluation_period."
+            )
+
+        if window_end > evaluation_end:
+            raise ValueError(
+                "Walk-forward-window måste ligga "
+                "inom evaluation_period."
+            )
 
 
 def verify_all_walk_forward_windows(
@@ -280,9 +284,9 @@ def verify_all_walk_forward_windows(
 
         verify_walk_forward_window(
             candidate,
-            evaluation,
             window.start,
             window.end,
+            evaluation,
         )
 
         parsed_windows.append(
@@ -303,7 +307,7 @@ def verify_all_walk_forward_windows(
         if current_start <= previous_end:
             raise ValueError(
                 "Walk-forward-windows får inte "
-                "över­lappa eller ligga i fel "
+                "överlappa eller ligga i fel "
                 "kronologisk ordning: "
                 f"{previous_name} -> {current_name}."
             )
@@ -320,6 +324,123 @@ def verify_no_evaluation_optimization(
             "Evaluation får inte vara "
             "parameter-optimerande."
         )
+
+    if evaluation.metadata.get(
+        "optimize_parameters",
+        False,
+    ):
+        raise ValueError(
+            "Evaluation får inte optimera "
+            "kandidatens parametrar."
+        )
+
+
+def verify_evaluation_period_data(
+    frame: pd.DataFrame,
+    evaluation: EvaluationSpec,
+) -> None:
+    if "snapshot_date" not in frame.columns:
+        raise ValueError(
+            "Feature-data saknar snapshot_date."
+        )
+
+    dates = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+
+    if dates.notna().sum() == 0:
+        raise ValueError(
+            "Feature-data saknar giltiga "
+            "snapshot_date-värden."
+        )
+
+    start = pd.Timestamp(
+        evaluation.evaluation_period.start
+    )
+    end = pd.Timestamp(
+        evaluation.evaluation_period.end
+    )
+
+    if start.tzinfo is not None:
+        dates = (
+            dates.dt.tz_localize(
+                "UTC",
+                ambiguous="NaT",
+                nonexistent="NaT",
+            )
+            if dates.dt.tz is None
+            else dates
+        )
+
+    evaluation_mask = (
+        (dates >= start)
+        & (dates <= end)
+    )
+
+    if int(evaluation_mask.sum()) == 0:
+        raise ValueError(
+            "Evaluation-perioden innehåller "
+            "inga feature rows."
+        )
+
+    max_date = dates.max()
+
+    if pd.notna(max_date) and max_date < end:
+        raise ValueError(
+            "Feature-data når inte evaluation-periodens "
+            f"slutdatum: max={max_date}, end={end}."
+        )
+
+
+def verify_candidate_features(
+    frame: pd.DataFrame,
+    candidate: CandidateSpec,
+) -> None:
+    if "snapshot_date" not in frame.columns:
+        raise ValueError(
+            "Feature-data saknar snapshot_date."
+        )
+
+    missing = [
+        feature.name
+        for feature in candidate.features
+        if feature.name not in frame.columns
+    ]
+
+    if missing:
+        raise ValueError(
+            "Candidate refererar till saknade "
+            "features: "
+            + ", ".join(sorted(missing))
+        )
+
+    target_names = {
+        target.name
+        for target in TARGETS
+    }
+
+    if candidate.target.name not in target_names:
+        raise ValueError(
+            "Candidate refererar till okänd "
+            f"target: {candidate.target.name}"
+        )
+
+
+def verify_evaluation_data(
+    frame: pd.DataFrame,
+    candidate: CandidateSpec,
+    evaluation: EvaluationSpec,
+) -> None:
+    verify_candidate_features(
+        frame,
+        candidate,
+    )
+
+    verify_evaluation_period_data(
+        frame,
+        evaluation,
+    )
 
 
 def verify_evaluation(
