@@ -33,16 +33,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      # ==========================================================
-      # FEATURE BUILD
-      #
-      # Workflowen använder redan hämtat rådata:
-      #   - FI aggregate
-      #   - price history
-      #   - övriga feature-källor som build_features använder
-      #
-      # Ingen datainsamling, ML, research eller backtest körs här.
-      # ==========================================================
       - name: Build features
         run: |
           python -u -m analysis.build_features
@@ -120,11 +110,6 @@ jobs:
                   f"Feature QC returnerade okänd status: {status}"
               )
           PY
-      # ==========================================================
-      # ARTIFACT
-      #
-      # Legacy-filerna sparas som artifact men committas inte.
-      # ==========================================================
       - name: Archive feature dataset
         uses: actions/upload-artifact@v4
         with:
@@ -137,40 +122,36 @@ jobs:
             data/processed/analysis/features_qc.json
           retention-days: 14
           if-no-files-found: error
-      # ==========================================================
-      # COMMIT GENERATED FEATURE ARTIFACTS
-      #
-      # Det kanoniska feature-datasetet består av chunks + metadata.
-      #
-      # fi_price_features.jsonl är en stor legacy-fil (~377 MB)
-      # och får därför INTE committas till Git.
-      #
-      # fi_price_features_metadata.json är också legacy och ska
-      # inte committas av detta workflow.
-      # ==========================================================
       - name: Commit generated features
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Lägg endast det kanoniska feature-datasetet i staging.
+          # ==========================================================
+          # LEGACY-FILER
+          #
+          # Legacy-datasetet sparas som artifact men ska inte
+          # påverka Git-committen eller rebase.
+          #
+          # fi_price_features_metadata.json är tracked och återställs
+          # till versionen i HEAD.
+          #
+          # fi_price_features.jsonl är untracked och tas bort.
+          # ==========================================================
+          git checkout -- \
+            data/processed/analysis/fi_price_features_metadata.json
+          rm -f \
+            data/processed/analysis/fi_price_features.jsonl
+          # ==========================================================
+          # STAGE CANONICAL FEATURE DATASET
+          # ==========================================================
           git add \
             data/processed/analysis/features_*.jsonl \
             data/processed/analysis/features_metadata.json \
             data/processed/analysis/features_qc.json
           # Säkerhetskontroll:
           # Legacy-dataseten får aldrig hamna i committen.
-          #
-          # Viktigt:
-          # git reset tar bara bort filer från staging.
-          # Om legacy-filerna har ändrats av build-steget måste de
-          # dessutom återställas i working tree, annars kan rebase
-          # inte köras.
           git reset -- \
-            data/processed/analysis/fi_price_features.jsonl \
-            data/processed/analysis/fi_price_features_metadata.json \
-            2>/dev/null || true
-          git restore -- \
             data/processed/analysis/fi_price_features.jsonl \
             data/processed/analysis/fi_price_features_metadata.json \
             2>/dev/null || true
@@ -192,8 +173,9 @@ jobs:
           echo "=========================================="
           git status --short
           # Rebase kräver ren working tree.
-          # Om något oväntat fortfarande finns kvar ska workflowen
-          # stoppa här i stället för att försöka fem gånger.
+          # Om något oväntat finns kvar ska workflowen
+          # stoppa direkt i stället för att göra meningslösa
+          # retry-försök.
           if [ -n "$(git status --porcelain)" ]; then
             echo
             echo "ERROR: Working tree är inte ren efter commit."
