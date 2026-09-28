@@ -36,6 +36,13 @@ def candidate_definition_payload(
         "target": {
             "name": candidate.target.name
         },
+        "analysis": {
+            "type": candidate.analysis.type,
+            "bootstrap": candidate.analysis.bootstrap,
+            "bootstrap_iterations": (
+                candidate.analysis.bootstrap_iterations
+            ),
+        },
         "training_period": {
             "start": (
                 candidate.training_period.start
@@ -101,8 +108,14 @@ def verify_candidate_frozen(
 
 def verify_candidate_fingerprint(
     candidate: CandidateSpec,
+    expected_fingerprint: str | None = None,
 ) -> None:
-    if not candidate.fingerprint_value:
+    expected = (
+        expected_fingerprint
+        or candidate.fingerprint_value
+    )
+
+    if not expected:
         raise ValueError(
             "Candidate saknar förväntad "
             "fingerprint."
@@ -112,10 +125,10 @@ def verify_candidate_fingerprint(
         candidate
     )
 
-    if actual != candidate.fingerprint_value:
+    if actual != expected:
         raise ValueError(
             "Candidate fingerprint mismatch: "
-            f"expected {candidate.fingerprint_value}, "
+            f"expected {expected}, "
             f"got {actual}."
         )
 
