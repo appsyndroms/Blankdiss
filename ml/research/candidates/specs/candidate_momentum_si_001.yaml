@@ -30,6 +30,11 @@ parameters:
 target:
   name: positive_20d
 
+analysis:
+  type: interaction
+  bootstrap: true
+  bootstrap_iterations: 2000
+
 training_period:
   start: "2022-01-01T00:00:00Z"
   end: "2026-06-30T00:00:00Z"
@@ -41,4 +46,4 @@ provenance:
 
 fingerprint:
   algorithm: sha256
-  value: "RECALCULATE_AFTER_FINAL_DEFINITION"
+  value: "ac8afecc5d6433ec0dae5407af72684aed493f17b4d501c54bda101ccc9d9ebb"
