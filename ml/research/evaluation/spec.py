@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -14,87 +13,78 @@ class EvaluationPeriod:
 
 
 @dataclass(frozen=True)
+class WalkForwardWindow:
+    name: str
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
 class WalkForwardSpec:
     enabled: bool
-    windows: tuple[EvaluationPeriod, ...]
+    windows: tuple[WalkForwardWindow, ...]
+
+
+@dataclass(frozen=True)
+class EvaluationAnalysis:
+    type: str
+    bootstrap: bool
+    bootstrap_iterations: int
 
 
 @dataclass(frozen=True)
 class EvaluationSpec:
-    """
-    Specification of how a frozen candidate is evaluated.
-
-    This object deliberately contains no candidate parameters.
-    Candidate parameters belong exclusively to CandidateSpec.
-    """
-
+    schema_version: int
     id: str
     version: int
-
     candidate_id: str
     candidate_version: int
-
+    candidate_fingerprint: str | None
     evaluation_period: EvaluationPeriod
-
     targets: tuple[str, ...]
-
     metrics: tuple[str, ...]
-
+    analysis: EvaluationAnalysis
     walk_forward: WalkForwardSpec
+    metadata: dict
 
-    metadata: dict[str, Any]
+    def __post_init__(self) -> None:
+        if self.schema_version < 1:
+            raise ValueError("schema_version måste vara >= 1.")
 
+        if not self.id:
+            raise ValueError("Evaluation saknar id.")
 
-def _require_string(
-    value: Any,
-    field_name: str,
-) -> str:
-    if value is None:
-        raise ValueError(
-            f"{field_name} saknas."
-        )
+        if self.version < 1:
+            raise ValueError("Evaluation version måste vara >= 1.")
 
-    value = str(value)
+        if not self.candidate_id:
+            raise ValueError("Evaluation saknar candidate id.")
 
-    if not value:
-        raise ValueError(
-            f"{field_name} får inte vara tom."
-        )
+        if self.candidate_version < 1:
+            raise ValueError(
+                "candidate_version måste vara >= 1."
+            )
 
-    return value
+        if not self.targets:
+            raise ValueError(
+                "Evaluation måste ha minst ett target."
+            )
 
+        if not self.metrics:
+            raise ValueError(
+                "Evaluation måste ha minst ett metric."
+            )
 
-def _require_mapping(
-    value: Any,
-    field_name: str,
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError(
-            f"{field_name} måste vara ett objekt."
-        )
+        if self.analysis.type != "interaction":
+            raise ValueError(
+                "Den nya evaluation-adaptern stöder "
+                "för närvarande endast analysis.type=interaction."
+            )
 
-    return value
-
-
-def _period_from_payload(
-    value: Any,
-    field_name: str,
-) -> EvaluationPeriod:
-    mapping = _require_mapping(
-        value,
-        field_name,
-    )
-
-    return EvaluationPeriod(
-        start=_require_string(
-            mapping.get("start"),
-            f"{field_name}.start",
-        ),
-        end=_require_string(
-            mapping.get("end"),
-            f"{field_name}.end",
-        ),
-    )
+        if self.analysis.bootstrap_iterations < 1:
+            raise ValueError(
+                "bootstrap_iterations måste vara > 0."
+            )
 
 
 def load_evaluation(
@@ -103,183 +93,185 @@ def load_evaluation(
     path = Path(path)
 
     payload = yaml.safe_load(
-        path.read_text(
-            encoding="utf-8"
-        )
+        path.read_text(encoding="utf-8")
     )
 
     if not isinstance(payload, dict):
         raise ValueError(
-            f"Evaluation spec måste vara ett objekt: {path}"
+            f"Evaluation måste vara ett objekt: {path}"
         )
 
-    evaluation_id = _require_string(
-        payload.get("id"),
-        "id",
+    forbidden = {
+        "parameters",
+        "candidate_parameters",
+        "search_space",
+        "optimization",
+    }
+
+    present_forbidden = forbidden.intersection(
+        payload
     )
 
-    version = int(
-        payload.get(
-            "version",
-            0,
+    if present_forbidden:
+        names = ", ".join(
+            sorted(present_forbidden)
         )
-    )
-
-    if version < 1:
         raise ValueError(
-            "Evaluation version måste vara >= 1."
+            "Evaluation får inte innehålla "
+            f"candidate-optimeringsfält: {names}"
         )
 
-    candidate = _require_mapping(
-        payload.get("candidate"),
-        "candidate",
-    )
+    candidate = payload.get("candidate")
 
-    candidate_id = _require_string(
-        candidate.get("id"),
-        "candidate.id",
-    )
-
-    candidate_version = int(
-        candidate.get(
-            "version",
-            0,
-        )
-    )
-
-    if candidate_version < 1:
+    if not isinstance(candidate, dict):
         raise ValueError(
-            "candidate.version måste vara >= 1."
+            f"Evaluation saknar candidate-objekt: {path}"
         )
 
-    evaluation_period = _period_from_payload(
-        payload.get("evaluation_period"),
-        "evaluation_period",
-    )
+    candidate_id = candidate.get("id")
+    candidate_version = candidate.get("version")
+
+    if not candidate_id:
+        raise ValueError(
+            f"Evaluation candidate saknar id: {path}"
+        )
+
+    if candidate_version is None:
+        raise ValueError(
+            f"Evaluation candidate saknar version: {path}"
+        )
+
+    fingerprint = candidate.get("fingerprint")
+
+    period = payload.get("evaluation_period")
+
+    if not isinstance(period, dict):
+        raise ValueError(
+            f"Evaluation saknar evaluation_period: {path}"
+        )
+
+    start = period.get("start")
+    end = period.get("end")
+
+    if not start or not end:
+        raise ValueError(
+            "evaluation_period måste ha start och end."
+        )
 
     targets = tuple(
         str(value)
-        for value in payload.get(
-            "targets",
-            [],
-        )
+        for value in payload.get("targets", [])
     )
-
-    if not targets:
-        raise ValueError(
-            "Evaluation måste ha minst ett target."
-        )
 
     metrics = tuple(
         str(value)
-        for value in payload.get(
-            "metrics",
-            [],
-        )
+        for value in payload.get("metrics", [])
     )
 
-    if not metrics:
+    raw_analysis = payload.get("analysis", {})
+
+    if not isinstance(raw_analysis, dict):
         raise ValueError(
-            "Evaluation måste ha minst ett metric."
+            "analysis måste vara ett objekt."
         )
+
+    analysis = EvaluationAnalysis(
+        type=str(
+            raw_analysis.get(
+                "type",
+                "interaction",
+            )
+        ).lower(),
+        bootstrap=bool(
+            raw_analysis.get(
+                "bootstrap",
+                False,
+            )
+        ),
+        bootstrap_iterations=int(
+            raw_analysis.get(
+                "bootstrap_iterations",
+                2000,
+            )
+        ),
+    )
 
     raw_walk_forward = payload.get(
         "walk_forward",
         {},
     )
 
-    walk_forward_mapping = _require_mapping(
-        raw_walk_forward,
-        "walk_forward",
-    )
-
-    walk_forward_enabled = bool(
-        walk_forward_mapping.get(
-            "enabled",
-            False,
+    if not isinstance(raw_walk_forward, dict):
+        raise ValueError(
+            "walk_forward måste vara ett objekt."
         )
-    )
 
-    raw_windows = walk_forward_mapping.get(
-        "windows",
-        [],
-    )
+    windows = []
 
-    windows: list[EvaluationPeriod] = []
-
-    if raw_windows:
-        if not isinstance(
-            raw_windows,
-            list,
-        ):
+    for index, raw_window in enumerate(
+        raw_walk_forward.get("windows", []),
+        start=1,
+    ):
+        if not isinstance(raw_window, dict):
             raise ValueError(
-                "walk_forward.windows måste vara en lista."
+                "Varje walk-forward-window måste vara ett objekt."
             )
 
-        for index, raw_window in enumerate(
-            raw_windows,
-            start=1,
-        ):
-            windows.append(
-                _period_from_payload(
-                    raw_window,
-                    f"walk_forward.windows[{index}]",
-                )
+        windows.append(
+            WalkForwardWindow(
+                name=str(
+                    raw_window.get(
+                        "name",
+                        f"window_{index}",
+                    )
+                ),
+                start=str(raw_window["start"]),
+                end=str(raw_window["end"]),
             )
+        )
 
-    if walk_forward_enabled and not windows:
+    walk_forward = WalkForwardSpec(
+        enabled=bool(
+            raw_walk_forward.get(
+                "enabled",
+                False,
+            )
+        ),
+        windows=tuple(windows),
+    )
+
+    if walk_forward.enabled and not walk_forward.windows:
         raise ValueError(
             "walk_forward.enabled=true kräver windows."
         )
 
-    metadata = payload.get(
-        "metadata",
-        {},
-    )
+    metadata = payload.get("metadata", {})
 
-    if not isinstance(
-        metadata,
-        dict,
-    ):
+    if not isinstance(metadata, dict):
         raise ValueError(
             "metadata måste vara ett objekt."
         )
 
     return EvaluationSpec(
-        id=evaluation_id,
-        version=version,
-        candidate_id=candidate_id,
-        candidate_version=candidate_version,
-        evaluation_period=evaluation_period,
+        schema_version=int(
+            payload.get("schema_version", 1)
+        ),
+        id=str(payload["id"]),
+        version=int(payload["version"]),
+        candidate_id=str(candidate_id),
+        candidate_version=int(candidate_version),
+        candidate_fingerprint=(
+            str(fingerprint)
+            if fingerprint
+            else None
+        ),
+        evaluation_period=EvaluationPeriod(
+            start=str(start),
+            end=str(end),
+        ),
         targets=targets,
         metrics=metrics,
-        walk_forward=WalkForwardSpec(
-            enabled=walk_forward_enabled,
-            windows=tuple(windows),
-        ),
+        analysis=analysis,
+        walk_forward=walk_forward,
         metadata=dict(metadata),
     )
-
-
-def validate_candidate_reference(
-    evaluation: EvaluationSpec,
-    candidate_id: str,
-    candidate_version: int,
-) -> None:
-    """
-    Prevents evaluation from silently referring to another candidate.
-    """
-
-    if evaluation.candidate_id != candidate_id:
-        raise ValueError(
-            "Evaluation refererar till fel candidate_id: "
-            f"{evaluation.candidate_id}; "
-            f"förväntade {candidate_id}."
-        )
-
-    if evaluation.candidate_version != candidate_version:
-        raise ValueError(
-            "Evaluation refererar till fel candidate_version: "
-            f"{evaluation.candidate_version}; "
-            f"förväntade {candidate_version}."
-        )
