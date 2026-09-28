@@ -56,6 +56,27 @@ def _build_disjoint_bands(
     return bands
 
 
+def _momentum_label(signal: SignalSpec) -> str:
+    """
+    Return a stable human-readable label for a momentum signal.
+
+    Examples:
+        price_momentum_5d  -> 5d
+        price_momentum_20d -> 20d
+        price_momentum_60d -> 60d
+
+    The analysis itself remains generic: the label is derived from
+    the signal supplied by the research spec rather than assuming
+    a specific momentum horizon.
+    """
+    prefix = "price_momentum_"
+
+    if signal.name.startswith(prefix):
+        return signal.name[len(prefix):]
+
+    return signal.name
+
+
 def _rate(
     target: np.ndarray,
     mask: np.ndarray,
@@ -255,10 +276,16 @@ def analyse_stratified_interaction(
     Formal difference-in-differences test of whether the
     high-volatility effect changes with momentum strength.
 
+    The first two supplied signals are treated as the two
+    momentum dimensions. The third supplied signal is treated
+    as the volatility dimension.
+
     We compare:
 
-      1. 5d momentum: weak vs strong, holding each 60d band fixed.
-      2. 60d momentum: weak vs strong, holding each 5d band fixed.
+      1. First momentum signal: weak vs strong, holding each
+         band of the second momentum signal fixed.
+      2. Second momentum signal: weak vs strong, holding each
+         band of the first momentum signal fixed.
       3. Jointly weak momentum (weak/weak) vs jointly strong
          momentum (strong/strong).
 
@@ -272,6 +299,14 @@ def analyse_stratified_interaction(
         volatility_effect =
             P(event | high volatility)
             - P(event | normal volatility)
+
+    The implementation is intentionally generic with respect
+    to momentum horizon. For example, the same analysis can
+    operate on:
+
+        price_momentum_5d  x price_momentum_60d
+        price_momentum_5d  x price_momentum_20d
+        price_momentum_20d x price_momentum_60d
     """
     if len(signals) != 3 or len(fractions) != 3:
         raise ValueError(
@@ -350,14 +385,17 @@ def analyse_stratified_interaction(
     strong_j = 0
     weak_j = len(second_bands) - 1
 
+    first_label = _momentum_label(signals[0])
+    second_label = _momentum_label(signals[1])
+
     # ------------------------------------------------------------
-    # 5d momentum:
+    # First momentum dimension:
     #
-    # Compare weak 5d momentum with strong 5d momentum while
-    # holding the 60d momentum band fixed.
+    # Compare weak first momentum with strong first momentum
+    # while holding the second momentum band fixed.
     # ------------------------------------------------------------
     for j, (
-        second_label,
+        second_band_label,
         _,
         _,
         _,
@@ -374,15 +412,15 @@ def analyse_stratified_interaction(
                 window_name,
                 split_name,
                 contrast_type=(
-                    "momentum_5d_weak_vs_strong"
+                    f"momentum_{first_label}_weak_vs_strong"
                 ),
                 reference_label=(
                     f"{first_bands[strong_i][0]}"
-                    f"__{second_label}"
+                    f"__{second_band_label}"
                 ),
                 comparison_label=(
                     f"{first_bands[weak_i][0]}"
-                    f"__{second_label}"
+                    f"__{second_band_label}"
                 ),
                 reference=reference,
                 comparison=comparison,
@@ -394,13 +432,13 @@ def analyse_stratified_interaction(
         )
 
     # ------------------------------------------------------------
-    # 60d momentum:
+    # Second momentum dimension:
     #
-    # Compare weak 60d momentum with strong 60d momentum while
-    # holding the 5d momentum band fixed.
+    # Compare weak second momentum with strong second momentum
+    # while holding the first momentum band fixed.
     # ------------------------------------------------------------
     for i, (
-        first_label,
+        first_band_label,
         _,
         _,
         _,
@@ -417,14 +455,14 @@ def analyse_stratified_interaction(
                 window_name,
                 split_name,
                 contrast_type=(
-                    "momentum_60d_weak_vs_strong"
+                    f"momentum_{second_label}_weak_vs_strong"
                 ),
                 reference_label=(
-                    f"{first_label}"
+                    f"{first_band_label}"
                     f"__{second_bands[strong_j][0]}"
                 ),
                 comparison_label=(
-                    f"{first_label}"
+                    f"{first_band_label}"
                     f"__{second_bands[weak_j][0]}"
                 ),
                 reference=reference,
@@ -439,7 +477,8 @@ def analyse_stratified_interaction(
     # ------------------------------------------------------------
     # Joint contrast:
     #
-    # Strong 5d + strong 60d versus weak 5d + weak 60d.
+    # Strong first + strong second versus weak first + weak
+    # second.
     # ------------------------------------------------------------
     reference = cells[
         (strong_i, strong_j)
