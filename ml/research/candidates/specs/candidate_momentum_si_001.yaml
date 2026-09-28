@@ -1,5 +1,6 @@
-id: candidate_momentum_si_001
+schema_version: 1
 
+id: candidate_momentum_si_001
 version: 1
 
 question: >
@@ -7,16 +8,14 @@ question: >
   i short interest en förändrad sannolikhet för framtida prisrörelse?
 
 created_at: "2026-09-28T00:00:00Z"
-
-discovery_cutoff: "2026-06-30"
-
+discovery_cutoff: "2026-06-30T00:00:00Z"
 freeze_at: "2026-07-15T00:00:00Z"
 
 candidate_status: frozen
 
 features:
-  - price_momentum_60d
-  - short_interest_change
+  - name: price_momentum_60d
+  - name: short_interest_change
 
 parameters:
   price_momentum_60d:
@@ -31,10 +30,14 @@ target:
   name: forward_return_20d
 
 training_period:
-  start: "2022-01-01"
-  end: "2026-06-30"
+  start: "2022-01-01T00:00:00Z"
+  end: "2026-06-30T00:00:00Z"
 
 provenance:
   source: discovery
   discovery_spec: null
   research_engine: existing
+
+fingerprint:
+  algorithm: sha256
+  value: "962a7df8cbd71517b715d0ce0c2c75a6b8c3eee877b1a8eea1e006de0837707b"
