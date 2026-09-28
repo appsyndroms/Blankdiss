@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
@@ -12,27 +13,33 @@ from ml.research.cache import (
     ResearchRequirement,
     build_research_cache,
 )
+from ml.research.candidates.spec import (
+    load_candidate,
+)
+from ml.research.candidates.verification import (
+    candidate_fingerprint,
+    candidate_snapshot,
+)
 from ml.research.engine import run_spec
+from ml.research.evaluation.spec import (
+    EvaluationSpec,
+    WalkForwardWindow,
+    load_evaluation,
+)
+from ml.research.evaluation.verification import (
+    verify_evaluation,
+)
 from ml.research.reporting import write_json
 from ml.research.spec import (
     AnalysisSpec,
     ResearchSpec,
     SignalSpec,
 )
-
-from research.candidates.spec import load_candidate
-from research.candidates.verification import (
-    candidate_fingerprint,
-    candidate_snapshot,
-    verify_candidate_frozen,
+from ml.research.verification import (
+    build_verification_report,
 )
-from research.evaluation.spec import (
-    EvaluationSpec,
-    WalkForwardWindow,
-    load_evaluation,
-)
-from research.evaluation.verification import (
-    verify_evaluation,
+from ml.research.walk_forward import (
+    aggregate_walk_forward,
 )
 
 
@@ -54,20 +61,20 @@ def _candidate_signal(
 ) -> SignalSpec:
     parameters = candidate.parameters
 
-    if feature_name not in parameters:
-        raise ValueError(
-            "Candidate saknar parameters för feature: "
-            f"{feature_name}"
-        )
+    parameter = parameters.get(
+        feature_name
+    )
 
-    parameter = parameters[feature_name]
+    if parameter is None:
+        parameter = parameters
 
     if not isinstance(
         parameter,
         Mapping,
     ):
         raise ValueError(
-            "Candidate parameter måste vara ett objekt: "
+            "Candidate parameter måste vara "
+            "ett objekt: "
             f"{feature_name}"
         )
 
@@ -84,8 +91,8 @@ def _candidate_signal(
 
     if quantile is None:
         raise ValueError(
-            "Candidate parameter saknar quantile: "
-            f"{feature_name}"
+            "Candidate parameter saknar "
+            f"quantile: {feature_name}"
         )
 
     return SignalSpec(
@@ -132,7 +139,7 @@ def _build_research_spec(
         splits=("test",),
         metadata={
             "source": (
-                "research.evaluation.runner"
+                "ml.research.evaluation.runner"
             ),
             "candidate_id": candidate.id,
             "candidate_version": (
@@ -169,22 +176,10 @@ def _build_evaluation_mask(
     ).to_numpy()
 
 
-def _run_window(
-    frame: pd.DataFrame,
-    candidate,
-    evaluation: EvaluationSpec,
-    *,
-    window_name: str,
-    start: str,
-    end: str,
-) -> dict:
-    spec = _build_research_spec(
-        candidate,
-        evaluation,
-        window_name=window_name,
-    )
-
-    requirements = [
+def _requirements(
+    spec: ResearchSpec,
+) -> list[ResearchRequirement]:
+    return [
         ResearchRequirement(
             signal_name=signal.name,
             target_name=target_name,
@@ -196,9 +191,56 @@ def _run_window(
         for fraction in signal.bins
     ]
 
-    cache = build_research_cache(
-        frame,
-        requirements,
+
+def _data_fingerprint(
+    frame: pd.DataFrame,
+    candidate,
+) -> str:
+    columns = [
+        "snapshot_date",
+        *(
+            feature.name
+            for feature in candidate.features
+        ),
+    ]
+
+    columns = list(
+        dict.fromkeys(
+            column
+            for column in columns
+            if column in frame.columns
+        )
+    )
+
+    hashed = pd.util.hash_pandas_object(
+        frame[columns],
+        index=True,
+    )
+
+    digest = hashlib.sha256()
+    digest.update(
+        hashed.to_numpy(
+            dtype="uint64"
+        ).tobytes()
+    )
+
+    return digest.hexdigest()
+
+
+def _run_window(
+    frame: pd.DataFrame,
+    cache,
+    candidate,
+    evaluation: EvaluationSpec,
+    *,
+    window_name: str,
+    start: str,
+    end: str,
+) -> dict:
+    spec = _build_research_spec(
+        candidate,
+        evaluation,
+        window_name=window_name,
     )
 
     cache.window_masks[
@@ -280,10 +322,6 @@ def run_evaluation(
         evaluation_path
     )
 
-    verify_candidate_frozen(
-        candidate
-    )
-
     verify_evaluation(
         candidate,
         evaluation,
@@ -291,8 +329,29 @@ def run_evaluation(
 
     frame = load_features()
 
+    verification = build_verification_report(
+        candidate,
+        evaluation,
+        frame,
+    )
+
     windows = _windows(
         evaluation
+    )
+
+    first_spec = _build_research_spec(
+        candidate,
+        evaluation,
+        window_name=windows[0].name,
+    )
+
+    requirements = _requirements(
+        first_spec
+    )
+
+    cache = build_research_cache(
+        frame,
+        requirements,
     )
 
     results = []
@@ -301,6 +360,7 @@ def run_evaluation(
         results.append(
             _run_window(
                 frame,
+                cache,
                 candidate,
                 evaluation,
                 window_name=window.name,
@@ -309,12 +369,32 @@ def run_evaluation(
             )
         )
 
+    data_fingerprint = _data_fingerprint(
+        frame,
+        candidate,
+    )
+
+    run_material = "|".join(
+        [
+            candidate_fingerprint(candidate),
+            evaluation.id,
+            str(evaluation.version),
+            data_fingerprint,
+        ]
+    )
+
+    run_hash = hashlib.sha256(
+        run_material.encode("utf-8")
+    ).hexdigest()[:16]
+
     run_id = (
         datetime.now(
             timezone.utc
         ).strftime(
             "%Y%m%dT%H%M%SZ"
         )
+        + "-"
+        + run_hash
     )
 
     destination = (
@@ -326,13 +406,19 @@ def run_evaluation(
         / run_id
     )
 
+    if destination.exists():
+        raise FileExistsError(
+            "Duplicate evaluation run detected: "
+            f"{run_id}"
+        )
+
     destination.mkdir(
         parents=True,
-        exist_ok=True,
+        exist_ok=False,
     )
 
-    candidate_hash = candidate_fingerprint(
-        candidate
+    aggregation = aggregate_walk_forward(
+        results
     )
 
     payload = {
@@ -390,13 +476,16 @@ def run_evaluation(
             "metrics": list(
                 evaluation.metrics
             ),
+            "metadata": evaluation.metadata,
         },
-        "verification": {
-            "status": "passed",
+        "verification": verification,
+        "data": {
+            "feature_rows": int(
+                len(frame)
+            ),
+            "fingerprint": data_fingerprint,
         },
-        "feature_rows": int(
-            len(frame)
-        ),
+        "walk_forward": aggregation,
         "results": results,
     }
 
@@ -420,12 +509,15 @@ def run_evaluation(
                 candidate.version
             ),
             "candidate_fingerprint": (
-                candidate_hash
+                candidate_fingerprint(
+                    candidate
+                )
             ),
             "evaluation_id": evaluation.id,
             "evaluation_version": (
                 evaluation.version
             ),
+            "data_fingerprint": data_fingerprint,
             "result": str(
                 output_path.relative_to(
                     ROOT
@@ -456,11 +548,17 @@ def main() -> None:
         help="Path till evaluation YAML.",
     )
 
+    parser.add_argument(
+        "--output-dir",
+        help="Override evaluation output directory.",
+    )
+
     args = parser.parse_args()
 
     output = run_evaluation(
         args.candidate,
         args.evaluation,
+        output_dir=args.output_dir,
     )
 
     print(
