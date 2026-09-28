@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from research.candidates.spec import (
+    CandidateAnalysis,
     CandidateFeature,
     CandidatePeriod,
     CandidateSpec,
     CandidateTarget,
+)
+from research.candidates.verification import (
+    candidate_fingerprint,
 )
 from research.evaluation.spec import (
     EvaluationPeriod,
@@ -21,7 +27,8 @@ from research.evaluation.verification import (
 
 
 def make_candidate() -> CandidateSpec:
-    return CandidateSpec(
+    candidate = CandidateSpec(
+        schema_version=1,
         id="candidate_test_001",
         version=1,
         question="Test candidate",
@@ -40,6 +47,11 @@ def make_candidate() -> CandidateSpec:
         target=CandidateTarget(
             name="forward_return_20d"
         ),
+        analysis=CandidateAnalysis(
+            type="interaction",
+            bootstrap=True,
+            bootstrap_iterations=2000,
+        ),
         training_period=CandidatePeriod(
             start="2022-01-01T00:00:00Z",
             end="2026-06-30T00:00:00Z",
@@ -47,6 +59,18 @@ def make_candidate() -> CandidateSpec:
         provenance={
             "source": "test",
         },
+        fingerprint_algorithm=None,
+        fingerprint_value=None,
+    )
+
+    return replace(
+        candidate,
+        fingerprint_algorithm="sha256",
+        fingerprint_value=(
+            candidate_fingerprint(
+                candidate
+            )
+        ),
     )
 
 
@@ -56,9 +80,7 @@ def make_evaluation(
     end: str = "2026-09-30T00:00:00Z",
     candidate_id: str = "candidate_test_001",
     candidate_version: int = 1,
-    targets: tuple[str, ...] = (
-        "forward_return_20d",
-    ),
+    candidate_fingerprint: str | None = None,
     walk_forward: WalkForwardSpec | None = None,
 ) -> EvaluationSpec:
     if walk_forward is None:
@@ -67,16 +89,24 @@ def make_evaluation(
             windows=(),
         )
 
+    if candidate_fingerprint is None:
+        candidate_fingerprint = (
+            candidate_fingerprint_for_test()
+        )
+
     return EvaluationSpec(
+        schema_version=1,
         id="evaluation_test_001",
         version=1,
         candidate_id=candidate_id,
         candidate_version=candidate_version,
+        candidate_fingerprint=(
+            candidate_fingerprint
+        ),
         evaluation_period=EvaluationPeriod(
             start=start,
             end=end,
         ),
-        targets=targets,
         metrics=(
             "sample_size",
             "mean_return",
@@ -86,9 +116,20 @@ def make_evaluation(
     )
 
 
+def candidate_fingerprint_for_test() -> str:
+    return candidate_fingerprint(
+        make_candidate()
+    )
+
+
 def test_future_evaluation_is_accepted():
     candidate = make_candidate()
-    evaluation = make_evaluation()
+
+    evaluation = make_evaluation(
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        )
+    )
 
     verify_evaluation(
         candidate,
@@ -102,6 +143,9 @@ def test_evaluation_before_freeze_is_rejected():
     evaluation = make_evaluation(
         start="2026-07-01T00:00:00Z",
         end="2026-07-14T00:00:00Z",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
     )
 
     with pytest.raises(
@@ -120,6 +164,9 @@ def test_evaluation_starting_at_freeze_is_rejected():
     evaluation = make_evaluation(
         start="2026-07-15T00:00:00Z",
         end="2026-08-01T00:00:00Z",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
     )
 
     with pytest.raises(
@@ -138,6 +185,9 @@ def test_evaluation_after_freeze_is_accepted():
     evaluation = make_evaluation(
         start="2026-07-15T00:00:01Z",
         end="2026-08-01T00:00:00Z",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
     )
 
     verify_temporal_separation(
@@ -152,6 +202,9 @@ def test_reversed_evaluation_period_is_rejected():
     evaluation = make_evaluation(
         start="2026-09-30T00:00:00Z",
         end="2026-07-16T00:00:00Z",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
     )
 
     with pytest.raises(
@@ -168,7 +221,10 @@ def test_wrong_candidate_id_is_rejected():
     candidate = make_candidate()
 
     evaluation = make_evaluation(
-        candidate_id="candidate_other_001"
+        candidate_id="candidate_other_001",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
     )
 
     with pytest.raises(
@@ -185,7 +241,10 @@ def test_wrong_candidate_version_is_rejected():
     candidate = make_candidate()
 
     evaluation = make_evaluation(
-        candidate_version=2
+        candidate_version=2,
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
     )
 
     with pytest.raises(
@@ -198,18 +257,18 @@ def test_wrong_candidate_version_is_rejected():
         )
 
 
-def test_missing_candidate_target_is_rejected():
+def test_wrong_candidate_fingerprint_is_rejected():
     candidate = make_candidate()
 
     evaluation = make_evaluation(
-        targets=(
-            "another_target",
-        )
+        candidate_fingerprint=(
+            "0" * 64
+        ),
     )
 
     with pytest.raises(
         ValueError,
-        match="target",
+        match="fingerprint",
     ):
         verify_evaluation(
             candidate,
@@ -243,16 +302,19 @@ def test_walk_forward_after_freeze_is_accepted():
 
 def test_enabled_walk_forward_requires_windows():
     evaluation = EvaluationSpec(
+        schema_version=1,
         id="evaluation_test_002",
         version=1,
         candidate_id="candidate_test_001",
         candidate_version=1,
+        candidate_fingerprint="0" * 64,
         evaluation_period=EvaluationPeriod(
             start="2026-07-16T00:00:00Z",
             end="2026-09-30T00:00:00Z",
         ),
-        targets=("forward_return_20d",),
-        metrics=("sample_size",),
+        metrics=(
+            "sample_size",
+        ),
         walk_forward=WalkForwardSpec(
             enabled=True,
             windows=(),
