@@ -22,7 +22,13 @@
     "data/processed/analysis/features_0018.jsonl",
     "data/processed/analysis/features_0019.jsonl",
     "data/processed/analysis/features_0020.jsonl",
-    "data/processed/analysis/features_0021.jsonl"
+    "data/processed/analysis/features_0021.jsonl",
+    "data/processed/analysis/features_0022.jsonl",
+    "data/processed/analysis/features_0023.jsonl",
+    "data/processed/analysis/features_0024.jsonl",
+    "data/processed/analysis/features_0025.jsonl",
+    "data/processed/analysis/features_0026.jsonl",
+    "data/processed/analysis/features_0027.jsonl"
   ],
   "price_files": [
     "data/raw/prices/prices_2022-01-01_latest.jsonl",
