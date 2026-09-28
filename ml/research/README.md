@@ -548,6 +548,31 @@ inte för mängden kod.
 
 ⸻
 
+### Feature dataset
+
+Research Engine använder det genererade feature-datasetet som input.
+
+Feature-datasetet byggs i ett separat GitHub Actions-workflow:
+`Build Features`.
+
+Det innebär att uppdaterade FI- och prisdata inte automatiskt innebär att
+feature-datasetet är uppdaterat inför en research-körning.
+
+När nya rådata har hämtats och en research-körning ska baseras på den senaste
+datan behöver `Build Features` köras manuellt vid behov.
+
+Rekommenderat flöde:
+
+1. Uppdatera rådata (FI/priser).
+2. Kör `Build Features`.
+3. Kontrollera feature-QC.
+4. Kör Research Engine / AI Lab.
+5. Kontrollera vilken feature-version/run som användes för resultatet.
+
+Research Engine ska inte själv bygga om features. Separationen gör att
+feature-generering och research-körningar kan reproduceras och köras
+oberoende av varandra.
+
 Dokumentation
 
 * ml/README.md – ML-arkitekturen
