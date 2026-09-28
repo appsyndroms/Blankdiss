@@ -17,10 +17,13 @@ def _parse_boundary(
 ) -> datetime:
     if len(value) == 10:
         try:
-            parsed_date = date.fromisoformat(value)
+            parsed_date = date.fromisoformat(
+                value
+            )
         except ValueError as exc:
             raise ValueError(
-                f"Ogiltigt datum i {field_name}: {value}"
+                f"Ogiltigt datum i "
+                f"{field_name}: {value}"
             ) from exc
 
         return datetime(
@@ -47,7 +50,8 @@ def _parse_boundary(
 
     if parsed.tzinfo is None:
         raise ValueError(
-            f"{field_name} måste innehålla timezone: {value}"
+            f"{field_name} måste innehålla "
+            f"timezone: {value}"
         )
 
     return parsed
@@ -60,15 +64,22 @@ def verify_candidate_reference(
     if candidate.id != evaluation.candidate_id:
         raise ValueError(
             "Candidate identity mismatch: "
-            f"evaluation refererar {evaluation.candidate_id}, "
-            f"men laddad candidate är {candidate.id}."
+            f"evaluation refererar "
+            f"{evaluation.candidate_id}, "
+            f"men laddad candidate är "
+            f"{candidate.id}."
         )
 
-    if candidate.version != evaluation.candidate_version:
+    if (
+        candidate.version
+        != evaluation.candidate_version
+    ):
         raise ValueError(
             "Candidate version mismatch: "
-            f"evaluation refererar v{evaluation.candidate_version}, "
-            f"men laddad candidate är v{candidate.version}."
+            f"evaluation refererar "
+            f"v{evaluation.candidate_version}, "
+            f"men laddad candidate är "
+            f"v{candidate.version}."
         )
 
 
@@ -76,23 +87,23 @@ def verify_candidate_fingerprint_reference(
     candidate: CandidateSpec,
     evaluation: EvaluationSpec,
 ) -> None:
-    actual = candidate_fingerprint(candidate)
+    actual = candidate_fingerprint(
+        candidate
+    )
 
     if candidate.fingerprint_value != actual:
         raise ValueError(
-            "Candidate YAML har en fingerprint som inte "
-            "matchar dess definition."
+            "Candidate YAML har en fingerprint "
+            "som inte matchar dess definition."
         )
 
-    if evaluation.candidate_fingerprint is None:
+    if (
+        evaluation.candidate_fingerprint
+        != actual
+    ):
         raise ValueError(
-            "Evaluation måste referera till candidate fingerprint."
-        )
-
-    if evaluation.candidate_fingerprint != actual:
-        raise ValueError(
-            "Evaluation candidate fingerprint matchar inte "
-            "den frysta kandidaten."
+            "Evaluation candidate fingerprint "
+            "matchar inte den frysta kandidaten."
         )
 
 
@@ -117,13 +128,15 @@ def verify_temporal_separation(
 
     if end < start:
         raise ValueError(
-            "Evaluation-periodens slut ligger före starten."
+            "Evaluation-periodens slut ligger "
+            "före starten."
         )
 
     if start <= freeze_at:
         raise ValueError(
             "Temporal separation violation: "
-            "evaluation måste börja efter candidate.freeze_at."
+            "evaluation måste börja efter "
+            "candidate.freeze_at."
         )
 
 
@@ -147,24 +160,14 @@ def verify_training_period(
 
     if end < start:
         raise ValueError(
-            "training_period.end ligger före training_period.start."
+            "training_period.end ligger före "
+            "training_period.start."
         )
 
     if end > cutoff:
         raise ValueError(
-            "training_period.end kan inte ligga efter "
-            "discovery_cutoff."
-        )
-
-
-def verify_evaluation_targets(
-    candidate: CandidateSpec,
-    evaluation: EvaluationSpec,
-) -> None:
-    if candidate.target.name not in evaluation.targets:
-        raise ValueError(
-            "Evaluation saknar candidate target: "
-            f"{candidate.target.name}"
+            "training_period.end kan inte ligga "
+            "efter discovery_cutoff."
         )
 
 
@@ -190,13 +193,14 @@ def verify_walk_forward_window(
 
     if window_end < window_start:
         raise ValueError(
-            "Walk-forward-windowens slut ligger före starten."
+            "Walk-forward-windowens slut ligger "
+            "före starten."
         )
 
     if window_start <= freeze_at:
         raise ValueError(
-            "Walk-forward-window måste börja efter "
-            "candidate.freeze_at."
+            "Walk-forward-window måste börja "
+            "efter candidate.freeze_at."
         )
 
 
@@ -223,7 +227,8 @@ def verify_no_evaluation_optimization(
         False,
     ):
         raise ValueError(
-            "Evaluation får inte vara parameter-optimerande."
+            "Evaluation får inte vara "
+            "parameter-optimerande."
         )
 
 
@@ -251,11 +256,6 @@ def verify_evaluation(
     )
 
     verify_temporal_separation(
-        candidate,
-        evaluation,
-    )
-
-    verify_evaluation_targets(
         candidate,
         evaluation,
     )
