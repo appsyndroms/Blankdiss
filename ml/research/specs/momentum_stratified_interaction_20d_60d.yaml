@@ -1,0 +1,115 @@
+id: momentum_stratified_interaction_20d_60d
+
+question: >
+  Förändras effekten av hög 20-dagars prisvolatilitet när styrkan
+  i negativt 20-dagars och 60-dagars momentum förändras?
+  Testa detta som en difference-in-differences mellan disjunkta
+  momentumregimer, där hög volatilitet jämförs med normal volatilitet
+  inom varje regim.
+
+mode: deep
+
+signals:
+  - name: price_momentum_20d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.50
+      - 1.00
+
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.50
+      - 1.00
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+targets:
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: stratified_interaction
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  stage: hypothesis_test
+  purpose: volatility_momentum_interaction_horizon_20d_60d
+
+  hypothesis:
+    baseline: >
+      Hög volatilitet har en effekt på downside-risk även inom
+      momentumregimer med kontrollerad 20-dagars och 60-dagars
+      momentumstyrka.
+
+    interaction: >
+      Storleken på volatilitets­effekten förändras systematiskt
+      med momentumstyrkan.
+
+  contrasts:
+    - momentum_20d_weak_vs_strong_holding_60d_fixed
+    - momentum_60d_weak_vs_strong_holding_20d_fixed
+    - joint_weak_vs_strong
+
+  evaluation:
+    metric: difference_in_differences
+    definition: >
+      (volatility_effect_in_comparison_regime)
+      minus
+      (volatility_effect_in_reference_regime)
+
+    volatility_effect: >
+      Event rate under hög volatilitet minus event rate under
+      normal volatilitet inom samma momentumregim.
+
+    uncertainty:
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+
+  rules:
+    - momentum_bands_must_be_disjoint
+    - momentum_bands_must_be_predeclared
+    - volatility_threshold_must_be_predeclared
+    - no_threshold_optimization
+    - no_result_based_candidate_ranking
+    - no_test_based_parameter_selection
+    - validation_and_test_must_be_reported_separately
+    - windows_must_be_reported_separately
+    - exact_event_counts_must_be_reported
+
+  interpretation:
+    positive_difference_in_differences: >
+      Volatilitetseffekten är större i jämförelseregimen än i
+      referensregimen.
+
+    near_zero_difference_in_differences: >
+      Volatilitetseffekten förändras inte tydligt mellan de
+      jämförda momentumregimerna.
+
+    negative_difference_in_differences: >
+      Volatilitetseffekten är mindre i jämförelseregimen än i
+      referensregimen.
+
+  note: >
+    Detta experiment är en horisontrobusthetskontroll av
+    momentum_stratified_interaction. Den ersätter inte
+    baseline-specen och ska inte användas för att ändra
+    parametrar eller välja endpoint baserat på resultat.
