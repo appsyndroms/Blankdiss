@@ -5,9 +5,10 @@ version: 1
 
 question: >
   Ger hög 60-dagars momentum kombinerat med positiv förändring
-  i short interest en förändrad sannolikhet för framtida prisrörelse?
+  i short interest en förändrad sannolikhet för framtida
+  positiv prisrörelse över 20 dagar?
 
-created_at: "2026-09-28T00:00:00Z"
+created_at: "2026-07-01T00:00:00Z"
 discovery_cutoff: "2026-06-30T00:00:00Z"
 freeze_at: "2026-07-15T00:00:00Z"
 
@@ -27,7 +28,7 @@ parameters:
     quantile: 0.10
 
 target:
-  name: forward_return_20d
+  name: positive_20d
 
 training_period:
   start: "2022-01-01T00:00:00Z"
@@ -40,4 +41,4 @@ provenance:
 
 fingerprint:
   algorithm: sha256
-  value: "962a7df8cbd71517b715d0ce0c2c75a6b8c3eee877b1a8eea1e006de0837707b"
+  value: "RECALCULATE_AFTER_FINAL_DEFINITION"
