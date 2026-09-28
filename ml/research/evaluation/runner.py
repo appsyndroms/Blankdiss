@@ -36,7 +36,7 @@ from research.evaluation.verification import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 DEFAULT_OUTPUT_DIR = (
     ROOT
@@ -145,6 +145,7 @@ def _build_research_spec(
             "evaluation_version": (
                 evaluation.version
             ),
+            "window_name": window_name,
         },
     )
 
@@ -216,6 +217,25 @@ def _run_window(
     )
 
     result["evaluation_period"] = {
+        "start": start,
+        "end": end,
+    }
+
+    result["candidate"] = {
+        "id": candidate.id,
+        "version": candidate.version,
+        "fingerprint": candidate_fingerprint(
+            candidate
+        ),
+    }
+
+    result["evaluation"] = {
+        "id": evaluation.id,
+        "version": evaluation.version,
+    }
+
+    result["window"] = {
+        "name": window_name,
         "start": start,
         "end": end,
     }
@@ -297,15 +317,22 @@ def run_evaluation(
         )
     )
 
-    destination = Path(
-        output_dir
-        if output_dir is not None
-        else DEFAULT_OUTPUT_DIR
-    ) / run_id
+    destination = (
+        Path(
+            output_dir
+            if output_dir is not None
+            else DEFAULT_OUTPUT_DIR
+        )
+        / run_id
+    )
 
     destination.mkdir(
         parents=True,
         exist_ok=True,
+    )
+
+    candidate_hash = candidate_fingerprint(
+        candidate
     )
 
     payload = {
@@ -393,9 +420,7 @@ def run_evaluation(
                 candidate.version
             ),
             "candidate_fingerprint": (
-                candidate_fingerprint(
-                    candidate
-                )
+                candidate_hash
             ),
             "evaluation_id": evaluation.id,
             "evaluation_version": (
