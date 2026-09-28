@@ -1,0 +1,380 @@
+{
+  "spec_id": "momentum_60d_volatility_regime",
+  "question": "Tillför samtidig negativt 60-dagars momentum och hög 20-dagars prisvolatilitet information om downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+  "mode": "deep",
+  "analysis": "multi_regime_comparison",
+  "results": [
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_5pct_5d",
+      "window": "window_1",
+      "split": "validation",
+      "baseline_n": 5542,
+      "baseline_events": 895,
+      "baseline_event_rate": 0.16149404547094912,
+      "combined_n": 1081,
+      "combined_events": 247,
+      "combined_event_rate": 0.22849213691026826,
+      "absolute_event_rate_difference": 0.06699809143931915,
+      "lift": 1.4148641595047002,
+      "bootstrap_ci_low": 0.044480331507450496,
+      "bootstrap_ci_high": 0.0886476737074669
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_5pct_5d",
+      "window": "window_1",
+      "split": "test",
+      "baseline_n": 6075,
+      "baseline_events": 1036,
+      "baseline_event_rate": 0.1705349794238683,
+      "combined_n": 979,
+      "combined_events": 245,
+      "combined_event_rate": 0.25025536261491316,
+      "absolute_event_rate_difference": 0.07972038319104485,
+      "lift": 1.4674723242138972,
+      "bootstrap_ci_low": 0.054267614164343544,
+      "bootstrap_ci_high": 0.10474541617497451
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_5pct_5d",
+      "window": "window_2",
+      "split": "validation",
+      "baseline_n": 6075,
+      "baseline_events": 1036,
+      "baseline_event_rate": 0.1705349794238683,
+      "combined_n": 979,
+      "combined_events": 245,
+      "combined_event_rate": 0.25025536261491316,
+      "absolute_event_rate_difference": 0.07972038319104485,
+      "lift": 1.4674723242138972,
+      "bootstrap_ci_low": 0.055928240783376014,
+      "bootstrap_ci_high": 0.10441924716109705
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_5pct_5d",
+      "window": "window_2",
+      "split": "test",
+      "baseline_n": 5066,
+      "baseline_events": 850,
+      "baseline_event_rate": 0.16778523489932887,
+      "combined_n": 845,
+      "combined_events": 205,
+      "combined_event_rate": 0.24260355029585798,
+      "absolute_event_rate_difference": 0.07481831539652911,
+      "lift": 1.4459171597633136,
+      "bootstrap_ci_low": 0.04754128936083027,
+      "bootstrap_ci_high": 0.09993982316334907
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_7pct_5d",
+      "window": "window_1",
+      "split": "validation",
+      "baseline_n": 5542,
+      "baseline_events": 533,
+      "baseline_event_rate": 0.0961746661854926,
+      "combined_n": 1081,
+      "combined_events": 163,
+      "combined_event_rate": 0.150786308973173,
+      "absolute_event_rate_difference": 0.054611642787680395,
+      "lift": 1.5678381319499526,
+      "bootstrap_ci_low": 0.0374851523555626,
+      "bootstrap_ci_high": 0.07276089306282753
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_7pct_5d",
+      "window": "window_1",
+      "split": "test",
+      "baseline_n": 6075,
+      "baseline_events": 634,
+      "baseline_event_rate": 0.10436213991769547,
+      "combined_n": 979,
+      "combined_events": 160,
+      "combined_event_rate": 0.1634320735444331,
+      "absolute_event_rate_difference": 0.059069933626737625,
+      "lift": 1.5660092220543078,
+      "bootstrap_ci_low": 0.039056858659649994,
+      "bootstrap_ci_high": 0.08026234608786643
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_7pct_5d",
+      "window": "window_2",
+      "split": "validation",
+      "baseline_n": 6075,
+      "baseline_events": 634,
+      "baseline_event_rate": 0.10436213991769547,
+      "combined_n": 979,
+      "combined_events": 160,
+      "combined_event_rate": 0.1634320735444331,
+      "absolute_event_rate_difference": 0.059069933626737625,
+      "lift": 1.5660092220543078,
+      "bootstrap_ci_low": 0.03847526529033893,
+      "bootstrap_ci_high": 0.0797556533321261
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_7pct_5d",
+      "window": "window_2",
+      "split": "test",
+      "baseline_n": 5066,
+      "baseline_events": 520,
+      "baseline_event_rate": 0.10264508487958941,
+      "combined_n": 845,
+      "combined_events": 135,
+      "combined_event_rate": 0.15976331360946747,
+      "absolute_event_rate_difference": 0.057118228729878054,
+      "lift": 1.5564633591260812,
+      "bootstrap_ci_low": 0.03585950008507832,
+      "bootstrap_ci_high": 0.0795844226799283
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_10pct_5d",
+      "window": "window_1",
+      "split": "validation",
+      "baseline_n": 5542,
+      "baseline_events": 245,
+      "baseline_event_rate": 0.044207867195958137,
+      "combined_n": 1081,
+      "combined_events": 82,
+      "combined_event_rate": 0.07585568917668825,
+      "absolute_event_rate_difference": 0.031647821980730115,
+      "lift": 1.7158866506824746,
+      "bootstrap_ci_low": 0.018282185434974254,
+      "bootstrap_ci_high": 0.044935918799069906
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_10pct_5d",
+      "window": "window_1",
+      "split": "test",
+      "baseline_n": 6075,
+      "baseline_events": 320,
+      "baseline_event_rate": 0.05267489711934156,
+      "combined_n": 979,
+      "combined_events": 93,
+      "combined_event_rate": 0.09499489274770173,
+      "absolute_event_rate_difference": 0.04231999562836017,
+      "lift": 1.8034186670071501,
+      "bootstrap_ci_low": 0.026515616364979917,
+      "bootstrap_ci_high": 0.059097254405912535
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_10pct_5d",
+      "window": "window_2",
+      "split": "validation",
+      "baseline_n": 6075,
+      "baseline_events": 320,
+      "baseline_event_rate": 0.05267489711934156,
+      "combined_n": 979,
+      "combined_events": 93,
+      "combined_event_rate": 0.09499489274770173,
+      "absolute_event_rate_difference": 0.04231999562836017,
+      "lift": 1.8034186670071501,
+      "bootstrap_ci_low": 0.026868924294300184,
+      "bootstrap_ci_high": 0.05896141294613557
+    },
+    {
+      "analysis": "multi_regime_comparison",
+      "baseline_signal": "price_momentum_5d",
+      "baseline_direction": "lower",
+      "baseline_fraction": 0.2,
+      "incremental_signals": [
+        {
+          "name": "price_momentum_60d",
+          "direction": "lower",
+          "fraction": 0.2
+        },
+        {
+          "name": "price_volatility_20d",
+          "direction": "upper",
+          "fraction": 0.2
+        }
+      ],
+      "target": "down_10pct_5d",
+      "window": "window_2",
+      "split": "test",
+      "baseline_n": 5066,
+      "baseline_events": 277,
+      "baseline_event_rate": 0.054678247137781286,
+      "combined_n": 845,
+      "combined_events": 88,
+      "combined_event_rate": 0.10414201183431952,
+      "absolute_event_rate_difference": 0.04946376469653824,
+      "lift": 1.904633328348963,
+      "bootstrap_ci_low": 0.03185488133243655,
+      "bootstrap_ci_high": 0.06715217949965364
+    }
+  ]
+}

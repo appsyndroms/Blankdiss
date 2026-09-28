@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-28T04:01:39.385951+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_drawdown_regime",
+      "mode": "deep",
+      "question": "Tillför stort avstånd ned från 20-dagars högsta pris information om downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+      "result": "data/processed/ml/research/spec_runs/20260928T040138460156Z/momentum_drawdown_regime.json",
+      "rows": 12,
+      "execution_fingerprint": "5ff870e1b2318a778db01b3ae4a95d3d1d7236a94ce632d044e31e96b0570d75"
+    }
+  ]
+}

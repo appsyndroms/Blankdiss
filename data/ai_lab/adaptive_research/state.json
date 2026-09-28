@@ -1,6 +1,6 @@
 {
   "state_version": 1,
-  "updated_at_utc": "2026-09-27T12:10:34.658819+00:00",
+  "updated_at_utc": "2026-09-28T04:01:49.395568+00:00",
   "phase": "COMPLETE",
   "history": [
     {
@@ -808,6 +808,108 @@
       "spec_id": "momentum_volatility_then_60d_nested",
       "mode": "once",
       "result_path": "data/processed/ml/research/spec_runs/20260927T121034343515Z/momentum_volatility_then_60d_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_5d_tail_conditional_60d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040118887818Z/momentum_5d_tail_conditional_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_5d_tail_conditional_drawdown",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040120129703Z/momentum_5d_tail_conditional_drawdown.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_5d_tail_conditional_volatility",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040121373500Z/momentum_5d_tail_conditional_volatility.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_then_volatility_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040122592976Z/momentum_60d_then_volatility_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_additive_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040122826457Z/momentum_60d_volatility_additive_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040130146817Z/momentum_60d_volatility_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040137381906Z/momentum_60d_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_severity",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040138305189Z/momentum_60d_volatility_severity.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_drawdown_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040138460156Z/momentum_drawdown_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_horizon_20d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040139386484Z/momentum_horizon_20d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_horizon_60d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040140287525Z/momentum_horizon_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040141193645Z/momentum_stratified_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_volatility",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040145475015Z/momentum_stratified_volatility.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_tail_threshold_analysis",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040147695837Z/momentum_tail_threshold_analysis.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_triple_conditional_si_acceleration_scan",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040147701832Z/momentum_triple_conditional_si_acceleration_scan.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040148193060Z/momentum_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T040149093929Z/momentum_volatility_then_60d_nested.json"
     }
   ],
   "next_candidate": null,
