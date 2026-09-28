@@ -1,0 +1,74 @@
+id: momentum_volatility_then_60d_10pct_nested
+
+question: >
+  Tillför negativt 60-dagars momentum ytterligare downside-risk
+  efter att både negativt 5-dagars momentum och hög 20-dagars
+  prisvolatilitet redan har identifierats, när negativt 60-dagars
+  momentum definieras som de nedersta 10 procenten?
+
+mode: deep
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.10
+
+targets:
+  - down_5pct_5d
+  - down_7pct_5d
+  - down_10pct_5d
+
+analysis:
+  type: nested_regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+windows:
+  - window_1
+  - window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  ai_lab_execution:
+    enabled: true
+    mode: once
+
+  stage: hypothesis_test
+  purpose: nested_contribution_sensitivity
+
+  baseline:
+    definition: >
+      negative_5d_momentum_20pct_and_high_20d_volatility_20pct
+
+  incremental_signal:
+    definition: negative_60d_momentum_10pct
+
+  hypothesis:
+    expected_effect: additional_downside_risk
+
+  sensitivity_to:
+    previous_spec: momentum_volatility_then_60d_nested
+    changed_parameter: price_momentum_60d.bin
+    previous_value: 0.20
+    new_value: 0.10
+
+  note: >
+    Fördefinierad känslighetskontroll av den negativa 60-dagars
+    momentumkomponenten. 5-dagars momentum, volatilitet, targets,
+    windows och splits hålls oförändrade. Resultatet får inte
+    användas för att ändra parametrar eller primärt endpoint i
+    momentum_si_prospective_confirmation.
