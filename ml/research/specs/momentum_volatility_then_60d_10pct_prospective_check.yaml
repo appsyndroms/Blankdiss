@@ -1,0 +1,98 @@
+id: momentum_volatility_then_60d_10pct_prospective_check
+question: >
+  Kvarstår den observerade inkrementella downside-risken från de
+  nedersta 10 procenten av 60-dagars momentum när negativt
+  5-dagars momentum och hög 20-dagars prisvolatilitet redan har
+  identifierats, i en ny och tidigare oanvänd testperiod?
+mode: deep
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+  - name: price_momentum_60d
+    direction: lower
+    bins:
+      - 0.10
+targets:
+  - down_10pct_5d
+  - down_5pct_5d
+  - down_7pct_5d
+analysis:
+  type: nested_regime_comparison
+  bootstrap: true
+  bootstrap_iterations: 2000
+windows:
+  - window_2
+splits:
+  - test
+metadata:
+  ai_lab_execution:
+    enabled: true
+    mode: once
+  stage: prospective_sensitivity_check
+  purpose: out_of_sample_60d_tail_confirmation
+  locked_parameters:
+    momentum_5d:
+      signal: price_momentum_5d
+      direction: lower
+      fraction: 0.20
+    volatility_20d:
+      signal: price_volatility_20d
+      direction: upper
+      fraction: 0.20
+    momentum_60d:
+      signal: price_momentum_60d
+      direction: lower
+      fraction: 0.10
+  provenance:
+    source_spec: momentum_volatility_then_60d_10pct_nested
+    source_stage: hypothesis_test
+    parameter_change: none
+  primary_endpoint:
+    target: down_10pct_5d
+    metric: absolute_event_rate_difference
+  secondary_endpoints:
+    - target: down_5pct_5d
+      metric: absolute_event_rate_difference
+    - target: down_7pct_5d
+      metric: absolute_event_rate_difference
+  uncertainty:
+    method: bootstrap
+    iterations: 2000
+    report:
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+  rules:
+    - parameters_must_not_be_changed_after_test_start
+    - no_additional_bin_search
+    - no_threshold_optimization
+    - no_endpoint_switching
+    - no_result_based_parameter_selection
+    - test_period_must_not_be_used_for_parameter_selection
+  interpretation:
+    primary_comparison:
+      baseline: >
+        negative_5d_momentum_20pct_and_high_20d_volatility_20pct
+      combined: >
+        negative_5d_momentum_20pct_and_high_20d_volatility_20pct
+        and_negative_60d_momentum_10pct
+    report:
+      - baseline_event_rate
+      - combined_event_rate
+      - absolute_event_rate_difference
+      - lift
+      - bootstrap_ci_low
+      - bootstrap_ci_high
+      - n_valid
+      - combined_n
+  note: >
+    Detta är en separat prospektiv känslighetskontroll av den
+    tidigare observerade 10-procentsgränsen för 60-dagars momentum.
+    Den ska endast köras mot en ny och tidigare oanvänd testperiod.
+    Den får inte ändra, ersätta eller påverka
+    momentum_si_prospective_confirmation.
