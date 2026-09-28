@@ -46,6 +46,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run tests
+        run: |
+          python -m pytest tests/ml/research -q
+
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
@@ -57,3 +61,26 @@ jobs:
       - name: Update OMXSPI
         run: |
           python -m analysis.update_market
+
+      - name: Run prospective research evaluation
+        env:
+          BLANKDISS_CANDIDATE: ${{ vars.BLANKDISS_CANDIDATE }}
+          BLANKDISS_EVALUATION: ${{ vars.BLANKDISS_EVALUATION }}
+        run: |
+          if [ -z "$BLANKDISS_CANDIDATE" ] || [ -z "$BLANKDISS_EVALUATION" ]; then
+            echo "No prospective evaluation configured."
+            echo "Set BLANKDISS_CANDIDATE and BLANKDISS_EVALUATION repository variables."
+            exit 0
+          fi
+
+          python -u -m ml.research.entrypoint evaluate \
+            "$BLANKDISS_CANDIDATE" \
+            "$BLANKDISS_EVALUATION"
+
+      - name: Upload research evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blankdiss-research-evaluation
+          path: data/processed/ml/research/evaluation/
+          if-no-files-found: ignore
