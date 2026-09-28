@@ -1,0 +1,97 @@
+id: momentum_stratified_interaction_5d_20d
+
+description: >
+  Tests whether the downside effect of high 20-day price volatility
+  changes with negative short- and medium-term price momentum,
+  using 5-day and 20-day momentum jointly. This is a horizon-robustness
+  extension of momentum_stratified_interaction.
+
+analysis:
+  type: stratified_interaction
+  bootstrap:
+    enabled: true
+    iterations: 2000
+
+signals:
+  - name: price_momentum_5d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.50
+      - 1.00
+
+  - name: price_momentum_20d
+    direction: lower
+    bins:
+      - 0.20
+      - 0.50
+      - 1.00
+
+  - name: price_volatility_20d
+    direction: upper
+    bins:
+      - 0.20
+
+targets:
+  - name: down_7pct_5d
+  - name: down_10pct_5d
+
+windows:
+  - name: window_1
+  - name: window_2
+
+splits:
+  - validation
+  - test
+
+metadata:
+  research_question: >
+    Does the downside effect of high 20-day price volatility become
+    stronger when short- and medium-term price momentum is weak,
+    and does this interaction remain visible across independent
+    validation and test windows?
+
+  comparison:
+    momentum_5d:
+      reference: strong
+      comparison: weak
+      hold_momentum_20d_fixed: true
+
+    momentum_20d:
+      reference: strong
+      comparison: weak
+      hold_momentum_5d_fixed: true
+
+    joint:
+      reference: strong_5d_and_strong_20d
+      comparison: weak_5d_and_weak_20d
+
+  difference_in_differences: >
+    For each momentum comparison, calculate the difference between
+    the volatility effect in the comparison momentum regime and the
+    volatility effect in the reference momentum regime.
+
+  volatility_effect: >
+    Event rate under high 20-day volatility minus event rate under
+    normal 20-day volatility within the same momentum stratum.
+
+  interpretation: >
+    A positive difference-in-differences means that the downside
+    effect associated with high volatility is larger in the weaker
+    momentum regime.
+
+  rules:
+    - Do not optimize thresholds based on results.
+    - Do not select parameters using the test split.
+    - Keep validation and test results separate.
+    - Keep windows separate.
+    - Report exact event counts.
+    - Treat results as associative rather than causal.
+    - Do not rank candidate thresholds based on test performance.
+
+  purpose: >
+    Horizon-robustness test of the volatility-by-momentum interaction.
+    This specification changes the momentum horizons from the baseline
+    5-day and 60-day combination to 5-day and 20-day while keeping the
+    volatility signal, targets, bins, bootstrap configuration, windows,
+    and validation/test structure unchanged.
