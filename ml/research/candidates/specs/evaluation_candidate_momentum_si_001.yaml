@@ -1,17 +1,16 @@
-id: evaluation_candidate_momentum_si_001_2026q3
+schema_version: 1
 
+id: evaluation_candidate_momentum_si_001_2026q3
 version: 1
 
 candidate:
   id: candidate_momentum_si_001
   version: 1
+  fingerprint: "ac8afecc5d6433ec0dae5407af72684aed493f17b4d501c54bda101ccc9d9ebb"
 
 evaluation_period:
   start: "2026-07-16"
   end: "2026-09-30"
-
-targets:
-  - forward_return_20d
 
 metrics:
   - sample_size
