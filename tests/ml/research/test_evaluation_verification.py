@@ -4,22 +4,23 @@ from dataclasses import replace
 
 import pytest
 
-from research.candidates.spec import (
+from ml.research.candidates.spec import (
     CandidateAnalysis,
     CandidateFeature,
     CandidatePeriod,
     CandidateSpec,
     CandidateTarget,
 )
-from research.candidates.verification import (
+from ml.research.candidates.verification import (
     candidate_fingerprint,
 )
-from research.evaluation.spec import (
+from ml.research.evaluation.spec import (
     EvaluationPeriod,
     EvaluationSpec,
     WalkForwardSpec,
+    WalkForwardWindow,
 )
-from research.evaluation.verification import (
+from ml.research.evaluation.verification import (
     verify_evaluation,
     verify_temporal_separation,
     verify_walk_forward_window,
@@ -48,7 +49,7 @@ def make_candidate() -> CandidateSpec:
             name="forward_return_20d"
         ),
         analysis=CandidateAnalysis(
-            type="interaction",
+            type="tail",
             bootstrap=True,
             bootstrap_iterations=2000,
         ),
@@ -298,6 +299,64 @@ def test_walk_forward_after_freeze_is_accepted():
         "2026-07-16T00:00:00Z",
         "2026-08-31T00:00:00Z",
     )
+
+
+def test_walk_forward_must_fit_evaluation_period():
+    candidate = make_candidate()
+
+    evaluation = make_evaluation(
+        start="2026-07-16T00:00:00Z",
+        end="2026-08-31T00:00:00Z",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="inom evaluation_period",
+    ):
+        verify_walk_forward_window(
+            candidate,
+            "2026-09-01T00:00:00Z",
+            "2026-09-10T00:00:00Z",
+            evaluation,
+        )
+
+
+def test_overlapping_walk_forward_windows_are_rejected():
+    candidate = make_candidate()
+
+    evaluation = make_evaluation(
+        end="2026-09-30T00:00:00Z",
+        candidate_fingerprint=(
+            candidate.fingerprint_value
+        ),
+        walk_forward=WalkForwardSpec(
+            enabled=True,
+            windows=(
+                WalkForwardWindow(
+                    name="window_1",
+                    start="2026-07-16T00:00:00Z",
+                    end="2026-08-15T00:00:00Z",
+                ),
+                WalkForwardWindow(
+                    name="window_2",
+                    start="2026-08-15T00:00:00Z",
+                    end="2026-09-30T00:00:00Z",
+                ),
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="överlappa",
+    ):
+        verify_evaluation(
+            candidate,
+            evaluation,
+        )
 
 
 def test_enabled_walk_forward_requires_windows():
