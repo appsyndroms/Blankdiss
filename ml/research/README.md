@@ -1,584 +1,436 @@
-Absolut. Jag har utgått från den faktiska README:n på main och uppdaterat bara det som behöver ändras för den nya Research Engine-strukturen. Jag skulle samtidigt lägga in ett tydligare avsnitt om ansvarsfördelningen mellan spec.py, engine.py och analysmodulerna.
+Ja. Då börjar vi med första faktiska implementationssteget, och jag skriver ut hela filer — inte fragment.
 
-Här är hela README:n:
+Jag vill inte aktivera den nya dagliga kedjan ännu. Först bygger vi spec-lagret och kontrakten. Den befintliga ml/research/ får fortsätta vara motorn tills vi har kopplat den mot detta.
 
-# Blankdiss
-Blankdiss är ett forskningsprojekt för att undersöka om offentlig information om bolag, blankning, prisrörelser, rapporter och andra marknadsvariabler innehåller statistiskt och ekonomiskt användbara mönster.
-Projektet kombinerar:
-* datainsamling
-* feature engineering
-* datakvalitet
-* ML
-* walk-forward evaluation
-* hypotesdriven research
-* automatiserade analyser
-* reproducerbara resultat
-Målet är inte att bygga en samling fristående analyser, utan en återanvändbar forskningspipeline där nya hypoteser kan testas snabbt, systematiskt och utan onödig specialkod.
-⸻
-## Översikt
-                         Blankdiss
-                            │
-              ┌─────────────┴─────────────┐
-              │                           │
-        Data collection                ML / Research
-              │                           │
-       ┌──────┴──────┐             ┌──────┴──────┐
-       │             │             │             │
-      FI           Prices       Research     Diagnostics
-       │             │             │             │
-       └──────┬──────┘             │             │
-              ▼                    │             │
-       Feature generation           │             │
-              │                    │             │
-              ▼                    ▼             ▼
-       Feature dataset        ml/research/   ml/diagnostics/
-              │                    │             │
-              ▼                    └──────┬──────┘
-         Feature QC                      │
-              │                          │
-              └──────────────┬───────────┘
-                             ▼
-                        OOS results
-                             │
-                             ▼
-                       AI / analysis
-⸻
-## Forskningsflödet
-Den normala vägen från idé till resultat är:
-Ny hypotes
-    ↓
-Kan befintlig Research Engine uttrycka den?
-    │
-    ├── JA
-    │    ↓
-    │  YAML research spec
-    │    ↓
-    │  SCAN
-    │
-    └── NEJ
-         ↓
-    Behövs en ny generell analysform?
-         │
-         ├── JA
-         │    ↓
-         │  Utöka Research Engine
-         │    ↓
-         │  YAML research spec
-         │    ↓
-         │  SCAN
-         │
-         └── NEJ
-              ↓
-         custom / Diagnostics
-SCAN
-    ↓
-Intressant resultat?
-    ↓
-DEEP
-    ↓
-Robusthet / specialanalys
-    ↓
-OOS-resultat
-Målet är att en ny vanlig hypotes ska kunna testas utan att en ny Python-fil, experimentklass eller workflow behöver byggas.
-⸻
-## Viktig arkitekturregel
-En ny hypotes och en ny analysform är två olika saker.
-### Ny hypotes
-YAML
-### Ny generell analysform
-Research Engine + YAML
-### Unik specialanalys
-custom/ eller Diagnostics
-Man ska inte skapa standalone-analyser bara för att den första hypotesen av en viss typ kräver ny Engine-funktionalitet.
-Om Research Engine exempelvis saknar stöd för en generell analysform ska analysformen implementeras som generell Engine-funktionalitet.
-Därefter uttrycks den konkreta hypotesen som YAML.
-Det ska alltså inte bli:
-Ny hypotes
-    ↓
-ny Python-fil
-    ↓
-ny experimentklass
-    ↓
-ny registry
-    ↓
-ny workflow
-⸻
-## Research Engine
-Research Engine är den generiska körmotorn för deklarativ hypotesdriven research.
-Ansvarsfördelningen är:
+1. research/README.md
+
+# Blankdiss Research Specifications
+Detta katalogträd innehåller Blankdiss forskningsspecifikationer.
+`research/` är ett input-/specifikationslager.
+Det är inte en alternativ resultatinfrastruktur.
+## Struktur
 ```text
-spec.py
-    │
-    │ deklarativa regler och kontrakt
-    ▼
-engine.py
-    │
-    │ dispatch + orchestration
-    ▼
-analysis modules
-    │
-    │ konkret analyslogik
-    ▼
-analysis_utils.py
-    │
-    │ gemensamma implementation-hjälpare
-    ▼
-results
+research/
+├── discovery/
+│   └── specs/
+├── candidates/
+│   └── specs/
+└── evaluation/
+    └── specs/
 
-spec.py
+Ansvar
 
-spec.py definierar Research Specs och deras deklarativa kontrakt.
+discovery/
 
-Det omfattar bland annat:
+Discovery beskriver hur Blankdiss får söka efter möjliga strukturer och
+hypoteser.
 
-* analysis types
-* signaler
-* targets
-* windows
-* splits
-* bootstrap-konfiguration
-* krav på antal signaler för olika analysis types
+Discovery får vara explorativ.
 
-Exempelvis är antalet signaler en egenskap hos analysformen och inte något som ska avgöras av engine.py.
+Resultatet från discovery får däremot inte automatiskt betraktas som
+validerat.
 
-Det betyder att:
+candidates/
 
-spec.py
-    ↓
-"conditional_regime_comparison kräver minst 2 signaler"
+Candidates innehåller frysta forskningskandidater.
 
-medan den konkreta analysimplementationen fortfarande får kontrollera sina egna runtime-invarianter.
+En kandidat är en explicit och reproducerbar hypotesdefinition.
 
-engine.py
+När en kandidat har frysts får dess parametrar inte ändras.
 
-engine.py ska främst vara orchestration och dispatch.
-
-Den ansvarar för att:
-
-* läsa en ResearchSpec
-* iterera över targets, windows och splits
-* kombinera YAML-specens parametrar
-* välja rätt analysis module
-* samla resultaten
-
-engine.py ska inte innehålla den fullständiga implementationen av varje analysform.
+En ändring av en kandidatdefinition skapar en ny kandidat.
 
 Exempel:
 
-analysis.type
-    │
-    ├── tail
-    ├── interaction
-    ├── regime_comparison
-    ├── multi_regime_comparison
-    ├── nested_regime_comparison
-    └── conditional_regime_comparison
+momentum_60d_quantile: 0.10
 
-Engine väljer rätt analysmodul.
+ändras till:
 
-Analysis modules
+momentum_60d_quantile: 0.15
 
-Varje generell analysform ska ha sin egen implementation när logiken är tillräckligt omfattande.
+Detta är en ny kandidat.
 
-ml/research/
-├── interaction.py
-├── conditional.py
-├── regime.py
-├── multi_regime.py
-└── nested_regime.py
+Den gamla kandidaten ska fortfarande kunna reproduceras.
 
-Ansvar:
+evaluation/
 
-* interaction.py → interaction-analyser
-* conditional.py → conditional regime-analyser
-* regime.py → tvåsignal regime_comparison
-* multi_regime.py → tre eller fler signaler i kombinerad regim
-* nested_regime.py → inkrementell signal efter etablerad baseline-regim
+Evaluation beskriver hur en fryst kandidat ska testas på data som ligger
+efter kandidatens freeze-/cutoff-tidpunkt.
 
-Analysmodulerna äger den konkreta runtime-logiken och sina implementation-invarianter.
+Evaluation får mäta, analysera och rapportera.
 
-analysis_utils.py
+Evaluation får inte ändra kandidaten.
 
-analysis_utils.py innehåller gemensamma implementation-hjälpare som används av flera analysmoduler.
+Dataflöde
+
+DISCOVERY SPEC
+      ↓
+DISCOVERY RESULT
+      ↓
+HYPOTHESIS
+      ↓
+FROZEN CANDIDATE
+      ↓
+EVALUATION SPEC
+      ↓
+PROSPECTIVE EVALUATION
+      ↓
+WALK-FORWARD
+      ↓
+RESULT
+
+Viktig separation
+
+Specifikationer och resultat ska hållas separerade.
+
+research/
+    ↓
+YAML
+    ↓
+Blankdiss
+    ↓
+data/processed/ml/research/
+    ↓
+JSON / JSONL
+
+research/ ska därför inte börja innehålla genererade resultatfiler.
+
+Reproducerbarhet
+
+En forskningskörning ska kunna rekonstrueras från:
+
+1. kandidat/specifikation,
+2. versionsinformation,
+3. data cutoff,
+4. feature-version,
+5. evaluation-period,
+6. körningsmetadata.
+
+Grundregler
+
+1. Discovery får hitta kandidater.
+2. En fryst kandidat är immutable.
+3. Evaluation får inte optimera kandidaten.
+4. Framtida information får inte påverka tidigare beslut.
+5. En parameterändring innebär ny kandidat.
+6. Resultat skrivs som JSON/JSONL.
+7. YAML används för forskningsspecifikationer.
+8. research/ är input, inte output.
+
+---
+### 2. `research/discovery/specs/README.md`
+```markdown
+# Discovery Specifications
+Discovery-specifikationer beskriver hur Blankdiss får söka efter
+potentiella forskningsstrukturer.
+Discovery är explorativ.
+Ett discovery-resultat är inte en validerad forskningskandidat.
+## Syfte
+Discovery ska kunna söka över exempelvis:
+- signaler,
+- signalinteraktioner,
+- targets,
+- tidsfönster,
+- tail-fraktioner,
+- kombinationer av befintliga features.
+Målet är att hitta strukturer som är tillräckligt intressanta för att
+formuleras som explicita hypoteser.
+## Exempel
+```yaml
+id: discovery_momentum_si_001
+version: 1
+question: >
+  Finns det en kombination mellan momentum och förändring i
+  short interest som är värd att undersöka vidare?
+signals:
+  - name: price_return_60d
+    directions:
+      - upper
+      - lower
+    fractions:
+      - 0.05
+      - 0.10
+      - 0.20
+  - name: short_interest_delta_pp
+    directions:
+      - upper
+      - lower
+    fractions:
+      - 0.05
+      - 0.10
+      - 0.20
+targets:
+  - forward_return_20d
+windows:
+  - window_1
+  - window_2
+output:
+  propose_candidates: true
+
+Detta är en discovery-specifikation.
+
+Den skapar inte en fryst kandidat.
+
+Discovery får
+
+Discovery får:
+
+* söka över flera parametrar,
+* testa många kombinationer,
+* identifiera intressanta mönster,
+* föreslå hypoteser,
+* rangordna discovery-resultat internt för vidare analys.
+
+Discovery får inte
+
+Discovery får inte:
+
+* kalla ett resultat validerat,
+* ändra en redan fryst kandidat,
+* använda framtida evaluation-resultat,
+* skriva över befintliga kandidater,
+* göra en evaluation-driven parameterjustering.
+
+Nästa steg
+
+Ett intressant discovery-resultat ska omvandlas till en explicit
+controlled hypothesis.
+
+Den hypotesen kan därefter bli en frozen candidate.
+
+Discovery
+   ↓
+Result
+   ↓
+Hypothesis
+   ↓
+Controlled test
+   ↓
+Frozen candidate
+---
+### 3. `research/candidates/specs/README.md`
+```markdown
+# Candidate Specifications
+Denna katalog innehåller specifikationer för frysta forskningskandidater.
+En candidate-specifikation representerar en explicit hypotes som ska kunna
+reproduceras exakt.
+## Candidate lifecycle
+```text
+DISCOVERY
+    ↓
+CONTROLLED HYPOTHESIS TEST
+    ↓
+FROZEN CANDIDATE
+    ↓
+PROSPECTIVE EVALUATION
+    ↓
+WALK-FORWARD
+
+Immutable
+
+När en kandidat har frysts får dess definition inte ändras.
 
 Exempel:
 
-* stabil seed-generering
-* gemensam beräkning av event rate
+id: candidate_momentum_si_001
+version: 1
+signal:
+  name: momentum_60d
+  quantile: 0.10
 
-Detta är inte en egen analysis type.
+Om quantile ändras:
 
-Syftet är att undvika att samma implementation ligger duplicerad i flera analysis modules eller som privata helpers i engine.py.
+quantile: 0.15
 
-Runtime-invarianter
+ska det skapas en ny kandidat:
 
-Deklarativa krav och runtime-skydd har olika ansvar.
+id: candidate_momentum_si_002
+version: 1
 
-Exempel:
+Den första kandidaten får inte ändras retroaktivt.
 
-spec.py
-    ↓
-conditional_regime_comparison
-måste ha minst 2 signaler
+Minimum metadata
 
-och:
+En candidate-spec ska innehålla:
 
-conditional.py
-    ↓
-kontrollerar fortfarande
-att runtime-anropet faktiskt
-har tillräckligt många signaler
+* id
+* version
+* question
+* created_at
+* discovery_cutoff
+* freeze_at
+* features
+* parameters
+* target
+* training_period
+* candidate_status
 
-Detta är avsiktligt.
+Exempel
 
-spec.py definierar kontraktet.
+id: candidate_momentum_si_001
+version: 1
+question: >
+  Ger hög 60-dagars momentum kombinerat med positiv förändring
+  i short interest en förändrad sannolikhet för framtida prisrörelse?
+created_at: "2026-09-28T00:00:00Z"
+discovery_cutoff: "2026-06-30"
+freeze_at: "2026-07-15"
+candidate_status: frozen
+features:
+  - price_return_60d
+  - short_interest_delta_pp
+parameters:
+  momentum_quantile: 0.10
+  short_interest_delta_quantile: 0.10
+target:
+  name: forward_return_20d
+training_period:
+  start: "2022-01-01"
+  end: "2026-06-30"
 
-Analysis module skyddar sin implementation.
+Candidate-status
 
-⸻
+Tillåtna statusar ska vara:
 
-Research Engine-struktur
+draft
+tested
+frozen
+retired
 
-Den generiska researchdelen ligger under:
+En kandidat som är frozen får inte ändras.
 
-ml/research/
-├── spec.py
-├── session.py
-├── cache.py
-├── signals.py
-├── engine.py
-├── runner.py
-├── reporting.py
-├── bootstrap.py
-├── analysis_utils.py
-├── interaction.py
-├── conditional.py
-├── regime.py
-├── multi_regime.py
-├── nested_regime.py
-├── specs/
-└── custom/
+Om definitionen behöver ändras ska en ny kandidat skapas.
 
-Övergripande ansvar:
+Evaluation
 
-spec.py
-    ↓
-deklarativa Research Specs
-session.py
-    ↓
-research-session / körningskontext
-cache.py
-    ↓
-förberäknade masks och data
-signals.py
-    ↓
-signalrelaterad logik
-engine.py
-    ↓
-dispatch och orchestration
-analysis modules
-    ↓
-konkret generell analyslogik
-analysis_utils.py
-    ↓
-gemensamma implementation-hjälpare
-bootstrap.py
-    ↓
-statistisk bootstrap-logik
-runner.py
-    ↓
-körning av research specs
-reporting.py
-    ↓
-resultat och rapportering
-specs/
-    ↓
-konkreta YAML-hypoteser
-custom/
-    ↓
-specialiserade analyser
+Evaluation ska referera till kandidatens ID och version.
 
-⸻
-
-Data → Features → Research
-
-FI data
-│
-├──────────────┐
-│              │
-▼              ▼
-FI aggregation   Prices
-│              │
-└──────┬───────┘
-▼
-Feature generation
-│
-▼
-Feature dataset
-│
-▼
-Feature QC
-│
-▼
-ML / Research
-│
-┌────┴────┐
-│         │
-▼         ▼
-Research  Diagnostics
-│         │
-└────┬────┘
-▼
-OOS results
-
-⸻
-
-ML-systemet
-
-ML-systemet finns under ml/.
-
-ml/
-├── config.py
-├── dataset.py
-├── walk_forward.py
-│
-├── research/
-│   ├── spec.py
-│   ├── session.py
-│   ├── cache.py
-│   ├── signals.py
-│   ├── engine.py
-│   ├── runner.py
-│   ├── reporting.py
-│   ├── bootstrap.py
-│   ├── analysis_utils.py
-│   ├── interaction.py
-│   ├── conditional.py
-│   ├── regime.py
-│   ├── multi_regime.py
-│   ├── nested_regime.py
-│   ├── specs/
-│   └── custom/
-│
-└── diagnostics/
-    ├── framework/
-    └── experiments/
-
-config.py innehåller gemensamma targets och walk-forward-konfiguration.
-
-dataset.py ansvarar för att läsa och förbereda feature-datasetet.
-
-walk_forward.py innehåller den gemensamma walk-forward-logiken.
-
-research/ är den generiska forskningsmotorn.
-
-diagnostics/ innehåller analyser som kräver mer specialiserad experimentlogik.
-
-⸻
-
-Research och Diagnostics
-
-Research
-
-Research används för generisk och bred hypotes-screening.
+Evaluation ska aldrig innehålla en alternativ kandidatdefinition.
 
 Exempel:
 
-signal
-  ×
-tail
-  ×
-target
-  ×
-window
+candidate_id: candidate_momentum_si_001
+candidate_version: 1
 
-Research är deklarativ när det är möjligt.
+och inte:
 
-Diagnostics
+candidate_id: candidate_momentum_si_001
+parameters:
+  momentum_quantile: 0.15
 
-Diagnostics används när frågan kräver egen analyslogik.
+Det senare skulle innebära att evaluation-definitionen skiljer sig från
+den frysta kandidaten.
+
+---
+### 4. `research/evaluation/specs/README.md`
+```markdown
+# Evaluation Specifications
+Evaluation-specifikationer beskriver hur en fryst forskningskandidat ska
+testas på framtida data.
+Evaluation ska vara prospektiv.
+## Grundregel
+Evaluation får läsa:
+```text
+FROZEN CANDIDATE
+       +
+FUTURE DATA
+
+Evaluation får inte ändra kandidaten.
+
+Exempel
+
+id: evaluation_candidate_momentum_si_001_2026q3
+version: 1
+candidate:
+  id: candidate_momentum_si_001
+  version: 1
+evaluation_period:
+  start: "2026-07-01"
+  end: "2026-09-30"
+targets:
+  - forward_return_20d
+metrics:
+  - sample_size
+  - event_rate
+  - mean_return
+  - median_return
+  - lift
+walk_forward:
+  enabled: true
+
+Temporal separation
+
+Evaluation-perioden måste ligga efter kandidatens cutoff.
 
 Exempel:
 
-* komplexa interaktioner
-* mekanismanalyser
-* specialiserade modeller
-* event-sekvenser
-* path dependence
-* avancerad ekonomisk analys
-
-Principen är:
-
-Använd Research när frågan är generell.
-
-Om Research Engine saknar den generella analysförmåga som behövs ska Engine utökas innan hypotesen flyttas till Diagnostics.
-
-Använd Diagnostics när frågan kräver verkligt specialiserad logik.
-
-⸻
-
-Införande av nya forskningshypoteser
-
-När en ny forskningsidé uppstår ska följande ordning användas:
-
-1. Formulera forskningsfrågan.
-2. Läs relevant README-dokumentation.
-3. Kontrollera befintliga Research Engine-analysis types.
-4. Kontrollera befintliga signaler, targets och cache-funktionalitet.
-5. Avgör om hypotesen redan kan beskrivas med YAML.
-6. Om JA: skapa en YAML research spec.
-7. Om NEJ: identifiera vilken generell funktionalitet som saknas.
-8. Om den saknade funktionaliteten är generell: implementera den i Research Engine.
-9. Uttryck därefter den konkreta hypotesen i YAML.
-10. Om analysen inte är generell och kräver verkligt specialiserad logik: använd custom/ eller Diagnostics.
-11. Kör SCAN/DEEP.
-12. Verifiera OOS-resultat.
-13. Ta bort eventuell äldre standalone-/legacy-implementation när den nya vägen är verifierad.
-
-Exempel:
-
-Hypotes:
-
-momentum
-    +
-short-interest change
-    +
-interaction
-
-Kontroll:
-
-Finns analysis type?
-        │
-        ├── JA
-        │    ↓
-        │  YAML
-        │
-        └── NEJ
+candidate discovery cutoff
+        2026-06-30
              ↓
-        Är analysformen generell?
-             │
-             ├── JA
-             │    ↓
-             │  Engine
-             │    ↓
-             │  YAML
-             │
-             └── NEJ
-                  ↓
-             custom / Diagnostics
+candidate frozen
+        2026-07-15
+             ↓
+evaluation starts
+        2026-07-16
 
-⸻
+Evaluation får inte använda information från evaluation-perioden för att
+ändra:
 
-Walk-forward och OOS
+* features,
+* thresholds,
+* candidate parameters,
+* target definition,
+* signaldefinition.
 
-All modell- och hypotesutvärdering ska respektera tidsordningen:
+Evaluation-AI
 
-TRAIN
-   ↓
-VALIDATION
-   ↓
-MODEL SELECTION
-   ↓
-REFIT
-   ↓
-OOS TEST
+Evaluation-AI får:
 
-Testdata får inte användas för:
+* mäta resultat,
+* analysera resultat,
+* identifiera problem,
+* beräkna diagnostik,
+* rapportera osäkerhet,
+* identifiera stabilitet eller instabilitet.
 
-* modellval
-* feature selection
-* threshold selection
-* optimering
-* efterhandsjustering av hypotesen
+Evaluation-AI får inte:
 
-Detta gäller även diagnostics.
+* ändra kandidaten,
+* optimera kandidatens parametrar,
+* välja en ny parameterkombination efter resultatet,
+* skapa en bättre kandidat genom att använda evaluation-resultatet.
 
-⸻
+Om en annan parameterkombination blir intressant ska den bli en ny
+candidate.
+
+Walk-forward
+
+En fryst kandidat får testas över flera framtida fönster.
+
+Frozen candidate
+      │
+      ├── window 1
+      ├── window 2
+      ├── window 3
+      ├── window 4
+      └── ...
+
+Samma kandidatdefinition ska användas i samtliga fönster.
 
 Resultat
 
-Research-resultat skrivs under:
+Evaluation ska producera maskinläsbara resultat.
+
+Exempel:
 
 data/processed/ml/research/
+└── <run_id>/
+    ├── evaluation.json
+    └── manifest.json
 
-Nya deklarativa körningar använder:
+Resultaten ska innehålla tillräcklig provenance för att körningen ska
+kunna reproduceras.
 
-data/processed/ml/research/spec_runs/
-
-Resultaten ska vara maskinläsbara och lämpade för vidare analys.
-
-Den avsedda kedjan är:
-
-Research
-   ↓
-Machine-readable results
-   ↓
-AI / human analysis
-   ↓
-Next hypothesis
-
-Terminaloutput är främst för körningsstatus och felsökning.
-
-⸻
-
-Designprinciper
-
-1. Hypotes före implementation.
-2. Generisk research före specialkod.
-3. Kontrollera befintlig Engine innan ny Python skrivs.
-4. Ny generell analysförmåga ska implementeras i Engine.
-5. Konkreta hypoteser ska normalt vara YAML.
-6. SCAN före dyra analyser.
-7. OOS före slutsats.
-8. Ingen test leakage.
-9. Gemensam logik ska återanvändas.
-10. Resultat ska vara maskinläsbara.
-11. Specialanalys ska vara explicit.
-12. Död och duplicerad kod ska inte ligga kvar.
-13. Legacy-implementationer ska tas bort efter verifierad migrering.
-14. Deklarativa kontrakt ska ligga i spec.py.
-15. engine.py ska orkestrera, inte äga analysimplementationerna.
-16. Gemensamma implementation-hjälpare ska återanvändas via analysis_utils.py.
-17. Runtime-invarianter ska skyddas i respektive analysis module.
-18. Optimera för:
-
-idé → information
-
-inte för mängden kod.
-
-⸻
-
-### Feature dataset
-
-Research Engine använder det genererade feature-datasetet som input.
-
-Feature-datasetet byggs i ett separat GitHub Actions-workflow:
-`Build Features`.
-
-Det innebär att uppdaterade FI- och prisdata inte automatiskt innebär att
-feature-datasetet är uppdaterat inför en research-körning.
-
-När nya rådata har hämtats och en research-körning ska baseras på den senaste
-datan behöver `Build Features` köras manuellt vid behov.
-
-Rekommenderat flöde:
-
-1. Uppdatera rådata (FI/priser).
-2. Kör `Build Features`.
-3. Kontrollera feature-QC.
-4. Kör Research Engine / AI Lab.
-5. Kontrollera vilken feature-version/run som användes för resultatet.
-
-Research Engine ska inte själv bygga om features. Separationen gör att
-feature-generering och research-körningar kan reproduceras och köras
-oberoende av varandra.
-
-Dokumentation
-
-* ml/README.md – ML-arkitekturen
-* ml/research/README.md – Research Engine
-* ml/diagnostics/README.md – Diagnostics
-* bolagsverket/README.md – Bolagsverket-ingestion
-* README.md – övergripande projektarkitektur
-
-Det här är den version jag skulle använda. **Ingen forskningslogik ändras** av README-uppdateringen; den dokumenterar den struktur som redan körs framgångsrikt på `main`.
+---
+Det här är **första implementationssteget**. Jag skulle inte ändra `blankdiss.yml` ännu. Den nuvarande workflowen har dessutom fortfarande en kommenterad `git commit`/`git push`-sektion — den ska vi ta bort när vi bygger om workflowet. **Den ska inte kunna committa någonting alls.**
+Nästa konkreta steg är att implementera **candidate-schema + freeze/verifiering** och därefter koppla den befintliga `ml/research`-motorn till de nya `research/`-specarna.
