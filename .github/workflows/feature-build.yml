@@ -159,6 +159,8 @@ jobs:
 
       # ==========================================================
       # ARTIFACT
+      #
+      # Legacy-filerna sparas som artifact men committas inte.
       # ==========================================================
 
       - name: Archive feature dataset
@@ -176,6 +178,13 @@ jobs:
 
       # ==========================================================
       # COMMIT GENERATED FEATURE ARTIFACTS
+      #
+      # Det kanoniska feature-datasetet består av chunks + metadata.
+      #
+      # fi_price_features.jsonl är en stor legacy-fil (~377 MB)
+      # och får därför INTE committas till Git.
+      # Den finns kvar som artifact ovan tills legacy-migreringen
+      # är helt avslutad.
       # ==========================================================
 
       - name: Commit generated features
@@ -188,9 +197,14 @@ jobs:
           git add \
             data/processed/analysis/features_*.jsonl \
             data/processed/analysis/features_metadata.json \
-            data/processed/analysis/features_qc.json \
+            data/processed/analysis/features_qc.json
+
+          # Säkerhetskontroll:
+          # Legacy-datasetet får aldrig hamna i committen.
+          git reset -- \
             data/processed/analysis/fi_price_features.jsonl \
-            data/processed/analysis/fi_price_features_metadata.json
+            data/processed/analysis/fi_price_features_metadata.json \
+            2>/dev/null || true
 
           if git diff --cached --quiet; then
             echo "Inga feature-förändringar att committa."
