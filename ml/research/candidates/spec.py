@@ -15,6 +15,17 @@ VALID_STATUSES = {
     "retired",
 }
 
+VALID_ANALYSIS_TYPES = {
+    "interaction",
+    "tail",
+    "regime_comparison",
+    "multi_regime_comparison",
+    "nested_regime_comparison",
+    "conditional_regime_comparison",
+    "stratified_regime_comparison",
+    "stratified_interaction",
+}
+
 
 def _freeze(value: Any) -> Any:
     if isinstance(value, dict):
@@ -85,6 +96,25 @@ class CandidatePeriod:
 
 
 @dataclass(frozen=True)
+class CandidateAnalysis:
+    type: str = "tail"
+    bootstrap: bool = False
+    bootstrap_iterations: int = 2000
+
+    def __post_init__(self) -> None:
+        if self.type not in VALID_ANALYSIS_TYPES:
+            raise ValueError(
+                f"Ogiltig candidate analysis.type: "
+                f"{self.type}"
+            )
+
+        if self.bootstrap_iterations < 1:
+            raise ValueError(
+                "bootstrap_iterations måste vara > 0."
+            )
+
+
+@dataclass(frozen=True)
 class CandidateSpec:
     schema_version: int
     id: str
@@ -105,6 +135,8 @@ class CandidateSpec:
     parameters: Mapping[str, Any]
 
     target: CandidateTarget
+
+    analysis: CandidateAnalysis
 
     training_period: CandidatePeriod
 
@@ -196,8 +228,8 @@ class CandidateSpec:
 
         if training_end > discovery_cutoff:
             raise ValueError(
-                "training_period.end kan inte "
-                "ligga efter discovery_cutoff."
+                "training_period.end kan inte ligga "
+                "efter discovery_cutoff."
             )
 
         if self.status == "frozen":
@@ -205,6 +237,15 @@ class CandidateSpec:
                 raise ValueError(
                     "Frozen candidate måste ha "
                     "fingerprint algorithm."
+                )
+
+            if (
+                self.fingerprint_algorithm.lower()
+                != "sha256"
+            ):
+                raise ValueError(
+                    "Frozen candidate måste använda "
+                    "fingerprint algorithm=sha256."
                 )
 
             if not self.fingerprint_value:
@@ -285,6 +326,53 @@ def load_candidate(
         raise ValueError(
             f"Target saknar name: {path}"
         )
+
+    raw_analysis = payload.get(
+        "analysis"
+    )
+
+    if not isinstance(
+        raw_analysis,
+        dict,
+    ):
+        raise ValueError(
+            f"Candidate saknar analysis: {path}"
+        )
+
+    analysis_type = str(
+        raw_analysis.get(
+            "type",
+            "tail",
+        )
+    ).lower()
+
+    if analysis_type not in VALID_ANALYSIS_TYPES:
+        raise ValueError(
+            f"Okänd candidate analysis.type "
+            f"'{analysis_type}' i {path}"
+        )
+
+    bootstrap = bool(
+        raw_analysis.get(
+            "bootstrap",
+            False,
+        )
+    )
+
+    bootstrap_iterations = int(
+        raw_analysis.get(
+            "bootstrap_iterations",
+            2000,
+        )
+    )
+
+    analysis = CandidateAnalysis(
+        type=analysis_type,
+        bootstrap=bootstrap,
+        bootstrap_iterations=(
+            bootstrap_iterations
+        ),
+    )
 
     training_payload = payload.get(
         "training_period"
@@ -385,6 +473,7 @@ def load_candidate(
         target=CandidateTarget(
             name=str(target_name)
         ),
+        analysis=analysis,
         training_period=CandidatePeriod(
             start=str(training_start),
             end=str(training_end),
