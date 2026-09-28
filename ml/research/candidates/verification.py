@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from research.candidates.spec import (
+from ml.research.candidates.spec import (
     CandidateSpec,
 )
 
@@ -139,6 +139,16 @@ def verify_candidate(
     verify_candidate_frozen(
         candidate
     )
+
+    if (
+        candidate.fingerprint_algorithm is None
+        or candidate.fingerprint_algorithm.lower()
+        != "sha256"
+    ):
+        raise ValueError(
+            "Frozen candidate måste använda "
+            "fingerprint algorithm=sha256."
+        )
 
     verify_candidate_fingerprint(
         candidate
