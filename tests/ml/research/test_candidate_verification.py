@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from research.candidates.spec import (
+    CandidateAnalysis,
     CandidateFeature,
     CandidatePeriod,
     CandidateSpec,
@@ -23,7 +24,8 @@ def make_candidate(
     *,
     status: str = "frozen",
 ) -> CandidateSpec:
-    return CandidateSpec(
+    candidate = CandidateSpec(
+        schema_version=1,
         id="candidate_test_001",
         version=1,
         question="Test candidate",
@@ -46,6 +48,11 @@ def make_candidate(
         target=CandidateTarget(
             name="forward_return_20d"
         ),
+        analysis=CandidateAnalysis(
+            type="interaction",
+            bootstrap=True,
+            bootstrap_iterations=2000,
+        ),
         training_period=CandidatePeriod(
             start="2022-01-01T00:00:00Z",
             end="2026-06-30T00:00:00Z",
@@ -53,6 +60,18 @@ def make_candidate(
         provenance={
             "source": "test",
         },
+        fingerprint_algorithm=None,
+        fingerprint_value=None,
+    )
+
+    return replace(
+        candidate,
+        fingerprint_algorithm="sha256",
+        fingerprint_value=(
+            candidate_fingerprint(
+                candidate
+            )
+        ),
     )
 
 
@@ -66,7 +85,7 @@ def test_frozen_candidate_is_accepted():
 
 def test_non_frozen_candidate_is_rejected():
     candidate = make_candidate(
-        status="tested"
+        status="draft"
     )
 
     with pytest.raises(
@@ -143,12 +162,26 @@ def test_parameter_change_changes_fingerprint():
     )
 
 
-def test_changed_candidate_fails_fingerprint_verification():
+def test_analysis_change_changes_fingerprint():
     original = make_candidate()
 
-    fingerprint = candidate_fingerprint(
-        original
+    changed = replace(
+        original,
+        analysis=CandidateAnalysis(
+            type="interaction",
+            bootstrap=False,
+            bootstrap_iterations=2000,
+        ),
     )
+
+    assert (
+        candidate_fingerprint(original)
+        != candidate_fingerprint(changed)
+    )
+
+
+def test_changed_candidate_fails_fingerprint_verification():
+    original = make_candidate()
 
     changed = replace(
         original,
@@ -164,7 +197,7 @@ def test_changed_candidate_fails_fingerprint_verification():
     ):
         verify_candidate_fingerprint(
             changed,
-            fingerprint,
+            original.fingerprint_value,
         )
 
 
@@ -189,4 +222,32 @@ def test_candidate_snapshot_contains_identity_and_fingerprint():
 
     assert snapshot[
         "candidate"
-    ]["parameters"]["momentum_quantile"] == 0.10
+    ]["parameters"][
+        "momentum_quantile"
+    ] == 0.10
+
+    assert snapshot[
+        "candidate"
+    ]["analysis"][
+        "type"
+    ] == "interaction"
+
+
+def test_candidate_parameters_are_immutable():
+    candidate = make_candidate()
+
+    with pytest.raises(
+        TypeError
+    ):
+        candidate.parameters[
+            "momentum_quantile"
+        ] = 0.20
+
+
+def test_candidate_analysis_is_immutable():
+    candidate = make_candidate()
+
+    with pytest.raises(
+        Exception
+    ):
+        candidate.analysis.type = "tail"
