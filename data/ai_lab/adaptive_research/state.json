@@ -1,6 +1,6 @@
 {
   "state_version": 1,
-  "updated_at_utc": "2026-09-28T04:27:37.383759+00:00",
+  "updated_at_utc": "2026-09-28T14:18:14.332521+00:00",
   "phase": "COMPLETE",
   "history": [
     {
@@ -922,6 +922,36 @@
       "spec_id": "momentum_stratified_interaction_20d_60d",
       "mode": "once",
       "result_path": "data/processed/ml/research/spec_runs/20260928T042734916730Z/momentum_stratified_interaction_20d_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_tail_threshold_analysis",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T141812507684Z/momentum_tail_threshold_analysis.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_triple_conditional_si_acceleration_scan",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T141812513960Z/momentum_triple_conditional_si_acceleration_scan.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T141812980977Z/momentum_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_10pct_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T141813804042Z/momentum_volatility_then_60d_10pct_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260928T141814032786Z/momentum_volatility_then_60d_nested.json"
     }
   ],
   "next_candidate": null,

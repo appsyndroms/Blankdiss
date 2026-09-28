@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-28T14:18:12.513398+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_tail_threshold_analysis",
+      "mode": "deep",
+      "question": "Kontrollerad analys av momentum-tailens tröskelstruktur för downside-risk.\n",
+      "result": "data/processed/ml/research/spec_runs/20260928T141812507684Z/momentum_tail_threshold_analysis.json",
+      "rows": 48,
+      "execution_fingerprint": "e875da0a88397c48881976e105e700c9c83c0840daa74067c2e73f4aa5dc3126"
+    }
+  ]
+}
