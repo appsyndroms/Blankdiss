@@ -10,13 +10,12 @@
       "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
       "data/raw/prices/prices_2026-03-19_latest.jsonl",
       "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
-      "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl",
-      "data/raw/prices/prices_2026-09-18_2026-09-18.jsonl"
+      "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl"
     ]
   },
   "source_fingerprint": {
     "algorithm": "sha256",
-    "fingerprint": "3e130b7ec5982b515f1d4dcfd12216af1ed2315c8694419c24a14a3150909f3e",
+    "fingerprint": "c3cfc0239a02f6fd4c8e9acab34d9053992311c43b4cc1f2a972410886ed4b8b",
     "files": [
       {
         "path": "data/processed/fi/aggregate/reconstructed.jsonl",
@@ -62,16 +61,11 @@
         "path": "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl",
         "sha256": "cc33aa13e60a92291822b7ea5650f19cb2d82712cfef8b6453c007b8e2a5a25a",
         "size_bytes": 59733
-      },
-      {
-        "path": "data/raw/prices/prices_2026-09-18_2026-09-18.jsonl",
-        "sha256": "d1ef7af26792d31660050b226618a8edf483bf76099a989b240f6c4628cf8a8a",
-        "size_bytes": 842
       }
     ]
   },
   "fi_rows": 202240,
-  "price_rows": 443243,
+  "price_rows": 443239,
   "feature_rows": 202240,
   "matched_fi_rows": 130695,
   "unmatched_fi_rows": 71545,
@@ -264,7 +258,7 @@
     {
       "path": "data/processed/analysis/features_0020.jsonl",
       "rows": 10000,
-      "size_bytes": 18462581
+      "size_bytes": 18462474
     },
     {
       "path": "data/processed/analysis/features_0021.jsonl",
