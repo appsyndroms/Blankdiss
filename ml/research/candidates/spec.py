@@ -3,17 +3,69 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 import yaml
 
 
 VALID_STATUSES = {
     "draft",
-    "tested",
     "frozen",
     "retired",
 }
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType(
+            {
+                key: _freeze(item)
+                for key, item in value.items()
+            }
+        )
+
+    if isinstance(value, list):
+        return tuple(
+            _freeze(item)
+            for item in value
+        )
+
+    if isinstance(value, tuple):
+        return tuple(
+            _freeze(item)
+            for item in value
+        )
+
+    return value
+
+
+def _parse_datetime(
+    value: str,
+    field_name: str,
+) -> datetime:
+    normalized = value.replace(
+        "Z",
+        "+00:00",
+    )
+
+    try:
+        parsed = datetime.fromisoformat(
+            normalized
+        )
+    except ValueError as exc:
+        raise ValueError(
+            f"Ogiltigt datetime-värde i "
+            f"{field_name}: {value}"
+        ) from exc
+
+    if parsed.tzinfo is None:
+        raise ValueError(
+            f"{field_name} måste innehålla "
+            f"timezone: {value}"
+        )
+
+    return parsed
 
 
 @dataclass(frozen=True)
@@ -34,13 +86,7 @@ class CandidatePeriod:
 
 @dataclass(frozen=True)
 class CandidateSpec:
-    """
-    Immutable representation of a Blankdiss research candidate.
-
-    The object itself is immutable. More importantly, a frozen candidate
-    represents a research decision that must not be changed by evaluation.
-    """
-
+    schema_version: int
     id: str
     version: int
     question: str
@@ -51,17 +97,32 @@ class CandidateSpec:
 
     status: str
 
-    features: tuple[CandidateFeature, ...]
-    parameters: dict[str, Any]
+    features: tuple[
+        CandidateFeature,
+        ...
+    ]
+
+    parameters: Mapping[str, Any]
 
     target: CandidateTarget
+
     training_period: CandidatePeriod
 
-    provenance: dict[str, Any]
+    provenance: Mapping[str, Any]
+
+    fingerprint_algorithm: str | None
+    fingerprint_value: str | None
 
     def __post_init__(self) -> None:
+        if self.schema_version < 1:
+            raise ValueError(
+                "schema_version måste vara >= 1."
+            )
+
         if not self.id:
-            raise ValueError("Candidate måste ha id.")
+            raise ValueError(
+                "Candidate saknar id."
+            )
 
         if self.version < 1:
             raise ValueError(
@@ -70,129 +131,92 @@ class CandidateSpec:
 
         if not self.question:
             raise ValueError(
-                "Candidate måste ha question."
+                "Candidate saknar question."
             )
 
         if self.status not in VALID_STATUSES:
             raise ValueError(
-                f"Ogiltig candidate status: {self.status}"
+                f"Ogiltig candidate_status: "
+                f"{self.status}"
             )
 
         if not self.features:
             raise ValueError(
-                "Candidate måste ha minst en feature."
+                "Candidate måste ha minst "
+                "en feature."
             )
 
-        if not self.parameters:
-            raise ValueError(
-                "Candidate måste ha parameters."
-            )
-
-        _validate_datetime(
+        _parse_datetime(
             self.created_at,
             "created_at",
         )
 
-        _validate_datetime(
+        discovery_cutoff = _parse_datetime(
             self.discovery_cutoff,
             "discovery_cutoff",
         )
 
-        _validate_datetime(
+        freeze_at = _parse_datetime(
             self.freeze_at,
             "freeze_at",
         )
 
-        if (
-            _parse_datetime(self.freeze_at)
-            < _parse_datetime(self.discovery_cutoff)
-        ):
+        created_at = _parse_datetime(
+            self.created_at,
+            "created_at",
+        )
+
+        if created_at > discovery_cutoff:
             raise ValueError(
-                "freeze_at får inte ligga före discovery_cutoff."
+                "created_at kan inte ligga efter "
+                "discovery_cutoff."
             )
 
-        if (
-            _parse_datetime(self.discovery_cutoff)
-            < _parse_datetime(
-                self.created_at
-            )
-        ):
+        if discovery_cutoff > freeze_at:
             raise ValueError(
-                "discovery_cutoff får inte ligga före created_at."
+                "discovery_cutoff kan inte ligga "
+                "efter freeze_at."
             )
 
-
-def _parse_datetime(value: str) -> datetime:
-    normalized = value.replace(
-        "Z",
-        "+00:00",
-    )
-
-    parsed = datetime.fromisoformat(
-        normalized
-    )
-
-    if parsed.tzinfo is None:
-        raise ValueError(
-            f"Datetime måste innehålla timezone: {value}"
+        training_start = _parse_datetime(
+            self.training_period.start,
+            "training_period.start",
         )
 
-    return parsed
-
-
-def _validate_datetime(
-    value: str,
-    field_name: str,
-) -> None:
-    try:
-        _parse_datetime(value)
-    except ValueError as exc:
-        raise ValueError(
-            f"Ogiltigt {field_name}: {value}"
-        ) from exc
-
-
-def _require_mapping(
-    value: Any,
-    field_name: str,
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError(
-            f"{field_name} måste vara ett objekt."
+        training_end = _parse_datetime(
+            self.training_period.end,
+            "training_period.end",
         )
 
-    return value
+        if training_end < training_start:
+            raise ValueError(
+                "training_period.end kan inte "
+                "ligga före training_period.start."
+            )
 
+        if training_end > discovery_cutoff:
+            raise ValueError(
+                "training_period.end kan inte "
+                "ligga efter discovery_cutoff."
+            )
 
-def _require_string(
-    value: Any,
-    field_name: str,
-) -> str:
-    if value is None:
-        raise ValueError(
-            f"{field_name} saknas."
-        )
+        if self.status == "frozen":
+            if not self.fingerprint_algorithm:
+                raise ValueError(
+                    "Frozen candidate måste ha "
+                    "fingerprint algorithm."
+                )
 
-    value = str(value)
-
-    if not value:
-        raise ValueError(
-            f"{field_name} får inte vara tom."
-        )
-
-    return value
+            if not self.fingerprint_value:
+                raise ValueError(
+                    "Frozen candidate måste ha "
+                    "fingerprint value."
+                )
 
 
 def load_candidate(
     path: str | Path,
 ) -> CandidateSpec:
-    """
-    Loads and validates a candidate YAML specification.
-
-    Evaluation should consume this object rather than reconstructing
-    candidate parameters from an evaluation specification.
-    """
-
     path = Path(path)
 
     payload = yaml.safe_load(
@@ -203,58 +227,18 @@ def load_candidate(
 
     if not isinstance(payload, dict):
         raise ValueError(
-            f"Candidate spec måste vara ett objekt: {path}"
+            f"Candidate måste vara ett objekt: "
+            f"{path}"
         )
-
-    candidate_id = _require_string(
-        payload.get("id"),
-        "id",
-    )
-
-    version = int(
-        payload.get(
-            "version",
-            0,
-        )
-    )
-
-    question = _require_string(
-        payload.get("question"),
-        "question",
-    )
-
-    created_at = _require_string(
-        payload.get("created_at"),
-        "created_at",
-    )
-
-    discovery_cutoff = _require_string(
-        payload.get("discovery_cutoff"),
-        "discovery_cutoff",
-    )
-
-    freeze_at = _require_string(
-        payload.get("freeze_at"),
-        "freeze_at",
-    )
-
-    status = str(
-        payload.get(
-            "candidate_status",
-            "",
-        )
-    ).lower()
 
     raw_features = payload.get(
-        "features"
+        "features",
+        [],
     )
 
-    if not isinstance(
-        raw_features,
-        list,
-    ) or not raw_features:
+    if not raw_features:
         raise ValueError(
-            "Candidate måste ha minst en feature."
+            f"Candidate saknar features: {path}"
         )
 
     features: list[CandidateFeature] = []
@@ -266,50 +250,68 @@ def load_candidate(
             name = item.get("name")
         else:
             raise ValueError(
-                "Ogiltig feature-definition."
+                f"Ogiltig featuredefinition "
+                f"i {path}"
+            )
+
+        if not name:
+            raise ValueError(
+                f"Feature saknar name i {path}"
             )
 
         features.append(
             CandidateFeature(
-                name=_require_string(
-                    name,
-                    "feature.name",
-                )
+                name=str(name)
             )
         )
 
-    parameters = _require_mapping(
-        payload.get("parameters"),
-        "parameters",
+    target_payload = payload.get(
+        "target"
     )
 
-    raw_target = _require_mapping(
-        payload.get("target"),
-        "target",
-    )
-
-    target = CandidateTarget(
-        name=_require_string(
-            raw_target.get("name"),
-            "target.name",
+    if not isinstance(
+        target_payload,
+        dict,
+    ):
+        raise ValueError(
+            f"Candidate saknar target: {path}"
         )
+
+    target_name = target_payload.get(
+        "name"
     )
 
-    raw_period = _require_mapping(
-        payload.get("training_period"),
-        "training_period",
+    if not target_name:
+        raise ValueError(
+            f"Target saknar name: {path}"
+        )
+
+    training_payload = payload.get(
+        "training_period"
     )
 
-    training_period = CandidatePeriod(
-        start=_require_string(
-            raw_period.get("start"),
-            "training_period.start",
-        ),
-        end=_require_string(
-            raw_period.get("end"),
-            "training_period.end",
-        ),
+    if not isinstance(
+        training_payload,
+        dict,
+    ):
+        raise ValueError(
+            f"Candidate saknar "
+            f"training_period: {path}"
+        )
+
+    training_start = training_payload.get(
+        "start"
     )
+
+    training_end = training_payload.get(
+        "end"
+    )
+
+    if not training_start or not training_end:
+        raise ValueError(
+            f"training_period måste ha "
+            f"start och end: {path}"
+        )
 
     provenance = payload.get(
         "provenance",
@@ -321,39 +323,100 @@ def load_candidate(
         dict,
     ):
         raise ValueError(
-            "provenance måste vara ett objekt."
+            f"provenance måste vara ett "
+            f"objekt: {path}"
+        )
+
+    fingerprint = payload.get(
+        "fingerprint",
+        {},
+    )
+
+    if fingerprint is None:
+        fingerprint = {}
+
+    if not isinstance(
+        fingerprint,
+        dict,
+    ):
+        raise ValueError(
+            f"fingerprint måste vara ett "
+            f"objekt: {path}"
         )
 
     return CandidateSpec(
-        id=candidate_id,
-        version=version,
-        question=question,
-        created_at=created_at,
-        discovery_cutoff=discovery_cutoff,
-        freeze_at=freeze_at,
-        status=status,
+        schema_version=int(
+            payload.get(
+                "schema_version",
+                1,
+            )
+        ),
+        id=str(
+            payload["id"]
+        ),
+        version=int(
+            payload["version"]
+        ),
+        question=str(
+            payload["question"]
+        ),
+        created_at=str(
+            payload["created_at"]
+        ),
+        discovery_cutoff=str(
+            payload["discovery_cutoff"]
+        ),
+        freeze_at=str(
+            payload["freeze_at"]
+        ),
+        status=str(
+            payload.get(
+                "candidate_status",
+                "draft",
+            )
+        ).lower(),
         features=tuple(features),
-        parameters=dict(parameters),
-        target=target,
-        training_period=training_period,
-        provenance=dict(provenance),
+        parameters=_freeze(
+            payload.get(
+                "parameters",
+                {},
+            )
+        ),
+        target=CandidateTarget(
+            name=str(target_name)
+        ),
+        training_period=CandidatePeriod(
+            start=str(training_start),
+            end=str(training_end),
+        ),
+        provenance=_freeze(
+            provenance
+        ),
+        fingerprint_algorithm=(
+            str(
+                fingerprint["algorithm"]
+            )
+            if fingerprint.get("algorithm")
+            else None
+        ),
+        fingerprint_value=(
+            str(
+                fingerprint["value"]
+            )
+            if fingerprint.get("value")
+            else None
+        ),
     )
 
 
 def require_frozen(
     candidate: CandidateSpec,
-) -> CandidateSpec:
-    """
-    Ensures that an evaluation can only consume a frozen candidate.
-    """
-
+) -> None:
     if candidate.status != "frozen":
         raise ValueError(
-            "Endast frozen candidates får användas för prospective evaluation. "
-            f"Candidate '{candidate.id}' har status '{candidate.status}'."
+            f"Candidate '{candidate.id}' "
+            f"v{candidate.version} är inte frozen."
         )
-
-    return candidate
 
 
 def candidate_identity(
