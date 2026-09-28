@@ -1,0 +1,29 @@
+id: evaluation_candidate_momentum_si_001_2026q3
+
+version: 1
+
+candidate:
+  id: candidate_momentum_si_001
+  version: 1
+
+evaluation_period:
+  start: "2026-07-16"
+  end: "2026-09-30"
+
+targets:
+  - forward_return_20d
+
+metrics:
+  - sample_size
+  - event_rate
+  - mean_return
+  - median_return
+  - lift
+
+walk_forward:
+  enabled: false
+  windows: []
+
+metadata:
+  purpose: prospective_evaluation
+  parameter_optimization: false
