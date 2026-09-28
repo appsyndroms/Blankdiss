@@ -11,10 +11,13 @@ import pandas as pd
 from analysis.feature_config import (
     FEATURE_GLOB,
     FI_PATH,
+    MARKET_PATH,
     METADATA_PATH,
     OUTPUT_DIR,
     PRICE_DIR,
+    RELATIVE_HORIZONS,
     RETURN_HORIZONS,
+    SECTOR_MAP_PATH,
 )
 from analysis.feature_fi import (
     add_fi_features,
@@ -25,6 +28,9 @@ from analysis.feature_prices import (
     attach_prices,
     find_price_files,
     load_prices,
+)
+from analysis.feature_relative import (
+    add_relative_features,
 )
 from analysis.feature_returns import (
     add_forward_returns,
@@ -73,7 +79,8 @@ def clean_for_json(
             pd.to_datetime(
                 result[column],
                 errors="coerce",
-            ).dt.strftime(
+            )
+            .dt.strftime(
                 "%Y-%m-%d"
             )
         )
@@ -268,6 +275,21 @@ def validate_feature_dataset(
         "price_distance_from_20d_high",
         "price_distance_from_60d_high",
 
+        # Marknads-/sektorkontext
+        "sector",
+        "market_return_5d",
+        "market_return_20d",
+        "market_return_60d",
+        "sector_return_5d",
+        "sector_return_20d",
+        "sector_return_60d",
+        "price_return_5d_relative_market",
+        "price_return_20d_relative_market",
+        "price_return_60d_relative_market",
+        "price_return_5d_relative_sector",
+        "price_return_20d_relative_sector",
+        "price_return_60d_relative_sector",
+
         # Forward returns / targets
         "forward_return_1d",
         "forward_return_5d",
@@ -368,7 +390,8 @@ def write_metadata(
     metadata = {
         "dataset": (
             "Blankdiss canonical "
-            "FI + price feature dataset"
+            "FI + price + market + sector "
+            "feature dataset"
         ),
         "source": {
             "fi_file": str(
@@ -380,6 +403,12 @@ def write_metadata(
                 )
                 for path in price_files
             ],
+            "market_file": str(
+                MARKET_PATH.relative_to(ROOT)
+            ),
+            "sector_map_file": str(
+                SECTOR_MAP_PATH.relative_to(ROOT)
+            ),
         },
         "source_fingerprint": source_fingerprint,
         "fi_rows": int(
@@ -429,6 +458,10 @@ def write_metadata(
             int(value)
             for value in RETURN_HORIZONS
         ],
+        "relative_horizons_trading_days": [
+            int(value)
+            for value in RELATIVE_HORIZONS
+        ],
         "severity_horizon_trading_days": int(
             SEVERITY_HORIZON
         ),
@@ -439,6 +472,27 @@ def write_metadata(
             "first available trading-day "
             "close on or after FI snapshot date"
         ),
+        "relative_feature_semantics": {
+            "market_return": (
+                "OMXSPI return over N prior "
+                "trading observations"
+            ),
+            "sector_return": (
+                "median return over N prior "
+                "trading observations for "
+                "sector constituents"
+            ),
+            "relative_market": (
+                "stock return minus OMXSPI return"
+            ),
+            "relative_sector": (
+                "stock return minus sector return"
+            ),
+        },
+        "relative_horizons": [
+            int(value)
+            for value in RELATIVE_HORIZONS
+        ],
         "severity_columns": [
             "min_return_5d",
             "max_return_5d",
@@ -452,6 +506,20 @@ def write_metadata(
             "price_volatility_20d",
             "price_distance_from_20d_high",
             "price_distance_from_60d_high",
+        ],
+        "relative_feature_columns": [
+            "market_return_5d",
+            "market_return_20d",
+            "market_return_60d",
+            "sector_return_5d",
+            "sector_return_20d",
+            "sector_return_60d",
+            "price_return_5d_relative_market",
+            "price_return_20d_relative_market",
+            "price_return_60d_relative_market",
+            "price_return_5d_relative_sector",
+            "price_return_20d_relative_sector",
+            "price_return_60d_relative_sector",
         ],
         "chunk_size": int(
             CHUNK_SIZE
@@ -547,9 +615,15 @@ def main() -> None:
         f"{len(prices):,} prisobservationer lästa."
     )
 
+    # ---------------------------------------------------------
+    # 3. Source fingerprint
+    # ---------------------------------------------------------
+
     source_fingerprint = build_source_fingerprint(
         fi_path=FI_PATH,
         price_files=price_files,
+        market_path=MARKET_PATH,
+        sector_map_path=SECTOR_MAP_PATH,
     )
 
     print(
@@ -558,7 +632,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 3. Matcha FI → pris
+    # 4. Matcha FI → pris
     # ---------------------------------------------------------
 
     result, stats = attach_prices(
@@ -585,7 +659,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 4. Forward returns
+    # 5. Forward returns
     # ---------------------------------------------------------
 
     result = add_forward_returns(
@@ -594,7 +668,29 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 5. JSON-normalisering
+    # 6. Marknads- och sektorkontext
+    # ---------------------------------------------------------
+
+    result = add_relative_features(
+        result,
+        prices,
+    )
+
+    print(
+        "Featurejobb: marknads- och "
+        "sektorrelativa features skapade."
+    )
+
+    print(
+        "  Horisonter:",
+        ", ".join(
+            f"{value}d"
+            for value in RELATIVE_HORIZONS
+        )
+    )
+
+    # ---------------------------------------------------------
+    # 7. JSON-normalisering
     # ---------------------------------------------------------
 
     result = clean_for_json(
@@ -602,7 +698,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 6. Skriv legacy-dataset
+    # 8. Skriv legacy-dataset
     # ---------------------------------------------------------
 
     write_jsonl(
@@ -611,7 +707,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 7. Skriv kanoniska chunks
+    # 9. Skriv kanoniska chunks
     # ---------------------------------------------------------
 
     chunks = write_feature_chunks(
@@ -619,7 +715,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 8. Validera
+    # 10. Validera
     # ---------------------------------------------------------
 
     validate_feature_dataset(
@@ -628,7 +724,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 9. Metadata
+    # 11. Metadata
     # ---------------------------------------------------------
 
     write_metadata(
@@ -642,7 +738,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 10. Sammanfattning
+    # 12. Sammanfattning
     # ---------------------------------------------------------
 
     print(
@@ -662,6 +758,14 @@ def main() -> None:
     print(
         f"Chunks: "
         f"{len(chunks)}"
+    )
+
+    print(
+        "Relativa horisonter:",
+        ", ".join(
+            f"{value}d"
+            for value in RELATIVE_HORIZONS
+        )
     )
 
     print(
