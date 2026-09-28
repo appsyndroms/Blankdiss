@@ -111,6 +111,11 @@ def verify_temporal_separation(
     candidate: CandidateSpec,
     evaluation: EvaluationSpec,
 ) -> None:
+    discovery_cutoff = _parse_boundary(
+        candidate.discovery_cutoff,
+        "candidate.discovery_cutoff",
+    )
+
     freeze_at = _parse_boundary(
         candidate.freeze_at,
         "candidate.freeze_at",
@@ -130,6 +135,13 @@ def verify_temporal_separation(
         raise ValueError(
             "Evaluation-periodens slut ligger "
             "före starten."
+        )
+
+    if freeze_at <= discovery_cutoff:
+        raise ValueError(
+            "Temporal separation violation: "
+            "candidate.freeze_at måste ligga "
+            "efter candidate.discovery_cutoff."
         )
 
     if start <= freeze_at:
@@ -173,12 +185,23 @@ def verify_training_period(
 
 def verify_walk_forward_window(
     candidate: CandidateSpec,
+    evaluation: EvaluationSpec,
     start: str,
     end: str,
 ) -> None:
     freeze_at = _parse_boundary(
         candidate.freeze_at,
         "candidate.freeze_at",
+    )
+
+    evaluation_start = _parse_boundary(
+        evaluation.evaluation_period.start,
+        "evaluation_period.start",
+    )
+
+    evaluation_end = _parse_boundary(
+        evaluation.evaluation_period.end,
+        "evaluation_period.end",
     )
 
     window_start = _parse_boundary(
@@ -203,6 +226,18 @@ def verify_walk_forward_window(
             "efter candidate.freeze_at."
         )
 
+    if window_start < evaluation_start:
+        raise ValueError(
+            "Walk-forward-window måste ligga "
+            "inom evaluation_period."
+        )
+
+    if window_end > evaluation_end:
+        raise ValueError(
+            "Walk-forward-window måste ligga "
+            "inom evaluation_period."
+        )
+
 
 def verify_all_walk_forward_windows(
     candidate: CandidateSpec,
@@ -211,12 +246,67 @@ def verify_all_walk_forward_windows(
     if not evaluation.walk_forward.enabled:
         return
 
-    for window in evaluation.walk_forward.windows:
+    windows = evaluation.walk_forward.windows
+
+    if not windows:
+        raise ValueError(
+            "walk_forward.enabled=true "
+            "kräver minst ett window."
+        )
+
+    names = [
+        window.name
+        for window in windows
+    ]
+
+    if len(names) != len(set(names)):
+        raise ValueError(
+            "Walk-forward-windows måste ha "
+            "unika namn."
+        )
+
+    parsed_windows = []
+
+    for window in windows:
+        start = _parse_boundary(
+            window.start,
+            f"walk_forward.{window.name}.start",
+        )
+
+        end = _parse_boundary(
+            window.end,
+            f"walk_forward.{window.name}.end",
+        )
+
         verify_walk_forward_window(
             candidate,
+            evaluation,
             window.start,
             window.end,
         )
+
+        parsed_windows.append(
+            (
+                window.name,
+                start,
+                end,
+            )
+        )
+
+    for previous, current in zip(
+        parsed_windows,
+        parsed_windows[1:],
+    ):
+        previous_name, _, previous_end = previous
+        current_name, current_start, _ = current
+
+        if current_start <= previous_end:
+            raise ValueError(
+                "Walk-forward-windows får inte "
+                "över­lappa eller ligga i fel "
+                "kronologisk ordning: "
+                f"{previous_name} -> {current_name}."
+            )
 
 
 def verify_no_evaluation_optimization(
