@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-28T13:55:51.184006+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_5d_tail_conditional_drawdown",
+      "mode": "scan",
+      "question": "Tillför avstånd från 20-dagars högsta ytterligare downside-risk inom olika nivåer av den negativa 5-dagars momentumsvansen?\n",
+      "result": "data/processed/ml/research/spec_runs/20260928T135550083940Z/momentum_5d_tail_conditional_drawdown.json",
+      "rows": 48,
+      "execution_fingerprint": "f506fe59ff59a0cbad25845fa013fcc0898780ceae69ba52d7e4eca7b3b8fdf6"
+    }
+  ]
+}
