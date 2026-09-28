@@ -49,12 +49,48 @@ class SignalSpec:
     direction: str = "upper"
     bins: tuple[float, ...] = (0.10,)
 
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError(
+                "Signal måste ha ett namn."
+            )
+
+        if self.direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Ogiltig signal direction: "
+                f"{self.direction}"
+            )
+
+        if not self.bins:
+            raise ValueError(
+                "Signal måste ha minst en bin."
+            )
+
+        for fraction in self.bins:
+            if not 0 < fraction <= 1:
+                raise ValueError(
+                    f"Ogiltig signal bin: "
+                    f"{fraction}"
+                )
+
 
 @dataclass(frozen=True)
 class AnalysisSpec:
     type: str = "tail"
     bootstrap: bool = False
     bootstrap_iterations: int = 2000
+
+    def __post_init__(self) -> None:
+        if self.type not in VALID_ANALYSIS_TYPES:
+            raise ValueError(
+                f"Ogiltig analysis.type: "
+                f"{self.type}"
+            )
+
+        if self.bootstrap_iterations < 1:
+            raise ValueError(
+                "bootstrap_iterations måste vara > 0."
+            )
 
 
 @dataclass(frozen=True)
@@ -77,6 +113,52 @@ class ResearchSpec:
     metadata: dict[str, Any] = field(
         default_factory=dict
     )
+
+    def __post_init__(self) -> None:
+        if not self.id:
+            raise ValueError(
+                "Research spec saknar id."
+            )
+
+        if not self.question:
+            raise ValueError(
+                "Research spec saknar question."
+            )
+
+        if self.mode not in VALID_MODES:
+            raise ValueError(
+                f"Ogiltigt research mode: "
+                f"{self.mode}"
+            )
+
+        if not self.signals:
+            raise ValueError(
+                "Research spec måste ha minst "
+                "en signal."
+            )
+
+        if not self.targets:
+            raise ValueError(
+                "Research spec måste ha minst "
+                "ett target."
+            )
+
+        if not self.windows:
+            raise ValueError(
+                "Research spec måste ha minst "
+                "ett window."
+            )
+
+        if not self.splits:
+            raise ValueError(
+                "Research spec måste ha minst "
+                "ett split."
+            )
+
+        _validate_analysis_signal_count(
+            self.analysis.type,
+            len(self.signals),
+        )
 
 
 def _tuple_floats(
@@ -211,13 +293,6 @@ def load_spec(
             raise ValueError(
                 f"Signal '{name}' saknar bins."
             )
-
-        for fraction in bins:
-            if not 0 < fraction <= 1:
-                raise ValueError(
-                    f"Ogiltig bin {fraction} "
-                    f"för signal '{name}'."
-                )
 
         signals.append(
             SignalSpec(
