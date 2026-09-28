@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-28T14:27:18.823412+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_volatility_then_60d_10pct_prospective_check",
+      "mode": "deep",
+      "question": "Kvarstår den observerade inkrementella downside-risken från de nedersta 10 procenten av 60-dagars momentum när negativt 5-dagars momentum och hög 20-dagars prisvolatilitet redan har identifierats, i en ny och tidigare oanvänd testperiod?\n",
+      "result": "data/processed/ml/research/spec_runs/20260928T142718794097Z/momentum_volatility_then_60d_10pct_prospective_check.json",
+      "rows": 3,
+      "execution_fingerprint": "8e3eb0d6916ed31e999b0bbdd24e65354d97fd7e3d0807c137bd6aa586757bc1"
+    }
+  ]
+}
