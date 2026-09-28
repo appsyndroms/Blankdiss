@@ -53,7 +53,7 @@ OUTPUT_METADATA_PATH = (
 )
 
 # Håll varje JSONL-fil tydligt under CI-gränsen på 20 MB.
-CHUNK_SIZE = 10_000
+CHUNK_SIZE = 7_500
 
 JSON_DATE_COLUMNS = {
     "snapshot_date",
