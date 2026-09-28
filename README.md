@@ -1,4 +1,4 @@
-Blankdiss
+# Blankdiss
 
 Blankdiss är ett forskningsprojekt för att undersöka om offentlig information om bolag, blankning, prisrörelser, rapporter och andra marknadsvariabler innehåller statistiskt och ekonomiskt användbara mönster.
 
@@ -17,7 +17,7 @@ Målet är inte att bygga en samling fristående analyser, utan en återanvändb
 
 ⸻
 
-Översikt
+## Översikt
 
                          Blankdiss
                             │
@@ -48,7 +48,7 @@ Målet är inte att bygga en samling fristående analyser, utan en återanvändb
 
 ⸻
 
-Forskningsflödet
+## Forskningsflödet
 
 Den normala vägen från idé till resultat är:
 
@@ -92,7 +92,7 @@ Målet är att en ny vanlig hypotes ska kunna testas utan att en ny Python-fil, 
 
 ⸻
 
-Viktig arkitekturregel
+## Viktig arkitekturregel
 
 En ny hypotes och en ny analysform är två olika saker.
 
@@ -125,7 +125,7 @@ ny workflow
 
 ⸻
 
-Data → Features → Research
+## Data → Features → Research
 
 FI data
    │
@@ -158,7 +158,187 @@ FI aggregation   Prices
 
 ⸻
 
-ML-systemet
+## Operational pipeline
+
+Den aktiva datapipelinen körs i:
+
+.github/workflows/blankdiss.yml
+
+Den normala upstream-kedjan är:
+
+FI aggregate
+    ↓
+Prices
+    ↓
+OMXSPI
+    ↓
+analysis.build_features
+    ↓
+Feature dataset
+    ↓
+Feature QC
+    ↓
+ML / Research
+
+Feature generation är alltså en aktiv del av pipeline-kedjan och ska
+inte betraktas som legacy.
+
+Feature-datasetet skrivs under:
+
+data/processed/analysis/
+
+med:
+
+* features_*.jsonl – kanoniska feature-chunks
+* features_metadata.json – metadata och source fingerprint
+* features_qc.json – resultat från Feature QC
+
+`ml/dataset.py` ansvarar för att läsa det kanoniska feature-datasetet.
+
+Research Engine använder samma feature-dataset som grund för
+forskningskörningarna.
+
+### Workflowansvar
+
+`.github/workflows/blankdiss.yml` ansvarar för den gemensamma
+datapipelinen:
+
+    FI
+     ↓
+    Prices
+     ↓
+    OMXSPI
+     ↓
+    Feature generation
+     ↓
+    Feature QC
+
+`.github/workflows/ml-research-new.yml` startar AI Lab och Research Engine
+men bygger inte feature-datasetet själv.
+
+Den normala kedjan är därför:
+
+Data workflow
+    ↓
+Feature dataset
+    ↓
+Research Engine / AI Lab
+
+Research Engine ska inte själv börja bygga om feature-datasetet som en
+del av varje research-spec.
+
+⸻
+
+## Feature generation
+
+Den kanoniska feature-byggaren är:
+
+analysis/build_features.py
+
+Den använder de separata featuremodulerna för:
+
+* FI-features
+* prisfeatures
+* forward returns
+* source fingerprint
+* feature-dataset
+* metadata
+
+Feature-datasetet byggs som chunks:
+
+data/processed/analysis/features_*.jsonl
+
+Metadata skrivs till:
+
+data/processed/analysis/features_metadata.json
+
+och Feature QC skrivs till:
+
+data/processed/analysis/features_qc.json
+
+Feature generation ska köras efter att FI-data, prisdata och OMXSPI har
+uppdaterats.
+
+Feature-datasetet är upstream för ML/Research. Nya forskningshypoteser ska
+inte bygga egna parallella feature-dataset.
+
+⸻
+
+## Source fingerprint
+
+Feature metadata innehåller ett source fingerprint för det underlag som
+användes vid feature generation.
+
+Fingerprintet baseras på:
+
+* FI aggregate
+* prisfiler
+
+Det gör det möjligt att identifiera vilket upstream-underlag som användes
+för ett visst feature-dataset.
+
+Om upstream-data ändras ska feature-datasetet byggas om.
+
+⸻
+
+## Legacy feature-data
+
+Det finns fortfarande äldre featureartefakter i repot.
+
+Framför allt:
+
+data/processed/analysis/fi_price_features.jsonl
+data/processed/analysis/fi_price_features_metadata.json
+
+Dessa finns kvar av kompatibilitetsskäl tills den separata
+legacy-städningen genomförs.
+
+De ska inte användas som en alternativ väg för ny utveckling.
+
+Den kanoniska feature-vägen är:
+
+data/processed/analysis/features_*.jsonl
+    ↓
+ml/dataset.py
+    ↓
+ML / Research
+
+Legacy-städningen är ett separat arbete och är inte en del av
+Research Engine-migreringen.
+
+⸻
+
+## Research Engine-migreringen
+
+Research Engine-migreringen är klar.
+
+Den nya arkitekturen är nu den aktiva vägen för ny forskning.
+
+Det innebär:
+
+* YAML-baserad research är aktiv.
+* Research Engine är den generiska forskningsmotorn.
+* AI Lab kan skapa och köra research specs.
+* Feature generation är aktiv igen.
+* Feature QC är aktiv igen.
+* Äldre legacy-filer kan fortfarande finnas kvar.
+* Legacy-filerna ska tas bort i ett separat städarbete.
+
+Det är viktigt att skilja på:
+
+1. migrering av den aktiva arkitekturen
+2. borttagning av gammal kod
+
+Migreringen är klar.
+
+Borttagningen av legacy-filer är däremot ännu inte utförd.
+
+En legacy-fil som fortfarande finns i repot ska därför inte betraktas som
+en del av den nya arkitekturen bara för att den finns kvar.
+
+⸻
+
+## ML-systemet
 
 ML-systemet finns under ml/.
 
@@ -195,9 +375,9 @@ diagnostics/ innehåller analyser som kräver mer specialiserad experimentlogik.
 
 ⸻
 
-Research och Diagnostics
+## Research och Diagnostics
 
-Research
+### Research
 
 Research används för generisk och bred hypotes-screening.
 
@@ -213,7 +393,7 @@ window
 
 Research är deklarativ när det är möjligt.
 
-Diagnostics
+### Diagnostics
 
 Diagnostics används när frågan kräver egen analyslogik.
 
@@ -230,13 +410,14 @@ Principen är:
 
 Använd Research när frågan är generell.
 
-Om Research Engine saknar den generella analysförmåga som behövs ska Engine utökas innan hypotesen flyttas till Diagnostics.
+Om Research Engine saknar den generella analysförmåga som behövs ska
+Engine utökas innan hypotesen flyttas till Diagnostics.
 
 Använd Diagnostics när frågan kräver verkligt specialiserad logik.
 
 ⸻
 
-Införande av nya forskningshypoteser
+## Införande av nya forskningshypoteser
 
 När en ny forskningsidé uppstår ska följande ordning användas:
 
@@ -286,7 +467,7 @@ Kontroll:
 
 ⸻
 
-Walk-forward och OOS
+## Walk-forward och OOS
 
 All modell- och hypotesutvärdering ska respektera tidsordningen:
 
@@ -312,7 +493,7 @@ Detta gäller även diagnostics.
 
 ⸻
 
-Resultat
+## Resultat
 
 Research-resultat skrivs under:
 
@@ -338,7 +519,7 @@ Terminaloutput är främst för körningsstatus och felsökning.
 
 ⸻
 
-Designprinciper
+## Designprinciper
 
 1. Hypotes före implementation.
 2. Generisk research före specialkod.
@@ -353,7 +534,11 @@ Designprinciper
 11. Specialanalys ska vara explicit.
 12. Död och duplicerad kod ska inte ligga kvar.
 13. Legacy-implementationer ska tas bort efter verifierad migrering.
-14. Optimera för:
+14. Migreringen av Research Engine är klar; kvarvarande legacy-filer är
+    ett separat städarbete.
+15. Feature generation är en aktiv del av datapipelinen och ska inte
+    betraktas som legacy.
+16. Optimera för:
 
 idé → information
 
@@ -361,7 +546,7 @@ inte för mängden kod.
 
 ⸻
 
-Dokumentation
+## Dokumentation
 
 * ml/README.md – ML-arkitekturen
 * ml/research/README.md – Research Engine
