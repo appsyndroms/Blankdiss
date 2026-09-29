@@ -60,13 +60,12 @@ def make_candidate() -> CandidateSpec:
         provenance={
             "source": "test",
         },
-        fingerprint_algorithm=None,
-        fingerprint_value=None,
+        fingerprint_algorithm="sha256",
+        fingerprint_value="0" * 64,
     )
 
     return replace(
         candidate,
-        fingerprint_algorithm="sha256",
         fingerprint_value=(
             candidate_fingerprint(
                 candidate
