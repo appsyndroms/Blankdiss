@@ -164,7 +164,7 @@ def aggregate_walk_forward(
         window = str(
             result.get(
                 "window",
-                {}
+                {},
             ).get(
                 "name",
                 "",
@@ -250,18 +250,26 @@ def aggregate_walk_forward(
                         "event_rate"
                     ]
                 ),
-                "lift": _sign_consistency(
+                "lift": _threshold_consistency(
                     cross_window_values[
                         "lift"
-                    ]
+                    ],
+                    1.0,
                 ),
-                "mean_return": _sign_consistency(
+                "mean_return": _threshold_consistency(
                     cross_window_values[
                         "mean_return"
-                    ]
+                    ],
+                    0.0,
                 ),
             },
             "baseline_consistency": {
+                "auc": _threshold_consistency(
+                    cross_window_values[
+                        "auc"
+                    ],
+                    0.5,
+                ),
                 "lift": _threshold_consistency(
                     cross_window_values[
                         "lift"
