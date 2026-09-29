@@ -1,10 +1,7 @@
 from __future__ import annotations
-
 from collections import defaultdict
 from statistics import mean
 from typing import Any
-
-
 NUMERIC_FIELDS = (
     "n",
     "events",
@@ -14,26 +11,23 @@ NUMERIC_FIELDS = (
     "mean_return",
     "median_return",
 )
-
-
+CROSS_WINDOW_BASELINES = {
+    "auc": 0.5,
+    "lift": 1.0,
+    "mean_return": 0.0,
+}
 def _numeric_values(
     rows: list[dict[str, Any]],
     field: str,
 ) -> list[float]:
     values: list[float] = []
-
     for row in rows:
         value = row.get(field)
-
         if isinstance(value, bool):
             continue
-
         if isinstance(value, (int, float)):
             values.append(float(value))
-
     return values
-
-
 def _summarize_field(
     rows: list[dict[str, Any]],
     field: str,
@@ -42,7 +36,6 @@ def _summarize_field(
         rows,
         field,
     )
-
     if not values:
         return {
             "count": 0,
@@ -50,15 +43,12 @@ def _summarize_field(
             "min": None,
             "max": None,
         }
-
     return {
         "count": len(values),
         "mean": mean(values),
         "min": min(values),
         "max": max(values),
     }
-
-
 def _sign_consistency(
     values: list[float],
 ) -> dict[str, int | float | None]:
@@ -67,7 +57,6 @@ def _sign_consistency(
         for value in values
         if value != 0
     ]
-
     if not non_zero:
         return {
             "count": 0,
@@ -77,17 +66,14 @@ def _sign_consistency(
             "positive_fraction": None,
             "negative_fraction": None,
         }
-
     positive = sum(
         value > 0
         for value in non_zero
     )
-
     negative = sum(
         value < 0
         for value in non_zero
     )
-
     return {
         "count": len(non_zero),
         "positive": positive,
@@ -100,19 +86,11 @@ def _sign_consistency(
             negative / len(non_zero)
         ),
     }
-
-
 def _threshold_consistency(
     values: list[float],
-    threshold: float,
+    baseline: float,
 ) -> dict[str, int | float | None]:
-    valid = [
-        value
-        for value in values
-        if value == value
-    ]
-
-    if not valid:
+    if not values:
         return {
             "count": 0,
             "above": 0,
@@ -121,37 +99,61 @@ def _threshold_consistency(
             "above_fraction": None,
             "below_fraction": None,
         }
-
     above = sum(
-        value > threshold
-        for value in valid
+        value > baseline
+        for value in values
     )
-
     below = sum(
-        value < threshold
-        for value in valid
+        value < baseline
+        for value in values
     )
-
-    equal = (
-        len(valid)
-        - above
-        - below
+    equal = sum(
+        value == baseline
+        for value in values
     )
-
     return {
-        "count": len(valid),
+        "count": len(values),
         "above": above,
         "below": below,
         "equal": equal,
         "above_fraction": (
-            above / len(valid)
+            above / len(values)
         ),
         "below_fraction": (
-            below / len(valid)
+            below / len(values)
         ),
     }
-
-
+def _window_metric_means(
+    windows: list[dict[str, Any]],
+    field: str,
+) -> list[float]:
+    values: list[float] = []
+    for window in windows:
+        metric = (
+            window
+            .get("metrics", {})
+            .get(field, {})
+        )
+        value = metric.get("mean")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+    return values
+def _cross_window_stability(
+    windows: list[dict[str, Any]],
+) -> dict[str, dict[str, int | float | None]]:
+    return {
+        field: _threshold_consistency(
+            _window_metric_means(
+                windows,
+                field,
+            ),
+            baseline,
+        )
+        for field, baseline
+        in CROSS_WINDOW_BASELINES.items()
+    }
 def aggregate_walk_forward(
     results: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -159,26 +161,22 @@ def aggregate_walk_forward(
         str,
         list[dict[str, Any]],
     ] = defaultdict(list)
-
     for result in results:
         window = str(
             result.get(
                 "window",
-                {},
+                {}
             ).get(
                 "name",
                 "",
             )
         )
-
         for row in result.get(
             "results",
             [],
         ):
             grouped[window].append(row)
-
     windows: list[dict[str, Any]] = []
-
     for window_name, rows in sorted(
         grouped.items()
     ):
@@ -213,25 +211,12 @@ def aggregate_walk_forward(
                 ),
             },
         }
-
         windows.append(summary)
-
     all_rows = [
         row
         for rows in grouped.values()
         for row in rows
     ]
-
-    cross_window_values = {
-        field: [
-            summary["metrics"][field]["mean"]
-            for summary in windows
-            if summary["metrics"][field]["mean"]
-            is not None
-        ]
-        for field in NUMERIC_FIELDS
-    }
-
     return {
         "window_count": len(windows),
         "result_count": len(all_rows),
@@ -244,44 +229,13 @@ def aggregate_walk_forward(
                 )
                 for field in NUMERIC_FIELDS
             },
-            "stability": {
-                "event_rate": _sign_consistency(
-                    cross_window_values[
-                        "event_rate"
-                    ]
-                ),
-                "lift": _threshold_consistency(
-                    cross_window_values[
-                        "lift"
-                    ],
-                    1.0,
-                ),
-                "mean_return": _threshold_consistency(
-                    cross_window_values[
-                        "mean_return"
-                    ],
-                    0.0,
-                ),
-            },
-            "baseline_consistency": {
-                "auc": _threshold_consistency(
-                    cross_window_values[
-                        "auc"
-                    ],
-                    0.5,
-                ),
-                "lift": _threshold_consistency(
-                    cross_window_values[
-                        "lift"
-                    ],
-                    1.0,
-                ),
-                "mean_return": _threshold_consistency(
-                    cross_window_values[
-                        "mean_return"
-                    ],
-                    0.0,
-                ),
-            },
+            "stability": _cross_window_stability(
+                windows
+            ),
+            "baseline_consistency": (
+                _cross_window_stability(
+                    windows
+                )
+            ),
         },
     }
