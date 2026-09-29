@@ -6,7 +6,7 @@ version: 1
 candidate:
   id: candidate_momentum_si_001
   version: 1
-  fingerprint: "ac8afecc5d6433ec0dae5407af72684aed493f17b4d501c54bda101ccc9d9ebb"
+  fingerprint: "aeb3926ed0c1c2ba1abdd815420b2dc52bd964c5d16f594fde1f2a9d8a6009dd"
 
 evaluation_period:
   start: "2026-07-16"
