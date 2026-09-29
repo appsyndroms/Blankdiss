@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import yfinance as yf
@@ -17,44 +19,155 @@ from prices.mapping_utils import (
 )
 
 
+HISTORICAL_SYMBOLS_PATH = Path(
+    "prices/historical_symbols.jsonl"
+)
+
+
 # ---------------------------------------------------------------------------
 # Verified historical Yahoo mappings
 # ---------------------------------------------------------------------------
 #
-# These mappings are keyed by ISIN, never by name.
+# Historical mappings are stored as data in historical_symbols.jsonl.
 #
-# A historical mapping is only added here when the relationship between
-# the security identity and the Yahoo symbol has been independently
-# verified.
+# The file is indexed by both ISIN and LEI. This is important because some
+# historical FI records no longer contain the original ISIN, while the LEI
+# can still identify the issuer.
 #
-# This is deliberately conservative. An unresolved instrument is safer
-# than a wrong historical price series.
-#
+# The mapping is deliberately conservative. An unresolved instrument is
+# safer than a wrong historical price series.
+# ---------------------------------------------------------------------------
 
-HISTORICAL_YAHOO_SYMBOLS_BY_ISIN: dict[
-    str,
-    str,
-] = {
-    # Fortnox AB
-    # ISIN: SE0017161243
-    # Nasdaq ticker: FNOX
-    "SE0017161243": "FNOX.ST",
+def _load_historical_yahoo_symbols() -> tuple[
+    dict[str, str],
+    dict[str, str],
+]:
+    by_isin: dict[
+        str,
+        str,
+    ] = {}
 
-    # NetEnt AB
-    # ISIN: SE0008212971
-    # Nasdaq ticker: NET-B
-    "SE0008212971": "NET-B.ST",
+    by_lei: dict[
+        str,
+        str,
+    ] = {}
 
-    # Swedish Match AB
-    # ISIN: SE0000310336
-    # Nasdaq ticker: SWMA
-    "SE0000310336": "SWMA.ST",
+    if not HISTORICAL_SYMBOLS_PATH.exists():
+        return (
+            by_isin,
+            by_lei,
+        )
 
-    # Calliditas Therapeutics AB
-    # ISIN: SE0010441584
-    # Nasdaq ticker: CALTX
-    "SE0010441584": "CALTX.ST",
-}
+    try:
+        with HISTORICAL_SYMBOLS_PATH.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            for line_number, line in enumerate(
+                handle,
+                start=1,
+            ):
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                try:
+                    record = json.loads(
+                        line
+                    )
+
+                except json.JSONDecodeError as exc:
+                    print(
+                        "Mappning: ogiltig historisk "
+                        "mapping på rad "
+                        f"{line_number}: {exc}"
+                    )
+                    continue
+
+                if not isinstance(
+                    record,
+                    dict,
+                ):
+                    continue
+
+                symbol = clean_value(
+                    record.get(
+                        "yahoo_symbol"
+                    )
+                )
+
+                if not symbol:
+                    continue
+
+                symbol = symbol.upper()
+
+                isin = normalize_isin(
+                    record.get("isin")
+                )
+
+                lei = clean_value(
+                    record.get("lei")
+                )
+
+                if isin:
+                    existing = by_isin.get(
+                        isin
+                    )
+
+                    if (
+                        existing is not None
+                        and existing != symbol
+                    ):
+                        print(
+                            "Mappning: konflikt i "
+                            f"{HISTORICAL_SYMBOLS_PATH}: "
+                            f"ISIN {isin} har både "
+                            f"{existing} och "
+                            f"{symbol}. "
+                            "Den nya raden ignoreras."
+                        )
+
+                    else:
+                        by_isin[isin] = symbol
+
+                if lei:
+                    existing = by_lei.get(
+                        lei
+                    )
+
+                    if (
+                        existing is not None
+                        and existing != symbol
+                    ):
+                        print(
+                            "Mappning: konflikt i "
+                            f"{HISTORICAL_SYMBOLS_PATH}: "
+                            f"LEI {lei} har både "
+                            f"{existing} och "
+                            f"{symbol}. "
+                            "Den nya raden ignoreras."
+                        )
+
+                    else:
+                        by_lei[lei] = symbol
+
+    except OSError as exc:
+        print(
+            "Mappning: kunde inte läsa "
+            f"{HISTORICAL_SYMBOLS_PATH}: {exc}"
+        )
+
+    return (
+        by_isin,
+        by_lei,
+    )
+
+
+(
+    HISTORICAL_YAHOO_SYMBOLS_BY_ISIN,
+    HISTORICAL_YAHOO_SYMBOLS_BY_LEI,
+) = _load_historical_yahoo_symbols()
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +351,7 @@ def mapping_confidence(
         "known_isin",
         "known_name",
         "historical_isin",
+        "historical_lei",
         "fi_ticker_exchange",
     }:
         return "high"
@@ -314,22 +428,37 @@ def historical_mapping(
         instrument.get("isin")
     )
 
-    if not isin:
-        return None, None
-
-    symbol = (
-        HISTORICAL_YAHOO_SYMBOLS_BY_ISIN.get(
-            isin
+    if isin:
+        symbol = (
+            HISTORICAL_YAHOO_SYMBOLS_BY_ISIN.get(
+                isin
+            )
         )
+
+        if symbol:
+            return (
+                symbol,
+                "historical_isin",
+            )
+
+    lei = clean_value(
+        instrument.get("lei")
     )
 
-    if not symbol:
-        return None, None
+    if lei:
+        symbol = (
+            HISTORICAL_YAHOO_SYMBOLS_BY_LEI.get(
+                lei
+            )
+        )
 
-    return (
-        symbol,
-        "historical_isin",
-    )
+        if symbol:
+            return (
+                symbol,
+                "historical_lei",
+            )
+
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -917,6 +1046,7 @@ def resolve_instrument(
 
 __all__ = [
     "HISTORICAL_YAHOO_SYMBOLS_BY_ISIN",
+    "HISTORICAL_YAHOO_SYMBOLS_BY_LEI",
     "mapping_confidence",
     "mapping_status",
     "migrate_existing_mapping",
