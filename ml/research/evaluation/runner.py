@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
@@ -227,6 +228,103 @@ def _data_fingerprint(
     return digest.hexdigest()
 
 
+def _run_material(
+    candidate,
+    evaluation: EvaluationSpec,
+    data_fingerprint: str,
+) -> str:
+    return "|".join(
+        [
+            candidate_fingerprint(candidate),
+            evaluation.id,
+            str(evaluation.version),
+            data_fingerprint,
+        ]
+    )
+
+
+def _run_hash(
+    candidate,
+    evaluation: EvaluationSpec,
+    data_fingerprint: str,
+) -> str:
+    material = _run_material(
+        candidate,
+        evaluation,
+        data_fingerprint,
+    )
+
+    return hashlib.sha256(
+        material.encode("utf-8")
+    ).hexdigest()
+
+
+def _find_duplicate_run(
+    output_dir: Path,
+    candidate,
+    evaluation: EvaluationSpec,
+    data_fingerprint: str,
+) -> Path | None:
+    expected_candidate_fingerprint = (
+        candidate_fingerprint(candidate)
+    )
+
+    expected_hash = _run_hash(
+        candidate,
+        evaluation,
+        data_fingerprint,
+    )
+
+    if not output_dir.exists():
+        return None
+
+    for manifest_path in output_dir.glob(
+        "*/manifest.json"
+    ):
+        try:
+            with manifest_path.open(
+                "r",
+                encoding="utf-8",
+            ) as handle:
+                manifest = json.load(handle)
+        except (
+            OSError,
+            json.JSONDecodeError,
+        ):
+            continue
+
+        if (
+            manifest.get(
+                "candidate_fingerprint"
+            )
+            != expected_candidate_fingerprint
+        ):
+            continue
+
+        if (
+            manifest.get("evaluation_id")
+            != evaluation.id
+        ):
+            continue
+
+        if (
+            manifest.get("evaluation_version")
+            != evaluation.version
+        ):
+            continue
+
+        if (
+            manifest.get("data_fingerprint")
+            != data_fingerprint
+        ):
+            continue
+
+        if manifest.get("run_hash") == expected_hash:
+            return manifest_path.parent
+
+    return None
+
+
 def _run_window(
     frame: pd.DataFrame,
     cache,
@@ -374,18 +472,30 @@ def run_evaluation(
         candidate,
     )
 
-    run_material = "|".join(
-        [
-            candidate_fingerprint(candidate),
-            evaluation.id,
-            str(evaluation.version),
-            data_fingerprint,
-        ]
+    destination_root = Path(
+        output_dir
+        if output_dir is not None
+        else DEFAULT_OUTPUT_DIR
     )
 
-    run_hash = hashlib.sha256(
-        run_material.encode("utf-8")
-    ).hexdigest()[:16]
+    duplicate = _find_duplicate_run(
+        destination_root,
+        candidate,
+        evaluation,
+        data_fingerprint,
+    )
+
+    if duplicate is not None:
+        raise FileExistsError(
+            "Duplicate evaluation run detected. "
+            f"Existing run: {duplicate}"
+        )
+
+    run_hash = _run_hash(
+        candidate,
+        evaluation,
+        data_fingerprint,
+    )
 
     run_id = (
         datetime.now(
@@ -394,15 +504,11 @@ def run_evaluation(
             "%Y%m%dT%H%M%SZ"
         )
         + "-"
-        + run_hash
+        + run_hash[:16]
     )
 
     destination = (
-        Path(
-            output_dir
-            if output_dir is not None
-            else DEFAULT_OUTPUT_DIR
-        )
+        destination_root
         / run_id
     )
 
@@ -504,6 +610,7 @@ def run_evaluation(
         / "manifest.json",
         {
             "run_id": run_id,
+            "run_hash": run_hash,
             "candidate_id": candidate.id,
             "candidate_version": (
                 candidate.version
