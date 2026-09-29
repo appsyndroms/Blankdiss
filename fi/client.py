@@ -18,9 +18,10 @@ def _get_with_retry(
     timeout: int,
 ) -> requests.Response:
     """
-    Hämtar en URL med retry vid tillfälliga serverfel.
-    Endast HTTP 5xx retryas. Klientfel (4xx) returneras
-    direkt eftersom ett nytt försök normalt inte löser dem.
+    Hämtar en URL med retry vid tillfälliga fel.
+    HTTP 5xx och tillfälliga nätverksfel retryas.
+    HTTP 4xx returneras direkt eftersom ett nytt försök
+    normalt inte löser ett klientfel.
     """
     for attempt in range(1, FI_RETRIES + 1):
         try:
@@ -36,7 +37,7 @@ def _get_with_retry(
                     f"{type(exc).__name__}"
                 ) from exc
             print(
-                "FI: HTTP-fel vid försök "
+                "WARN: HTTP-fel mot FI vid försök "
                 f"{attempt}/{FI_RETRIES}: "
                 f"{type(exc).__name__}. "
                 f"Försöker igen om "
@@ -48,7 +49,7 @@ def _get_with_retry(
             if attempt == FI_RETRIES:
                 return response
             print(
-                "FI: serverfel HTTP "
+                "WARN: FI svarade med HTTP "
                 f"{response.status_code} vid försök "
                 f"{attempt}/{FI_RETRIES}. "
                 f"Försöker igen om "
@@ -79,10 +80,7 @@ def fetch_html() -> str:
 def download_file(
     url: str,
 ) -> tuple[bytes, str]:
-    """
-    Hämtar en fil från FI.
-    Behålls som generell klientfunktion.
-    """
+    """Hämtar en fil från FI."""
     response = _get_with_retry(
         url,
         timeout=60,
@@ -106,11 +104,7 @@ def download_file(
         extension = ".ods"
     return data, extension
 def fetch_aggregate() -> bytes:
-    """
-    Hämtar FI:s aggregerade blankningsfil.
-    Detta är FI:s riktiga aggregatkälla och innehåller
-    den aggregerade korta nettopositionen över 0,1 %.
-    """
+    """Hämtar FI:s aggregerade blankningsfil."""
     response = _get_with_retry(
         FI_AGGREGATE_URL,
         timeout=FI_AGGREGATE_TIMEOUT,
