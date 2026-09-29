@@ -34,7 +34,9 @@ def load_instrument_map() -> dict[
             "r",
             encoding="utf-8",
         ) as handle:
-            data = json.load(handle)
+            data = json.load(
+                handle
+            )
 
     except (
         OSError,
@@ -129,6 +131,7 @@ def build_instrument_map(
 
     diagnostic_counts = {
         "historical_isin": 0,
+        "historical_lei": 0,
         "no_candidates": 0,
         "all_wrong_exchange": 0,
         "no_equity_candidates": 0,
@@ -175,6 +178,7 @@ def build_instrument_map(
                         "known_isin",
                         "known_name",
                         "historical_isin",
+                        "historical_lei",
                         "fi_ticker_exchange",
                     }
                     else "medium"
@@ -259,6 +263,11 @@ def build_instrument_map(
     print(
         "  historisk ISIN-mappning: "
         f"{diagnostic_counts['historical_isin']}"
+    )
+
+    print(
+        "  historisk LEI-mappning: "
+        f"{diagnostic_counts['historical_lei']}"
     )
 
     print(
