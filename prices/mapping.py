@@ -277,6 +277,15 @@ KNOWN_YAHOO_SYMBOLS: dict[str, str] = {
     "atlas copco b": "ATCO-B.ST",
     "skf": "SKF-B.ST",
     "skf b": "SKF-B.ST",
+    "solid försäkringsaktiebolag": "SFAB.ST",
+    "kungsleden": "KLED.ST",
+    "concentric": "COIC.ST",
+    "renewcell": "RENEW.ST",
+    "probi": "PROB.ST",
+    "arise": "ARISE.ST",
+    "beijer electronics": "BELE.ST",
+    "thunderful": "THUNDR.ST",
+    "veg of lund": "VOLAB.ST",
     "epiroc": "EPRO-B.ST",
     "epiroc b": "EPRO-B.ST",
     "investor": "INVE-B.ST",
@@ -1029,6 +1038,58 @@ def _migrate_existing_mapping(
 
 
 # ---------------------------------------------------------------------------
+# Mapping diagnostics
+# ---------------------------------------------------------------------------
+
+def _mapping_status(
+    instrument: dict[str, Any],
+) -> str:
+    """
+    Explain whether an unresolved instrument has usable identity data.
+
+    This does not infer whether an instrument is currently listed or
+    delisted. Listing history is a separate concern.
+    """
+
+    if any(
+        (
+            normalize_isin(
+                instrument.get("isin")
+            ),
+            clean_value(
+                instrument.get("lei")
+            ),
+            normalize_ticker(
+                instrument.get("ticker")
+            ),
+        )
+    ):
+        return "identity_available"
+
+    return "identity_incomplete"
+
+
+def _mapping_confidence(
+    source: str | None,
+) -> str | None:
+    if source in {
+        "known_name",
+        "fi_ticker_exchange",
+    }:
+        return "high"
+
+    if source in {
+        "issuer_search",
+        "normalized_name_search",
+        "ticker_search",
+        "isin_search",
+    }:
+        return "medium"
+
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Explicit mapping
 # ---------------------------------------------------------------------------
 
@@ -1584,6 +1645,8 @@ def build_instrument_map(
                 "exchange": exchange,
                 "yahoo_symbol": symbol,
                 "mapping_source": source,
+                "mapping_confidence": _mapping_confidence(source),
+                "mapping_status": "mapped",
             }
 
             new_mappings += 1
@@ -1617,6 +1680,8 @@ def build_instrument_map(
                 "exchange": exchange,
                 "yahoo_symbol": None,
                 "mapping_source": None,
+                "mapping_confidence": None,
+                "mapping_status": _mapping_status(instrument),
             }
 
             unresolved += 1
