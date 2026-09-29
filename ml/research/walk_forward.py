@@ -102,6 +102,56 @@ def _sign_consistency(
     }
 
 
+def _threshold_consistency(
+    values: list[float],
+    threshold: float,
+) -> dict[str, int | float | None]:
+    valid = [
+        value
+        for value in values
+        if value == value
+    ]
+
+    if not valid:
+        return {
+            "count": 0,
+            "above": 0,
+            "below": 0,
+            "equal": 0,
+            "above_fraction": None,
+            "below_fraction": None,
+        }
+
+    above = sum(
+        value > threshold
+        for value in valid
+    )
+
+    below = sum(
+        value < threshold
+        for value in valid
+    )
+
+    equal = (
+        len(valid)
+        - above
+        - below
+    )
+
+    return {
+        "count": len(valid),
+        "above": above,
+        "below": below,
+        "equal": equal,
+        "above_fraction": (
+            above / len(valid)
+        ),
+        "below_fraction": (
+            below / len(valid)
+        ),
+    }
+
+
 def aggregate_walk_forward(
     results: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -172,6 +222,16 @@ def aggregate_walk_forward(
         for row in rows
     ]
 
+    cross_window_values = {
+        field: [
+            summary["metrics"][field]["mean"]
+            for summary in windows
+            if summary["metrics"][field]["mean"]
+            is not None
+        ]
+        for field in NUMERIC_FIELDS
+    }
+
     return {
         "window_count": len(windows),
         "result_count": len(all_rows),
@@ -183,6 +243,37 @@ def aggregate_walk_forward(
                     field,
                 )
                 for field in NUMERIC_FIELDS
-            }
+            },
+            "stability": {
+                "event_rate": _sign_consistency(
+                    cross_window_values[
+                        "event_rate"
+                    ]
+                ),
+                "lift": _sign_consistency(
+                    cross_window_values[
+                        "lift"
+                    ]
+                ),
+                "mean_return": _sign_consistency(
+                    cross_window_values[
+                        "mean_return"
+                    ]
+                ),
+            },
+            "baseline_consistency": {
+                "lift": _threshold_consistency(
+                    cross_window_values[
+                        "lift"
+                    ],
+                    1.0,
+                ),
+                "mean_return": _threshold_consistency(
+                    cross_window_values[
+                        "mean_return"
+                    ],
+                    0.0,
+                ),
+            },
         },
     }
