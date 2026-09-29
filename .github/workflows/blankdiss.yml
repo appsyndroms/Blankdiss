@@ -98,32 +98,69 @@ jobs:
       - name: Fetch prices
         run: |
           python -u -m prices --start 2022-01-01
-      - name: Commit Yahoo mappings
+      - name: Commit Yahoo and instrument mappings
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo "=========================================="
-          echo "YAHOO-MAPPNINGAR"
+          echo "YAHOO- OCH INSTRUMENTMAPPNINGAR"
           echo "=========================================="
           git status --short
           if [ ! -f prices/known_yahoo_symbols.jsonl ]; then
             echo "Ingen prices/known_yahoo_symbols.jsonl hittades."
             exit 1
           fi
-          git add prices/known_yahoo_symbols.jsonl
+          if [ ! -f data/analysis/instrument_map.json ]; then
+            echo "Ingen data/analysis/instrument_map.json hittades."
+            exit 1
+          fi
+          git add \
+            prices/known_yahoo_symbols.jsonl \
+            data/analysis/instrument_map.json
           if git diff --cached --quiet; then
-            echo "Inga nya Yahoo-mappningar att committa."
+            echo "Inga Yahoo-mappningar eller instrumentmappningar att committa."
             exit 0
           fi
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
-          git diff --cached -- prices/known_yahoo_symbols.jsonl
+          git diff --cached -- \
+            prices/known_yahoo_symbols.jsonl \
+            data/analysis/instrument_map.json
           git commit \
             -m "Update Yahoo symbol mappings"
-          git push origin HEAD:main
-          echo "Yahoo-mappningarna är pushade."
+          echo
+          echo "=========================================="
+          echo "MAPPNINGAR EFTER COMMIT"
+          echo "=========================================="
+          git status --short
+          if [ -n "$(git status --porcelain)" ]; then
+            echo
+            echo "ERROR: Working tree är inte ren efter mapping-commit."
+            git status --short
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5; do
+            echo
+            echo "Push attempt $attempt..."
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Push lyckades."
+                exit 0
+              fi
+            else
+              echo "Rebase misslyckades."
+              git rebase --abort || true
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              echo "Remote ändrades, försöker igen..."
+              sleep 5
+            fi
+          done
+          echo "Kunde inte pusha efter 5 försök."
+          exit 1
       - name: Update OMXSPI
         run: |
           python -u -m analysis.update_market
