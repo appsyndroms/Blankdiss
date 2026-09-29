@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+import numpy as np
+
 
 def stable_seed(
     *parts: object,
@@ -28,6 +30,10 @@ def regime_rate(
     mask,
 ) -> dict[str, Any]:
     selected = target[mask]
+
+    valid = np.isfinite(selected)
+    selected = selected[valid]
+
     n = int(selected.shape[0])
 
     if n == 0:
