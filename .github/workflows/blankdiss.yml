@@ -66,35 +66,10 @@ jobs:
             -m "Update FI aggregate snapshots"
           echo
           echo "=========================================="
-          echo "FI-DATA EFTER COMMIT"
+          echo "FI-DATA COMMITTAD"
           echo "=========================================="
           git status --short
-          if [ -n "$(git status --porcelain)" ]; then
-            echo
-            echo "ERROR: Working tree är inte ren efter FI-commit."
-            git status --short
-            exit 1
-          fi
-          for attempt in 1 2 3 4 5; do
-            echo
-            echo "Push attempt $attempt..."
-            git fetch origin main
-            if git rebase origin/main; then
-              if git push origin HEAD:main; then
-                echo "Push lyckades."
-                exit 0
-              fi
-            else
-              echo "Rebase misslyckades."
-              git rebase --abort || true
-            fi
-            if [ "$attempt" -lt 5 ]; then
-              echo "Remote ändrades, försöker igen..."
-              sleep 5
-            fi
-          done
-          echo "Kunde inte pusha efter 5 försök."
-          exit 1
+          bash scripts/git_push_with_retry.sh
       - name: Fetch prices
         run: |
           python -u -m prices --start 2022-01-01
@@ -136,26 +111,7 @@ jobs:
           echo "MAPPNINGAR COMMITTADE"
           echo "=========================================="
           git status --short
-          for attempt in 1 2 3 4 5; do
-            echo
-            echo "Push attempt $attempt..."
-            git fetch origin main
-            if git rebase origin/main; then
-              if git push origin HEAD:main; then
-                echo "Push lyckades."
-                exit 0
-              fi
-            else
-              echo "Rebase misslyckades."
-              git rebase --abort || true
-            fi
-            if [ "$attempt" -lt 5 ]; then
-              echo "Remote ändrades, försöker igen..."
-              sleep 5
-            fi
-          done
-          echo "Kunde inte pusha efter 5 försök."
-          exit 1
+          bash scripts/git_push_with_retry.sh
       - name: Update OMXSPI
         run: |
           python -u -m analysis.update_market
