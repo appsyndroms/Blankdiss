@@ -2,11 +2,30 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from ml.research.candidates.spec import (
     CandidateSpec,
 )
+
+
+def _json_safe(
+    value: Any,
+) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_safe(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [
+            _json_safe(item)
+            for item in value
+        ]
+
+    return value
 
 
 def candidate_definition_payload(
@@ -30,7 +49,7 @@ def candidate_definition_payload(
             }
             for feature in candidate.features
         ],
-        "parameters": dict(
+        "parameters": _json_safe(
             candidate.parameters
         ),
         "target": {
@@ -51,7 +70,7 @@ def candidate_definition_payload(
                 candidate.training_period.end
             ),
         },
-        "provenance": dict(
+        "provenance": _json_safe(
             candidate.provenance
         ),
     }
