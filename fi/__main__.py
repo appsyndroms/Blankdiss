@@ -57,7 +57,7 @@ def run_backfill() -> None:
 
     if existing:
         start = (
-            min(existing)
+            max(existing)
             + timedelta(days=1)
         )
     else:
