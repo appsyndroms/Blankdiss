@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from typing import Any
 
 import pandas as pd
 
-from ml.config import TARGETS
+from ml.config import (
+    FEATURE_EXCLUDE_COLUMNS,
+    FI_ONLY_EXCLUDE_COLUMNS,
+    PRICE_FEATURE_COLUMNS,
+    TARGETS,
+)
 from ml.research.candidates.spec import CandidateSpec
 from ml.research.candidates.verification import (
     candidate_fingerprint,
@@ -56,6 +62,38 @@ def _parse_boundary(
             f"{field_name} måste innehålla "
             f"timezone: {value}"
         )
+
+    return parsed
+
+
+def _as_utc_timestamp(
+    value: str,
+) -> pd.Timestamp:
+    timestamp = pd.Timestamp(
+        _parse_boundary(
+            value,
+            "timestamp",
+        )
+    )
+
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize(
+            "UTC"
+        )
+
+    return timestamp.tz_convert(
+        "UTC"
+    )
+
+
+def _normalise_dates(
+    values: pd.Series,
+) -> pd.Series:
+    parsed = pd.to_datetime(
+        values,
+        errors="coerce",
+        utc=True,
+    )
 
     return parsed
 
@@ -334,19 +372,45 @@ def verify_no_evaluation_optimization(
             "kandidatens parametrar."
         )
 
+    if evaluation.metadata.get(
+        "hyperparameter_search",
+        False,
+    ):
+        raise ValueError(
+            "Evaluation får inte innehålla "
+            "hyperparameter search."
+        )
+
+    if evaluation.metadata.get(
+        "fit_on_evaluation",
+        False,
+    ):
+        raise ValueError(
+            "Evaluation får inte träna eller "
+            "anpassa modellen på evaluation-data."
+        )
+
+    if evaluation.metadata.get(
+        "use_evaluation_for_selection",
+        False,
+    ):
+        raise ValueError(
+            "Evaluation-data får inte användas "
+            "för kandidatselektion."
+        )
+
 
 def verify_evaluation_period_data(
     frame: pd.DataFrame,
     evaluation: EvaluationSpec,
-) -> None:
+) -> dict[str, Any]:
     if "snapshot_date" not in frame.columns:
         raise ValueError(
             "Feature-data saknar snapshot_date."
         )
 
-    dates = pd.to_datetime(
-        frame["snapshot_date"],
-        errors="coerce",
+    dates = _normalise_dates(
+        frame["snapshot_date"]
     )
 
     if dates.notna().sum() == 0:
@@ -355,42 +419,232 @@ def verify_evaluation_period_data(
             "snapshot_date-värden."
         )
 
-    start = pd.Timestamp(
+    start = _as_utc_timestamp(
         evaluation.evaluation_period.start
     )
-    end = pd.Timestamp(
+
+    end = _as_utc_timestamp(
         evaluation.evaluation_period.end
     )
-
-    if start.tzinfo is not None:
-        dates = (
-            dates.dt.tz_localize(
-                "UTC",
-                ambiguous="NaT",
-                nonexistent="NaT",
-            )
-            if dates.dt.tz is None
-            else dates
-        )
 
     evaluation_mask = (
         (dates >= start)
         & (dates <= end)
     )
 
-    if int(evaluation_mask.sum()) == 0:
+    evaluation_rows = int(
+        evaluation_mask.sum()
+    )
+
+    if evaluation_rows == 0:
         raise ValueError(
             "Evaluation-perioden innehåller "
             "inga feature rows."
         )
 
-    max_date = dates.max()
+    evaluation_dates = dates[
+        evaluation_mask
+    ]
 
-    if pd.notna(max_date) and max_date < end:
+    max_date = evaluation_dates.max()
+    min_date = evaluation_dates.min()
+
+    if pd.isna(max_date) or max_date < end:
         raise ValueError(
-            "Feature-data når inte evaluation-periodens "
-            f"slutdatum: max={max_date}, end={end}."
+            "Feature-data når inte "
+            "evaluation-periodens slutdatum: "
+            f"max={max_date}, end={end}."
         )
+
+    return {
+        "rows": evaluation_rows,
+        "min_snapshot_date": (
+            min_date.isoformat()
+            if pd.notna(min_date)
+            else None
+        ),
+        "max_snapshot_date": (
+            max_date.isoformat()
+            if pd.notna(max_date)
+            else None
+        ),
+    }
+
+
+def _future_data_columns(
+    candidate: CandidateSpec,
+) -> list[str]:
+    configured_forbidden = (
+        set(FEATURE_EXCLUDE_COLUMNS)
+        | set(FI_ONLY_EXCLUDE_COLUMNS)
+    )
+
+    target_return_columns = {
+        target.return_column
+        for target in TARGETS
+    }
+
+    target_columns = {
+        target.target_column
+        for target in TARGETS
+        if target.target_column is not None
+    }
+
+    forbidden = (
+        configured_forbidden
+        | target_return_columns
+        | target_columns
+    )
+
+    future_tokens = (
+        "forward_return",
+        "future_return",
+        "future_",
+        "_future",
+        "target",
+        "label",
+        "outcome",
+    )
+
+    result = []
+
+    for feature in candidate.features:
+        name = feature.name
+
+        lowered = name.lower()
+
+        if name in forbidden:
+            result.append(name)
+            continue
+
+        if any(
+            token in lowered
+            for token in future_tokens
+        ):
+            result.append(name)
+
+    return sorted(set(result))
+
+
+def verify_feature_target_leakage(
+    candidate: CandidateSpec,
+) -> None:
+    leakage_columns = _future_data_columns(
+        candidate
+    )
+
+    if leakage_columns:
+        raise ValueError(
+            "Candidate innehåller feature(s) "
+            "som kan vara target/future-data: "
+            + ", ".join(leakage_columns)
+        )
+
+
+def verify_future_data_access(
+    frame: pd.DataFrame,
+    candidate: CandidateSpec,
+) -> None:
+    feature_names = [
+        feature.name
+        for feature in candidate.features
+    ]
+
+    missing = [
+        name
+        for name in feature_names
+        if name not in frame.columns
+    ]
+
+    if missing:
+        return
+
+    dates = _normalise_dates(
+        frame["snapshot_date"]
+    )
+
+    if dates.notna().sum() == 0:
+        raise ValueError(
+            "Kan inte verifiera feature-timing "
+            "eftersom snapshot_date saknar "
+            "giltiga värden."
+        )
+
+    for feature_name in feature_names:
+        series = frame[feature_name]
+
+        if pd.api.types.is_datetime64_any_dtype(
+            series
+        ):
+            feature_dates = _normalise_dates(
+                series
+            )
+
+            if feature_dates.notna().any():
+                future_mask = (
+                    feature_dates > dates
+                )
+
+                if bool(
+                    future_mask.fillna(False).any()
+                ):
+                    raise ValueError(
+                        "Feature kan innehålla "
+                        "framtidsdata: "
+                        f"{feature_name}"
+                    )
+
+
+def verify_missing_data(
+    frame: pd.DataFrame,
+    candidate: CandidateSpec,
+) -> dict[str, Any]:
+    rows = len(frame)
+
+    if rows == 0:
+        raise ValueError(
+            "Feature-data innehåller inga rows."
+        )
+
+    missingness: dict[str, Any] = {}
+    unusable = []
+
+    for feature in candidate.features:
+        name = feature.name
+
+        if name not in frame.columns:
+            raise ValueError(
+                "Candidate refererar till saknad "
+                f"feature: {name}"
+            )
+
+        series = frame[name]
+        missing_count = int(
+            series.isna().sum()
+        )
+
+        missing_fraction = (
+            missing_count / rows
+            if rows
+            else 1.0
+        )
+
+        missingness[name] = {
+            "missing_rows": missing_count,
+            "missing_fraction": missing_fraction,
+        }
+
+        if missing_count == rows:
+            unusable.append(name)
+
+    if unusable:
+        raise ValueError(
+            "Candidate features innehåller "
+            "endast saknade värden: "
+            + ", ".join(sorted(unusable))
+        )
+
+    return missingness
 
 
 def verify_candidate_features(
@@ -427,20 +681,203 @@ def verify_candidate_features(
         )
 
 
+def _distribution_summary(
+    series: pd.Series,
+) -> dict[str, Any]:
+    numeric = pd.to_numeric(
+        series,
+        errors="coerce",
+    ).dropna()
+
+    if numeric.empty:
+        return {
+            "n": 0,
+            "mean": None,
+            "std": None,
+            "q05": None,
+            "q50": None,
+            "q95": None,
+        }
+
+    return {
+        "n": int(len(numeric)),
+        "mean": float(numeric.mean()),
+        "std": (
+            float(numeric.std())
+            if len(numeric) > 1
+            else 0.0
+        ),
+        "q05": float(
+            numeric.quantile(0.05)
+        ),
+        "q50": float(
+            numeric.quantile(0.50)
+        ),
+        "q95": float(
+            numeric.quantile(0.95)
+        ),
+    }
+
+
+def _distribution_change(
+    training: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> dict[str, Any]:
+    training_mean = training["mean"]
+    evaluation_mean = evaluation["mean"]
+
+    training_std = training["std"]
+
+    if (
+        training_mean is None
+        or evaluation_mean is None
+    ):
+        mean_delta = None
+    else:
+        mean_delta = (
+            evaluation_mean
+            - training_mean
+        )
+
+    if (
+        training_std is None
+        or training_std == 0
+        or mean_delta is None
+    ):
+        standardized_mean_delta = None
+    else:
+        standardized_mean_delta = (
+            mean_delta
+            / training_std
+        )
+
+    return {
+        "mean_delta": mean_delta,
+        "standardized_mean_delta": (
+            standardized_mean_delta
+        ),
+        "median_delta": (
+            None
+            if (
+                training["q50"] is None
+                or evaluation["q50"] is None
+            )
+            else (
+                evaluation["q50"]
+                - training["q50"]
+            )
+        ),
+    }
+
+
+def distribution_diagnostics(
+    frame: pd.DataFrame,
+    candidate: CandidateSpec,
+    evaluation: EvaluationSpec,
+) -> dict[str, Any]:
+    dates = _normalise_dates(
+        frame["snapshot_date"]
+    )
+
+    training_start = _as_utc_timestamp(
+        candidate.training_period.start
+    )
+    training_end = _as_utc_timestamp(
+        candidate.training_period.end
+    )
+
+    evaluation_start = _as_utc_timestamp(
+        evaluation.evaluation_period.start
+    )
+    evaluation_end = _as_utc_timestamp(
+        evaluation.evaluation_period.end
+    )
+
+    training_mask = (
+        (dates >= training_start)
+        & (dates <= training_end)
+    )
+
+    evaluation_mask = (
+        (dates >= evaluation_start)
+        & (dates <= evaluation_end)
+    )
+
+    diagnostics = {}
+
+    for feature in candidate.features:
+        name = feature.name
+
+        training_summary = (
+            _distribution_summary(
+                frame.loc[
+                    training_mask,
+                    name,
+                ]
+            )
+        )
+
+        evaluation_summary = (
+            _distribution_summary(
+                frame.loc[
+                    evaluation_mask,
+                    name,
+                ]
+            )
+        )
+
+        diagnostics[name] = {
+            "training": training_summary,
+            "evaluation": evaluation_summary,
+            "change": _distribution_change(
+                training_summary,
+                evaluation_summary,
+            ),
+        }
+
+    return diagnostics
+
+
 def verify_evaluation_data(
     frame: pd.DataFrame,
     candidate: CandidateSpec,
     evaluation: EvaluationSpec,
-) -> None:
+) -> dict[str, Any]:
     verify_candidate_features(
         frame,
         candidate,
     )
 
-    verify_evaluation_period_data(
+    verify_feature_target_leakage(
+        candidate
+    )
+
+    verify_future_data_access(
+        frame,
+        candidate,
+    )
+
+    period = verify_evaluation_period_data(
         frame,
         evaluation,
     )
+
+    missing_data = verify_missing_data(
+        frame,
+        candidate,
+    )
+
+    distributions = distribution_diagnostics(
+        frame,
+        candidate,
+        evaluation,
+    )
+
+    return {
+        "evaluation_period": period,
+        "missing_data": missing_data,
+        "distribution_changes": distributions,
+    }
 
 
 def verify_evaluation(
