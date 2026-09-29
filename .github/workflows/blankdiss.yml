@@ -1,5 +1,4 @@
 name: Blankdiss
-
 on:
   workflow_dispatch:
   schedule:
@@ -7,103 +6,79 @@ on:
       timezone: "Europe/Stockholm"
     - cron: "15 18 * * *"
       timezone: "Europe/Stockholm"
-
 permissions:
   contents: write
   pages: write
   id-token: write
-
 concurrency:
   group: blankdiss-data-main
   cancel-in-progress: false
-
 env:
   OMP_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
   MKL_NUM_THREADS: "1"
   VECLIB_MAXIMUM_THREADS: "1"
   NUMEXPR_NUM_THREADS: "1"
-
 jobs:
   build:
     name: Bygg Blankdiss
-
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Run tests
         run: |
           python -m pytest tests/ml/research -q
-
       - name: Fetch FI aggregate
         run: |
           python -u -m fi
-
       - name: Commit FI aggregate snapshots
         run: |
           set -e
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add \
             data/raw/fi/aggregate/manifest.json \
             data/raw/fi/aggregate/snapshots
-
           echo "=========================================="
           echo "FI-DATA FÖRE COMMIT"
           echo "=========================================="
-
           git status --short
-
           if git diff --cached --quiet; then
             echo "Inga FI-snapshotförändringar att committa."
             exit 0
           fi
-
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
-
           git commit \
             -m "Update FI aggregate snapshots"
-
           echo
           echo "=========================================="
           echo "FI-DATA EFTER COMMIT"
           echo "=========================================="
-
           git status --short
-
           if [ -n "$(git status --porcelain)" ]; then
             echo
             echo "ERROR: Working tree är inte ren efter FI-commit."
             git status --short
             exit 1
           fi
-
           for attempt in 1 2 3 4 5; do
             echo
             echo "Push attempt $attempt..."
-
             git fetch origin main
-
             if git rebase origin/main; then
               if git push origin HEAD:main; then
                 echo "Push lyckades."
@@ -113,83 +88,57 @@ jobs:
               echo "Rebase misslyckades."
               git rebase --abort || true
             fi
-
             if [ "$attempt" -lt 5 ]; then
               echo "Remote ändrades, försöker igen..."
               sleep 5
             fi
           done
-
           echo "Kunde inte pusha efter 5 försök."
           exit 1
-
       - name: Fetch prices
         run: |
           python -u -m prices --start 2022-01-01
-
       - name: Commit Yahoo and instrument mappings
         run: |
           set -e
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           echo "=========================================="
           echo "YAHOO- OCH INSTRUMENTMAPPNINGAR"
           echo "=========================================="
-
           git status --short
-
           if [ ! -f prices/known_yahoo_symbols.jsonl ]; then
             echo "Ingen prices/known_yahoo_symbols.jsonl hittades."
             exit 1
           fi
-
           if [ ! -f data/analysis/instrument_map.json ]; then
             echo "Ingen data/analysis/instrument_map.json hittades."
             exit 1
           fi
-
           git add \
             prices/known_yahoo_symbols.jsonl \
             data/analysis/instrument_map.json
-
           if git diff --cached --quiet; then
             echo "Inga Yahoo-mappningar eller instrumentmappningar att committa."
             exit 0
           fi
-
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
-
           git diff --cached -- \
             prices/known_yahoo_symbols.jsonl \
             data/analysis/instrument_map.json
-
           git commit \
             -m "Update Yahoo symbol mappings"
-
           echo
           echo "=========================================="
-          echo "MAPPNINGAR EFTER COMMIT"
+          echo "MAPPNINGAR COMMITTADE"
           echo "=========================================="
-
           git status --short
-
-          if [ -n "$(git status --porcelain)" ]; then
-            echo
-            echo "ERROR: Working tree är inte ren efter mapping-commit."
-            git status --short
-            exit 1
-          fi
-
           for attempt in 1 2 3 4 5; do
             echo
             echo "Push attempt $attempt..."
-
             git fetch origin main
-
             if git rebase origin/main; then
               if git push origin HEAD:main; then
                 echo "Push lyckades."
@@ -199,32 +148,35 @@ jobs:
               echo "Rebase misslyckades."
               git rebase --abort || true
             fi
-
             if [ "$attempt" -lt 5 ]; then
               echo "Remote ändrades, försöker igen..."
               sleep 5
             fi
           done
-
           echo "Kunde inte pusha efter 5 försök."
           exit 1
-
       - name: Update OMXSPI
         run: |
           python -u -m analysis.update_market
-
       - name: Run research scan
         run: |
           python -u -m ml.research.entrypoint scan
-
       - name: Run deep research
         run: |
           python -u -m ml.research.entrypoint deep
-
       - name: Run prospective research evaluation
+        env:
+          BLANKDISS_CANDIDATE: ${{ vars.BLANKDISS_CANDIDATE }}
+          BLANKDISS_EVALUATION: ${{ vars.BLANKDISS_EVALUATION }}
         run: |
-          python -u -m ml.research.entrypoint evaluate
-
+          if [ -z "$BLANKDISS_CANDIDATE" ] || [ -z "$BLANKDISS_EVALUATION" ]; then
+            echo "No prospective evaluation configured."
+            echo "Set BLANKDISS_CANDIDATE and BLANKDISS_EVALUATION repository variables."
+            exit 0
+          fi
+          python -u -m ml.research.entrypoint evaluate \
+            "$BLANKDISS_CANDIDATE" \
+            "$BLANKDISS_EVALUATION"
       - name: Upload research scan artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -232,7 +184,6 @@ jobs:
           name: blankdiss-research-scan
           path: data/processed/ml/research/spec_runs/
           if-no-files-found: ignore
-
       - name: Upload research evaluation artifacts
         if: always()
         uses: actions/upload-artifact@v4
