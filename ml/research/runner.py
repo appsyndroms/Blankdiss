@@ -17,7 +17,6 @@ DEFAULT_SPEC_DIR = (
     / "research"
     / "specs"
 )
-
 OUTPUT_DIR = (
     ROOT
     / "data"
@@ -32,6 +31,13 @@ def _find_specs(spec_dir: Path) -> list[Path]:
     return sorted(spec_dir.glob("*.yaml"))
 
 
+def _relative_to_root(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def _validate_unique_spec_ids(
     specs: list[ResearchSpec],
     spec_paths: list[Path],
@@ -40,7 +46,6 @@ def _validate_unique_spec_ids(
 
     for spec, path in zip(specs, spec_paths):
         previous = seen.get(spec.id)
-
         if previous is not None:
             raise ValueError(
                 "Duplicate research spec id "
@@ -229,11 +234,11 @@ def run_research(
                 "id": spec.id,
                 "mode": spec.mode,
                 "question": spec.question,
-                "spec": str(
-                    spec_path.relative_to(ROOT)
+                "spec": _relative_to_root(
+                    spec_path
                 ),
-                "result": str(
-                    result_path.relative_to(ROOT)
+                "result": _relative_to_root(
+                    result_path
                 ),
                 "rows": len(
                     result["results"]
