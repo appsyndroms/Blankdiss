@@ -22,6 +22,10 @@ FI_RECONSTRUCTED_PATH = Path(
     "data/processed/fi/aggregate/reconstructed.jsonl"
 )
 
+KNOWN_YAHOO_SYMBOLS_PATH = Path(
+    "prices/known_yahoo_symbols.jsonl"
+)
+
 
 # ---------------------------------------------------------------------------
 # Generic helpers
@@ -266,6 +270,10 @@ def yahoo_symbol(
 #
 # These are deliberately explicit.
 # A known mapping is safer than fuzzy matching.
+#
+# Name mappings live in prices/known_yahoo_symbols.jsonl.
+# ISIN mappings remain here because they are tied directly to
+# instrument identity and therefore have higher precedence.
 # ---------------------------------------------------------------------------
 
 KNOWN_YAHOO_SYMBOLS_BY_ISIN: dict[str, str] = {
@@ -273,107 +281,141 @@ KNOWN_YAHOO_SYMBOLS_BY_ISIN: dict[str, str] = {
 }
 
 
-KNOWN_YAHOO_SYMBOLS: dict[str, str] = {
-    # Large Swedish companies
-    "autoliv": "ALIV-SDB.ST",
-    "autoliv inc": "ALIV-SDB.ST",
-    "atlas copco": "ATCO-B.ST",
-    "atlas copco a": "ATCO-A.ST",
-    "atlas copco b": "ATCO-B.ST",
-    "skf": "SKF-B.ST",
-    "skf b": "SKF-B.ST",
-    "solid försäkringsaktiebolag": "SFAB.ST",
-    "kungsleden": "KLED.ST",
-    "concentric": "COIC.ST",
-    "renewcell": "RENEW.ST",
-    "probi": "PROB.ST",
-    "arise": "ARISE.ST",
-    "beijer electronics": "BELE.ST",
-    "thunderful": "THUNDR.ST",
-    "veg of lund": "VOLAB.ST",
-    "epiroc": "EPRO-B.ST",
-    "epiroc b": "EPRO-B.ST",
-    "investor": "INVE-B.ST",
-    "investor b": "INVE-B.ST",
-    "holmen": "HOLM-B.ST",
-    "holmen b": "HOLM-B.ST",
-    "ica gruppen": "ICA.ST",
-    "ica": "ICA.ST",
-    "ncc": "NCC-B.ST",
-    "ncc b": "NCC-B.ST",
-    "stora enso": "STE-R.ST",
-    "stora enso r": "STE-R.ST",
-    "tethys oil": "TETY.ST",
-    "millicom international cellular": "TIGO",
-    "millicom": "TIGO",
-    "kindred group": "KIND-SDB.ST",
-    "kindred": "KIND-SDB.ST",
-    "resurs holding": "RESURS.ST",
-    "resurs": "RESURS.ST",
-    "sas": "SAS-DKK.CO",
-    "sas ab": "SAS-DKK.CO",
-    "lagercrantz": "LAGR-B.ST",
-    "lagercrantz group": "LAGR-B.ST",
-    "lundbergforetagen": "LUND-B.ST",
-    "l e lundbergforetagen": "LUND-B.ST",
-    "lundbergforetagen b": "LUND-B.ST",
-    "nederman": "NMAN.ST",
-    "nederman holding": "NMAN.ST",
-    "stendorren": "STEFB.ST",
-    "stendorren fastigheter": "STEFB.ST",
-    "prevas": "PREV-B.ST",
-    "prevas aktiebolag": "PREV-B.ST",
-    "bjorn borg": "BORG.ST",
-    "bjorn borg ab": "BORG.ST",
-    "billerud": "BILL.ST",
-    "billerud ab": "BILL.ST",
-    "c reades": "CRED-A.ST",
-    "creades": "CRED-A.ST",
-    "cortus energy": "CE.ST",
-    "haldex": "HLDX.ST",
-    "kancera": "KAN.ST",
-    "maha energy": "MAHA-A.ST",
-    "medivir": "MVIR.ST",
-    "nobina": "NOBINA.ST",
-    "oscar properties": "OP.ST",
-    "prostalund": "PLUN.ST",
-    "recipharm": "RECI-B.ST",
-    "swedol": "SWDL.ST",
-    "terranet": "TERRNT-B.ST",
-    "veoneer": "VNE-SDB.ST",
-    "veoneer inc": "VNE-SDB.ST",
+def _load_known_yahoo_symbols() -> dict[str, str]:
+    if not KNOWN_YAHOO_SYMBOLS_PATH.exists():
+        return {}
 
-    # Historical / distressed / delisted names
-    "fingerprint cards": "FING-B.ST",
-    "fingerprint cards ab": "FING-B.ST",
-    "klövern": "KLOV-B.ST",
-    "klovern": "KLOV-B.ST",
-    "ica gruppen aktiebolag": "ICA.ST",
-    "nobina ab": "NOBINA.ST",
-    "recipharm ab": "RECI-B.ST",
-    "swedol ab": "SWDL.ST",
+    result: dict[str, str] = {}
 
-    # Current known mappings
-    "addnode group": "ANOD-B.ST",
-    "clas ohlson": "CLAS-B.ST",
-    "diös fastigheter": "DIOS.ST",
-    "eolus vind": "EOLU-B.ST",
-    "enea": "ENEA.ST",
-    "essity": "ESSITY-B.ST",
-    "grangex": "GRANGX.ST",
-    "granges": "GRNG.ST",
-    "gränges": "GRNG.ST",
-    "heba": "HEBA-B.ST",
-    "latour": "LATO-B.ST",
-    "knowit": "KNOW.ST",
-    "orrön energy": "ORRON.ST",
-    "roko": "ROKO-B.ST",
-    "sectra": "SECT-B.ST",
-    "sbb": "SBB-B.ST",
-    "smart eye": "SEYE.ST",
-    "zinzino": "ZZ-B.ST",
-    "axichem": "AXIC-A.ST",
-}
+    try:
+        with KNOWN_YAHOO_SYMBOLS_PATH.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            for line in handle:
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                try:
+                    record = json.loads(
+                        line
+                    )
+                except json.JSONDecodeError:
+                    continue
+
+                if not isinstance(
+                    record,
+                    dict,
+                ):
+                    continue
+
+                name = clean_value(
+                    record.get("name")
+                )
+
+                symbol = clean_value(
+                    record.get(
+                        "yahoo_symbol"
+                    )
+                )
+
+                if not name or not symbol:
+                    continue
+
+                normalized_name = (
+                    normalize_name(name)
+                )
+
+                if not normalized_name:
+                    continue
+
+                result[
+                    normalized_name
+                ] = symbol
+
+    except OSError:
+        return {}
+
+    return result
+
+
+KNOWN_YAHOO_SYMBOLS: dict[str, str] = (
+    _load_known_yahoo_symbols()
+)
+
+
+def _persist_known_yahoo_mapping(
+    issuer: str | None,
+    symbol: str | None,
+) -> bool:
+    name = clean_value(
+        issuer
+    )
+
+    yahoo = clean_value(
+        symbol
+    )
+
+    if not name or not yahoo:
+        return False
+
+    normalized_name = normalize_name(
+        name
+    )
+
+    if not normalized_name:
+        return False
+
+    existing_symbol = (
+        KNOWN_YAHOO_SYMBOLS.get(
+            normalized_name
+        )
+    )
+
+    if existing_symbol:
+        if existing_symbol == yahoo:
+            return False
+
+        print(
+            "Mappning: konflikt i "
+            f"{KNOWN_YAHOO_SYMBOLS_PATH}: "
+            f"{name!r} har redan "
+            f"{existing_symbol}, ignorerar "
+            f"{yahoo}."
+        )
+
+        return False
+
+    KNOWN_YAHOO_SYMBOLS_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    record = {
+        "name": normalized_name,
+        "yahoo_symbol": yahoo,
+    }
+
+    with KNOWN_YAHOO_SYMBOLS_PATH.open(
+        "a",
+        encoding="utf-8",
+    ) as handle:
+        handle.write(
+            json.dumps(
+                record,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
+
+    KNOWN_YAHOO_SYMBOLS[
+        normalized_name
+    ] = yahoo
+
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1654,6 +1696,13 @@ def build_instrument_map(
             )
 
         if symbol:
+            _persist_known_yahoo_mapping(
+                instrument.get(
+                    "issuer"
+                ),
+                symbol,
+            )
+
             mapping[key] = {
                 "map_key": key,
                 "isin": isin,
