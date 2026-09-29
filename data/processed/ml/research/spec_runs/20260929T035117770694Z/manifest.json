@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-29T03:51:18.579378+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_horizon_20d",
+      "mode": "deep",
+      "question": "Tillför längre 20-dagars negativt momentum information om downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+      "result": "data/processed/ml/research/spec_runs/20260929T035117770694Z/momentum_horizon_20d.json",
+      "rows": 12,
+      "execution_fingerprint": "d20660b9f58c86e4497ab496bcdac56f49a32f1328f41f5c7ad4ab85ab7aa270"
+    }
+  ]
+}

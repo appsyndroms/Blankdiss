@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-29T03:51:19.391131+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_horizon_60d",
+      "mode": "deep",
+      "question": "Tillför längre 60-dagars negativt momentum information om downside-risk inom de 20 procent mest negativa 5-dagars momentumobservationerna?\n",
+      "result": "data/processed/ml/research/spec_runs/20260929T035118579882Z/momentum_horizon_60d.json",
+      "rows": 12,
+      "execution_fingerprint": "35ad540914ed441bfe61f448b64b14b73748a7a8f02ab0e39f94ce5616115a59"
+    }
+  ]
+}

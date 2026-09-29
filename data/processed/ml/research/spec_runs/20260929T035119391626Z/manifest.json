@@ -1,0 +1,14 @@
+{
+  "created_at_utc": "2026-09-29T03:51:23.222677+00:00",
+  "feature_rows": 202240,
+  "specs": [
+    {
+      "id": "momentum_stratified_interaction",
+      "mode": "deep",
+      "question": "Förändras effekten av hög 20-dagars prisvolatilitet när styrkan i negativt 5-dagars och 60-dagars momentum förändras? Testa detta som en difference-in-differences mellan disjunkta momentumregimer, där hög volatilitet jämförs med normal volatilitet inom varje regim.\n",
+      "result": "data/processed/ml/research/spec_runs/20260929T035119391626Z/momentum_stratified_interaction.json",
+      "rows": 56,
+      "execution_fingerprint": "72b33effd5b80f50bed5b2da861eb3a60d949632ab9ce835fb179b74ca116b24"
+    }
+  ]
+}

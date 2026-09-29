@@ -1,6 +1,6 @@
 {
   "state_version": 1,
-  "updated_at_utc": "2026-09-28T14:27:18.860768+00:00",
+  "updated_at_utc": "2026-09-29T03:51:40.681381+00:00",
   "phase": "COMPLETE",
   "history": [
     {
@@ -958,6 +958,138 @@
       "spec_id": "momentum_volatility_then_60d_10pct_prospective_check",
       "mode": "once",
       "result_path": "data/processed/ml/research/spec_runs/20260928T142718794097Z/momentum_volatility_then_60d_10pct_prospective_check.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_5d_tail_conditional_60d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035059842218Z/momentum_5d_tail_conditional_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_5d_tail_conditional_drawdown",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035100940547Z/momentum_5d_tail_conditional_drawdown.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_5d_tail_conditional_volatility",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035102037866Z/momentum_5d_tail_conditional_volatility.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_then_volatility_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035103145600Z/momentum_60d_then_volatility_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_additive_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035103372020Z/momentum_60d_volatility_additive_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035109687365Z/momentum_60d_volatility_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035116005211Z/momentum_60d_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_60d_volatility_severity",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035116817324Z/momentum_60d_volatility_severity.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_drawdown_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035116961280Z/momentum_drawdown_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_horizon_20d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035117770694Z/momentum_horizon_20d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_horizon_60d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035118579882Z/momentum_horizon_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_interaction",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035119391626Z/momentum_stratified_interaction.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_interaction_20d_60d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035123223581Z/momentum_stratified_interaction_20d_60d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_interaction_5d_20d",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035127215494Z/momentum_stratified_interaction_5d_20d.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_interaction_5d_60d_relative_market",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035131170802Z/momentum_stratified_interaction_5d_60d_relative_market.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_stratified_interaction_5d_60d_relative_sector",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035134990217Z/momentum_stratified_interaction_5d_60d_relative_sector.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_tail_threshold_analysis",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035138836622Z/momentum_tail_threshold_analysis.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_triple_conditional_si_acceleration_scan",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035138842716Z/momentum_triple_conditional_si_acceleration_scan.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_regime",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035139300361Z/momentum_volatility_regime.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_10pct_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035140109038Z/momentum_volatility_then_60d_10pct_nested.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_10pct_prospective_check",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035140332592Z/momentum_volatility_then_60d_10pct_prospective_check.json"
+    },
+    {
+      "phase": "CONTROLLED_SPEC",
+      "spec_id": "momentum_volatility_then_60d_nested",
+      "mode": "once",
+      "result_path": "data/processed/ml/research/spec_runs/20260929T035140382497Z/momentum_volatility_then_60d_nested.json"
     }
   ],
   "next_candidate": null,
