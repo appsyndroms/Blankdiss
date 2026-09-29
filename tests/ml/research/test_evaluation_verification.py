@@ -229,7 +229,7 @@ def test_wrong_candidate_id_is_rejected():
 
     with pytest.raises(
         ValueError,
-        match="candidate_id",
+        match="identity",
     ):
         verify_evaluation(
             candidate,
@@ -249,7 +249,7 @@ def test_wrong_candidate_version_is_rejected():
 
     with pytest.raises(
         ValueError,
-        match="candidate_version",
+        match="version",
     ):
         verify_evaluation(
             candidate,
