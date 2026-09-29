@@ -1440,7 +1440,7 @@ def recover_missing_dates(
     if start is None:
         if existing:
             start = (
-                min(existing)
+                max(existing)
                 + timedelta(days=1)
             )
         else:
