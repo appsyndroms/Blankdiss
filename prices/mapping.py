@@ -1,877 +1,27 @@
 from __future__ import annotations
 
 import json
-import re
-import unicodedata
-from difflib import SequenceMatcher
-from pathlib import Path
 from typing import Any
 
 import yfinance as yf
 
-
-MAPPING_PATH = Path(
-    "data/analysis/instrument_map.json"
+from prices.fi_identity import (
+    get_latest_fi_instruments,
+    read_all_fi_data,
 )
-
-FI_SNAPSHOT_DIR = Path(
-    "data/raw/fi/aggregate/snapshots"
+from prices.mapping_utils import (
+    KNOWN_YAHOO_SYMBOLS,
+    KNOWN_YAHOO_SYMBOLS_BY_ISIN,
+    KNOWN_YAHOO_SYMBOLS_PATH,
+    MAPPING_PATH,
+    _persist_known_yahoo_mapping,
+    clean_value,
+    name_similarity,
+    normalize_isin,
+    normalize_name,
+    normalize_ticker,
+    yahoo_symbol,
 )
-
-FI_RECONSTRUCTED_PATH = Path(
-    "data/processed/fi/aggregate/reconstructed.jsonl"
-)
-
-KNOWN_YAHOO_SYMBOLS_PATH = Path(
-    "prices/known_yahoo_symbols.jsonl"
-)
-
-
-# ---------------------------------------------------------------------------
-# Generic helpers
-# ---------------------------------------------------------------------------
-
-def clean_value(
-    value: Any,
-) -> str | None:
-    if value is None:
-        return None
-
-    text = str(value).strip()
-
-    if not text:
-        return None
-
-    if text.lower() in {
-        "none",
-        "null",
-        "nan",
-        "nat",
-        "n/a",
-        "na",
-        "-",
-    }:
-        return None
-
-    return text
-
-
-def normalize_name(
-    value: Any,
-) -> str:
-    text = clean_value(value) or ""
-
-    text = unicodedata.normalize(
-        "NFKD",
-        text,
-    )
-
-    text = "".join(
-        char
-        for char in text
-        if not unicodedata.combining(char)
-    )
-
-    text = text.lower()
-
-    text = re.sub(
-        r"\b("
-        r"ab|aktiebolag|publ|plc|inc|corp|corporation|"
-        r"ltd|limited|sa|se|nv|ag|holding|holdings|group"
-        r")\b",
-        " ",
-        text,
-    )
-
-    text = re.sub(
-        r"[^a-z0-9]+",
-        " ",
-        text,
-    )
-
-    text = re.sub(
-        r"\s+",
-        " ",
-        text,
-    )
-
-    return text.strip()
-
-
-def normalize_ticker(
-    value: Any,
-) -> str | None:
-    text = clean_value(value)
-
-    if not text:
-        return None
-
-    text = text.upper().strip()
-
-    return text
-
-
-def normalize_isin(
-    value: Any,
-) -> str | None:
-    text = clean_value(value)
-
-    if not text:
-        return None
-
-    text = text.upper().replace(
-        " ",
-        "",
-    )
-
-    if re.fullmatch(
-        r"[A-Z0-9]{12}",
-        text,
-    ):
-        return text
-
-    return None
-
-
-def name_similarity(
-    a: Any,
-    b: Any,
-) -> float:
-    a_norm = normalize_name(a)
-    b_norm = normalize_name(b)
-
-    if not a_norm or not b_norm:
-        return 0.0
-
-    return SequenceMatcher(
-        None,
-        a_norm,
-        b_norm,
-    ).ratio()
-
-
-def yahoo_symbol(
-    ticker: Any,
-    exchange: Any = None,
-) -> str | None:
-    """
-    Convert a ticker + exchange into a Yahoo Finance symbol.
-
-    IMPORTANT:
-    We no longer blindly append .ST.
-
-    A missing exchange is deliberately unresolved instead of
-    assuming Stockholm. This avoids mapping foreign instruments
-    to a potentially valid but completely wrong Swedish ticker.
-    """
-
-    ticker_norm = normalize_ticker(
-        ticker
-    )
-
-    if not ticker_norm:
-        return None
-
-    if "." in ticker_norm:
-        return ticker_norm
-
-    exchange_norm = clean_value(
-        exchange
-    )
-
-    if not exchange_norm:
-        return None
-
-    exchange_norm = (
-        exchange_norm.upper()
-        .strip()
-    )
-
-    exchange_suffixes = {
-        # Nasdaq Stockholm
-        "STO": ".ST",
-        "STOCKHOLM": ".ST",
-        "NASDAQ STOCKHOLM": ".ST",
-        "NASDAQ OMX STOCKHOLM": ".ST",
-
-        # Nasdaq Copenhagen
-        "CPH": ".CO",
-        "COPENHAGEN": ".CO",
-        "NASDAQ COPENHAGEN": ".CO",
-        "NASDAQ OMX COPENHAGEN": ".CO",
-
-        # Nasdaq Helsinki
-        "HEL": ".HE",
-        "HELSINKI": ".HE",
-        "NASDAQ HELSINKI": ".HE",
-        "NASDAQ OMX HELSINKI": ".HE",
-
-        # Oslo
-        "OSL": ".OL",
-        "OSLO": ".OL",
-        "OSLO BORS": ".OL",
-
-        # London
-        "LSE": ".L",
-        "LONDON": ".L",
-        "LONDON STOCK EXCHANGE": ".L",
-
-        # Frankfurt / Xetra
-        "FRA": ".F",
-        "FRANKFURT": ".F",
-        "XETRA": ".DE",
-
-        # Paris
-        "PAR": ".PA",
-        "PARIS": ".PA",
-        "EURONEXT PARIS": ".PA",
-
-        # Amsterdam
-        "AMS": ".AS",
-        "AMSTERDAM": ".AS",
-        "EURONEXT AMSTERDAM": ".AS",
-
-        # Brussels
-        "BRU": ".BR",
-        "BRUSSELS": ".BR",
-        "EURONEXT BRUSSELS": ".BR",
-
-        # Milan
-        "MIL": ".MI",
-        "MILAN": ".MI",
-        "BORSA ITALIANA": ".MI",
-
-        # Madrid
-        "MAD": ".MC",
-        "MADRID": ".MC",
-        "BME": ".MC",
-
-        # Zurich
-        "ZRH": ".SW",
-        "ZURICH": ".SW",
-        "SIX": ".SW",
-        "SIX SWISS": ".SW",
-    }
-
-    suffix = exchange_suffixes.get(
-        exchange_norm
-    )
-
-    if suffix:
-        return (
-            f"{ticker_norm}{suffix}"
-        )
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Known Yahoo mappings
-#
-# These are deliberately explicit.
-# A known mapping is safer than fuzzy matching.
-#
-# Name mappings live in prices/known_yahoo_symbols.jsonl.
-# ISIN mappings remain here because they are tied directly to
-# instrument identity and therefore have higher precedence.
-# ---------------------------------------------------------------------------
-
-KNOWN_YAHOO_SYMBOLS_BY_ISIN: dict[str, str] = {
-    "SE0000108227": "SKF-B.ST",
-}
-
-
-def _load_known_yahoo_symbols() -> dict[str, str]:
-    if not KNOWN_YAHOO_SYMBOLS_PATH.exists():
-        return {}
-
-    result: dict[str, str] = {}
-
-    try:
-        with KNOWN_YAHOO_SYMBOLS_PATH.open(
-            "r",
-            encoding="utf-8",
-        ) as handle:
-            for line in handle:
-                line = line.strip()
-
-                if not line:
-                    continue
-
-                try:
-                    record = json.loads(
-                        line
-                    )
-                except json.JSONDecodeError:
-                    continue
-
-                if not isinstance(
-                    record,
-                    dict,
-                ):
-                    continue
-
-                name = clean_value(
-                    record.get("name")
-                )
-
-                symbol = clean_value(
-                    record.get(
-                        "yahoo_symbol"
-                    )
-                )
-
-                if not name or not symbol:
-                    continue
-
-                normalized_name = (
-                    normalize_name(name)
-                )
-
-                if not normalized_name:
-                    continue
-
-                result[
-                    normalized_name
-                ] = symbol
-
-    except OSError:
-        return {}
-
-    return result
-
-
-KNOWN_YAHOO_SYMBOLS: dict[str, str] = (
-    _load_known_yahoo_symbols()
-)
-
-
-def _persist_known_yahoo_mapping(
-    issuer: str | None,
-    symbol: str | None,
-) -> bool:
-    name = clean_value(
-        issuer
-    )
-
-    yahoo = clean_value(
-        symbol
-    )
-
-    if not name or not yahoo:
-        return False
-
-    normalized_name = normalize_name(
-        name
-    )
-
-    if not normalized_name:
-        return False
-
-    existing_symbol = (
-        KNOWN_YAHOO_SYMBOLS.get(
-            normalized_name
-        )
-    )
-
-    if existing_symbol:
-        if existing_symbol == yahoo:
-            return False
-
-        print(
-            "Mappning: konflikt i "
-            f"{KNOWN_YAHOO_SYMBOLS_PATH}: "
-            f"{name!r} har redan "
-            f"{existing_symbol}, ignorerar "
-            f"{yahoo}."
-        )
-
-        return False
-
-    KNOWN_YAHOO_SYMBOLS_PATH.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    record = {
-        "name": normalized_name,
-        "yahoo_symbol": yahoo,
-    }
-
-    with KNOWN_YAHOO_SYMBOLS_PATH.open(
-        "a",
-        encoding="utf-8",
-    ) as handle:
-        handle.write(
-            json.dumps(
-                record,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            + "\n"
-        )
-
-    KNOWN_YAHOO_SYMBOLS[
-        normalized_name
-    ] = yahoo
-
-    return True
-
-
-# ---------------------------------------------------------------------------
-# FI field extraction
-# ---------------------------------------------------------------------------
-
-def _find_value_by_key(
-    record: dict[str, Any],
-    candidates: set[str],
-) -> str | None:
-    normalized_candidates = {
-        re.sub(
-            r"[^a-z0-9]",
-            "",
-            candidate.lower(),
-        )
-        for candidate in candidates
-    }
-
-    for key, value in record.items():
-        normalized_key = re.sub(
-            r"[^a-z0-9]",
-            "",
-            str(key).lower(),
-        )
-
-        if normalized_key in normalized_candidates:
-            result = clean_value(
-                value
-            )
-
-            if result:
-                return result
-
-    return None
-
-
-def _find_nested_value(
-    record: Any,
-    candidates: set[str],
-    *,
-    max_depth: int = 5,
-    depth: int = 0,
-) -> str | None:
-    if depth > max_depth:
-        return None
-
-    if isinstance(record, dict):
-        direct = _find_value_by_key(
-            record,
-            candidates,
-        )
-
-        if direct:
-            return direct
-
-        for value in record.values():
-            result = _find_nested_value(
-                value,
-                candidates,
-                max_depth=max_depth,
-                depth=depth + 1,
-            )
-
-            if result:
-                return result
-
-    elif isinstance(record, list):
-        for value in record:
-            result = _find_nested_value(
-                value,
-                candidates,
-                max_depth=max_depth,
-                depth=depth + 1,
-            )
-
-            if result:
-                return result
-
-    return None
-
-
-def get_isin(
-    record: dict[str, Any],
-) -> str | None:
-    value = _find_nested_value(
-        record,
-        {
-            "isin",
-            "ISIN",
-            "instrument_isin",
-            "instrumentIsin",
-            "security_isin",
-            "securityIsin",
-        },
-    )
-
-    return normalize_isin(
-        value
-    )
-
-
-def get_lei(
-    record: dict[str, Any],
-) -> str | None:
-    return _find_nested_value(
-        record,
-        {
-            "lei",
-            "LEI",
-            "issuer_lei",
-            "issuerLei",
-            "entity_lei",
-            "entityLei",
-        },
-    )
-
-
-def get_ticker(
-    record: dict[str, Any],
-) -> str | None:
-    return _find_nested_value(
-        record,
-        {
-            "ticker",
-            "Ticker",
-            "symbol",
-            "Symbol",
-            "instrument_ticker",
-            "instrumentTicker",
-            "security_ticker",
-            "securityTicker",
-        },
-    )
-
-
-def get_exchange(
-    record: dict[str, Any],
-) -> str | None:
-    """
-    Extract exchange/market information when FI data contains it.
-
-    FI schemas have changed over time, so several common field names
-    are supported.
-    """
-
-    return _find_nested_value(
-        record,
-        {
-            "exchange",
-            "Exchange",
-            "exchange_code",
-            "exchangeCode",
-            "market",
-            "Market",
-            "market_code",
-            "marketCode",
-            "trading_venue",
-            "tradingVenue",
-            "trading_venue_code",
-            "tradingVenueCode",
-            "venue",
-            "Venue",
-        },
-    )
-
-
-def get_issuer(
-    record: dict[str, Any],
-) -> str | None:
-    return _find_nested_value(
-        record,
-        {
-            "issuer",
-            "Issuer",
-            "issuer_name",
-            "issuerName",
-            "company_name",
-            "companyName",
-        },
-    )
-
-
-def get_date(
-    record: dict[str, Any],
-) -> str | None:
-    return _find_nested_value(
-        record,
-        {
-            "snapshot_date",
-            "snapshotDate",
-            "position_date",
-            "positionDate",
-            "date",
-            "Date",
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
-# JSONL
-# ---------------------------------------------------------------------------
-
-def _iter_jsonl(
-    path: Path,
-):
-    if not path.exists():
-        return
-
-    with path.open(
-        "r",
-        encoding="utf-8",
-    ) as handle:
-        for line in handle:
-            line = line.strip()
-
-            if not line:
-                continue
-
-            try:
-                record = json.loads(
-                    line
-                )
-            except json.JSONDecodeError:
-                continue
-
-            if isinstance(
-                record,
-                dict,
-            ):
-                yield record
-
-
-# ---------------------------------------------------------------------------
-# FI data
-# ---------------------------------------------------------------------------
-
-def read_all_fi_data() -> list[
-    dict[str, Any]
-]:
-    records: list[
-        dict[str, Any]
-    ] = []
-
-    files = sorted(
-        FI_SNAPSHOT_DIR.glob(
-            "fi_aggregate_*.jsonl"
-        )
-    )
-
-    for path in files:
-        for record in _iter_jsonl(
-            path
-        ):
-            records.append(
-                record
-            )
-
-    return records
-
-
-# ---------------------------------------------------------------------------
-# Reconstructed FI identity
-# ---------------------------------------------------------------------------
-
-def _read_reconstructed_identity() -> dict[
-    str,
-    dict[str, Any],
-]:
-    result: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    if not FI_RECONSTRUCTED_PATH.exists():
-        return result
-
-    for record in _iter_jsonl(
-        FI_RECONSTRUCTED_PATH
-    ):
-        isin = get_isin(record)
-        lei = get_lei(record)
-        issuer = get_issuer(record)
-
-        if not isin:
-            continue
-
-        key = None
-
-        if lei:
-            key = f"LEI:{lei}"
-
-        elif issuer:
-            key = (
-                "ISSUER:"
-                f"{normalize_name(issuer)}"
-            )
-
-        if not key:
-            continue
-
-        existing = result.get(
-            key
-        )
-
-        if existing is None:
-            result[key] = {
-                "isin": isin,
-                "lei": lei,
-                "issuer": issuer,
-            }
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Instrument identity
-# ---------------------------------------------------------------------------
-
-def instrument_key(
-    *,
-    isin: str | None,
-    lei: str | None,
-    ticker: str | None,
-    issuer: str | None,
-) -> str:
-    if isin:
-        return f"ISIN:{isin}"
-
-    if lei:
-        return f"LEI:{lei}"
-
-    if ticker:
-        return (
-            "TICKER:"
-            f"{normalize_ticker(ticker)}"
-        )
-
-    if issuer:
-        return (
-            "ISSUER:"
-            f"{normalize_name(issuer)}"
-        )
-
-    raise ValueError(
-        "Cannot identify FI instrument."
-    )
-
-
-def get_latest_fi_instruments(
-    fi_records: list[
-        dict[str, Any]
-    ],
-) -> list[
-    dict[str, Any]
-]:
-    latest: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    reconstructed = (
-        _read_reconstructed_identity()
-    )
-
-    for record in fi_records:
-        lei = get_lei(record)
-        issuer = get_issuer(record)
-        ticker = get_ticker(record)
-        exchange = get_exchange(record)
-        isin = get_isin(record)
-        snapshot_date = get_date(
-            record
-        )
-
-        identity = None
-
-        if lei:
-            identity = reconstructed.get(
-                f"LEI:{lei}"
-            )
-
-        if (
-            identity is None
-            and issuer
-        ):
-            identity = reconstructed.get(
-                "ISSUER:"
-                + normalize_name(
-                    issuer
-                )
-            )
-
-        if identity and not isin:
-            isin = identity.get(
-                "isin"
-            )
-
-        try:
-            key = instrument_key(
-                isin=isin,
-                lei=lei,
-                ticker=ticker,
-                issuer=issuer,
-            )
-        except ValueError:
-            continue
-
-        candidate = {
-            "map_key": key,
-            "isin": isin,
-            "lei": lei,
-            "issuer": issuer,
-            "ticker": ticker,
-            "exchange": exchange,
-            "date": snapshot_date,
-        }
-
-        existing = latest.get(
-            key
-        )
-
-        if existing is None:
-            latest[key] = candidate
-            continue
-
-        existing_date = existing.get(
-            "date"
-        )
-
-        if (
-            snapshot_date
-            and (
-                not existing_date
-                or str(snapshot_date)
-                > str(existing_date)
-            )
-        ):
-            latest[key] = candidate
-
-    instruments = sorted(
-        latest.values(),
-        key=lambda item: (
-            item.get("issuer") or "",
-            item.get("isin") or "",
-            item.get("lei") or "",
-        ),
-    )
-
-    print(
-        "Mappning: "
-        f"{len(instruments)} "
-        "FI-instrument identifierade."
-    )
-
-    return instruments
 
 
 # ---------------------------------------------------------------------------
@@ -914,7 +64,7 @@ def save_instrument_map(
         str,
         dict[str, Any],
     ],
-) -> Path:
+) -> Any:
     MAPPING_PATH.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -1445,6 +595,16 @@ def _search_candidates(
             if not symbol:
                 continue
 
+            # IMPORTANT:
+            # A Yahoo candidate from a different exchange is not
+            # merely a weaker candidate. It is the wrong instrument
+            # for this mapping and must be rejected completely.
+            if not _candidate_matches_exchange(
+                quote,
+                instrument,
+            ):
+                continue
+
             if symbol in seen:
                 continue
 
@@ -1480,11 +640,9 @@ def _search_candidates(
             ):
                 score = 1.0
 
-            if _candidate_matches_exchange(
-                quote,
-                instrument,
-            ):
-                score += 0.10
+            # Exchange agreement is now a prerequisite, not just
+            # a small score bonus.
+            score += 0.10
 
             # Ticker agreement is a strong signal.
             quote_symbol = normalize_ticker(
@@ -1504,7 +662,6 @@ def _search_candidates(
             ):
                 score += 0.15
 
-            # Cap the score.
             score = min(
                 score,
                 1.0,
@@ -1543,15 +700,12 @@ def _search_mapping(
         candidates[0]
     )
 
-    # Strong match.
     if best_score >= 0.95:
         return (
             best_symbol,
             source,
         )
 
-    # Good match only if clearly separated
-    # from the second-best candidate.
     if best_score >= 0.85:
         if (
             len(candidates) == 1
@@ -1714,7 +868,9 @@ def build_instrument_map(
                 "exchange": exchange,
                 "yahoo_symbol": symbol,
                 "mapping_source": source,
-                "mapping_confidence": _mapping_confidence(source),
+                "mapping_confidence": _mapping_confidence(
+                    source
+                ),
                 "mapping_status": "mapped",
             }
 
@@ -1750,7 +906,9 @@ def build_instrument_map(
                 "yahoo_symbol": None,
                 "mapping_source": None,
                 "mapping_confidence": None,
-                "mapping_status": _mapping_status(instrument),
+                "mapping_status": _mapping_status(
+                    instrument
+                ),
             }
 
             unresolved += 1
@@ -1815,7 +973,6 @@ def get_yahoo_symbols(
             item
         )
 
-    # Avoid duplicate Yahoo symbols.
     unique: dict[
         str,
         dict[str, Any],
@@ -1834,3 +991,27 @@ def get_yahoo_symbols(
             unique
         )
     ]
+
+
+# ---------------------------------------------------------------------------
+# Compatibility exports
+# ---------------------------------------------------------------------------
+#
+# These imports deliberately remain available through prices.mapping.
+# Existing callers therefore do not need to be changed just because
+# the implementation has been split into smaller modules.
+# ---------------------------------------------------------------------------
+
+__all__ = [
+    "build_instrument_map",
+    "get_latest_fi_instruments",
+    "get_yahoo_symbols",
+    "load_instrument_map",
+    "name_similarity",
+    "normalize_isin",
+    "normalize_name",
+    "normalize_ticker",
+    "read_all_fi_data",
+    "save_instrument_map",
+    "yahoo_symbol",
+]
