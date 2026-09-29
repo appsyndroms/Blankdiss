@@ -232,6 +232,22 @@ class CandidateSpec:
                 "efter discovery_cutoff."
             )
 
+        object.__setattr__(
+            self,
+            "parameters",
+            _freeze(
+                dict(self.parameters)
+            ),
+        )
+
+        object.__setattr__(
+            self,
+            "provenance",
+            _freeze(
+                dict(self.provenance)
+            ),
+        )
+
         if self.status == "frozen":
             if not self.fingerprint_algorithm:
                 raise ValueError(
