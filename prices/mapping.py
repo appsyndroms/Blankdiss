@@ -12,8 +12,6 @@ from prices.fi_identity import (
 from prices.mapping_utils import (
     KNOWN_YAHOO_SYMBOLS,
     KNOWN_YAHOO_SYMBOLS_BY_ISIN,
-    KNOWN_YAHOO_SYMBOLS_PATH,
-    MAPPING_PATH,
     _persist_known_yahoo_mapping,
     clean_value,
     name_similarity,
@@ -21,6 +19,7 @@ from prices.mapping_utils import (
     normalize_name,
     normalize_ticker,
     yahoo_symbol,
+    MAPPING_PATH,
 )
 
 
@@ -513,6 +512,7 @@ def _candidate_matches_exchange(
 
 def _search_candidates(
     instrument: dict[str, Any],
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[
     tuple[
         str,
@@ -582,10 +582,24 @@ def _search_candidates(
 
     seen: set[str] = set()
 
+    if diagnostics is not None:
+        diagnostics["queries"] = []
+        diagnostics["exchange_rejected"] = []
+        diagnostics["accepted_candidates"] = []
+
     for query, source in queries:
         quotes = _search_yahoo(
             query
         )
+
+        if diagnostics is not None:
+            diagnostics["queries"].append(
+                {
+                    "query": query,
+                    "source": source,
+                    "result_count": len(quotes),
+                }
+            )
 
         for quote in quotes:
             symbol = _candidate_symbol(
@@ -595,14 +609,27 @@ def _search_candidates(
             if not symbol:
                 continue
 
-            # IMPORTANT:
-            # A Yahoo candidate from a different exchange is not
-            # merely a weaker candidate. It is the wrong instrument
-            # for this mapping and must be rejected completely.
+            actual_exchange = (
+                _candidate_exchange(
+                    quote
+                )
+            )
+
             if not _candidate_matches_exchange(
                 quote,
                 instrument,
             ):
+                if diagnostics is not None:
+                    diagnostics[
+                        "exchange_rejected"
+                    ].append(
+                        {
+                            "symbol": symbol,
+                            "exchange": actual_exchange,
+                            "source": source,
+                        }
+                    )
+
                 continue
 
             if symbol in seen:
@@ -667,13 +694,28 @@ def _search_candidates(
                 1.0,
             )
 
-            candidates.append(
-                (
-                    symbol,
-                    score,
-                    source,
-                )
+            candidate = (
+                symbol,
+                score,
+                source,
             )
+
+            candidates.append(
+                candidate
+            )
+
+            if diagnostics is not None:
+                diagnostics[
+                    "accepted_candidates"
+                ].append(
+                    {
+                        "symbol": symbol,
+                        "score": score,
+                        "source": source,
+                        "exchange": actual_exchange,
+                        "name": quote_name,
+                    }
+                )
 
     candidates.sort(
         key=lambda item: item[1],
@@ -685,15 +727,22 @@ def _search_candidates(
 
 def _search_mapping(
     instrument: dict[str, Any],
+    diagnostics: dict[str, Any] | None = None,
 ) -> tuple[
     str | None,
     str | None,
 ]:
     candidates = _search_candidates(
-        instrument
+        instrument,
+        diagnostics,
     )
 
     if not candidates:
+        if diagnostics is not None:
+            diagnostics["reason"] = (
+                "no_accepted_candidates"
+            )
+
         return None, None
 
     best_symbol, best_score, source = (
@@ -701,6 +750,11 @@ def _search_mapping(
     )
 
     if best_score >= 0.95:
+        if diagnostics is not None:
+            diagnostics["reason"] = (
+                "accepted_high_score"
+            )
+
         return (
             best_symbol,
             source,
@@ -715,12 +769,120 @@ def _search_mapping(
                 >= 0.10
             )
         ):
+            if diagnostics is not None:
+                diagnostics["reason"] = (
+                    "accepted_clear_leader"
+                )
+
             return (
                 best_symbol,
                 source,
             )
 
+        if diagnostics is not None:
+            diagnostics["reason"] = (
+                "multiple_close_candidates"
+            )
+
+        return None, None
+
+    if diagnostics is not None:
+        diagnostics["reason"] = (
+            "best_score_below_threshold"
+        )
+
     return None, None
+
+
+def _print_mapping_diagnostic(
+    instrument: dict[str, Any],
+    diagnostics: dict[str, Any],
+) -> None:
+    issuer = (
+        instrument.get("issuer")
+        or "?"
+    )
+
+    isin = instrument.get(
+        "isin"
+    )
+
+    lei = instrument.get(
+        "lei"
+    )
+
+    ticker = instrument.get(
+        "ticker"
+    )
+
+    exchange = instrument.get(
+        "exchange"
+    )
+
+    print(
+        "Mappning diagnostik: "
+        f"{issuer}"
+    )
+
+    print(
+        "  identitet: "
+        f"isin={isin} "
+        f"lei={lei} "
+        f"ticker={ticker} "
+        f"exchange={exchange}"
+    )
+
+    for query in diagnostics.get(
+        "queries",
+        [],
+    ):
+        print(
+            "  sökning: "
+            f"{query['source']} "
+            f"{query['query']!r} "
+            f"-> "
+            f"{query['result_count']} "
+            "Yahoo-resultat"
+        )
+
+    rejected = diagnostics.get(
+        "exchange_rejected",
+        [],
+    )
+
+    if rejected:
+        print(
+            "  fel börs: "
+            + ", ".join(
+                (
+                    f"{item['symbol']} "
+                    f"({item['exchange']})"
+                )
+                for item in rejected
+            )
+        )
+
+    accepted = diagnostics.get(
+        "accepted_candidates",
+        [],
+    )
+
+    if accepted:
+        print(
+            "  accepterade kandidater: "
+            + ", ".join(
+                (
+                    f"{item['symbol']} "
+                    f"score={item['score']:.3f}"
+                )
+                for item in accepted
+            )
+        )
+
+    print(
+        "  diagnos: "
+        f"{diagnostics.get('reason')}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -785,6 +947,14 @@ def build_instrument_map(
         "behöver Yahoo-mappning."
     )
 
+    diagnostic_counts = {
+        "no_accepted_candidates": 0,
+        "best_score_below_threshold": 0,
+        "multiple_close_candidates": 0,
+        "exchange_only": 0,
+        "other": 0,
+    }
+
     for index, instrument in enumerate(
         needs_mapping,
         start=1,
@@ -842,10 +1012,13 @@ def build_instrument_map(
         # 3. Yahoo search
         # ---------------------------------------------------------------
 
+        diagnostics: dict[str, Any] = {}
+
         if symbol is None:
             symbol, source = (
                 _search_mapping(
-                    instrument
+                    instrument,
+                    diagnostics,
                 )
             )
 
@@ -922,6 +1095,66 @@ def build_instrument_map(
                 f"[{index}/"
                 f"{len(needs_mapping)}]"
             )
+
+            if diagnostics:
+                _print_mapping_diagnostic(
+                    instrument,
+                    diagnostics,
+                )
+
+                reason = diagnostics.get(
+                    "reason"
+                )
+
+                if reason in diagnostic_counts:
+                    diagnostic_counts[
+                        reason
+                    ] += 1
+                else:
+                    diagnostic_counts[
+                        "other"
+                    ] += 1
+
+                if (
+                    diagnostics.get(
+                        "exchange_rejected"
+                    )
+                    and not diagnostics.get(
+                        "accepted_candidates"
+                    )
+                ):
+                    diagnostic_counts[
+                        "exchange_only"
+                    ] += 1
+
+    print(
+        "Mappning diagnostik:"
+    )
+
+    print(
+        "  inga accepterade kandidater: "
+        f"{diagnostic_counts['no_accepted_candidates']}"
+    )
+
+    print(
+        "  bästa score under tröskel: "
+        f"{diagnostic_counts['best_score_below_threshold']}"
+    )
+
+    print(
+        "  flera nära kandidater: "
+        f"{diagnostic_counts['multiple_close_candidates']}"
+    )
+
+    print(
+        "  endast kandidater från fel börs: "
+        f"{diagnostic_counts['exchange_only']}"
+    )
+
+    print(
+        "  övrigt: "
+        f"{diagnostic_counts['other']}"
+    )
 
     print(
         "Mappning: "
