@@ -1,5 +1,6 @@
 """HTTP-klient för Finansinspektionens blankningsregister."""
 from __future__ import annotations
+import time
 from urllib.parse import urljoin
 import requests
 from .config import (
@@ -9,19 +10,62 @@ from .config import (
     HEADERS,
 )
 from .errors import FIError
+FI_RETRIES = 3
+FI_RETRY_DELAY = 10
+def _get_with_retry(
+    url: str,
+    *,
+    timeout: int,
+) -> requests.Response:
+    """
+    Hämtar en URL med retry vid tillfälliga serverfel.
+    Endast HTTP 5xx retryas. Klientfel (4xx) returneras
+    direkt eftersom ett nytt försök normalt inte löser dem.
+    """
+    for attempt in range(1, FI_RETRIES + 1):
+        try:
+            response = requests.get(
+                url,
+                headers=HEADERS,
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            if attempt == FI_RETRIES:
+                raise FIError(
+                    "HTTP-fel vid hämtning från FI: "
+                    f"{type(exc).__name__}"
+                ) from exc
+            print(
+                "FI: HTTP-fel vid försök "
+                f"{attempt}/{FI_RETRIES}: "
+                f"{type(exc).__name__}. "
+                f"Försöker igen om "
+                f"{FI_RETRY_DELAY} sekunder."
+            )
+            time.sleep(FI_RETRY_DELAY)
+            continue
+        if 500 <= response.status_code < 600:
+            if attempt == FI_RETRIES:
+                return response
+            print(
+                "FI: serverfel HTTP "
+                f"{response.status_code} vid försök "
+                f"{attempt}/{FI_RETRIES}. "
+                f"Försöker igen om "
+                f"{FI_RETRY_DELAY} sekunder."
+            )
+            time.sleep(FI_RETRY_DELAY)
+            continue
+        return response
+    raise RuntimeError(
+        "FI: oväntat slut på retry-loop."
+    )
 def fetch_html() -> str:
     """Hämtar FI:s blankningsregister."""
-    try:
-        response = requests.get(
-            FI_URL,
-            headers=HEADERS,
-            timeout=30,
-        )
-    except requests.RequestException as exc:
-        raise FIError(
-            "HTTP-fel vid hämtning från FI: "
-            f"{type(exc).__name__}"
-        ) from exc
+    response = _get_with_retry(
+        FI_URL,
+        timeout=30,
+    )
     if response.status_code != 200:
         raise FIError(
             "FI svarade med HTTP "
@@ -39,17 +83,10 @@ def download_file(
     Hämtar en fil från FI.
     Behålls som generell klientfunktion.
     """
-    try:
-        response = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=60,
-        )
-    except requests.RequestException as exc:
-        raise FIError(
-            "HTTP-fel vid hämtning av FI-fil: "
-            f"{type(exc).__name__}"
-        ) from exc
+    response = _get_with_retry(
+        url,
+        timeout=60,
+    )
     if response.status_code != 200:
         raise FIError(
             "FI-fil svarade med HTTP "
@@ -74,18 +111,10 @@ def fetch_aggregate() -> bytes:
     Detta är FI:s riktiga aggregatkälla och innehåller
     den aggregerade korta nettopositionen över 0,1 %.
     """
-    try:
-        response = requests.get(
-            FI_AGGREGATE_URL,
-            headers=HEADERS,
-            timeout=FI_AGGREGATE_TIMEOUT,
-        )
-    except requests.RequestException as exc:
-        raise FIError(
-            "HTTP-fel vid hämtning av FI:s "
-            "aggregerade blankningsfil: "
-            f"{type(exc).__name__}"
-        ) from exc
+    response = _get_with_retry(
+        FI_AGGREGATE_URL,
+        timeout=FI_AGGREGATE_TIMEOUT,
+    )
     if response.status_code != 200:
         raise FIError(
             "FI:s aggregat-endpoint svarade med HTTP "
