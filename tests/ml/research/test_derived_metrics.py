@@ -2,6 +2,7 @@ from ml.research.derived_metrics import (
     apply_derived_metrics,
 )
 from ml.research.spec import (
+    AnalysisSpec,
     ResearchSpec,
     SignalSpec,
 )
@@ -21,6 +22,31 @@ def _spec(
         targets=(
             "down_7pct_5d",
             "down_10pct_5d",
+        ),
+        metadata=metadata,
+    )
+
+
+def _conditional_spec(
+    metadata,
+) -> ResearchSpec:
+    return ResearchSpec(
+        id="test_conditional",
+        question="test",
+        signals=(
+            SignalSpec(
+                name="test_signal_1",
+            ),
+            SignalSpec(
+                name="test_signal_2",
+            ),
+        ),
+        targets=(
+            "down_7pct_5d",
+            "down_10pct_5d",
+        ),
+        analysis=AnalysisSpec(
+            type="conditional_regime_comparison",
         ),
         metadata=metadata,
     )
@@ -71,6 +97,39 @@ def _results():
             "incremental_signal": {},
             "events": 48,
             "n": 500,
+        },
+    ]
+
+
+def _conditional_results():
+    return [
+        {
+            "analysis": (
+                "conditional_regime_comparison"
+            ),
+            "window": "window_1",
+            "split": "test",
+            "target": "down_7pct_5d",
+            "baseline_n": 1000,
+            "baseline_events": 100,
+            "incremental_n": 500,
+            "incremental_events": 120,
+            "comparator_n": 500,
+            "comparator_events": 80,
+        },
+        {
+            "analysis": (
+                "conditional_regime_comparison"
+            ),
+            "window": "window_1",
+            "split": "test",
+            "target": "down_10pct_5d",
+            "baseline_n": 1000,
+            "baseline_events": 25,
+            "incremental_n": 500,
+            "incremental_events": 48,
+            "comparator_n": 500,
+            "comparator_events": 12,
         },
     ]
 
@@ -206,5 +265,72 @@ def test_structured_derived_metrics_are_supported():
         output[0][
             "derived_metrics"
         ]["result"]["severity_lift"]
+        == 1.6
+    )
+
+
+def test_conditional_regime_results_support_derived_event_counts():
+    metadata = {
+        "derived_metrics": {
+            "p_down_10_given_down_7": {
+                "formula": (
+                    "down_10pct_5d_events / "
+                    "down_7pct_5d_events"
+                )
+            },
+            "conditional_severity_difference": {
+                "formula": (
+                    "p_down_10_given_down_7_incremental "
+                    "- p_down_10_given_down_7_baseline"
+                )
+            },
+            "conditional_severity_lift": {
+                "formula": (
+                    "p_down_10_given_down_7_incremental "
+                    "/ p_down_10_given_down_7_baseline"
+                )
+            },
+        },
+    }
+
+    output = apply_derived_metrics(
+        _conditional_spec(metadata),
+        _conditional_results(),
+    )
+
+    result = output[0]["derived_metrics"]
+
+    assert (
+        result["baseline"][
+            "p_down_10_given_down_7"
+        ]
+        == 0.25
+    )
+
+    assert (
+        result["incremental"][
+            "p_down_10_given_down_7"
+        ]
+        == 0.4
+    )
+
+    assert (
+        result["comparator"][
+            "p_down_10_given_down_7"
+        ]
+        == 0.15
+    )
+
+    assert (
+        result["result"][
+            "conditional_severity_difference"
+        ]
+        == 0.15000000000000002
+    )
+
+    assert (
+        result["result"][
+            "conditional_severity_lift"
+        ]
         == 1.6
     )
