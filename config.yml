@@ -1,0 +1,9 @@
+research:
+  prospective_evaluation:
+    enabled: true
+
+    candidate:
+      path: ml/research/candidates/specs/candidate_momentum_si_001.yaml
+
+    evaluation:
+      path: ml/research/candidates/specs/evaluation_candidate_momentum_si_001.yaml
