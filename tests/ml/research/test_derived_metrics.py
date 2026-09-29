@@ -1,7 +1,10 @@
 from ml.research.derived_metrics import (
     apply_derived_metrics,
 )
-from ml.research.spec import ResearchSpec
+from ml.research.spec import (
+    ResearchSpec,
+    SignalSpec,
+)
 
 
 def _spec(
@@ -10,7 +13,11 @@ def _spec(
     return ResearchSpec(
         id="test",
         question="test",
-        signals=(),
+        signals=(
+            SignalSpec(
+                name="test_signal",
+            ),
+        ),
         targets=(
             "down_7pct_5d",
             "down_10pct_5d",
