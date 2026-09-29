@@ -115,16 +115,43 @@ def run_current() -> None:
             "aktuella observationer."
         )
 
-    path = write_snapshot(
-        records
-    )
-
     source_dates = sorted(
         {
             record["source_date"]
             for record in records
             if record.get("source_date")
         }
+    )
+
+    existing = snapshot_dates()
+
+    existing_source_dates = {
+        value.isoformat()
+        for value in existing
+    }
+
+    if source_dates and all(
+        value in existing_source_dates
+        for value in source_dates
+    ):
+        print(
+            "FI: source_date redan sparad; "
+            "ingen ny snapshot behövs."
+        )
+
+        print(
+            f"FI: observationer = {len(records)}"
+        )
+
+        print(
+            "FI: source_date = "
+            f"{', '.join(source_dates)}"
+        )
+
+        return
+
+    path = write_snapshot(
+        records
     )
 
     print(
