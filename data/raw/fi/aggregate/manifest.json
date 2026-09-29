@@ -1,7 +1,7 @@
 {
   "dataset": "aggregate_short_positions",
   "files": {},
-  "last_checked": "2026-09-19T02:26:43.294655+02:00",
+  "last_checked": "2026-09-29T06:56:52.626130+02:00",
   "snapshots": [
     {
       "fetched_at": "2026-09-14T09:57:27+02:00",
@@ -226,6 +226,69 @@
       "sha256": "4d26aa57b1acced538a1a47a6b9f6e69d806bd599aebe106d3827f3a7cf1f01a",
       "source_dates": [
         "2026-09-19"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:39+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-39.jsonl",
+      "observations": 340,
+      "sha256": "fb319556551f5bb8e883a4bfbce5940077bbb73a3b0f07fb01cd367b49f5b31c",
+      "source_dates": [
+        "2026-09-21"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:41+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-41.jsonl",
+      "observations": 340,
+      "sha256": "483a68e5df80275fedec32af6a13859a8605a2e1a1aac02caad12307d516e6ba",
+      "source_dates": [
+        "2026-09-22"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:44+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-44.jsonl",
+      "observations": 340,
+      "sha256": "140c5b077011693a49c4a5bd3fee76d65b9f2d2b8d159a3792987c4ac403dfd2",
+      "source_dates": [
+        "2026-09-23"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:46+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-46.jsonl",
+      "observations": 340,
+      "sha256": "2a86c8cbaa02473847fbd91946f99449e6a2967cc8c3f7c503b7818b4cda337b",
+      "source_dates": [
+        "2026-09-24"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:49+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-49.jsonl",
+      "observations": 340,
+      "sha256": "659f9935f2c9d5dc784f9f3029e080d08f2fdb784c497b6ecb21bf166d7534ed",
+      "source_dates": [
+        "2026-09-25"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:51+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-51.jsonl",
+      "observations": 340,
+      "sha256": "6938809d2db876560436b1935ed746605bae045abaf3ea17fa93a73700fce515",
+      "source_dates": [
+        "2026-09-28"
+      ]
+    },
+    {
+      "fetched_at": "2026-09-29T06:56:52.626130+02:00",
+      "file": "snapshots/fi_aggregate_2026-09-29_06-56-52.jsonl",
+      "observations": 340,
+      "sha256": "74b443da24f294b9ef8e73d4addf293248612a122ad62f8139824cf886ce5dca",
+      "source_dates": [
+        "2026-09-29"
       ]
     }
   ],
