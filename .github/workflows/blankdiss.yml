@@ -106,7 +106,6 @@ jobs:
           echo "=========================================="
           echo "YAHOO- OCH INSTRUMENTMAPPNINGAR"
           echo "=========================================="
-          git status --short
           if [ ! -f prices/known_yahoo_symbols.jsonl ]; then
             echo "Ingen prices/known_yahoo_symbols.jsonl hittades."
             exit 1
@@ -125,7 +124,9 @@ jobs:
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
-          git diff --cached -- \
+          echo
+          echo "Mappingförändringar:"
+          git diff --cached --stat -- \
             prices/known_yahoo_symbols.jsonl \
             data/analysis/instrument_map.json
           git commit \
