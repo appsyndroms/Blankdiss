@@ -584,6 +584,7 @@ def _search_candidates(
 
     if diagnostics is not None:
         diagnostics["queries"] = []
+        diagnostics["raw_candidates"] = 0
         diagnostics["exchange_rejected"] = []
         diagnostics["accepted_candidates"] = []
 
@@ -608,6 +609,11 @@ def _search_candidates(
 
             if not symbol:
                 continue
+
+            if diagnostics is not None:
+                diagnostics[
+                    "raw_candidates"
+                ] += 1
 
             actual_exchange = (
                 _candidate_exchange(
@@ -739,9 +745,27 @@ def _search_mapping(
 
     if not candidates:
         if diagnostics is not None:
-            diagnostics["reason"] = (
-                "no_accepted_candidates"
+            raw_candidates = diagnostics.get(
+                "raw_candidates",
+                0,
             )
+
+            exchange_rejected = diagnostics.get(
+                "exchange_rejected",
+                [],
+            )
+
+            if (
+                raw_candidates > 0
+                and exchange_rejected
+            ):
+                diagnostics["reason"] = (
+                    "all_wrong_exchange"
+                )
+            else:
+                diagnostics["reason"] = (
+                    "no_candidates"
+                )
 
         return None, None
 
@@ -847,10 +871,20 @@ def _print_mapping_diagnostic(
 
     rejected = diagnostics.get(
         "exchange_rejected",
-        [],
+        []
     )
 
     if rejected:
+        unique_rejected: dict[
+            str,
+            dict[str, Any],
+        ] = {}
+
+        for item in rejected:
+            unique_rejected[
+                item["symbol"]
+            ] = item
+
         print(
             "  fel börs: "
             + ", ".join(
@@ -858,13 +892,13 @@ def _print_mapping_diagnostic(
                     f"{item['symbol']} "
                     f"({item['exchange']})"
                 )
-                for item in rejected
+                for item in unique_rejected.values()
             )
         )
 
     accepted = diagnostics.get(
         "accepted_candidates",
-        [],
+        []
     )
 
     if accepted:
@@ -948,10 +982,10 @@ def build_instrument_map(
     )
 
     diagnostic_counts = {
-        "no_accepted_candidates": 0,
+        "no_candidates": 0,
+        "all_wrong_exchange": 0,
         "best_score_below_threshold": 0,
         "multiple_close_candidates": 0,
-        "exchange_only": 0,
         "other": 0,
     }
 
@@ -1115,25 +1149,18 @@ def build_instrument_map(
                         "other"
                     ] += 1
 
-                if (
-                    diagnostics.get(
-                        "exchange_rejected"
-                    )
-                    and not diagnostics.get(
-                        "accepted_candidates"
-                    )
-                ):
-                    diagnostic_counts[
-                        "exchange_only"
-                    ] += 1
-
     print(
         "Mappning diagnostik:"
     )
 
     print(
-        "  inga accepterade kandidater: "
-        f"{diagnostic_counts['no_accepted_candidates']}"
+        "  inga Yahoo-kandidater: "
+        f"{diagnostic_counts['no_candidates']}"
+    )
+
+    print(
+        "  alla kandidater från fel börs: "
+        f"{diagnostic_counts['all_wrong_exchange']}"
     )
 
     print(
@@ -1144,11 +1171,6 @@ def build_instrument_map(
     print(
         "  flera nära kandidater: "
         f"{diagnostic_counts['multiple_close_candidates']}"
-    )
-
-    print(
-        "  endast kandidater från fel börs: "
-        f"{diagnostic_counts['exchange_only']}"
     )
 
     print(
