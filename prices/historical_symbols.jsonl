@@ -1,4 +1,25 @@
-{"isin":"SE0017161243","yahoo_symbol":"FNOX.ST","issuer":"Fortnox AB"}
-{"isin":"SE0008212971","yahoo_symbol":"NET-B.ST","issuer":"NetEnt AB"}
-{"isin":"SE0000310336","yahoo_symbol":"SWMA.ST","issuer":"Swedish Match AB"}
-{"isin":"SE0010441584","lei":"549300PVPZO8TNT76B58","yahoo_symbol":"CALTX.ST","issuer":"Calliditas Therapeutics AB"}
+{"lei":"213800HJQ519AT4VCK42","isin":"SE0008348072","yahoo_symbol":"ALELIO.ST","issuer":"Alelion Energy Systems AB"}
+{"lei":"549300MWGS283WZLYI10","isin":"SE0014401121","yahoo_symbol":"AEGIR.ST","issuer":"AegirBio AB"}
+{"lei":"549300PDEX0KMLMDNZ32","isin":"FI4000383898","yahoo_symbol":"ADAPT.ST","issuer":"Adapteo Oyj"}
+{"lei":"549300SJ2OCBQN1HH364","yahoo_symbol":"AZELIO.ST","issuer":"Azelio AB"}
+{"lei":"529900SR87NBUKX74L58","yahoo_symbol":"BIOT.ST","issuer":"Biotage AB"}
+{"lei":"5299001CH8K0RXSYV047","isin":"SE0004019545","yahoo_symbol":"BRIG.ST","issuer":"Brighter AB (publ)"}
+{"lei":"549300MAN4M3OKQPID57","isin":"SE0017083983","yahoo_symbol":"COALA.ST","issuer":"Coala-Life Group AB (publ)"}
+{"lei":"213800CITFPHX4TL8G93","isin":"SE0016101935","yahoo_symbol":"COMBI.ST","issuer":"CombiGene AB"}
+{"lei":"54930034OH16ROAY4K87","isin":"SE0007815428","yahoo_symbol":"CYXO.ST","issuer":"Cyxone AB"}
+{"lei":"549300O6QU5L05C44U49","yahoo_symbol":"HIQ.ST","issuer":"HiQ International AB"}
+{"lei":"549300KTMO4X275LNL41","isin":"SE0016075063","yahoo_symbol":"INT.ST","issuer":"Intellego Technologies AB"}
+{"lei":"54930047C4A74IBXR037","isin":"SE0008966295","yahoo_symbol":"INDEX.ST","issuer":"InDex Pharmaceuticals Holding AB"}
+{"lei":"529900HKIZBVX08VLG76","isin":"SE0015556873","yahoo_symbol":"LMKG.ST","issuer":"LMK Group AB (publ)"}
+{"lei":"549300J7NGO4XVT18T89","isin":"SE0020998854","yahoo_symbol":"MAV.ST","issuer":"Mavshack AB (publ)"}
+{"lei":"549300IA1EP1W7DZP567","isin":"SE0014808838","yahoo_symbol":"NPAPER.ST","issuer":"Nordic Paper Holding AB"}
+{"lei":"5493000T8MZ5GQREJW94","isin":"SE0014731089","yahoo_symbol":"NWG.ST","issuer":"Nordic Waterproofing Holding AB"}
+{"lei":"549300DW54NOXRJXTR48","isin":"SE0014829644","yahoo_symbol":"OFFHUS.ST","issuer":"Offentliga Hus i Norden AB (publ)"}
+{"lei":"54930074JF89HQZ5DW64","isin":"SE0005569290","yahoo_symbol":"POLY.ST","issuer":"PolyPlank Aktiebolag (publ)"}
+{"lei":"549300529C5P12YHX909","isin":"SE0005190725","yahoo_symbol":"RLS.ST","issuer":"RLS Global AB"}
+{"lei":"549300ODX3D04SRRH667","isin":"SE0014960431","yahoo_symbol":"RENEW.ST","issuer":"Re:NewCell AB"}
+{"lei":"743700J1YZ8IEJAPDL21","isin":"FI4000425848","yahoo_symbol":"SAVOH.HE","issuer":"Savosolar Oyj"}
+{"lei":"549300J2ACNHXHTXTR51","isin":"SE0013108867","yahoo_symbol":"SILEON.ST","issuer":"Sileon AB (publ)"}
+{"lei":"213800X1259MBEKD5H24","isin":"SE0012257970","yahoo_symbol":"STWK.ST","issuer":"Stockwik Förvaltning AB"}
+{"lei":"529900ARVN1D3A4CHI81","isin":"SE0007438577","yahoo_symbol":"TOL.ST","issuer":"Toleranzia AB"}
+{"lei":"5493005TADJBZHXP0U27","isin":"SE0011415595","yahoo_symbol":"ZICC.ST","issuer":"Ziccum AB"}
