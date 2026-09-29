@@ -1,9 +1,13 @@
 from __future__ import annotations
+
 import ast
 from collections import defaultdict
 from copy import deepcopy
 from typing import Any
+
 from .spec import ResearchSpec
+
+
 def _legacy_definitions(
     metadata: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -46,6 +50,8 @@ def _legacy_definitions(
             }
         )
     return definitions
+
+
 def _definitions(
     metadata: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -95,6 +101,8 @@ def _definitions(
         "metadata.derived_metrics måste vara en lista "
         "eller ett objekt."
     )
+
+
 def _target_counts(
     rows: list[dict[str, Any]],
 ) -> dict[str, dict[str, int | float | None]]:
@@ -132,25 +140,56 @@ def _target_counts(
             ),
         }
     return counts
+
+
 def _generic_counts(
     rows: list[dict[str, Any]],
 ) -> dict[str, dict[str, int | float | None]]:
     """
     Extract target/event counts from result formats where each regime
     is represented as its own row.
-    This is the compatibility path for non-nested analyses.
+
+    Also supports result rows that already expose the three explicit
+    conditional-regime event counts:
+        baseline_events
+        incremental_events
+        comparator_events
     """
     counts: dict[
         str,
         dict[str, int | float | None],
     ] = defaultdict(dict)
+
     for row in rows:
         target = row.get("target")
         if target is None:
             continue
+
+        target_name = str(target)
+
+        has_explicit_regime_counts = any(
+            key in row
+            for key in (
+                "baseline_events",
+                "incremental_events",
+                "comparator_events",
+            )
+        )
+
+        if has_explicit_regime_counts:
+            for regime in (
+                "baseline",
+                "incremental",
+                "comparator",
+            ):
+                key = f"{regime}_events"
+                if key in row:
+                    counts[target_name][key] = row.get(key)
+            continue
+
         if "events" not in row:
             continue
-        target_name = str(target)
+
         if "incremental_signal" in row:
             regime = "incremental"
         elif "baseline_signals" in row:
@@ -159,10 +198,14 @@ def _generic_counts(
             regime = str(row["regime"])
         else:
             regime = "result"
+
         counts[target_name][
             f"{regime}_events"
         ] = row.get("events")
+
     return dict(counts)
+
+
 def _safe_numeric_operation(
     operator: ast.operator,
     left: float | None,
@@ -184,6 +227,8 @@ def _safe_numeric_operation(
         f"Operatorn '{type(operator).__name__}' "
         "stöds inte i derived metrics."
     )
+
+
 def _evaluate_expression(
     expression: str,
     values: dict[str, float | None],
@@ -204,11 +249,13 @@ def _evaluate_expression(
         raise ValueError(
             f"Ogiltigt derived metric-uttryck: {expression!r}"
         ) from exc
+
     def evaluate(
         node: ast.AST,
     ) -> float | None:
         if isinstance(node, ast.Expression):
             return evaluate(node.body)
+
         if isinstance(node, ast.Constant):
             if isinstance(
                 node.value,
@@ -219,6 +266,7 @@ def _evaluate_expression(
                 "Derived metric-formler får bara innehålla "
                 "numeriska konstanter."
             )
+
         if isinstance(node, ast.Name):
             if node.id not in values:
                 raise ValueError(
@@ -226,6 +274,7 @@ def _evaluate_expression(
                     f"'{node.id}'."
                 )
             return values[node.id]
+
         if isinstance(node, ast.UnaryOp):
             value = evaluate(node.operand)
             if value is None:
@@ -238,17 +287,22 @@ def _evaluate_expression(
                 f"Unary operator '{type(node.op).__name__}' "
                 "stöds inte."
             )
+
         if isinstance(node, ast.BinOp):
             return _safe_numeric_operation(
                 node.op,
                 evaluate(node.left),
                 evaluate(node.right),
             )
+
         raise ValueError(
             "Derived metric-formler får bara innehålla "
             "variabler, tal och + - * /."
         )
+
     return evaluate(tree)
+
+
 def _base_values_for_regime(
     counts: dict[str, dict[str, int | float | None]],
     regime: str,
@@ -261,6 +315,7 @@ def _base_values_for_regime(
     """
     values: dict[str, float | None] = {}
     suffix = f"{regime}_events"
+
     for target, target_counts in counts.items():
         value = target_counts.get(suffix)
         values[
@@ -270,7 +325,10 @@ def _base_values_for_regime(
             if value is None
             else float(value)
         )
+
     return values
+
+
 def _result_values(
     regime_values: dict[
         str,
@@ -284,14 +342,19 @@ def _result_values(
         p_down_10_given_down_7_baseline
     """
     values: dict[str, float | None] = {}
+
     for regime, metrics in regime_values.items():
         if regime == "result":
             continue
+
         for name, value in metrics.items():
             values[
                 f"{name}_{regime}"
             ] = value
+
     return values
+
+
 def _formula_uses_regime_reference(
     formula: str,
     regimes: tuple[str, ...],
@@ -314,16 +377,20 @@ def _formula_uses_regime_reference(
         raise ValueError(
             f"Ogiltigt derived metric-uttryck: {formula!r}"
         ) from exc
+
     names = {
         node.id
         for node in ast.walk(tree)
         if isinstance(node, ast.Name)
     }
+
     return any(
         name.endswith(f"_{regime}")
         for name in names
         for regime in regimes
     )
+
+
 def _calculate_metrics(
     definitions: list[dict[str, Any]],
     counts: dict[str, dict[str, int | float | None]],
@@ -345,50 +412,62 @@ def _calculate_metrics(
         "comparator": {},
         "result": {},
     }
+
     regimes = (
         "baseline",
         "incremental",
         "comparator",
     )
+
     # First calculate metrics from exact event counts.
     for definition in definitions:
         name = str(definition["name"])
         formula = str(definition["formula"])
+
         if _formula_uses_regime_reference(
             formula,
             regimes,
         ):
             continue
+
         for regime in regimes:
             formula_values = _base_values_for_regime(
                 counts,
                 regime,
             )
+
             values[regime][name] = (
                 _evaluate_expression(
                     formula,
                     formula_values,
                 )
             )
+
     # Then calculate metrics that compare regimes.
     for definition in definitions:
         name = str(definition["name"])
         formula = str(definition["formula"])
+
         if not _formula_uses_regime_reference(
             formula,
             regimes,
         ):
             continue
+
         formula_values = _result_values(
             values
         )
+
         values["result"][name] = (
             _evaluate_expression(
                 formula,
                 formula_values,
             )
         )
+
     return values
+
+
 def _apply_nested_metrics(
     definitions: list[dict[str, Any]],
     results: list[dict[str, Any]],
@@ -404,6 +483,7 @@ def _apply_nested_metrics(
         tuple[str, str],
         list[dict[str, Any]],
     ] = defaultdict(list)
+
     for row in results:
         grouped[
             (
@@ -411,24 +491,32 @@ def _apply_nested_metrics(
                 str(row.get("split", "")),
             )
         ].append(row)
+
     metrics_by_group: dict[
         tuple[str, str],
         dict[str, dict[str, float | None]],
     ] = {}
+
     for key, rows in grouped.items():
         counts = _target_counts(rows)
+
         metrics_by_group[key] = _calculate_metrics(
             definitions,
             counts,
         )
+
     enriched: list[dict[str, Any]] = []
+
     for row in results:
         key = (
             str(row.get("window", "")),
             str(row.get("split", "")),
         )
+
         values = metrics_by_group[key]
+
         updated = deepcopy(row)
+
         updated["derived_metrics"] = {
             "baseline": dict(
                 values.get("baseline", {})
@@ -443,8 +531,12 @@ def _apply_nested_metrics(
                 values.get("result", {})
             ),
         }
+
         enriched.append(updated)
+
     return enriched
+
+
 def _apply_generic_metrics(
     definitions: list[dict[str, Any]],
     results: list[dict[str, Any]],
@@ -457,6 +549,7 @@ def _apply_generic_metrics(
         tuple[str, str],
         list[dict[str, Any]],
     ] = defaultdict(list)
+
     for row in results:
         grouped[
             (
@@ -464,15 +557,20 @@ def _apply_generic_metrics(
                 str(row.get("split", "")),
             )
         ].append(row)
+
     enriched: list[dict[str, Any]] = []
+
     for key, rows in grouped.items():
         counts = _generic_counts(rows)
+
         values = _calculate_metrics(
             definitions,
             counts,
         )
+
         for row in rows:
             updated = deepcopy(row)
+
             updated["derived_metrics"] = {
                 "baseline": dict(
                     values.get("baseline", {})
@@ -487,8 +585,12 @@ def _apply_generic_metrics(
                     values.get("result", {})
                 ),
             }
+
             enriched.append(updated)
+
     return enriched
+
+
 def apply_derived_metrics(
     spec: ResearchSpec,
     results: list[dict[str, Any]],
@@ -499,29 +601,37 @@ def apply_derived_metrics(
     The YAML formula is the source of truth. This module only
     supplies the exact event counts and safely evaluates arithmetic
     expressions.
+
     For nested_regime_comparison, formulas are calculated separately
     for every window/split combination and use the exact event
     counts from the corresponding target rows.
+
     Example:
         p_down_10_given_down_7:
             formula: >
                 down_10pct_5d_events / down_7pct_5d_events
+
     is evaluated independently for baseline, incremental and
     comparator.
+
     A cross-regime formula such as:
         conditional_severity_difference:
             formula: >
                 p_down_10_given_down_7_incremental -
                 p_down_10_given_down_7_baseline
+
     is evaluated after the regime-specific metrics exist.
     """
     definitions = _definitions(
         spec.metadata
     )
+
     if not definitions:
         return results
+
     if not results:
         return results
+
     if (
         spec.analysis.type
         == "nested_regime_comparison"
@@ -536,6 +646,7 @@ def apply_derived_metrics(
             definitions,
             results,
         )
+
     return _apply_generic_metrics(
         definitions,
         results,
