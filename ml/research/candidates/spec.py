@@ -178,7 +178,7 @@ class CandidateSpec:
                 "en feature."
             )
 
-        _parse_datetime(
+        created_at = _parse_datetime(
             self.created_at,
             "created_at",
         )
@@ -193,20 +193,15 @@ class CandidateSpec:
             "freeze_at",
         )
 
-        created_at = _parse_datetime(
-            self.created_at,
-            "created_at",
-        )
-
-        if created_at > discovery_cutoff:
-            raise ValueError(
-                "created_at kan inte ligga efter "
-                "discovery_cutoff."
-            )
-
         if discovery_cutoff > freeze_at:
             raise ValueError(
                 "discovery_cutoff kan inte ligga "
+                "efter freeze_at."
+            )
+
+        if created_at > freeze_at:
+            raise ValueError(
+                "created_at kan inte ligga "
                 "efter freeze_at."
             )
 
