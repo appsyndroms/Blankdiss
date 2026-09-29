@@ -61,13 +61,23 @@ def make_candidate(
         provenance={
             "source": "test",
         },
-        fingerprint_algorithm=None,
-        fingerprint_value=None,
+        fingerprint_algorithm=(
+            "sha256"
+            if status == "frozen"
+            else None
+        ),
+        fingerprint_value=(
+            "0" * 64
+            if status == "frozen"
+            else None
+        ),
     )
+
+    if status != "frozen":
+        return candidate
 
     return replace(
         candidate,
-        fingerprint_algorithm="sha256",
         fingerprint_value=(
             candidate_fingerprint(
                 candidate
