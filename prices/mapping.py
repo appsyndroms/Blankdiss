@@ -268,6 +268,11 @@ def yahoo_symbol(
 # A known mapping is safer than fuzzy matching.
 # ---------------------------------------------------------------------------
 
+KNOWN_YAHOO_SYMBOLS_BY_ISIN: dict[str, str] = {
+    "SE0000108227": "SKF-B.ST",
+}
+
+
 KNOWN_YAHOO_SYMBOLS: dict[str, str] = {
     # Large Swedish companies
     "autoliv": "ALIV-SDB.ST",
@@ -1099,6 +1104,21 @@ def _explicit_mapping(
     str | None,
     str | None,
 ]:
+    isin = normalize_isin(
+        instrument.get("isin")
+    )
+
+    if isin:
+        symbol = KNOWN_YAHOO_SYMBOLS_BY_ISIN.get(
+            isin
+        )
+
+        if symbol:
+            return (
+                symbol,
+                "known_isin",
+            )
+
     issuer = normalize_name(
         instrument.get("issuer")
     )
