@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 
 import pytest
 
@@ -100,6 +101,37 @@ def test_complete_frozen_candidate_is_accepted():
     verify_candidate(
         candidate
     )
+
+
+def test_candidate_can_be_created_after_discovery_cutoff():
+    candidate = replace(
+        make_candidate(),
+        created_at="2026-07-01T00:00:00Z",
+    )
+
+    candidate = replace(
+        candidate,
+        fingerprint_value=(
+            candidate_fingerprint(
+                candidate
+            )
+        ),
+    )
+
+    verify_candidate(
+        candidate
+    )
+
+
+def test_candidate_cannot_be_created_after_freeze():
+    with pytest.raises(
+        ValueError,
+        match="created_at.*freeze_at",
+    ):
+        replace(
+            make_candidate(),
+            created_at="2026-07-16T00:00:00Z",
+        )
 
 
 def test_non_frozen_candidate_is_rejected():
@@ -250,6 +282,83 @@ def test_candidate_snapshot_contains_identity_and_fingerprint():
     ]["analysis"][
         "type"
     ] == "interaction"
+
+
+def test_candidate_snapshot_is_json_serializable():
+    candidate = make_candidate()
+
+    snapshot = candidate_snapshot(
+        candidate
+    )
+
+    encoded = json.dumps(
+        snapshot,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+    assert encoded
+
+
+def test_nested_candidate_parameters_are_json_serializable():
+    candidate = CandidateSpec(
+        schema_version=1,
+        id="candidate_nested_test_001",
+        version=1,
+        question="Test nested candidate",
+        created_at="2026-07-01T00:00:00Z",
+        discovery_cutoff="2026-06-30T00:00:00Z",
+        freeze_at="2026-07-15T00:00:00Z",
+        status="frozen",
+        features=(
+            CandidateFeature(
+                name="price_momentum_60d"
+            ),
+        ),
+        parameters={
+            "nested": {
+                "direction": "upper",
+                "quantile": 0.10,
+            },
+        },
+        target=CandidateTarget(
+            name="forward_return_20d"
+        ),
+        analysis=CandidateAnalysis(
+            type="interaction",
+        ),
+        training_period=CandidatePeriod(
+            start="2022-01-01T00:00:00Z",
+            end="2026-06-30T00:00:00Z",
+        ),
+        provenance={
+            "source": "test",
+            "metadata": {
+                "kind": "nested",
+            },
+        },
+        fingerprint_algorithm="sha256",
+        fingerprint_value="0" * 64,
+    )
+
+    candidate = replace(
+        candidate,
+        fingerprint_value=(
+            candidate_fingerprint(
+                candidate
+            )
+        ),
+    )
+
+    snapshot = candidate_snapshot(
+        candidate
+    )
+
+    json.dumps(
+        snapshot,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
 
 
 def test_candidate_parameters_are_immutable():
