@@ -15,6 +15,9 @@ from analysis.feature_prices import (
     find_price_files,
     load_prices,
 )
+from analysis.features_qc import (
+    check_forward_return_alignment,
+)
 
 
 TOLERANCE = 1e-9
@@ -519,3 +522,132 @@ def test_forward_return_availability_diagnostic():
         "lagrade forward returns och aktuell prisdata. "
         "Se diagnostiken ovan."
     )
+
+
+def test_forward_return_alignment_qc_distinguishes_unverifiable_targets():
+    """
+    Kontrollerar QC-reglerna för forward-return alignment.
+
+    Tre fall testas:
+
+    1. Target kan verifieras och stämmer:
+       -> verified_match
+
+    2. Target ligger efter aktuell prisseries slut:
+       -> not_yet_verifiable
+       -> ska INTE ge FAIL
+
+    3. Target kan verifieras men saknas:
+       -> missing_forward_return
+       -> ska ge FAIL
+    """
+
+    prices = pd.DataFrame(
+        [
+            {
+                "yahoo_symbol": "TEST.ST",
+                "date": pd.Timestamp(
+                    "2026-09-14"
+                ),
+                "close": 100.0,
+            },
+            {
+                "yahoo_symbol": "TEST.ST",
+                "date": pd.Timestamp(
+                    "2026-09-15"
+                ),
+                "close": 101.0,
+            },
+            {
+                "yahoo_symbol": "TEST.ST",
+                "date": pd.Timestamp(
+                    "2026-09-16"
+                ),
+                "close": 102.0,
+            },
+        ]
+    )
+
+    verified_frame = pd.DataFrame(
+        [
+            {
+                "price_match_available": True,
+                "yahoo_symbol": "TEST.ST",
+                "price_date": pd.Timestamp(
+                    "2026-09-14"
+                ),
+                "forward_return_1d": 0.01,
+                "forward_return_5d": np.nan,
+                "forward_return_20d": np.nan,
+                "forward_return_60d": np.nan,
+            }
+        ]
+    )
+
+    result = check_forward_return_alignment(
+        verified_frame,
+        prices,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["verified_match"] == 1
+    assert result["not_yet_verifiable"] == 3
+    assert result["value_mismatch"] == 0
+    assert result["price_date_not_found"] == 0
+    assert result["missing_forward_return"] == 0
+
+    stored_only_frame = pd.DataFrame(
+        [
+            {
+                "price_match_available": True,
+                "yahoo_symbol": "TEST.ST",
+                "price_date": pd.Timestamp(
+                    "2026-09-14"
+                ),
+                "forward_return_1d": 0.01,
+                "forward_return_5d": 0.10,
+                "forward_return_20d": np.nan,
+                "forward_return_60d": np.nan,
+            }
+        ]
+    )
+
+    result = check_forward_return_alignment(
+        stored_only_frame,
+        prices,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["verified_match"] == 1
+    assert result["not_yet_verifiable"] == 2
+    assert result["value_mismatch"] == 0
+    assert result["price_date_not_found"] == 0
+    assert result["missing_forward_return"] == 0
+
+    missing_target_frame = pd.DataFrame(
+        [
+            {
+                "price_match_available": True,
+                "yahoo_symbol": "TEST.ST",
+                "price_date": pd.Timestamp(
+                    "2026-09-14"
+                ),
+                "forward_return_1d": np.nan,
+                "forward_return_5d": np.nan,
+                "forward_return_20d": np.nan,
+                "forward_return_60d": np.nan,
+            }
+        ]
+    )
+
+    result = check_forward_return_alignment(
+        missing_target_frame,
+        prices,
+    )
+
+    assert result["status"] == "FAIL"
+    assert result["verified_match"] == 0
+    assert result["not_yet_verifiable"] == 3
+    assert result["value_mismatch"] == 0
+    assert result["price_date_not_found"] == 0
+    assert result["missing_forward_return"] == 1
