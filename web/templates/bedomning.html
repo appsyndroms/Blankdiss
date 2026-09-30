@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Blankdiss – Bedömning</title>
+    <link
+        rel="stylesheet"
+        href="./style.css?v=3"
+    >
+</head>
+
+<body>
+
+<header class="hero">
+    <div class="container">
+
+        <div class="brand">
+            📉 BLANKDISS
+        </div>
+
+        <h1>
+            Bedömning
+        </h1>
+
+        <p class="lead">
+            Blankdiss aktuella forskningsläge och hur resultaten ska
+            tolkas.
+        </p>
+
+        <nav class="tabs" aria-label="Huvudnavigation">
+
+            <a
+                class="tab"
+                href="./index.html"
+            >
+                Hem
+            </a>
+
+            <a
+                class="tab"
+                href="./koplage.html"
+            >
+                Köpläge
+            </a>
+
+            <a
+                class="tab active"
+                href="./bedomning.html"
+            >
+                Bedömning
+            </a>
+
+            <a
+                class="tab"
+                href="./dataanalys.html"
+            >
+                Dataanalys
+            </a>
+
+        </nav>
+
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="panel assessment-intro">
+
+        <span class="eyebrow">
+            BLANKDISS NULÄGE
+        </span>
+
+        <h2>
+            Bedömning
+        </h2>
+
+        <p class="large-text">
+            Blankdiss befinner sig i steget mellan historisk analys
+            och löpande prospektiv utvärdering.
+        </p>
+
+        <p>
+            Den historiska analysen visar vad som har hänt efter
+            liknande förändringar i blankning. ML-modellerna försöker
+            därefter identifiera kombinationer av signaler som kan
+            skilja olika framtida utfall åt.
+        </p>
+
+        <p>
+            Den viktigaste utvecklingen nu är att resultaten från
+            den prospektiva <code>evaluate</code>-körningen sparas
+            dag för dag. Det gör att Blankdiss kan följas över tid
+            utan att blanda ihop vad modellen visste vid ett visst
+            datum med information som blev tillgänglig senare.
+        </p>
+
+    </section>
+
+
+    <section class="cards">
+
+        <div class="card">
+            <span class="label">
+                Evaluation-körningar
+            </span>
+
+            <strong>
+                {{EVALUATION_RUN_COUNT}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Aktuell kandidat
+            </span>
+
+            <strong class="compact-value">
+                {{EVALUATION_CANDIDATE}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Feature-datum
+            </span>
+
+            <strong class="compact-value">
+                {{EVALUATION_FEATURE_DATE}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Observationer
+            </span>
+
+            <strong>
+                {{EVALUATION_OBSERVATIONS}}
+            </strong>
+        </div>
+
+    </section>
+
+
+    <section class="method">
+
+        <div class="method-item">
+
+            <span class="method-number">
+                01
+            </span>
+
+            <div>
+
+                <h3>
+                    Historisk evidens
+                </h3>
+
+                <p>
+                    Event study används för att se om förändringar
+                    i blankning följs av återkommande mönster i
+                    aktieutvecklingen.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="method-item">
+
+            <span class="method-number">
+                02
+            </span>
+
+            <div>
+
+                <h3>
+                    ML-modeller
+                </h3>
+
+                <p>
+                    Modellerna tränas på historiska observationer
+                    och utvärderas separat på out-of-sample-data.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="method-item">
+
+            <span class="method-number">
+                03
+            </span>
+
+            <div>
+
+                <h3>
+                    Prospektiv testning
+                </h3>
+
+                <p>
+                    Varje evaluation-körning sparas så att resultat
+                    från olika observationsdagar kan följas separat.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="method-item">
+
+            <span class="method-number">
+                04
+            </span>
+
+            <div>
+
+                <h3>
+                    Mognad
+                </h3>
+
+                <p>
+                    Framtida målvariabler får inte räknas som
+                    färdiga innan tillräckligt många handelsdagar
+                    har passerat.
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
+                SENASTE STATUS
+            </span>
+
+            <h2>
+                Senaste evaluation
+            </h2>
+
+            <p>
+                Den senaste körningen som Blankdiss har sparat.
+            </p>
+
+        </div>
+
+        <div class="status-grid">
+
+            <div class="status-item">
+                <span>
+                    Kandidat
+                </span>
+
+                <strong>
+                    {{EVALUATION_CANDIDATE}}
+                </strong>
+            </div>
+
+            <div class="status-item">
+                <span>
+                    Feature-datum
+                </span>
+
+                <strong>
+                    {{EVALUATION_FEATURE_DATE}}
+                </strong>
+            </div>
+
+            <div class="status-item">
+                <span>
+                    Feature-rader
+                </span>
+
+                <strong>
+                    {{EVALUATION_LATEST_ROWS}}
+                </strong>
+            </div>
+
+            <div class="status-item">
+                <span>
+                    Mogna observationer
+                </span>
+
+                <strong>
+                    {{EVALUATION_MATURED}}
+                </strong>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <section class="explanation">
+
+        <span class="eyebrow">
+            VIKTIG PRINCIP
+        </span>
+
+        <h2>
+            Historik och framtid hålls isär
+        </h2>
+
+        <p>
+            En prospektiv evaluation ska representera den information
+            som faktiskt fanns tillgänglig vid observationstillfället.
+            Senare information ska inte få läcka tillbaka in i den
+            historiska bedömningen.
+        </p>
+
+        <p>
+            På samma sätt ska en 20-dagars target inte behandlas som
+            mogen innan 20 handelsdagar faktiskt har passerat.
+        </p>
+
+    </section>
+
+
+    <footer>
+
+        <span>
+            Blankdiss
+        </span>
+
+        <span>
+            Genererad {{GENERATED_AT}}
+        </span>
+
+    </footer>
+
+</main>
+
+</body>
+</html>
