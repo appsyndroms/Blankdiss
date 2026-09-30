@@ -18,12 +18,12 @@
   },
   "source_fingerprint": {
     "algorithm": "sha256",
-    "fingerprint": "351753f54548fe374399842cf10614165be3a9c5ee2bc86d70fbb58c0e7c3ba9",
+    "fingerprint": "e6a188751b9cfccb71931e9e65eac8cb3e4338d04c8684b2023cf110f2c8f3d3",
     "files": [
       {
         "path": "data/processed/fi/aggregate/reconstructed.jsonl",
-        "sha256": "7ec13e18419d9cdaf309c67858a5a458369c8545992eb937752a0a8daf3f5dc4",
-        "size_bytes": 78982561
+        "sha256": "e89f4b5882b550890be32efdba2a041505c45416640151d9ad705b773a48d29f",
+        "size_bytes": 78982613
       },
       {
         "path": "data/raw/prices/prices_2022-01-01_latest.jsonl",
@@ -82,13 +82,13 @@
       }
     ]
   },
-  "fi_rows": 208448,
+  "fi_rows": 208451,
   "price_rows": 454312,
-  "feature_rows": 208448,
-  "matched_fi_rows": 135713,
-  "unmatched_fi_rows": 72735,
+  "feature_rows": 208451,
+  "matched_fi_rows": 135715,
+  "unmatched_fi_rows": 72736,
   "matched_by_isin": 133560,
-  "matched_by_issuer": 2153,
+  "matched_by_issuer": 2155,
   "security_keys_fi": 479,
   "security_keys_prices": 409,
   "feature_columns": [
@@ -225,7 +225,7 @@
     {
       "path": "data/processed/analysis/features_0001.jsonl",
       "rows": 7500,
-      "size_bytes": 19877906
+      "size_bytes": 19878026
     },
     {
       "path": "data/processed/analysis/features_0002.jsonl",
@@ -260,7 +260,7 @@
     {
       "path": "data/processed/analysis/features_0008.jsonl",
       "rows": 7500,
-      "size_bytes": 19762062
+      "size_bytes": 19762210
     },
     {
       "path": "data/processed/analysis/features_0009.jsonl",
@@ -300,12 +300,12 @@
     {
       "path": "data/processed/analysis/features_0016.jsonl",
       "rows": 7500,
-      "size_bytes": 19752067
+      "size_bytes": 19752113
     },
     {
       "path": "data/processed/analysis/features_0017.jsonl",
       "rows": 7500,
-      "size_bytes": 19725846
+      "size_bytes": 19725830
     },
     {
       "path": "data/processed/analysis/features_0018.jsonl",
@@ -315,7 +315,7 @@
     {
       "path": "data/processed/analysis/features_0019.jsonl",
       "rows": 7500,
-      "size_bytes": 19595730
+      "size_bytes": 19595758
     },
     {
       "path": "data/processed/analysis/features_0020.jsonl",
@@ -335,7 +335,7 @@
     {
       "path": "data/processed/analysis/features_0023.jsonl",
       "rows": 7500,
-      "size_bytes": 18624248
+      "size_bytes": 18624294
     },
     {
       "path": "data/processed/analysis/features_0024.jsonl",
@@ -345,22 +345,22 @@
     {
       "path": "data/processed/analysis/features_0025.jsonl",
       "rows": 7500,
-      "size_bytes": 18758712
+      "size_bytes": 18758909
     },
     {
       "path": "data/processed/analysis/features_0026.jsonl",
       "rows": 7500,
-      "size_bytes": 18566720
+      "size_bytes": 18567062
     },
     {
       "path": "data/processed/analysis/features_0027.jsonl",
       "rows": 7500,
-      "size_bytes": 17658740
+      "size_bytes": 17658761
     },
     {
       "path": "data/processed/analysis/features_0028.jsonl",
-      "rows": 5948,
-      "size_bytes": 14250254
+      "rows": 5951,
+      "size_bytes": 14257415
     }
   ]
 }
