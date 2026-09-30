@@ -43,7 +43,9 @@ def regime_rate(
             "event_rate": None,
         }
 
-    events = int(selected.sum())
+    events = int(
+        (selected > 0).sum()
+    )
 
     return {
         "n": n,
