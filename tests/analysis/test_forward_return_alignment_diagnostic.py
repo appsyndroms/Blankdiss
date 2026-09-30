@@ -14,18 +14,21 @@ from analysis.feature_prices import (
     find_price_files,
     load_prices,
 )
-from analysis.features_qc import (
-    check_forward_return_alignment,
+from analysis.feature_returns import (
+    add_forward_returns,
 )
 
 
 FORWARD_WINDOWS = (1, 5, 20, 60)
+
 MAX_EXAMPLES = 30
-MAX_TRACE_ROWS = 12
+
 TOLERANCE = 1e-9
 
 
 def _load_features() -> pd.DataFrame:
+    """Läser befintliga feature-chunks utan att bygga om datasetet."""
+
     paths = sorted(
         OUTPUT_DIR.glob(FEATURE_GLOB)
     )
@@ -53,6 +56,8 @@ def _same(
     left,
     right,
 ) -> bool:
+    """Jämför två numeriska värden med liten tolerans."""
+
     left_missing = (
         left is None
         or pd.isna(left)
@@ -77,9 +82,14 @@ def _same(
     )
 
 
-def _build_price_lookup(
+def _build_symbol_lookup(
     prices: pd.DataFrame,
 ) -> dict[str, pd.DataFrame]:
+    """
+    Samma prisserie-identitet som add_forward_returns()
+    använder: yahoo_symbol.
+    """
+
     return {
         symbol: group.sort_values(
             "date",
@@ -94,139 +104,25 @@ def _build_price_lookup(
     }
 
 
-def _build_production_lookup(
-    prices: pd.DataFrame,
-) -> dict[str, pd.DataFrame]:
+def _expected_return(
+    series: pd.DataFrame,
+    price_date: pd.Timestamp,
+    horizon: int,
+) -> tuple[str, float | None, str | None]:
     """
-    Exakt samma lookup-struktur som add_forward_returns().
+    Beräknar vad forward-return ska vara för en konkret
+    yahoo-symbolserie.
+
+    Returnerar:
+      status,
+      expected_value,
+      target_date
+
+    status:
+      "verified"
+      "not_yet_verifiable"
+      "invalid"
     """
-    return {
-        key: group.sort_values(
-            "date",
-            kind="mergesort",
-        ).reset_index(
-            drop=True
-        )
-        for key, group in prices.groupby(
-            "security_key",
-            sort=False,
-        )
-    }
-
-
-def _mapping_source(
-    row: pd.Series,
-) -> str:
-    value = row.get(
-        "price_mapping_source"
-    )
-
-    if value is None or pd.isna(value):
-        return "unknown"
-
-    return str(value)
-
-
-def _trace_production_row(
-    row: pd.Series,
-    production_lookup: dict[str, pd.DataFrame],
-) -> None:
-    """
-    Följ exakt den lookup- och indexlogik som add_forward_returns()
-    använder för en konkret feature-rad.
-
-    Funktionen ändrar ingenting.
-    """
-
-    security_key = row.get(
-        "security_key"
-    )
-
-    yahoo_symbol = row.get(
-        "yahoo_symbol"
-    )
-
-    price_date = pd.to_datetime(
-        row.get("price_date"),
-        errors="coerce",
-    )
-
-    series = production_lookup.get(
-        security_key
-    )
-
-    print()
-    print(
-        "  PRODUCTION TRACE"
-    )
-    print(
-        "  " + "-" * 66
-    )
-
-    print(
-        f"  security_key: {security_key}"
-    )
-
-    print(
-        f"  feature yahoo_symbol: {yahoo_symbol}"
-    )
-
-    print(
-        f"  feature price_date: "
-        f"{None if pd.isna(price_date) else price_date.date()}"
-    )
-
-    if series is None:
-        print(
-            "  RESULT: production lookup returned None"
-        )
-        print(
-            "  -> add_forward_returns() would skip this row."
-        )
-        return
-
-    print(
-        f"  production series rows: {len(series)}"
-    )
-
-    symbols = sorted(
-        series[
-            "yahoo_symbol"
-        ]
-        .dropna()
-        .astype(str)
-        .unique()
-    )
-
-    print(
-        f"  production series symbols: {symbols}"
-    )
-
-    duplicate_dates = (
-        series.groupby(
-            "date",
-            sort=False,
-        )
-        .size()
-    )
-
-    duplicate_dates = duplicate_dates[
-        duplicate_dates > 1
-    ]
-
-    print(
-        "  production duplicate dates: "
-        f"{len(duplicate_dates):,}"
-    )
-
-    if pd.isna(price_date):
-        print(
-            "  RESULT: invalid price_date"
-        )
-        print(
-            "  -> add_forward_returns() would skip this row."
-        )
-        return
 
     dates = series[
         "date"
@@ -247,220 +143,85 @@ def _trace_production_row(
         )
     )
 
-    print(
-        f"  production entry_idx: {entry_idx}"
-    )
-
     if entry_idx >= len(series):
-        print(
-            "  RESULT: entry_idx outside production series"
+        return (
+            "not_yet_verifiable",
+            None,
+            None,
         )
-        print(
-            "  -> add_forward_returns() would skip this row."
-        )
-        return
 
-    entry_row = series.iloc[
-        entry_idx
-    ]
-
-    entry_date = pd.Timestamp(
-        entry_row["date"]
+    target_idx = (
+        entry_idx + horizon
     )
 
-    entry_symbol = entry_row.get(
-        "yahoo_symbol"
-    )
+    if target_idx >= len(series):
+        return (
+            "not_yet_verifiable",
+            None,
+            None,
+        )
 
     entry_price = float(
-        entry_row["close"]
+        series.iloc[
+            entry_idx
+        ]["close"]
     )
 
-    print(
-        f"  production entry_date: "
-        f"{entry_date.date()}"
-    )
-
-    print(
-        f"  production entry_symbol: "
-        f"{entry_symbol}"
-    )
-
-    print(
-        f"  production entry_close: "
-        f"{entry_price}"
+    target_price = float(
+        series.iloc[
+            target_idx
+        ]["close"]
     )
 
     if (
         not np.isfinite(entry_price)
         or entry_price <= 0
+        or not np.isfinite(target_price)
+        or target_price <= 0
     ):
-        print(
-            "  RESULT: invalid entry price"
+        return (
+            "invalid",
+            None,
+            None,
         )
-        print(
-            "  -> add_forward_returns() would skip all horizons."
-        )
-        return
 
-    print()
-    print(
-        "  PRODUCTION SERIES AROUND ENTRY"
+    expected = (
+        target_price
+        / entry_price
+        - 1.0
     )
 
-    start = max(
-        0,
-        entry_idx - 2,
+    target_date = str(
+        pd.Timestamp(
+            series.iloc[
+                target_idx
+            ]["date"]
+        ).date()
     )
 
-    end = min(
-        len(series),
-        entry_idx + MAX_TRACE_ROWS,
+    return (
+        "verified",
+        expected,
+        target_date,
     )
 
-    for position in range(
-        start,
-        end,
-    ):
-        price_row = series.iloc[
-            position
-        ]
 
-        marker = (
-            " <-- ENTRY"
-            if position == entry_idx
-            else ""
-        )
-
-        print(
-            "    "
-            f"[{position}] "
-            f"{pd.Timestamp(price_row['date']).date()} "
-            f"symbol={price_row.get('yahoo_symbol')} "
-            f"close={price_row.get('close')}"
-            f"{marker}"
-        )
-
-    print()
-    print(
-        "  HORIZON TRACE"
-    )
-
-    for horizon in FORWARD_WINDOWS:
-        target_idx = (
-            entry_idx + horizon
-        )
-
-        stored = row.get(
-            f"forward_return_{horizon}d"
-        )
-
-        print()
-        print(
-            f"    {horizon}d:"
-        )
-
-        print(
-            f"      target_idx: {target_idx}"
-        )
-
-        print(
-            f"      stored: {stored}"
-        )
-
-        if target_idx >= len(series):
-            print(
-                "      RESULT: target_idx outside series"
-            )
-            print(
-                "      -> add_forward_returns() would leave NaN."
-            )
-            continue
-
-        target_row = series.iloc[
-            target_idx
-        ]
-
-        target_date = pd.Timestamp(
-            target_row["date"]
-        )
-
-        target_symbol = target_row.get(
-            "yahoo_symbol"
-        )
-
-        target_price = float(
-            target_row["close"]
-        )
-
-        print(
-            f"      target_date: {target_date.date()}"
-        )
-
-        print(
-            f"      target_symbol: {target_symbol}"
-        )
-
-        print(
-            f"      target_close: {target_price}"
-        )
-
-        if (
-            not np.isfinite(target_price)
-            or target_price <= 0
-        ):
-            print(
-                "      RESULT: invalid target price"
-            )
-            print(
-                "      -> add_forward_returns() would leave NaN."
-            )
-            continue
-
-        expected = (
-            target_price
-            / entry_price
-            - 1.0
-        )
-
-        print(
-            f"      calculated: {expected}"
-        )
-
-        if (
-            stored is None
-            or pd.isna(stored)
-        ):
-            print(
-                "      RESULT: CALCULATION SUCCEEDS "
-                "BUT STORED VALUE IS NaN"
-            )
-        elif _same(
-            stored,
-            expected,
-        ):
-            print(
-                "      RESULT: STORED VALUE MATCHES"
-            )
-        else:
-            print(
-                "      RESULT: STORED VALUE MISMATCH"
-            )
-
-
-def test_forward_return_alignment_diagnostic():
+def test_forward_return_alignment_against_existing_dataset():
     """
-    Diagnostik för forward_return_alignment-QC.
+    Fristående diagnostik för forward returns.
 
-    Testet:
-      1. kör produktions-QC,
-      2. reproducerar QC oberoende,
-      3. klassificerar alla rader,
-      4. samlar konkreta missing_forward_return-fall,
-      5. följer dessa fall genom exakt samma lookup/indexlogik
-         som add_forward_returns() använder.
+    Testet bygger INTE om feature-datasetet.
 
-    Testet ändrar ingen produktionskod.
+    Det:
+      1. läser befintliga feature-chunks,
+      2. läser befintliga prisfiler,
+      3. kör endast add_forward_returns(),
+      4. verifierar resultatet mot prisserierna,
+      5. skiljer verifierbara targets från framtida targets,
+      6. visar konkreta fel.
+
+    Testet är därför möjligt att köra direkt efter en kodändring
+    utan att först köra Force/build_features.
     """
 
     features = _load_features()
@@ -473,11 +234,44 @@ def test_forward_return_alignment_diagnostic():
         price_files
     )
 
-    qc_result = check_forward_return_alignment(
-        features,
-        prices,
+    print()
+    print("=" * 72)
+    print(
+        "FORWARD RETURN ALIGNMENT - STANDALONE TEST"
+    )
+    print("=" * 72)
+
+    print(
+        f"Feature rows: {len(features):,}"
     )
 
+    print(
+        f"Price rows: {len(prices):,}"
+    )
+
+    print(
+        f"Price files: {len(price_files):,}"
+    )
+
+    required_columns = {
+        "yahoo_symbol",
+        "price_date",
+        "price_match_available",
+    }
+
+    missing_columns = sorted(
+        required_columns.difference(
+            features.columns
+        )
+    )
+
+    assert not missing_columns, (
+        "Feature-dataset saknar kolumner: "
+        + ", ".join(missing_columns)
+    )
+
+    # Endast rader som faktiskt har en prisidentitet
+    # och en matchad prisdag kan verifieras.
     matched = features.loc[
         features[
             "price_match_available"
@@ -490,22 +284,34 @@ def test_forward_return_alignment_diagnostic():
         ].notna()
     ].copy()
 
-    price_lookup = _build_price_lookup(
-        prices
+    print(
+        f"Matched rows: {len(matched):,}"
     )
 
-    production_lookup = (
-        _build_production_lookup(
-            prices
-        )
+    # --------------------------------------------------------------
+    # KÖR ENDAST DEN PRODUKTIONSFUNKTION VI VILL TESTA
+    # --------------------------------------------------------------
+
+    recomputed = add_forward_returns(
+        matched,
+        prices,
+    )
+
+    # --------------------------------------------------------------
+    # PRISLOOKUP FÖR OBEROENDE VERIFIERING
+    # --------------------------------------------------------------
+
+    price_lookup = _build_symbol_lookup(
+        prices
     )
 
     categories = {
         "verified_match": 0,
         "not_yet_verifiable": 0,
-        "value_mismatch": 0,
-        "price_date_not_found": 0,
         "missing_forward_return": 0,
+        "value_mismatch": 0,
+        "price_series_not_found": 0,
+        "invalid_price": 0,
     }
 
     by_horizon = {
@@ -516,42 +322,17 @@ def test_forward_return_alignment_diagnostic():
         for horizon in FORWARD_WINDOWS
     }
 
-    by_mapping_source = {
-        "isin": {
-            category: 0
-            for category in categories
-        },
-        "issuer": {
-            category: 0
-            for category in categories
-        },
-        "unknown": {
-            category: 0
-            for category in categories
-        },
-        "other": {
-            category: 0
-            for category in categories
-        },
-    }
+    failures: list[dict] = []
 
-    failure_examples = {
-        "value_mismatch": [],
-        "price_date_not_found": [],
-        "missing_forward_return": [],
-        "not_yet_verifiable": [],
-    }
-
-    def add_example(
-        category: str,
+    def add_failure(
         example: dict,
     ) -> None:
-        if len(
-            failure_examples[category]
-        ) < MAX_EXAMPLES:
-            failure_examples[
-                category
-            ].append(example)
+        if len(failures) < MAX_EXAMPLES:
+            failures.append(example)
+
+    # --------------------------------------------------------------
+    # VERIFIERA VARJE MATCHAD RAD
+    # --------------------------------------------------------------
 
     for index, row in matched.iterrows():
         symbol = str(
@@ -563,398 +344,265 @@ def test_forward_return_alignment_diagnostic():
             errors="coerce",
         )
 
-        source = _mapping_source(
-            row
-        )
-
-        if source not in by_mapping_source:
-            source = "other"
-
-        group = price_lookup.get(
+        series = price_lookup.get(
             symbol
         )
 
-        if group is None:
-            category = (
-                "price_date_not_found"
-            )
-
+        if series is None:
             categories[
-                category
+                "price_series_not_found"
             ] += 1
 
-            by_mapping_source[
-                source
-            ][category] += 1
-
-            add_example(
-                category,
+            add_failure(
                 {
                     "feature_index": index,
-                    "price_mapping_source": (
-                        _mapping_source(row)
-                    ),
                     "security_key": row.get(
                         "security_key"
                     ),
-                    "isin": row.get("isin"),
                     "issuer": row.get(
                         "issuer"
+                    ),
+                    "isin": row.get(
+                        "isin"
                     ),
                     "yahoo_symbol": symbol,
                     "price_date": str(
                         price_date.date()
                     ),
                     "reason": (
-                        "symbol_not_found_in_price_data"
+                        "yahoo_symbol_not_found"
                     ),
-                },
+                }
             )
 
             continue
 
-        positions = group.index[
-            group["date"] == price_date
-        ].tolist()
-
-        if not positions:
-            category = (
-                "price_date_not_found"
-            )
-
-            categories[
-                category
-            ] += 1
-
-            by_mapping_source[
-                source
-            ][category] += 1
-
-            add_example(
-                category,
-                {
-                    "feature_index": index,
-                    "price_mapping_source": (
-                        _mapping_source(row)
-                    ),
-                    "security_key": row.get(
-                        "security_key"
-                    ),
-                    "isin": row.get("isin"),
-                    "issuer": row.get(
-                        "issuer"
-                    ),
-                    "yahoo_symbol": symbol,
-                    "price_date": str(
-                        price_date.date()
-                    ),
-                    "reason": (
-                        "date_not_found_for_symbol"
-                    ),
-                },
-            )
-
-            continue
-
-        position = positions[0]
-
-        base_price = float(
-            group.loc[
-                position,
-                "close",
-            ]
-        )
-
-        for window in FORWARD_WINDOWS:
+        for horizon in FORWARD_WINDOWS:
             column = (
-                f"forward_return_{window}d"
+                f"forward_return_{horizon}d"
             )
 
             stored = row.get(
                 column
             )
 
-            target_position = (
-                position + window
-            )
-
-            common = {
-                "feature_index": index,
-                "price_mapping_source": (
-                    _mapping_source(row)
-                ),
-                "security_key": row.get(
-                    "security_key"
-                ),
-                "isin": row.get("isin"),
-                "issuer": row.get(
-                    "issuer"
-                ),
-                "yahoo_symbol": symbol,
-                "price_date": str(
-                    price_date.date()
-                ),
-                "window": window,
-                "stored": (
-                    None
-                    if stored is None
-                    or pd.isna(stored)
-                    else float(stored)
-                ),
-            }
-
-            if target_position >= len(
-                group
-            ):
-                category = (
-                    "not_yet_verifiable"
-                )
-
-                categories[
-                    category
-                ] += 1
-
-                by_horizon[
-                    window
-                ][category] += 1
-
-                by_mapping_source[
-                    source
-                ][category] += 1
-
-                add_example(
-                    category,
-                    {
-                        **common,
-                        "current_last_date": str(
-                            pd.Timestamp(
-                                group.iloc[-1][
-                                    "date"
-                                ]
-                            ).date()
-                        ),
-                        "current_observations": len(
-                            group
-                        ),
-                        "target_position": (
-                            target_position
-                        ),
-                    },
-                )
-
-                continue
-
-            future_price = float(
-                group.loc[
-                    target_position,
-                    "close",
+            recomputed_value = (
+                recomputed.loc[
+                    index,
+                    column,
                 ]
             )
 
-            if (
-                not math.isfinite(
-                    base_price
+            status, expected, target_date = (
+                _expected_return(
+                    series,
+                    price_date,
+                    horizon,
                 )
-                or base_price <= 0
-                or not math.isfinite(
-                    future_price
-                )
-                or future_price <= 0
-            ):
-                category = (
-                    "value_mismatch"
-                )
+            )
 
+            # ------------------------------------------------------
+            # Framtida target finns ännu inte.
+            # Detta är normalt och ska inte vara FAIL.
+            # ------------------------------------------------------
+
+            if status == (
+                "not_yet_verifiable"
+            ):
                 categories[
-                    category
+                    "not_yet_verifiable"
                 ] += 1
 
                 by_horizon[
-                    window
-                ][category] += 1
+                    horizon
+                ]["not_yet_verifiable"] += 1
 
-                by_mapping_source[
-                    source
-                ][category] += 1
+                continue
 
-                add_example(
-                    category,
+            # ------------------------------------------------------
+            # Ogiltigt pris.
+            # Detta är ett faktiskt dataproblem.
+            # ------------------------------------------------------
+
+            if status == "invalid":
+                categories[
+                    "invalid_price"
+                ] += 1
+
+                by_horizon[
+                    horizon
+                ]["invalid_price"] += 1
+
+                add_failure(
                     {
-                        **common,
+                        "feature_index": index,
+                        "security_key": row.get(
+                            "security_key"
+                        ),
+                        "issuer": row.get(
+                            "issuer"
+                        ),
+                        "yahoo_symbol": symbol,
+                        "price_date": str(
+                            price_date.date()
+                        ),
+                        "window": horizon,
+                        "stored": (
+                            None
+                            if pd.isna(stored)
+                            else float(stored)
+                        ),
+                        "recomputed": (
+                            None
+                            if pd.isna(
+                                recomputed_value
+                            )
+                            else float(
+                                recomputed_value
+                            )
+                        ),
                         "reason": (
                             "invalid_price"
                         ),
-                        "base_price": (
-                            base_price
-                        ),
-                        "future_price": (
-                            future_price
-                        ),
-                    },
+                    }
                 )
 
                 continue
 
-            expected = (
-                future_price
-                / base_price
-                - 1.0
-            )
+            # ------------------------------------------------------
+            # Här finns targetpriset.
+            # Nu måste production function ha producerat
+            # ett värde.
+            # ------------------------------------------------------
 
-            stored_missing = (
-                stored is None
-                or pd.isna(stored)
-            )
-
-            if stored_missing:
-                category = (
-                    "missing_forward_return"
+            if (
+                recomputed_value is None
+                or pd.isna(
+                    recomputed_value
                 )
-
+            ):
                 categories[
-                    category
+                    "missing_forward_return"
                 ] += 1
 
                 by_horizon[
-                    window
-                ][category] += 1
+                    horizon
+                ]["missing_forward_return"] += 1
 
-                by_mapping_source[
-                    source
-                ][category] += 1
-
-                add_example(
-                    category,
+                add_failure(
                     {
-                        **common,
-                        "expected": (
-                            expected
+                        "feature_index": index,
+                        "security_key": row.get(
+                            "security_key"
                         ),
-                        "target_date": str(
-                            pd.Timestamp(
-                                group.iloc[
-                                    target_position
-                                ]["date"]
-                            ).date()
+                        "issuer": row.get(
+                            "issuer"
                         ),
-                    },
+                        "isin": row.get(
+                            "isin"
+                        ),
+                        "yahoo_symbol": symbol,
+                        "price_date": str(
+                            price_date.date()
+                        ),
+                        "window": horizon,
+                        "stored": (
+                            None
+                            if pd.isna(stored)
+                            else float(stored)
+                        ),
+                        "recomputed": None,
+                        "expected": expected,
+                        "target_date": target_date,
+                        "reason": (
+                            "production_function_returned_nan"
+                        ),
+                    }
                 )
 
                 continue
+
+            # ------------------------------------------------------
+            # Kontrollera den omräknade production-funktionen
+            # mot den oberoende prisberäkningen.
+            # ------------------------------------------------------
 
             if not _same(
-                stored,
+                recomputed_value,
                 expected,
             ):
-                category = (
-                    "value_mismatch"
-                )
-
                 categories[
-                    category
+                    "value_mismatch"
                 ] += 1
 
                 by_horizon[
-                    window
-                ][category] += 1
+                    horizon
+                ]["value_mismatch"] += 1
 
-                by_mapping_source[
-                    source
-                ][category] += 1
-
-                add_example(
-                    category,
+                add_failure(
                     {
-                        **common,
-                        "expected": (
-                            expected
+                        "feature_index": index,
+                        "security_key": row.get(
+                            "security_key"
                         ),
+                        "issuer": row.get(
+                            "issuer"
+                        ),
+                        "isin": row.get(
+                            "isin"
+                        ),
+                        "yahoo_symbol": symbol,
+                        "price_date": str(
+                            price_date.date()
+                        ),
+                        "window": horizon,
+                        "stored": (
+                            None
+                            if pd.isna(stored)
+                            else float(stored)
+                        ),
+                        "recomputed": float(
+                            recomputed_value
+                        ),
+                        "expected": expected,
+                        "target_date": target_date,
                         "difference": (
-                            float(stored)
+                            float(
+                                recomputed_value
+                            )
                             - expected
                         ),
-                        "target_date": str(
-                            pd.Timestamp(
-                                group.iloc[
-                                    target_position
-                                ]["date"]
-                            ).date()
+                        "reason": (
+                            "production_result_mismatch"
                         ),
-                    },
+                    }
                 )
 
                 continue
 
-            category = (
-                "verified_match"
-            )
-
             categories[
-                category
+                "verified_match"
             ] += 1
 
             by_horizon[
-                window
-            ][category] += 1
+                horizon
+            ]["verified_match"] += 1
 
-            by_mapping_source[
-                source
-            ][category] += 1
-
-    # ------------------------------------------------------------------
-    # SAMMANFATTNING
-    # ------------------------------------------------------------------
-
-    print()
-    print("=" * 72)
-    print(
-        "FORWARD RETURN ALIGNMENT - DETAILED DIAGNOSTIC"
-    )
-    print("=" * 72)
-
-    print(
-        f"Feature rows: {len(features):,}"
-    )
-
-    print(
-        f"Matched rows: {len(matched):,}"
-    )
-
-    print(
-        f"Price rows: {len(prices):,}"
-    )
-
-    print(
-        f"QC status: {qc_result['status']}"
-    )
+    # --------------------------------------------------------------
+    # RESULTAT
+    # --------------------------------------------------------------
 
     print()
     print(
-        "QC RESULT FROM PRODUCTION FUNCTION"
+        "CLASSIFICATION"
     )
     print("-" * 72)
 
-    for key in (
-        "verified_match",
-        "not_yet_verifiable",
-        "value_mismatch",
-        "price_date_not_found",
-        "missing_forward_return",
+    for category, value in (
+        categories.items()
     ):
         print(
-            f"{key}: "
-            f"{qc_result[key]:,}"
-        )
-
-    print()
-    print(
-        "INDEPENDENT DETAILED CLASSIFICATION"
-    )
-    print("-" * 72)
-
-    for key, value in categories.items():
-        print(
-            f"{key}: {value:,}"
+            f"{category}: {value:,}"
         )
 
     print()
@@ -963,35 +611,15 @@ def test_forward_return_alignment_diagnostic():
     )
     print("-" * 72)
 
-    for window in FORWARD_WINDOWS:
+    for horizon in FORWARD_WINDOWS:
         print(
-            f"{window}d:"
+            f"{horizon}d:"
         )
 
         for category, value in (
             by_horizon[
-                window
+                horizon
             ].items()
-        ):
-            print(
-                f"  {category}: {value:,}"
-            )
-
-    print()
-    print(
-        "BY PRICE MAPPING SOURCE"
-    )
-    print("-" * 72)
-
-    for source, counts in (
-        by_mapping_source.items()
-    ):
-        print(
-            f"{source}:"
-        )
-
-        for category, value in (
-            counts.items()
         ):
             print(
                 f"  {category}: {value:,}"
@@ -1003,277 +631,78 @@ def test_forward_return_alignment_diagnostic():
     )
     print("-" * 72)
 
-    for category in (
-        "value_mismatch",
-        "price_date_not_found",
-        "missing_forward_return",
-    ):
-        print()
+    if not failures:
         print(
-            f"[{category}]"
+            "NONE"
         )
-
-        examples = failure_examples[
-            category
-        ]
-
-        if not examples:
-            print("  NONE")
-            continue
-
-        for example in examples:
+    else:
+        for failure in failures:
             print(
-                f"  {example}"
+                f"  {failure}"
             )
 
     print()
     print(
-        "NOT-YET-VERIFIABLE EXAMPLES"
+        "EXPECTED INTERPRETATION"
     )
     print("-" * 72)
 
-    examples = failure_examples[
-        "not_yet_verifiable"
-    ]
-
-    if not examples:
-        print("  NONE")
-    else:
-        for example in examples:
-            print(
-                f"  {example}"
-            )
-
-    # ------------------------------------------------------------------
-    # SECURITY KEY DIAGNOSTIC
-    # ------------------------------------------------------------------
-
-    security_key_symbols = (
-        prices.groupby(
-            "security_key",
-            sort=False,
-        )["yahoo_symbol"]
-        .nunique()
+    print(
+        "verified_match:"
+        " target finns och production-resultatet "
+        "matchar prisdata."
     )
 
-    multi_symbol_keys = (
-        security_key_symbols[
-            security_key_symbols > 1
-        ]
-        .sort_values(
-            ascending=False
-        )
+    print(
+        "not_yet_verifiable:"
+        " targetdagen ligger efter tillgänglig "
+        "prisdata och är därför normalt."
     )
 
-    security_key_date_counts = (
-        prices.groupby(
-            ["security_key", "date"],
-            sort=False,
-        )
-        .size()
+    print(
+        "missing_forward_return:"
+        " target finns men add_forward_returns() "
+        "producerar NaN."
     )
 
-    duplicate_security_key_dates = (
-        security_key_date_counts[
-            security_key_date_counts > 1
-        ]
-        .sort_values(
-            ascending=False
-        )
+    print(
+        "value_mismatch:"
+        " add_forward_returns() producerar fel värde."
     )
 
     print()
     print("=" * 72)
     print(
-        "SECURITY KEY DIAGNOSTIC"
+        "STANDALONE TEST RESULT"
     )
     print("=" * 72)
 
-    print(
-        "Security keys with multiple Yahoo symbols: "
-        f"{len(multi_symbol_keys):,}"
-    )
-
-    if not multi_symbol_keys.empty:
-        for key in multi_symbol_keys.head(
-            MAX_EXAMPLES
-        ).index:
-            symbols = sorted(
-                prices.loc[
-                    prices[
-                        "security_key"
-                    ] == key,
-                    "yahoo_symbol",
-                ]
-                .dropna()
-                .astype(str)
-                .unique()
-            )
-
-            print(
-                f"  {key}: {symbols}"
-            )
-
-    print()
-    print(
-        "Security key/date combinations with "
-        "multiple price rows: "
-        f"{len(duplicate_security_key_dates):,}"
-    )
-
-    if not duplicate_security_key_dates.empty:
-        for (
-            key,
-            date,
-        ), count in (
-            duplicate_security_key_dates
-            .head(MAX_EXAMPLES)
-            .items()
-        ):
-            print(
-                f"  {key} | "
-                f"{pd.Timestamp(date).date()} | "
-                f"rows={count}"
-            )
-
-            rows = prices.loc[
-                (
-                    prices[
-                        "security_key"
-                    ] == key
-                )
-                & (
-                    prices[
-                        "date"
-                    ] == date
-                )
-            ]
-
-            for _, price_row in rows.iterrows():
-                print(
-                    "    "
-                    f"symbol={price_row.get('yahoo_symbol')} "
-                    f"close={price_row.get('close')}"
-                )
-
-    # ------------------------------------------------------------------
-    # EXAKT PRODUKTIONS-SPÅRNING AV MISSING-FALLEN
-    # ------------------------------------------------------------------
-
-    missing_examples = failure_examples[
-        "missing_forward_return"
-    ]
-
-    print()
-    print("=" * 72)
-    print(
-        "PRODUCTION TRACE FOR MISSING FORWARD RETURNS"
-    )
-    print("=" * 72)
-
-    print(
-        "Missing forward-return cases: "
-        f"{len(missing_examples):,}"
-    )
-
-    for number, example in enumerate(
-        missing_examples,
-        start=1,
-    ):
-        print()
-        print(
-            "=" * 72
-        )
-        print(
-            f"MISSING CASE #{number}"
-        )
-        print(
-            "=" * 72
-        )
-
-        print(
-            f"feature_index: "
-            f"{example.get('feature_index')}"
-        )
-
-        print(
-            f"security_key: "
-            f"{example.get('security_key')}"
-        )
-
-        print(
-            f"issuer: "
-            f"{example.get('issuer')}"
-        )
-
-        print(
-            f"isin: "
-            f"{example.get('isin')}"
-        )
-
-        print(
-            f"yahoo_symbol: "
-            f"{example.get('yahoo_symbol')}"
-        )
-
-        print(
-            f"mapping_source: "
-            f"{example.get('price_mapping_source')}"
-        )
-
-        print(
-            f"price_date: "
-            f"{example.get('price_date')}"
-        )
-
-        print(
-            f"window: "
-            f"{example.get('window')}"
-        )
-
-        print(
-            f"expected: "
-            f"{example.get('expected')}"
-        )
-
-        _trace_production_row(
-            features.loc[
-                example["feature_index"]
-            ],
-            production_lookup,
-        )
-
-    print()
-    print("=" * 72)
-    print(
-        "DIAGNOSTIC COMPLETE"
-    )
-    print("=" * 72)
-
-    # Diagnostiskt test: produktions-QC och oberoende klassificering
-    # ska fortfarande överensstämma.
-    assert (
-        categories["value_mismatch"]
-        == qc_result["value_mismatch"]
-    )
-
-    assert (
-        categories["price_date_not_found"]
-        == qc_result[
-            "price_date_not_found"
-        ]
-    )
-
-    assert (
-        categories["missing_forward_return"]
-        == qc_result[
+    actual_failures = (
+        categories[
             "missing_forward_return"
         ]
+        + categories[
+            "value_mismatch"
+        ]
+        + categories[
+            "price_series_not_found"
+        ]
+        + categories[
+            "invalid_price"
+        ]
     )
 
-    assert (
-        categories["not_yet_verifiable"]
-        == qc_result[
-            "not_yet_verifiable"
-        ]
+    print(
+        f"Actual failures: {actual_failures:,}"
+    )
+
+    assert actual_failures == 0, (
+        "Forward-return alignment har "
+        f"{actual_failures:,} faktiska fel. "
+        "Se FAILURE EXAMPLES ovan."
+    )
+
+    print(
+        "PASS: alla verifierbara "
+        "forward returns är korrekta."
     )
