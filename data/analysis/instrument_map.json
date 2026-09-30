@@ -967,6 +967,16 @@
     "ticker": null,
     "yahoo_symbol": "CLAV.ST"
   },
+  "ISIN:SE0005392537": {
+    "exchange": null,
+    "isin": "SE0005392537",
+    "issuer": "Soltech Energy Sweden AB (publ)",
+    "lei": "549300RFE1X384DWQW10",
+    "map_key": "ISIN:SE0005392537",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "SOLT.ST"
+  },
   "ISIN:SE0005794617": {
     "exchange": null,
     "isin": "SE0005794617",
@@ -1207,16 +1217,6 @@
     "ticker": null,
     "yahoo_symbol": "VICO.ST"
   },
-  "ISIN:SE0007614722": {
-    "exchange": null,
-    "isin": "SE0007614722",
-    "issuer": "K33 AB (publ)",
-    "lei": "549300O9UB56DF0JPH61",
-    "map_key": "ISIN:SE0007614722",
-    "mapping_source": "migrated",
-    "ticker": null,
-    "yahoo_symbol": "K33.ST"
-  },
   "ISIN:SE0007640156": {
     "exchange": null,
     "isin": "SE0007640156",
@@ -1399,6 +1399,16 @@
     "ticker": null,
     "yahoo_symbol": "SIVE.ST"
   },
+  "ISIN:SE0008348304": {
+    "exchange": null,
+    "isin": "SE0008348304",
+    "issuer": "GomSpace Group AB",
+    "lei": "213800ES6SHKK5QTN734",
+    "map_key": "ISIN:SE0008348304",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "GOMX.ST"
+  },
   "ISIN:SE0008374250": {
     "exchange": null,
     "isin": "SE0008374250",
@@ -1510,6 +1520,16 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "INSTAL.ST"
+  },
+  "ISIN:SE0009695927": {
+    "exchange": null,
+    "isin": "SE0009695927",
+    "issuer": "AcuCort AB",
+    "lei": "54930087FR3VVW5SU676",
+    "map_key": "ISIN:SE0009695927",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ACUC.ST"
   },
   "ISIN:SE0009697220": {
     "exchange": null,
@@ -1650,16 +1670,6 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "ACCON.ST"
-  },
-  "ISIN:SE0010546911": {
-    "exchange": null,
-    "isin": "SE0010546911",
-    "issuer": "Done.ai Group AB",
-    "lei": "549300HN4ITSR6ZSAO17",
-    "map_key": "ISIN:SE0010546911",
-    "mapping_source": "migrated",
-    "ticker": null,
-    "yahoo_symbol": "DONE.ST"
   },
   "ISIN:SE0010573113": {
     "exchange": null,
@@ -2005,6 +2015,16 @@
     "ticker": null,
     "yahoo_symbol": "SF.ST"
   },
+  "ISIN:SE0015382080": {
+    "exchange": null,
+    "isin": "SE0015382080",
+    "issuer": "Elicera Therapeutics AB",
+    "lei": "549300I35L0R4INBFG27",
+    "map_key": "ISIN:SE0015382080",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "ELIC.ST"
+  },
   "ISIN:SE0015657788": {
     "exchange": null,
     "isin": "SE0015657788",
@@ -2064,16 +2084,6 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "BEIJ-B.ST"
-  },
-  "ISIN:SE0015960935": {
-    "exchange": null,
-    "isin": "SE0015960935",
-    "issuer": "Acast AB (publ)",
-    "lei": "5493004UROJFQSP6RC85",
-    "map_key": "ISIN:SE0015960935",
-    "mapping_source": "migrated",
-    "ticker": null,
-    "yahoo_symbol": "ACAST.ST"
   },
   "ISIN:SE0015961222": {
     "exchange": null,
@@ -2187,16 +2197,6 @@
     "ticker": null,
     "yahoo_symbol": "STOR-B.ST"
   },
-  "ISIN:SE0016799068": {
-    "exchange": null,
-    "isin": "SE0016799068",
-    "issuer": "BeammWave AB",
-    "lei": "9845008AD575B0BD7B65",
-    "map_key": "ISIN:SE0016799068",
-    "mapping_source": "migrated",
-    "ticker": null,
-    "yahoo_symbol": "BEAMMW-B.ST"
-  },
   "ISIN:SE0016829469": {
     "exchange": null,
     "isin": "SE0016829469",
@@ -2258,6 +2258,16 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "DYVOX.ST"
+  },
+  "ISIN:SE0017134125": {
+    "exchange": null,
+    "isin": "SE0017134125",
+    "issuer": "Cynca Nordic AB (publ)",
+    "lei": "549300V2QS9QL4C1KQ31",
+    "map_key": "ISIN:SE0017134125",
+    "mapping_source": "issuer_search",
+    "ticker": null,
+    "yahoo_symbol": "CYNCA.ST"
   },
   "ISIN:SE0017160773": {
     "exchange": null,
@@ -2594,16 +2604,6 @@
     "mapping_source": "issuer_search",
     "ticker": null,
     "yahoo_symbol": "RROS.ST"
-  },
-  "LEI:213800ES6SHKK5QTN734": {
-    "exchange": null,
-    "isin": null,
-    "issuer": "GomSpace Group AB",
-    "lei": "213800ES6SHKK5QTN734",
-    "map_key": "LEI:213800ES6SHKK5QTN734",
-    "mapping_source": "migrated",
-    "ticker": null,
-    "yahoo_symbol": "GOMX.ST"
   },
   "LEI:213800HJQ519AT4VCK42": {
     "exchange": null,
@@ -3245,6 +3245,16 @@
     "ticker": null,
     "yahoo_symbol": "BINERO.ST"
   },
+  "LEI:5493004UROJFQSP6RC85": {
+    "exchange": null,
+    "isin": "SE0015960935",
+    "issuer": "Acast AB (publ)",
+    "lei": "5493004UROJFQSP6RC85",
+    "map_key": "LEI:5493004UROJFQSP6RC85",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "ACAST.ST"
+  },
   "LEI:549300529C5P12YHX909": {
     "exchange": null,
     "isin": null,
@@ -3476,16 +3486,6 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "PIERCE.ST"
-  },
-  "LEI:54930087FR3VVW5SU676": {
-    "exchange": null,
-    "isin": null,
-    "issuer": "AcuCort AB",
-    "lei": "54930087FR3VVW5SU676",
-    "map_key": "LEI:54930087FR3VVW5SU676",
-    "mapping_source": "issuer_search",
-    "ticker": null,
-    "yahoo_symbol": "ACUC.ST"
   },
   "LEI:5493008BTAMUWWFS1B23": {
     "exchange": null,
@@ -3987,6 +3987,16 @@
     "ticker": null,
     "yahoo_symbol": "ATIC.ST"
   },
+  "LEI:549300HN4ITSR6ZSAO17": {
+    "exchange": null,
+    "isin": "SE0010546911",
+    "issuer": "Done.ai Group AB",
+    "lei": "549300HN4ITSR6ZSAO17",
+    "map_key": "LEI:549300HN4ITSR6ZSAO17",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "DONE.ST"
+  },
   "LEI:549300HUR75YN61F4108": {
     "exchange": null,
     "isin": null,
@@ -3996,16 +4006,6 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "BULTEN.ST"
-  },
-  "LEI:549300I35L0R4INBFG27": {
-    "exchange": null,
-    "isin": null,
-    "issuer": "Elicera Therapeutics AB",
-    "lei": "549300I35L0R4INBFG27",
-    "map_key": "LEI:549300I35L0R4INBFG27",
-    "mapping_source": "issuer_search",
-    "ticker": null,
-    "yahoo_symbol": "ELIC.ST"
   },
   "LEI:549300I5OMH3T4UPBN04": {
     "exchange": null,
@@ -4370,7 +4370,7 @@
   "LEI:549300O9UB56DF0JPH61": {
     "exchange": null,
     "isin": "SE0007614722",
-    "issuer": "Arcane Crypto AB",
+    "issuer": "K33 AB (publ)",
     "lei": "549300O9UB56DF0JPH61",
     "map_key": "LEI:549300O9UB56DF0JPH61",
     "mapping_source": "migrated",
@@ -4577,16 +4577,6 @@
     "ticker": null,
     "yahoo_symbol": "BERG-B.ST"
   },
-  "LEI:549300RFE1X384DWQW10": {
-    "exchange": null,
-    "isin": null,
-    "issuer": "Soltech Energy Sweden AB (publ)",
-    "lei": "549300RFE1X384DWQW10",
-    "map_key": "LEI:549300RFE1X384DWQW10",
-    "mapping_source": "issuer_search",
-    "ticker": null,
-    "yahoo_symbol": "SOLT.ST"
-  },
   "LEI:549300RQJ5YP5SU5BB17": {
     "exchange": null,
     "isin": null,
@@ -4746,7 +4736,7 @@
   "LEI:549300V2QS9QL4C1KQ31": {
     "exchange": null,
     "isin": null,
-    "issuer": "Cynca Nordic AB (publ)",
+    "issuer": "Vestum AB (publ)",
     "lei": "549300V2QS9QL4C1KQ31",
     "map_key": "LEI:549300V2QS9QL4C1KQ31",
     "mapping_source": "issuer_search",
@@ -5042,6 +5032,16 @@
     "mapping_source": "migrated",
     "ticker": null,
     "yahoo_symbol": "HEXI.ST"
+  },
+  "LEI:9845008AD575B0BD7B65": {
+    "exchange": null,
+    "isin": "SE0016799068",
+    "issuer": "BeammWave AB",
+    "lei": "9845008AD575B0BD7B65",
+    "map_key": "LEI:9845008AD575B0BD7B65",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "BEAMMW-B.ST"
   },
   "LEI:PY6ZZQWO2IZFZC3IOL08": {
     "exchange": null,
