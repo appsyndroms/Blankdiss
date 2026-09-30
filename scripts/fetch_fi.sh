@@ -27,5 +27,48 @@ python -u -m fi.reconstruct_aggregate
 
 echo
 echo "=========================================="
+echo "FÖRBERED FI-COMMIT"
+echo "=========================================="
+
+git config user.name "github-actions[bot]"
+git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+git add \
+  data/raw/fi/aggregate/manifest.json \
+  data/raw/fi/aggregate/snapshots
+
+echo
+echo "FI-data före commit:"
+git status --short
+
+if git diff --cached --quiet; then
+    echo
+    echo "Inga FI-snapshotförändringar att committa."
+    exit 0
+fi
+
+echo
+echo "Filer som kommer att committas:"
+git diff --cached --name-status
+
+git commit \
+  -m "Update FI aggregate snapshots"
+
+echo
+echo "=========================================="
+echo "FI COMMITTAD"
+echo "=========================================="
+
+git status --short
+
+echo
+echo "Pussar FI-data..."
+
+bash scripts/git_push_with_retry.sh
+
+echo
+echo "=========================================="
 echo "FI KLAR"
 echo "=========================================="
+
+git status --short
