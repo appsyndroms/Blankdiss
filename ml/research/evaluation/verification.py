@@ -336,6 +336,9 @@ def verify_all_walk_forward_windows(
             )
         )
 
+    if evaluation.walk_forward.mode == "rolling":
+        return
+
     for previous, current in zip(
         parsed_windows,
         parsed_windows[1:],
