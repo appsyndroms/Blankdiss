@@ -157,6 +157,366 @@ def test_forward_return_alignment_diagnostic():
         prices
     )
 
+    # ------------------------------------------------------------------
+    # SECURITY KEY / YAHOO SYMBOL DIAGNOSTIC
+    #
+    # Produktionskoden grupperar prices på security_key.
+    # Den oberoende diagnostiken ovan grupperar på yahoo_symbol.
+    #
+    # Om samma security_key förekommer för flera yahoo_symbol kan
+    # produktionsserien därför skilja sig från den serie som används
+    # för verifieringen ovan.
+    # ------------------------------------------------------------------
+
+    security_key_symbols = (
+        prices.groupby(
+            "security_key",
+            sort=False,
+        )["yahoo_symbol"]
+        .nunique()
+    )
+
+    multi_symbol_keys = (
+        security_key_symbols[
+            security_key_symbols > 1
+        ]
+        .sort_values(
+            ascending=False
+        )
+    )
+
+    security_key_date_duplicates = (
+        prices.groupby(
+            ["security_key", "date"],
+            sort=False,
+        )
+        .size()
+    )
+
+    duplicate_security_key_dates = (
+        security_key_date_duplicates[
+            security_key_date_duplicates > 1
+        ]
+        .sort_values(
+            ascending=False
+        )
+    )
+
+    print()
+    print("=" * 72)
+    print(
+        "SECURITY KEY / YAHOO SYMBOL DIAGNOSTIC"
+    )
+    print("-" * 72)
+
+    print(
+        "Security keys with multiple Yahoo symbols: "
+        f"{len(multi_symbol_keys):,}"
+    )
+
+    if not multi_symbol_keys.empty:
+        print()
+        print(
+            "MULTI-SYMBOL SECURITY KEYS"
+        )
+
+        for key in multi_symbol_keys.index[:30]:
+            symbols = sorted(
+                prices.loc[
+                    prices["security_key"] == key,
+                    "yahoo_symbol",
+                ]
+                .dropna()
+                .astype(str)
+                .unique()
+            )
+
+            print(
+                f"  {key}: {symbols}"
+            )
+
+    print()
+    print(
+        "Security key/date combinations with "
+        f"multiple price rows: "
+        f"{len(duplicate_security_key_dates):,}"
+    )
+
+    if not duplicate_security_key_dates.empty:
+        print()
+        print(
+            "DUPLICATE SECURITY KEY / DATE"
+        )
+
+        for (
+            key,
+            date,
+        ), count in duplicate_security_key_dates.head(30).items():
+            rows = prices.loc[
+                (
+                    prices["security_key"] == key
+                )
+                & (
+                    prices["date"] == date
+                )
+            ]
+
+            print(
+                f"  {key} | "
+                f"{pd.Timestamp(date).date()} | "
+                f"rows={count}"
+            )
+
+            for _, price_row in rows.iterrows():
+                print(
+                    "    "
+                    f"symbol={price_row.get('yahoo_symbol')} "
+                    f"close={price_row.get('close')}"
+                )
+
+    # ------------------------------------------------------------------
+    # Reproduce production lookup exactly.
+    # ------------------------------------------------------------------
+
+    production_lookup = {
+        key: group.sort_values(
+            "date",
+            kind="mergesort",
+        ).reset_index(
+            drop=True
+        )
+        for key, group in prices.groupby(
+            "security_key",
+            sort=False,
+        )
+    }
+
+    missing_rows = matched.loc[
+        matched[
+            [
+                "forward_return_1d",
+                "forward_return_5d",
+                "forward_return_20d",
+                "forward_return_60d",
+            ]
+        ]
+        .isna()
+        .any(axis=1)
+    ]
+
+    print()
+    print("=" * 72)
+    print(
+        "PRODUCTION LOOKUP DIAGNOSTIC"
+    )
+    print("-" * 72)
+
+    print(
+        f"Rows with at least one missing "
+        f"forward return: {len(missing_rows):,}"
+    )
+
+    printed_missing = 0
+
+    for index, row in missing_rows.iterrows():
+        security = row.get(
+            "security_key"
+        )
+        symbol = str(
+            row.get("yahoo_symbol")
+        )
+
+        production_series = (
+            production_lookup.get(
+                security
+            )
+        )
+
+        symbol_series = price_lookup.get(
+            symbol
+        )
+
+        if (
+            production_series is None
+            or symbol_series is None
+        ):
+            continue
+
+        price_date = pd.to_datetime(
+            row.get("price_date"),
+            errors="coerce",
+        )
+
+        if pd.isna(price_date):
+            continue
+
+        production_dates = (
+            production_series["date"]
+            .to_numpy(
+                dtype="datetime64[ns]"
+            )
+        )
+
+        symbol_dates = (
+            symbol_series["date"]
+            .to_numpy(
+                dtype="datetime64[ns]"
+            )
+        )
+
+        price_date_np = np.datetime64(
+            price_date.to_datetime64(),
+            "ns",
+        )
+
+        production_entry = int(
+            np.searchsorted(
+                production_dates,
+                price_date_np,
+                side="left",
+            )
+        )
+
+        symbol_positions = (
+            symbol_series.index[
+                symbol_series["date"]
+                == price_date
+            ].tolist()
+        )
+
+        print()
+        print(
+            f"[MISSING ROW #{printed_missing + 1}]"
+        )
+        print(
+            f"  feature_index: {index}"
+        )
+        print(
+            f"  security_key: {security}"
+        )
+        print(
+            f"  yahoo_symbol: {symbol}"
+        )
+        print(
+            f"  mapping_source: "
+            f"{row.get('price_mapping_source')}"
+        )
+        print(
+            f"  price_date: "
+            f"{price_date.date()}"
+        )
+
+        print()
+        print(
+            "  PRODUCTION SERIES"
+        )
+        print(
+            f"    rows: "
+            f"{len(production_series)}"
+        )
+        print(
+            f"    symbols: "
+            f"{sorted(production_series['yahoo_symbol'].dropna().astype(str).unique())}"
+        )
+        print(
+            f"    entry_position: "
+            f"{production_entry}"
+        )
+
+        if (
+            0
+            <= production_entry
+            < len(production_series)
+        ):
+            start = max(
+                0,
+                production_entry - 2,
+            )
+            end = min(
+                len(production_series),
+                production_entry + 8,
+            )
+
+            for pos in range(
+                start,
+                end,
+            ):
+                price_row = (
+                    production_series.iloc[pos]
+                )
+
+                print(
+                    "      "
+                    f"[{pos}] "
+                    f"{pd.Timestamp(price_row['date']).date()} "
+                    f"symbol={price_row['yahoo_symbol']} "
+                    f"close={price_row['close']}"
+                )
+
+        print()
+        print(
+            "  DIAGNOSTIC YAHOO SERIES"
+        )
+        print(
+            f"    rows: "
+            f"{len(symbol_series)}"
+        )
+        print(
+            f"    entry_positions: "
+            f"{symbol_positions}"
+        )
+
+        if symbol_positions:
+            symbol_entry = symbol_positions[0]
+
+            start = max(
+                0,
+                symbol_entry - 2,
+            )
+            end = min(
+                len(symbol_series),
+                symbol_entry + 8,
+            )
+
+            for pos in range(
+                start,
+                end,
+            ):
+                price_row = (
+                    symbol_series.iloc[pos]
+                )
+
+                print(
+                    "      "
+                    f"[{pos}] "
+                    f"{pd.Timestamp(price_row['date']).date()} "
+                    f"symbol={price_row['yahoo_symbol']} "
+                    f"close={price_row['close']}"
+                )
+
+        print()
+        print(
+            "  STORED RETURNS"
+        )
+
+        for horizon in FORWARD_WINDOWS:
+            print(
+                f"    {horizon}d: "
+                f"{row.get(f'forward_return_{horizon}d')}"
+            )
+
+        printed_missing += 1
+
+        if printed_missing >= MAX_EXAMPLES:
+            break
+
+    print()
+    print("=" * 72)
+    print(
+        "SECURITY KEY DIAGNOSTIC COMPLETE"
+    )
+    print("=" * 72)
+
     categories = {
         "verified_match": 0,
         "not_yet_verifiable": 0,
