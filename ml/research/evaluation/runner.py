@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from datetime import datetime, timezone
+from dataclasses import replace
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
@@ -23,7 +24,9 @@ from ml.research.candidates.verification import (
 )
 from ml.research.engine import run_spec
 from ml.research.evaluation.spec import (
+    EvaluationPeriod,
     EvaluationSpec,
+    WalkForwardSpec,
     WalkForwardWindow,
     load_evaluation,
 )
@@ -408,7 +411,7 @@ def _windows(
 
 def _latest_feature_date(
     frame: pd.DataFrame,
-):
+) -> date:
     if "snapshot_date" not in frame.columns:
         raise ValueError(
             "Feature-data saknar snapshot_date."
@@ -427,6 +430,119 @@ def _latest_feature_date(
         )
 
     return dates.max().date()
+
+
+def _effective_evaluation(
+    evaluation: EvaluationSpec,
+    latest_feature_date: date,
+) -> EvaluationSpec:
+    """
+    Säkerställer att evaluation aldrig använder ett datum
+    som ännu inte finns i feature-datasetet.
+
+    Marknadsdata är den faktiska källan till evaluationens
+    effektiva slutdatum. Om en konfigurerad evaluation pekar
+    längre fram än senaste tillgängliga feature-datum kapas
+    evaluation och eventuella walk-forward-fönster dit.
+    """
+
+    latest = latest_feature_date.isoformat()
+
+    configured_end = pd.Timestamp(
+        evaluation.evaluation_period.end
+    ).date()
+
+    if configured_end <= latest_feature_date:
+        return evaluation
+
+    evaluation_period = EvaluationPeriod(
+        start=evaluation.evaluation_period.start,
+        end=latest,
+    )
+
+    windows = []
+
+    for window in evaluation.walk_forward.windows:
+        window_end = pd.Timestamp(
+            window.end
+        ).date()
+
+        if window_end > latest_feature_date:
+            window = replace(
+                window,
+                end=latest,
+            )
+
+        windows.append(window)
+
+    walk_forward = WalkForwardSpec(
+        enabled=evaluation.walk_forward.enabled,
+        mode=evaluation.walk_forward.mode,
+        windows=tuple(windows),
+    )
+
+    resolved_id = evaluation.id
+
+    if evaluation.walk_forward.mode == "rolling":
+        suffix = f"_{latest}"
+
+        if not resolved_id.endswith(suffix):
+            resolved_id = (
+                f"{resolved_id}{suffix}"
+            )
+
+    return replace(
+        evaluation,
+        id=resolved_id,
+        evaluation_period=evaluation_period,
+        walk_forward=walk_forward,
+    )
+
+
+def _log_evaluation_context(
+    latest_feature_date: date,
+    evaluation: EvaluationSpec,
+) -> None:
+    print(
+        "==========================================",
+        flush=True,
+    )
+    print(
+        "PROSPECTIVE EVALUATION DATUM",
+        flush=True,
+    )
+    print(
+        "==========================================",
+        flush=True,
+    )
+    print(
+        "Senaste tillgängliga feature-datum: "
+        f"{latest_feature_date.isoformat()}",
+        flush=True,
+    )
+    print(
+        "Effektivt evaluation-slutdatum: "
+        f"{evaluation.evaluation_period.end}",
+        flush=True,
+    )
+
+    if evaluation.walk_forward.enabled:
+        print(
+            "Walk-forward windows:",
+            flush=True,
+        )
+
+        for window in evaluation.walk_forward.windows:
+            print(
+                f"  {window.name}: "
+                f"{window.start} -> {window.end}",
+                flush=True,
+            )
+
+    print(
+        "==========================================",
+        flush=True,
+    )
 
 
 def run_evaluation(
@@ -450,6 +566,16 @@ def run_evaluation(
         as_of=latest_feature_date,
     )
 
+    evaluation = _effective_evaluation(
+        evaluation,
+        latest_feature_date,
+    )
+
+    _log_evaluation_context(
+        latest_feature_date,
+        evaluation,
+    )
+
     verify_evaluation(
         candidate,
         evaluation,
@@ -464,6 +590,11 @@ def run_evaluation(
     windows = _windows(
         evaluation
     )
+
+    if not windows:
+        raise ValueError(
+            "Evaluation saknar windows."
+        )
 
     first_spec = _build_research_spec(
         candidate,
@@ -616,6 +747,9 @@ def run_evaluation(
         "data": {
             "feature_rows": int(
                 len(frame)
+            ),
+            "latest_feature_date": (
+                latest_feature_date.isoformat()
             ),
             "fingerprint": data_fingerprint,
         },
