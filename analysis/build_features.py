@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -55,6 +58,8 @@ OUTPUT_METADATA_PATH = (
 # Håll varje JSONL-fil tydligt under CI-gränsen på 20 MB.
 CHUNK_SIZE = 7_500
 
+STOCKHOLM_TZ = ZoneInfo("Europe/Stockholm")
+
 JSON_DATE_COLUMNS = {
     "snapshot_date",
     "previous_snapshot_date",
@@ -62,6 +67,74 @@ JSON_DATE_COLUMNS = {
     "min_return_5d_date",
     "max_return_5d_date",
 }
+
+
+def parse_args() -> argparse.Namespace:
+    """Parsar kommandoradsargument."""
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Bygger det kanoniska "
+            "FI + price feature-datasetet."
+        )
+    )
+
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Tvinga full rebuild även om "
+            "dagens snapshot redan finns."
+        ),
+    )
+
+    return parser.parse_args()
+
+
+def current_feature_date() -> date:
+    """Returnerar dagens datum i Europe/Stockholm."""
+
+    return datetime.now(
+        STOCKHOLM_TZ
+    ).date()
+
+
+def feature_dataset_has_date(
+    target_date: date,
+) -> bool:
+    """Kontrollerar om feature-datasetet redan innehåller target_date."""
+
+    if not OUTPUT_DIR.exists():
+        return False
+
+    feature_chunks = sorted(
+        OUTPUT_DIR.glob(FEATURE_GLOB)
+    )
+
+    if not feature_chunks:
+        return False
+
+    target = target_date.isoformat()
+
+    for path in feature_chunks:
+        snapshot_dates = pd.read_json(
+            path,
+            lines=True,
+            usecols=["snapshot_date"],
+        )["snapshot_date"]
+
+        if (
+            pd.to_datetime(
+                snapshot_dates,
+                errors="coerce",
+            )
+            .dt.strftime("%Y-%m-%d")
+            .eq(target)
+            .any()
+        ):
+            return True
+
+    return False
 
 
 def clean_for_json(
@@ -559,12 +632,44 @@ def write_metadata(
         )
 
 
-def main() -> None:
+def main(
+    *,
+    force: bool = False,
+) -> None:
     """Bygg hela det kanoniska feature-datasetet."""
+
+    today = current_feature_date()
 
     print(
         "Featurejobb: startar."
     )
+
+    if force:
+        print(
+            "Featurejobb: --force är aktiverat "
+            f"– full rebuild för {today.isoformat()}."
+        )
+    else:
+        print(
+            "Featurejobb: kontrollerar befintliga "
+            "feature-chunks för "
+            f"{today.isoformat()}."
+        )
+
+        if feature_dataset_has_date(
+            today
+        ):
+            print(
+                "Feature dataset finns redan för "
+                f"{today.isoformat()} – "
+                "hoppar över build."
+            )
+            return
+
+        print(
+            "Featurejobb: dagens snapshot saknas "
+            "– full rebuild."
+        )
 
     OUTPUT_DIR.mkdir(
         parents=True,
@@ -805,4 +910,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+
+    main(
+        force=args.force,
+    )
