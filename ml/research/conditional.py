@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+import numpy as np
+
 from .bootstrap import (
     bootstrap_binary_rate_difference_between_groups,
 )
@@ -34,6 +36,11 @@ def _regime_rate(
     mask,
 ) -> dict[str, Any]:
     selected = target[mask]
+
+    selected = selected[
+        np.isfinite(selected)
+    ]
+
     n = int(selected.shape[0])
 
     if n == 0:
@@ -43,7 +50,9 @@ def _regime_rate(
             "event_rate": None,
         }
 
-    events = int(selected.sum())
+    events = int(
+        (selected > 0).sum()
+    )
 
     return {
         "n": n,
