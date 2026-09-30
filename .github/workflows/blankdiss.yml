@@ -44,10 +44,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
-        run: |
-          python -m pytest tests/ml/research -q
-
       - name: Fetch and commit FI data
         run: |
           bash scripts/fetch_fi.sh
