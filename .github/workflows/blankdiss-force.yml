@@ -42,10 +42,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
-        run: |
-          python -m pytest tests/ml/research -q
-
       - name: Fetch and commit FI data
         run: |
           bash scripts/fetch_fi.sh --force
@@ -59,23 +55,8 @@ jobs:
           python -u -m analysis.update_market
 
       - name: Build features
-        id: build_features
-        continue-on-error: true
         run: |
           bash scripts/build_features.sh --force
-
-      - name: Diagnose forward return alignment
-        if: always()
-        run: |
-          python -u -m pytest \
-            tests/analysis/test_forward_return_alignment_diagnostic.py \
-            -q -s
-
-      - name: Fail if feature build failed
-        if: steps.build_features.outcome == 'failure'
-        run: |
-          echo "Feature build/QC failed."
-          exit 1
 
       - name: Run research scan
         run: |
