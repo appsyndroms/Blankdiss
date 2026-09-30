@@ -117,22 +117,33 @@ def feature_dataset_has_date(
     target = target_date.isoformat()
 
     for path in feature_chunks:
-        snapshot_dates = pd.read_json(
-            path,
-            lines=True,
-            usecols=["snapshot_date"],
-        )["snapshot_date"]
+        with path.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            for line in handle:
+                line = line.strip()
 
-        if (
-            pd.to_datetime(
-                snapshot_dates,
-                errors="coerce",
-            )
-            .dt.strftime("%Y-%m-%d")
-            .eq(target)
-            .any()
-        ):
-            return True
+                if not line:
+                    continue
+
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                snapshot_date = row.get(
+                    "snapshot_date"
+                )
+
+                if snapshot_date is None:
+                    continue
+
+                if (
+                    str(snapshot_date)[:10]
+                    == target
+                ):
+                    return True
 
     return False
 
