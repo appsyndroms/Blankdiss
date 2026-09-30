@@ -28,25 +28,23 @@
     "data/processed/analysis/features_0024.jsonl",
     "data/processed/analysis/features_0025.jsonl",
     "data/processed/analysis/features_0026.jsonl",
-    "data/processed/analysis/features_0027.jsonl",
-    "data/processed/analysis/features_0028.jsonl"
+    "data/processed/analysis/features_0027.jsonl"
   ],
   "price_files": [
     "data/raw/prices/prices_2022-01-01_latest.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-16.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-17.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-18.jsonl",
-    "data/raw/prices/prices_2022-01-03_2026-09-29.jsonl",
     "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
     "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl"
   ],
-  "rows": 204818,
-  "symbols": 226,
+  "rows": 202240,
+  "symbols": 225,
   "fi_period": {
     "start": "2022-05-25",
-    "end": "2026-09-28"
+    "end": "2026-09-11"
   },
   "checks": {
     "required_columns": {
@@ -62,26 +60,26 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 133428,
-      "same_day": 128588,
-      "one_day": 1289,
-      "two_days": 676,
-      "three_days": 373,
-      "four_to_five_days": 142,
-      "more_than_five_days": 2360,
-      "more_than_ten_days": 2344,
+      "matched_rows": 130695,
+      "same_day": 126013,
+      "one_day": 1275,
+      "two_days": 669,
+      "three_days": 367,
+      "four_to_five_days": 137,
+      "more_than_five_days": 2234,
+      "more_than_ten_days": 2224,
       "max_calendar_days": 1576,
       "median_calendar_days": 0.0
     },
     "first_price_problem": {
       "status": "WARN",
-      "fi_rows_before_first_price": 2242,
+      "fi_rows_before_first_price": 2239,
       "symbols_without_price_history": 0,
       "rows_without_price_history": 0
     },
     "mapping_integrity": {
       "status": "PASS",
-      "feature_symbols": 226,
+      "feature_symbols": 225,
       "mapping_symbols": 466,
       "unknown_yahoo_symbols": [],
       "rows_with_unknown_symbols": 0
@@ -89,8 +87,8 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 133428,
-        "unmatched": 71390
+        "isin": 130695,
+        "unmatched": 71545
       },
       "unexpected_sources": []
     },
@@ -114,26 +112,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 132227,
-          "null": 72591,
+          "non_null": 129636,
+          "null": 72604,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 130568,
-          "null": 74250,
+          "non_null": 128456,
+          "null": 73784,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 128127,
-          "null": 76691,
+          "non_null": 126256,
+          "null": 75984,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 122167,
-          "null": 82651,
+          "non_null": 120322,
+          "null": 81918,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -150,9 +148,9 @@
     },
     "unmatched_rows": {
       "status": "WARN",
-      "total_rows": 204818,
-      "rows_with_price": 133428,
-      "rows_without_price": 71390,
+      "total_rows": 202240,
+      "rows_with_price": 130695,
+      "rows_without_price": 71545,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {
