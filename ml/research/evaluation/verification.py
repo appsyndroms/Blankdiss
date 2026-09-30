@@ -18,6 +18,7 @@ from ml.research.candidates.verification import (
 from ml.research.evaluation.spec import (
     EvaluationSpec,
 )
+from ml.research.signals import build_signal
 
 
 def _parse_boundary(
@@ -545,54 +546,19 @@ def verify_future_data_access(
     frame: pd.DataFrame,
     candidate: CandidateSpec,
 ) -> None:
-    feature_names = [
-        feature.name
-        for feature in candidate.features
-    ]
+    """
+    Verifierar att kandidatens signaler kan byggas.
 
-    missing = [
-        name
-        for name in feature_names
-        if name not in frame.columns
-    ]
-
-    if missing:
-        return
-
-    dates = _normalise_dates(
-        frame["snapshot_date"]
-    )
-
-    if dates.notna().sum() == 0:
-        raise ValueError(
-            "Kan inte verifiera feature-timing "
-            "eftersom snapshot_date saknar "
-            "giltiga värden."
+    Kandidatens feature-namn är semantiska signalnamn, inte de
+    fysiska kolumnnamnen i feature-datasetet. build_signal()
+    använder samma signalregister som research-körningen och
+    säkerställer därmed att verifieringen testar samma kontrakt.
+    """
+    for feature in candidate.features:
+        build_signal(
+            frame,
+            feature.name,
         )
-
-    for feature_name in feature_names:
-        series = frame[feature_name]
-
-        if pd.api.types.is_datetime64_any_dtype(
-            series
-        ):
-            feature_dates = _normalise_dates(
-                series
-            )
-
-            if feature_dates.notna().any():
-                future_mask = (
-                    feature_dates > dates
-                )
-
-                if bool(
-                    future_mask.fillna(False).any()
-                ):
-                    raise ValueError(
-                        "Feature kan innehålla "
-                        "framtidsdata: "
-                        f"{feature_name}"
-                    )
 
 
 def verify_missing_data(
@@ -612,13 +578,10 @@ def verify_missing_data(
     for feature in candidate.features:
         name = feature.name
 
-        if name not in frame.columns:
-            raise ValueError(
-                "Candidate refererar till saknad "
-                f"feature: {name}"
-            )
-
-        series = frame[name]
+        series = build_signal(
+            frame,
+            name,
+        )
         missing_count = int(
             series.isna().sum()
         )
@@ -656,18 +619,18 @@ def verify_candidate_features(
             "Feature-data saknar snapshot_date."
         )
 
-    missing = [
-        feature.name
-        for feature in candidate.features
-        if feature.name not in frame.columns
-    ]
-
-    if missing:
-        raise ValueError(
-            "Candidate refererar till saknade "
-            "features: "
-            + ", ".join(sorted(missing))
-        )
+    for feature in candidate.features:
+        try:
+            build_signal(
+                frame,
+                feature.name,
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "Candidate refererar till ogiltig "
+                f"feature-signal '{feature.name}': "
+                f"{exc}"
+            ) from exc
 
     target_names = {
         target.name
@@ -810,19 +773,23 @@ def distribution_diagnostics(
 
         training_summary = (
             _distribution_summary(
-                frame.loc[
-                    training_mask,
+                build_signal(
+                    frame.loc[
+                        training_mask,
+                    ],
                     name,
-                ]
+                )
             )
         )
 
         evaluation_summary = (
             _distribution_summary(
-                frame.loc[
-                    evaluation_mask,
+                build_signal(
+                    frame.loc[
+                        evaluation_mask,
+                    ],
                     name,
-                ]
+                )
             )
         )
 
