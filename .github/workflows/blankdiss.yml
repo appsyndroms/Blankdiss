@@ -54,6 +54,14 @@ jobs:
         run: |
           python -u -m fi
 
+      - name: Refresh FI historical positions
+        run: |
+          python -u -m fi.historical_positions
+
+      - name: Reconstruct FI aggregate
+        run: |
+          python -u -m fi.reconstruct_aggregate
+
       - name: Commit FI aggregate snapshots
         run: |
           set -e
