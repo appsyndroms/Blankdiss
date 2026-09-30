@@ -406,6 +406,29 @@ def _windows(
     )
 
 
+def _latest_feature_date(
+    frame: pd.DataFrame,
+):
+    if "snapshot_date" not in frame.columns:
+        raise ValueError(
+            "Feature-data saknar snapshot_date."
+        )
+
+    dates = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+        utc=True,
+    )
+
+    if dates.notna().sum() == 0:
+        raise ValueError(
+            "Feature-data saknar giltiga "
+            "snapshot_date-värden."
+        )
+
+    return dates.max().date()
+
+
 def run_evaluation(
     candidate_path: str | Path,
     evaluation_path: str | Path,
@@ -416,16 +439,21 @@ def run_evaluation(
         candidate_path
     )
 
+    frame = load_features()
+
+    latest_feature_date = _latest_feature_date(
+        frame
+    )
+
     evaluation = load_evaluation(
-        evaluation_path
+        evaluation_path,
+        as_of=latest_feature_date,
     )
 
     verify_evaluation(
         candidate,
         evaluation,
     )
-
-    frame = load_features()
 
     verification = build_verification_report(
         candidate,
