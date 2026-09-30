@@ -17,7 +17,7 @@
   },
   "source_fingerprint": {
     "algorithm": "sha256",
-    "fingerprint": "fa52dadbc1e8e1e6854e6816702092d9a2de147676343b97bdcace08c4b1e396",
+    "fingerprint": "59fe7bb0a627f5cd2848c2ce6d5df8009132ba8a32b5bfdeb59f4daa92a2e3b1",
     "files": [
       {
         "path": "data/processed/fi/aggregate/reconstructed.jsonl",
@@ -66,8 +66,8 @@
       },
       {
         "path": "data/raw/market/omxspi.jsonl",
-        "sha256": "61fba1f7b0e3990091db813357c8a9155941e7dc41f94b658cdcc47fdb749bbb",
-        "size_bytes": 76683
+        "sha256": "b6a55653dd10b2f018822e7db4cb6df73faa2b2f7c16ad53b041b1a7e4937443",
+        "size_bytes": 76226
       },
       {
         "path": "data/analysis/sector_map.json",
