@@ -3,7 +3,7 @@ research:
     enabled: true
 
     candidate:
-      path: ml/research/candidates/specs/candidate_momentum_si_001.yaml
+      path: ml/research/candidates/specs/momentum_si_001/candidate_momentum_si_001.yaml
 
     evaluation:
-      path: ml/research/candidates/specs/evaluation_candidate_momentum_si_001.yaml
+      path: ml/research/candidates/specs/momentum_si_001/evaluation_candidate_momentum_si_001.yam
