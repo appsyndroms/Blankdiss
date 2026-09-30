@@ -42,7 +42,7 @@
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
     "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl"
   ],
-  "rows": 208450,
+  "rows": 208452,
   "symbols": 312,
   "fi_period": {
     "start": "2022-05-25",
@@ -62,8 +62,8 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 135715,
-      "same_day": 130616,
+      "matched_rows": 135716,
+      "same_day": 130617,
       "one_day": 1291,
       "two_days": 936,
       "three_days": 375,
@@ -90,8 +90,8 @@
       "status": "PASS",
       "sources": {
         "isin": 133559,
-        "unmatched": 72735,
-        "issuer": 2156
+        "unmatched": 72736,
+        "issuer": 2157
       },
       "unexpected_sources": []
     },
@@ -115,26 +115,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 134357,
-          "null": 74093,
+          "non_null": 134358,
+          "null": 74094,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 132061,
-          "null": 76389,
+          "non_null": 132062,
+          "null": 76390,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
           "non_null": 128268,
-          "null": 80182,
+          "null": 80184,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
           "non_null": 122316,
-          "null": 86134,
+          "null": 86136,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -142,8 +142,8 @@
     },
     "forward_return_alignment": {
       "status": "PASS",
-      "verified_match": 517002,
-      "not_yet_verifiable": 25858,
+      "verified_match": 517004,
+      "not_yet_verifiable": 25860,
       "value_mismatch": 0,
       "price_date_not_found": 0,
       "missing_forward_return": 0,
@@ -301,9 +301,9 @@
     },
     "unmatched_rows": {
       "status": "WARN",
-      "total_rows": 208450,
-      "rows_with_price": 135715,
-      "rows_without_price": 72735,
+      "total_rows": 208452,
+      "rows_with_price": 135716,
+      "rows_without_price": 72736,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {
