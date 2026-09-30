@@ -1,61 +1,78 @@
 name: Blankdiss
+
 on:
   workflow_dispatch:
   schedule:
     - cron: "30 18 * * *"
       timezone: "Europe/Stockholm"
+
 permissions:
   contents: write
+  actions: read
   pages: write
   id-token: write
+
 concurrency:
   group: blankdiss-data-main
   cancel-in-progress: false
+
 env:
   OMP_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
   MKL_NUM_THREADS: "1"
   VECLIB_MAXIMUM_THREADS: "1"
   NUMEXPR_NUM_THREADS: "1"
+
 jobs:
   build:
     name: Bygg Blankdiss
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Fetch and commit FI data
         run: |
           bash scripts/fetch_fi.sh
+
       - name: Fetch and commit prices
         run: |
           bash scripts/fetch_prices.sh
+
       - name: Update OMXSPI
         run: |
           bash scripts/update_market.sh
+
       - name: Build features
         run: |
           bash scripts/build_features.sh
+
       - name: Run research scan
         run: |
           python -u -m ml.research.entrypoint scan
+
       - name: Run deep research
         run: |
           python -u -m ml.research.entrypoint deep
+
       - name: Run prospective research evaluation
         run: |
           python -u -m ml.research.entrypoint evaluate
+
       - name: Upload research scan artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,6 +80,7 @@ jobs:
           name: blankdiss-research-scan
           path: data/processed/ml/research/spec_runs/
           if-no-files-found: ignore
+
       - name: Upload research evaluation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,6 +88,26 @@ jobs:
           name: blankdiss-research-evaluation
           path: data/processed/ml/research/evaluation/
           if-no-files-found: ignore
+
       - name: Build web
         run: |
           python web_build.py
+
+      - name: Upload generated website
+        uses: actions/upload-artifact@v4
+        with:
+          name: blankdiss-web
+          if-no-files-found: error
+          path: pages/
+
+  publish-web:
+    name: Publicera webb
+    needs: build
+
+    uses: ./.github/workflows/bygg-webb.yml
+
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
