@@ -35,11 +35,10 @@ EVALUATION_DIR = (
     / "evaluation"
 )
 
-TEMPLATE = (
+TEMPLATE_DIR = (
     ROOT
     / "web"
     / "templates"
-    / "index.html"
 )
 
 STATIC_DIR = (
