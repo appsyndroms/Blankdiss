@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Mapping
@@ -24,9 +23,7 @@ from ml.research.candidates.verification import (
 )
 from ml.research.engine import run_spec
 from ml.research.evaluation.spec import (
-    EvaluationPeriod,
     EvaluationSpec,
-    WalkForwardSpec,
     WalkForwardWindow,
     load_evaluation,
 )
@@ -34,6 +31,9 @@ from ml.research.evaluation.verification import (
     verify_evaluation,
 )
 from ml.research.reporting import write_json
+from ml.research.signals import (
+    build_signal,
+)
 from ml.research.spec import (
     AnalysisSpec,
     ResearchSpec,
@@ -432,75 +432,88 @@ def _latest_feature_date(
     return dates.max().date()
 
 
-def _effective_evaluation(
-    evaluation: EvaluationSpec,
-    latest_feature_date: date,
-) -> EvaluationSpec:
-    """
-    Säkerställer att evaluation aldrig använder ett datum
-    som ännu inte finns i feature-datasetet.
+def _latest_candidate_feature_date(
+    frame: pd.DataFrame,
+    candidate,
+) -> date:
+    if "snapshot_date" not in frame.columns:
+        raise ValueError(
+            "Feature-data saknar snapshot_date."
+        )
 
-    Marknadsdata är den faktiska källan till evaluationens
-    effektiva slutdatum. Om en konfigurerad evaluation pekar
-    längre fram än senaste tillgängliga feature-datum kapas
-    evaluation och eventuella walk-forward-fönster dit.
-    """
-
-    latest = latest_feature_date.isoformat()
-
-    configured_end = pd.Timestamp(
-        evaluation.evaluation_period.end
-    ).date()
-
-    if configured_end <= latest_feature_date:
-        return evaluation
-
-    evaluation_period = EvaluationPeriod(
-        start=evaluation.evaluation_period.start,
-        end=latest,
+    dates = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+        utc=True,
     )
 
-    windows = []
+    if dates.notna().sum() == 0:
+        raise ValueError(
+            "Feature-data saknar giltiga "
+            "snapshot_date-värden."
+        )
 
-    for window in evaluation.walk_forward.windows:
-        window_end = pd.Timestamp(
-            window.end
-        ).date()
+    feature_dates = []
 
-        if window_end > latest_feature_date:
-            window = replace(
-                window,
-                end=latest,
+    for feature in candidate.features:
+        signal = build_signal(
+            frame,
+            feature.name,
+        )
+
+        usable_dates = dates[
+            signal.notna()
+            & dates.notna()
+        ]
+
+        if usable_dates.empty:
+            raise ValueError(
+                "Candidate feature saknar "
+                "användbara observationer: "
+                f"{feature.name}"
             )
 
-        windows.append(window)
+        latest_date = (
+            usable_dates.max().date()
+        )
 
-    walk_forward = WalkForwardSpec(
-        enabled=evaluation.walk_forward.enabled,
-        mode=evaluation.walk_forward.mode,
-        windows=tuple(windows),
-    )
-
-    resolved_id = evaluation.id
-
-    if evaluation.walk_forward.mode == "rolling":
-        suffix = f"_{latest}"
-
-        if not resolved_id.endswith(suffix):
-            resolved_id = (
-                f"{resolved_id}{suffix}"
+        feature_dates.append(
+            (
+                feature.name,
+                latest_date,
             )
+        )
 
-    return replace(
-        evaluation,
-        id=resolved_id,
-        evaluation_period=evaluation_period,
-        walk_forward=walk_forward,
+    effective_date = min(
+        latest_date
+        for _, latest_date
+        in feature_dates
     )
+
+    print(
+        "Candidate feature coverage:",
+        flush=True,
+    )
+
+    for feature_name, latest_date in feature_dates:
+        print(
+            f"  {feature_name}: "
+            f"{latest_date.isoformat()}",
+            flush=True,
+        )
+
+    print(
+        "Gemensamt candidate-feature-datum: "
+        f"{effective_date.isoformat()}",
+        flush=True,
+    )
+
+    return effective_date
 
 
 def _log_evaluation_context(
     latest_feature_date: date,
+    latest_candidate_feature_date: date,
     evaluation: EvaluationSpec,
 ) -> None:
     print(
@@ -518,6 +531,12 @@ def _log_evaluation_context(
     print(
         "Senaste tillgängliga feature-datum: "
         f"{latest_feature_date.isoformat()}",
+        flush=True,
+    )
+    print(
+        "Senaste gemensamma "
+        "candidate-feature-datum: "
+        f"{latest_candidate_feature_date.isoformat()}",
         flush=True,
     )
     print(
@@ -561,18 +580,21 @@ def run_evaluation(
         frame
     )
 
-    evaluation = load_evaluation(
-        evaluation_path,
-        as_of=latest_feature_date,
+    latest_candidate_feature_date = (
+        _latest_candidate_feature_date(
+            frame,
+            candidate,
+        )
     )
 
-    evaluation = _effective_evaluation(
-        evaluation,
-        latest_feature_date,
+    evaluation = load_evaluation(
+        evaluation_path,
+        as_of=latest_candidate_feature_date,
     )
 
     _log_evaluation_context(
         latest_feature_date,
+        latest_candidate_feature_date,
         evaluation,
     )
 
@@ -750,6 +772,9 @@ def run_evaluation(
             ),
             "latest_feature_date": (
                 latest_feature_date.isoformat()
+            ),
+            "latest_candidate_feature_date": (
+                latest_candidate_feature_date.isoformat()
             ),
             "fingerprint": data_fingerprint,
         },
