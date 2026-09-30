@@ -5,6 +5,16 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 cd "$ROOT"
 
+FORCE=false
+
+if [[ "${1:-}" == "--force" ]]; then
+    FORCE=true
+fi
+
+if [[ "${FORCE_SYNC:-false}" == "true" ]]; then
+    FORCE=true
+fi
+
 echo "=========================================="
 echo "FETCH FI"
 echo "=========================================="
@@ -12,28 +22,35 @@ echo "=========================================="
 SWEDISH_WEEKDAY="$(TZ=Europe/Stockholm date '+%u')"
 SWEDISH_TIME="$(TZ=Europe/Stockholm date '+%H:%M')"
 
-if [ "$SWEDISH_WEEKDAY" -ge 6 ]; then
+if [ "$FORCE" = true ]; then
     echo
-    echo "FI-hämtning hoppas över."
-    echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
-    echo "Idag är lördag eller söndag enligt svensk tid."
+    echo "FORCE SYNC AKTIVERAD."
+    echo "Normal tids- och helgspärr kringgås."
     echo "Svensk tid: $SWEDISH_TIME"
-    exit 0
-fi
+else
+    if [ "$SWEDISH_WEEKDAY" -ge 6 ]; then
+        echo
+        echo "FI-hämtning hoppas över."
+        echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
+        echo "Idag är lördag eller söndag enligt svensk tid."
+        echo "Svensk tid: $SWEDISH_TIME"
+        exit 0
+    fi
 
-if [[ "$SWEDISH_TIME" < "17:00" ]]; then
+    if [[ "$SWEDISH_TIME" < "17:00" ]]; then
+        echo
+        echo "FI-hämtning hoppas över."
+        echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
+        echo "Klockan är före 17:00 svensk tid."
+        echo "Svensk tid: $SWEDISH_TIME"
+        exit 0
+    fi
+
     echo
-    echo "FI-hämtning hoppas över."
-    echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
-    echo "Klockan är före 17:00 svensk tid."
+    echo "FI-hämtning tillåten."
+    echo "Tillåtet tidsfönster: måndag–fredag kl. 17:00–23:59 svensk tid."
     echo "Svensk tid: $SWEDISH_TIME"
-    exit 0
 fi
-
-echo
-echo "FI-hämtning tillåten."
-echo "Tillåtet tidsfönster: måndag–fredag kl. 17:00–23:59 svensk tid."
-echo "Svensk tid: $SWEDISH_TIME"
 
 echo
 echo "Hämtar aktuell FI-data och återställer"
