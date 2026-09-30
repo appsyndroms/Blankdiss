@@ -1,6 +1,6 @@
 schema_version: 1
 
-id: evaluation_candidate_momentum_si_001_2026q3
+id: evaluation_candidate_momentum_si_001_daily
 version: 1
 
 candidate:
@@ -8,9 +8,7 @@ candidate:
   version: 1
   fingerprint: "aeb3926ed0c1c2ba1abdd815420b2dc52bd964c5d16f594fde1f2a9d8a6009dd"
 
-evaluation_period:
-  start: "2026-07-16"
-  end: "2026-09-30"
+evaluation_period: {}
 
 metrics:
   - sample_size
@@ -20,7 +18,12 @@ metrics:
   - lift
 
 walk_forward:
-  enabled: false
+  enabled: true
+  mode: rolling
+  window_days:
+    - 5
+    - 20
+    - 60
   windows: []
 
 metadata:
