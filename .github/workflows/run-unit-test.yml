@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "tests/analysis/test_forward_return_identity.py"
+      - "tests/analysis/test_forward_return_alignment_diagnostic.py"
       - "analysis/**"
       - "data/raw/prices/**"
       - "data/processed/analysis/**"
@@ -28,8 +29,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run forward return identity test
+      - name: Run forward return identity tests
         run: |
           python -m pytest \
             tests/analysis/test_forward_return_identity.py \
+            tests/analysis/test_forward_return_alignment_diagnostic.py \
             -v -s
