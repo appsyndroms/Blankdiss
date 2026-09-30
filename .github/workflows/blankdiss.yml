@@ -3,9 +3,7 @@ name: Blankdiss
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 21 * * *"
-      timezone: "Europe/Stockholm"
-    - cron: "15 18 * * *"
+    - cron: "30 18 * * *"
       timezone: "Europe/Stockholm"
 
 permissions:
