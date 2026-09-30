@@ -9,6 +9,32 @@ echo "=========================================="
 echo "FETCH PRICES"
 echo "=========================================="
 
+SWEDISH_WEEKDAY="$(TZ=Europe/Stockholm date '+%u')"
+SWEDISH_TIME="$(TZ=Europe/Stockholm date '+%H:%M')"
+
+if [ "$SWEDISH_WEEKDAY" -ge 6 ]; then
+    echo
+    echo "Yahoo-hämtning hoppas över."
+    echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
+    echo "Idag är lördag eller söndag enligt svensk tid."
+    echo "Svensk tid: $SWEDISH_TIME"
+    exit 0
+fi
+
+if [[ "$SWEDISH_TIME" < "17:00" ]]; then
+    echo
+    echo "Yahoo-hämtning hoppas över."
+    echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
+    echo "Klockan är före 17:00 svensk tid."
+    echo "Svensk tid: $SWEDISH_TIME"
+    exit 0
+fi
+
+echo
+echo "Yahoo-hämtning tillåten."
+echo "Tillåtet tidsfönster: måndag–fredag kl. 17:00–23:59 svensk tid."
+echo "Svensk tid: $SWEDISH_TIME"
+
 echo
 echo "Hämtar Yahoo-priser från 2022-01-01..."
 
