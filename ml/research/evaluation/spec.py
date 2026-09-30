@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -23,6 +24,7 @@ class WalkForwardWindow:
 class WalkForwardSpec:
     enabled: bool
     windows: tuple[WalkForwardWindow, ...]
+    mode: str = "explicit"
 
 
 @dataclass(frozen=True)
@@ -81,9 +83,80 @@ class EvaluationSpec:
                 "ett metric."
             )
 
+        if self.walk_forward.mode not in {
+            "explicit",
+            "rolling",
+        }:
+            raise ValueError(
+                "walk_forward.mode måste vara "
+                "'explicit' eller 'rolling'."
+            )
+
+
+def _today_utc() -> date:
+    return datetime.now(
+        timezone.utc
+    ).date()
+
+
+def _build_rolling_windows(
+    as_of: date,
+    window_days: tuple[int, ...],
+) -> tuple[
+    EvaluationPeriod,
+    tuple[WalkForwardWindow, ...],
+]:
+    if not window_days:
+        raise ValueError(
+            "Rolling evaluation kräver minst "
+            "ett window_days-värde."
+        )
+
+    if any(
+        days < 1
+        for days in window_days
+    ):
+        raise ValueError(
+            "Rolling evaluation kräver "
+            "window_days >= 1."
+        )
+
+    if len(window_days) != len(
+        set(window_days)
+    ):
+        raise ValueError(
+            "Rolling evaluation får inte ha "
+            "dubbla window_days."
+        )
+
+    windows = tuple(
+        WalkForwardWindow(
+            name=f"{days}d",
+            start=(
+                as_of
+                - timedelta(days=days - 1)
+            ).isoformat(),
+            end=as_of.isoformat(),
+        )
+        for days in window_days
+    )
+
+    return (
+        EvaluationPeriod(
+            start=min(
+                window.start
+                for window in windows
+            ),
+            end=as_of.isoformat(),
+        ),
+        windows,
+    )
+
 
 def load_evaluation(
     path: str | Path,
+    *,
+    as_of: date | None = None,
 ) -> EvaluationSpec:
     path = Path(path)
 
@@ -163,11 +236,9 @@ def load_evaluation(
     candidate_id = candidate.get(
         "id"
     )
-
     candidate_version = candidate.get(
         "version"
     )
-
     fingerprint = candidate.get(
         "fingerprint"
     )
@@ -202,28 +273,6 @@ def load_evaluation(
             f"evaluation_period: {path}"
         )
 
-    start = period.get(
-        "start"
-    )
-
-    end = period.get(
-        "end"
-    )
-
-    if not start or not end:
-        raise ValueError(
-            "evaluation_period måste ha "
-            "start och end."
-        )
-
-    metrics = tuple(
-        str(value)
-        for value in payload.get(
-            "metrics",
-            [],
-        )
-    )
-
     raw_walk_forward = payload.get(
         "walk_forward",
         {},
@@ -237,48 +286,134 @@ def load_evaluation(
             "walk_forward måste vara ett objekt."
         )
 
-    windows = []
-
-    for index, raw_window in enumerate(
+    mode = str(
         raw_walk_forward.get(
-            "windows",
-            [],
-        ),
-        start=1,
-    ):
-        if not isinstance(
-            raw_window,
-            dict,
-        ):
+            "mode",
+            "explicit",
+        )
+    ).lower()
+
+    enabled = bool(
+        raw_walk_forward.get(
+            "enabled",
+            False,
+        )
+    )
+
+    if mode not in {
+        "explicit",
+        "rolling",
+    }:
+        raise ValueError(
+            "walk_forward.mode måste vara "
+            "'explicit' eller 'rolling'."
+        )
+
+    if mode == "rolling":
+        if not enabled:
             raise ValueError(
-                "Varje walk-forward-window "
-                "måste vara ett objekt."
+                "walk_forward.mode=rolling "
+                "kräver enabled=true."
             )
 
-        windows.append(
-            WalkForwardWindow(
-                name=str(
-                    raw_window.get(
-                        "name",
-                        f"window_{index}",
-                    )
-                ),
-                start=str(
-                    raw_window["start"]
-                ),
-                end=str(
-                    raw_window["end"]
-                ),
+        raw_window_days = raw_walk_forward.get(
+            "window_days",
+            [],
+        )
+
+        if not isinstance(
+            raw_window_days,
+            list,
+        ):
+            raise ValueError(
+                "walk_forward.window_days "
+                "måste vara en lista."
+            )
+
+        window_days = tuple(
+            int(value)
+            for value in raw_window_days
+        )
+
+        resolved_as_of = (
+            as_of
+            if as_of is not None
+            else _today_utc()
+        )
+
+        resolved_period, windows = (
+            _build_rolling_windows(
+                resolved_as_of,
+                window_days,
             )
         )
 
-    walk_forward = WalkForwardSpec(
-        enabled=bool(
-            raw_walk_forward.get(
-                "enabled",
-                False,
+        resolved_id = (
+            f"{payload['id']}"
+            f"_{resolved_as_of.isoformat()}"
+        )
+
+    else:
+        start = period.get(
+            "start"
+        )
+        end = period.get(
+            "end"
+        )
+
+        if not start or not end:
+            raise ValueError(
+                "evaluation_period måste ha "
+                "start och end."
             )
-        ),
+
+        resolved_period = EvaluationPeriod(
+            start=str(start),
+            end=str(end),
+        )
+
+        windows = []
+
+        for index, raw_window in enumerate(
+            raw_walk_forward.get(
+                "windows",
+                [],
+            ),
+            start=1,
+        ):
+            if not isinstance(
+                raw_window,
+                dict,
+            ):
+                raise ValueError(
+                    "Varje walk-forward-window "
+                    "måste vara ett objekt."
+                )
+
+            windows.append(
+                WalkForwardWindow(
+                    name=str(
+                        raw_window.get(
+                            "name",
+                            f"window_{index}",
+                        )
+                    ),
+                    start=str(
+                        raw_window["start"]
+                    ),
+                    end=str(
+                        raw_window["end"]
+                    ),
+                )
+            )
+
+        resolved_id = str(
+            payload["id"]
+        )
+
+    walk_forward = WalkForwardSpec(
+        enabled=enabled,
+        mode=mode,
         windows=tuple(windows),
     )
 
@@ -290,6 +425,14 @@ def load_evaluation(
             "walk_forward.enabled=true "
             "kräver windows."
         )
+
+    metrics = tuple(
+        str(value)
+        for value in payload.get(
+            "metrics",
+            [],
+        )
+    )
 
     metadata = payload.get(
         "metadata",
@@ -311,9 +454,7 @@ def load_evaluation(
                 1,
             )
         ),
-        id=str(
-            payload["id"]
-        ),
+        id=resolved_id,
         version=int(
             payload["version"]
         ),
@@ -326,10 +467,7 @@ def load_evaluation(
         candidate_fingerprint=str(
             fingerprint
         ),
-        evaluation_period=EvaluationPeriod(
-            start=str(start),
-            end=str(end),
-        ),
+        evaluation_period=resolved_period,
         metrics=metrics,
         walk_forward=walk_forward,
         metadata=dict(metadata),
