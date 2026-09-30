@@ -5,13 +5,34 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 cd "$ROOT"
 
+FORCE=false
+
+if [[ "${1:-}" == "--force" ]]; then
+    FORCE=true
+fi
+
+if [[ "${FORCE_SYNC:-false}" == "true" ]]; then
+    FORCE=true
+fi
+
 echo "=========================================="
 echo "BUILD FEATURES"
 echo "=========================================="
 
+if [ "$FORCE" = true ]; then
+    echo
+    echo "FORCE FEATURE BUILD AKTIVERAD."
+    echo "Bygger om feature-datasetet."
+fi
+
 echo
 echo "Bygger feature-dataset..."
-python -u -m analysis.build_features
+
+if [ "$FORCE" = true ]; then
+    python -u -m analysis.build_features --force
+else
+    python -u -m analysis.build_features
+fi
 
 echo
 echo "=========================================="
@@ -129,36 +150,16 @@ echo "=========================================="
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-# ==========================================================
-# LEGACY-FILER
-#
-# Legacy-datasetet används fortfarande som artifact men ska
-# inte påverka Git-committen.
-#
-# fi_price_features_metadata.json är tracked och återställs
-# till versionen i HEAD.
-#
-# fi_price_features.jsonl är genererad och ska inte ligga
-# kvar som en ändring i working tree.
-# ==========================================================
-
 git checkout -- \
   data/processed/analysis/fi_price_features_metadata.json
 
 rm -f \
   data/processed/analysis/fi_price_features.jsonl
 
-# ==========================================================
-# STAGE CANONICAL FEATURE DATASET
-# ==========================================================
-
 git add \
   data/processed/analysis/features_*.jsonl \
   data/processed/analysis/features_metadata.json \
   data/processed/analysis/features_qc.json
-
-# Säkerhetskontroll:
-# Legacy-dataseten får aldrig hamna i committen.
 
 git reset -- \
   data/processed/analysis/fi_price_features.jsonl \
