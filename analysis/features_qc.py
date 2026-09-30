@@ -864,7 +864,23 @@ def check_forward_return_alignment(
     handelsdagarna direkt från prisserien och
     jämförs med de lagrade forward returns.
 
-    Detta fångar fel i shift-logiken.
+    Ett target som ligger efter den aktuella
+    prisseriens slut kan inte verifieras ännu.
+    Det klassificeras därför som
+    "not_yet_verifiable" och är inte ett QC-fel.
+
+    Ett lagrat target som borde kunna verifieras
+    men saknas är däremot ett fel.
+
+    Ett numeriskt avvikande target är också ett fel.
+
+    Returnerar:
+
+        verified_match
+        not_yet_verifiable
+        value_mismatch
+        price_date_not_found
+        missing_forward_return
     """
 
     price_frame = prices.copy()
@@ -879,6 +895,11 @@ def check_forward_return_alignment(
         errors="coerce",
     )
 
+    price_frame = price_frame.loc[
+        price_frame["date"].notna()
+        & price_frame["close"].notna()
+    ].copy()
+
     price_frame = price_frame.sort_values(
         [
             "yahoo_symbol",
@@ -887,7 +908,33 @@ def check_forward_return_alignment(
         kind="mergesort",
     )
 
-    mismatches: list[dict[str, Any]] = []
+    price_groups = {
+        symbol: group.reset_index(
+            drop=True
+        )
+        for symbol, group
+        in price_frame.groupby(
+            "yahoo_symbol",
+            sort=False,
+        )
+    }
+
+    counts = {
+        "verified_match": 0,
+        "not_yet_verifiable": 0,
+        "value_mismatch": 0,
+        "price_date_not_found": 0,
+        "missing_forward_return": 0,
+    }
+
+    examples = {
+        "value_mismatch": [],
+        "price_date_not_found": [],
+        "missing_forward_return": [],
+        "not_yet_verifiable": [],
+    }
+
+    max_examples = 20
 
     matched = frame.loc[
         frame[
@@ -900,17 +947,6 @@ def check_forward_return_alignment(
             "price_date"
         ].notna()
     ].copy()
-
-    price_groups = {
-        symbol: group.reset_index(
-            drop=True
-        )
-        for symbol, group
-        in price_frame.groupby(
-            "yahoo_symbol",
-            sort=False,
-        )
-    }
 
     for row in matched.itertuples(
         index=False
@@ -935,28 +971,62 @@ def check_forward_return_alignment(
         )
 
         if group is None:
+            counts[
+                "price_date_not_found"
+            ] += 1
+
+            if len(
+                examples[
+                    "price_date_not_found"
+                ]
+            ) < max_examples:
+                examples[
+                    "price_date_not_found"
+                ].append(
+                    {
+                        "yahoo_symbol": symbol,
+                        "price_date": (
+                            price_date
+                            .date()
+                            .isoformat()
+                        ),
+                        "reason": (
+                            "symbol_not_found_in_price_data"
+                        ),
+                    }
+                )
+
             continue
 
         positions = group.index[
-            group["date"]
-            == price_date
+            group["date"] == price_date
         ].tolist()
 
         if not positions:
-            mismatches.append(
-                {
-                    "reason": "price_date_not_found",
-                    "yahoo_symbol": symbol,
-                    "price_date": (
-                        price_date
-                        .date()
-                        .isoformat()
-                    ),
-                }
-            )
+            counts[
+                "price_date_not_found"
+            ] += 1
 
-            if len(mismatches) >= 20:
-                break
+            if len(
+                examples[
+                    "price_date_not_found"
+                ]
+            ) < max_examples:
+                examples[
+                    "price_date_not_found"
+                ].append(
+                    {
+                        "yahoo_symbol": symbol,
+                        "price_date": (
+                            price_date
+                            .date()
+                            .isoformat()
+                        ),
+                        "reason": (
+                            "price_date_not_found"
+                        ),
+                    }
+                )
 
             continue
 
@@ -969,11 +1039,40 @@ def check_forward_return_alignment(
             ]
         )
 
-        for window in FORWARD_WINDOWS:
-            target_position = (
-                position + window
+        if (
+            not math.isfinite(
+                base_price
             )
+            or base_price <= 0
+        ):
+            counts[
+                "value_mismatch"
+            ] += 1
 
+            if len(
+                examples[
+                    "value_mismatch"
+                ]
+            ) < max_examples:
+                examples[
+                    "value_mismatch"
+                ].append(
+                    {
+                        "yahoo_symbol": symbol,
+                        "price_date": (
+                            price_date
+                            .date()
+                            .isoformat()
+                        ),
+                        "reason": (
+                            "invalid_base_price"
+                        ),
+                    }
+                )
+
+            continue
+
+        for window in FORWARD_WINDOWS:
             column = (
                 f"forward_return_{window}d"
             )
@@ -984,10 +1083,55 @@ def check_forward_return_alignment(
                 None,
             )
 
+            target_position = (
+                position + window
+            )
+
+            # Prisarkivet räcker ännu inte fram till
+            # den observation som krävs för detta target.
+            #
+            # Detta är förväntat i ett löpande dataset och
+            # ska därför inte ge FAIL.
             if (
                 target_position
                 >= len(group)
             ):
+                counts[
+                    "not_yet_verifiable"
+                ] += 1
+
+                if len(
+                    examples[
+                        "not_yet_verifiable"
+                    ]
+                ) < max_examples:
+                    examples[
+                        "not_yet_verifiable"
+                    ].append(
+                        {
+                            "yahoo_symbol": symbol,
+                            "price_date": (
+                                price_date
+                                .date()
+                                .isoformat()
+                            ),
+                            "window": window,
+                            "stored": (
+                                None
+                                if stored is None
+                                or pd.isna(stored)
+                                else float(stored)
+                            ),
+                            "current_last_date": (
+                                group.iloc[-1][
+                                    "date"
+                                ]
+                                .date()
+                                .isoformat()
+                            ),
+                        }
+                    )
+
                 continue
 
             future_price = float(
@@ -997,799 +1141,23 @@ def check_forward_return_alignment(
                 ]
             )
 
-            expected = (
-                future_price
-                / base_price
-                - 1.0
-            )
-
-            if pd.isna(stored):
-                mismatches.append(
-                    {
-                        "reason": "missing_forward_return",
-                        "yahoo_symbol": symbol,
-                        "price_date": (
-                            price_date
-                            .date()
-                            .isoformat()
-                        ),
-                        "window": window,
-                    }
-                )
-            elif not math.isclose(
-                float(stored),
-                expected,
-                rel_tol=1e-9,
-                abs_tol=1e-9,
-            ):
-                mismatches.append(
-                    {
-                        "reason": "forward_return_mismatch",
-                        "yahoo_symbol": symbol,
-                        "price_date": (
-                            price_date
-                            .date()
-                            .isoformat()
-                        ),
-                        "window": window,
-                        "stored": float(
-                            stored
-                        ),
-                        "expected": expected,
-                    }
-                )
-
-            if len(mismatches) >= 20:
-                break
-
-        if len(mismatches) >= 20:
-            break
-
-    return {
-        "status": (
-            "FAIL"
-            if mismatches
-            else "PASS"
-        ),
-        "mismatches_found": int(
-            len(mismatches)
-        ),
-        "examples": mismatches[:20],
-    }
-
-
-def check_price_leakage(
-    frame: pd.DataFrame,
-) -> dict[str, Any]:
-    """
-    Kontrollerar att framtida prisfält inte används
-    som samtidiga features.
-
-    Forward-return-kolumnerna är tillåtna som targets.
-
-    Alla andra prisrelaterade kolumner måste representera
-    signalpris eller information som fanns senast vid
-    FI-observationen.
-    """
-
-    forbidden_patterns = (
-        "future_",
-        "next_",
-        "forward_price",
-    )
-
-    forbidden_columns = [
-        column
-        for column in frame.columns
-        if any(
-            pattern in column.lower()
-            for pattern in forbidden_patterns
-        )
-        and not column.startswith(
-            "forward_return_"
-        )
-    ]
-
-    return {
-        "status": (
-            "FAIL"
-            if forbidden_columns
-            else "PASS"
-        ),
-        "forbidden_future_price_columns": sorted(
-            forbidden_columns
-        ),
-    }
-
-
-def check_unmatched_rows(
-    frame: pd.DataFrame,
-) -> dict[str, Any]:
-    """Summerar FI-rader utan pris."""
-
-    matched = frame[
-        "price_match_available"
-    ].fillna(False)
-
-    return {
-        "status": (
-            "WARN"
-            if (~matched).any()
-            else "PASS"
-        ),
-        "total_rows": int(
-            len(frame)
-        ),
-        "rows_with_price": int(
-            matched.sum()
-        ),
-        "rows_without_price": int(
-            (~matched).sum()
-        ),
-        "symbols_without_price": int(
-            frame.loc[
-                ~matched,
-                "yahoo_symbol",
-            ]
-            .dropna()
-            .nunique()
-        ),
-    }
-
-
-def check_feature_numeric_values(
-    frame: pd.DataFrame,
-) -> dict[str, Any]:
-    """Kontrollerar centrala numeriska featurefält."""
-
-    columns = [
-        "short_interest_pct",
-        "active_holders",
-        "max_individual_position_pct",
-        "max_position_share_pct",
-        "short_interest_delta_pp",
-        "short_interest_relative_change",
-        "short_interest_acceleration_pp",
-        "holder_delta",
-        "max_position_delta_pp",
-        "concentration_delta_pp",
-        "days_since_previous_fi_observation",
-    ]
-
-    invalid_by_column: dict[str, int] = {}
-
-    for column in columns:
-        if column not in frame.columns:
-            continue
-
-        values = frame[column]
-
-        invalid = 0
-
-        for value in values.loc[
-            values.notna()
-        ]:
-            if not finite_numeric(value):
-                invalid += 1
-
-        if invalid:
-            invalid_by_column[
-                column
-            ] = invalid
-
-    return {
-        "status": (
-            "FAIL"
-            if invalid_by_column
-            else "PASS"
-        ),
-        "invalid_by_column": invalid_by_column,
-    }
-
-
-def check_threshold_logic(
-    frame: pd.DataFrame,
-) -> dict[str, Any]:
-    """
-    Kontrollerar att entered/exited-flaggor
-    faktiskt följer threshold-logiken.
-
-    Vi testar endast rader där både aktuell och
-    föregående short-interest finns.
-
-    Viktigt:
-    itertuples(name=None) används här eftersom
-    pandas annars kan ändra kolumnnamn som börjar
-    med underscore, exempelvis "_current".
-    """
-
-    failures: list[dict[str, Any]] = []
-
-    for threshold in (
-        1.0,
-        2.0,
-        3.0,
-        5.0,
-    ):
-        suffix = str(
-            threshold
-        ).replace(
-            ".",
-            "_",
-        )
-
-        above_column = (
-            f"above_{suffix}pct"
-        )
-
-        entered_column = (
-            f"entered_above_{suffix}pct"
-        )
-
-        exited_column = (
-            f"exited_below_{suffix}pct"
-        )
-
-        working = frame.copy()
-
-        working[
-            "_current"
-        ] = pd.to_numeric(
-            working[
-                "short_interest_pct"
-            ],
-            errors="coerce",
-        )
-
-        working = working.sort_values(
-            [
-                "security_key",
-                "snapshot_date",
-            ],
-            kind="mergesort",
-        )
-
-        working[
-            "_previous"
-        ] = working.groupby(
-            "security_key",
-            sort=False,
-        )[
-            "_current"
-        ].shift(1)
-
-        columns_to_check = [
-            "security_key",
-            "snapshot_date",
-            "_current",
-            "_previous",
-            above_column,
-            entered_column,
-            exited_column,
-        ]
-
-        for (
-            security_key,
-            snapshot_date,
-            current,
-            previous,
-            actual_above,
-            actual_entered,
-            actual_exited,
-        ) in working[
-            columns_to_check
-        ].itertuples(
-            index=False,
-            name=None,
-        ):
             if (
-                pd.isna(current)
-                or pd.isna(previous)
+                not math.isfinite(
+                    future_price
+                )
+                or future_price <= 0
             ):
-                continue
-
-            expected_above = (
-                current >= threshold
-            )
-
-            expected_entered = (
-                current >= threshold
-                and previous < threshold
-            )
-
-            expected_exited = (
-                current < threshold
-                and previous >= threshold
-            )
-
-            actual_above = bool(
-                actual_above
-            )
-
-            actual_entered = bool(
-                actual_entered
-            )
-
-            actual_exited = bool(
-                actual_exited
-            )
-
-            if (
-                actual_above
-                != expected_above
-                or actual_entered
-                != expected_entered
-                or actual_exited
-                != expected_exited
-            ):
-                failures.append(
-                    {
-                        "threshold": threshold,
-                        "security_key": str(
-                            security_key
-                        ),
-                        "snapshot_date": str(
-                            snapshot_date
-                        ),
-                        "current": float(
-                            current
-                        ),
-                        "previous": float(
-                            previous
-                        ),
-                        "expected_above": bool(
-                            expected_above
-                        ),
-                        "actual_above": bool(
-                            actual_above
-                        ),
-                        "expected_entered": bool(
-                            expected_entered
-                        ),
-                        "actual_entered": bool(
-                            actual_entered
-                        ),
-                        "expected_exited": bool(
-                            expected_exited
-                        ),
-                        "actual_exited": bool(
-                            actual_exited
-                        ),
-                    }
-                )
-
-                if len(failures) >= 20:
-                    break
-
-        if len(failures) >= 20:
-            break
-
-    return {
-        "status": (
-            "FAIL"
-            if failures
-            else "PASS"
-        ),
-        "failures_found": int(
-            len(failures)
-        ),
-        "examples": failures[:20],
-    }
-
-
-def load_price_files() -> list[Path]:
-    """Hittar alla lokala prisfiler."""
-
-    files = sorted(
-        PRICE_DIR.glob(
-            "prices_*.jsonl"
-        )
-    )
-
-    if not files:
-        raise FileNotFoundError(
-            f"Inga prisfiler hittades i "
-            f"{PRICE_DIR}"
-        )
-
-    return files
-
-
-def load_prices(
-    paths: list[Path],
-) -> pd.DataFrame:
-    """Läser all prisdata för oberoende QC."""
-
-    frames: list[pd.DataFrame] = []
-
-    for path in paths:
-        print(
-            f"  Läser prisfil {path.name}"
-        )
-
-        prices = load_jsonl(
-            path
-        )
-
-        required = {
-            "date",
-            "yahoo_symbol",
-            "close",
-        }
-
-        missing = required.difference(
-            prices.columns
-        )
-
-        if missing:
-            raise ValueError(
-                f"Prisfil {path} saknar "
-                "kolumner: "
-                + ", ".join(
-                    sorted(missing)
-                )
-            )
-
-        frames.append(
-            prices
-        )
-
-    prices = pd.concat(
-        frames,
-        ignore_index=True,
-    )
-
-    prices["date"] = pd.to_datetime(
-        prices["date"],
-        errors="coerce",
-    )
-
-    prices["close"] = pd.to_numeric(
-        prices["close"],
-        errors="coerce",
-    )
-
-    prices["yahoo_symbol"] = (
-        prices[
-            "yahoo_symbol"
-        ]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    prices = prices.loc[
-        prices["date"].notna()
-        & prices[
-            "yahoo_symbol"
-        ].ne("")
-        & prices["close"].notna()
-    ].copy()
-
-    # Om samma symbol + datum finns i mer än en
-    # prisfil ska samma observation inte räknas flera gånger.
-    prices = (
-        prices
-        .sort_values(
-            [
-                "yahoo_symbol",
-                "date",
-            ],
-            kind="mergesort",
-        )
-        .drop_duplicates(
-            subset=[
-                "yahoo_symbol",
-                "date",
-            ],
-            keep="last",
-        )
-    )
-
-    return prices.sort_values(
-        [
-            "yahoo_symbol",
-            "date",
-        ],
-        kind="mergesort",
-    ).reset_index(
-        drop=True
-    )
-
-
-def build_summary(
-    checks: dict[str, dict[str, Any]],
-) -> str:
-    """Bestämmer övergripande QC-status."""
-
-    statuses = [
-        value.get(
-            "status"
-        )
-        for value in checks.values()
-    ]
-
-    if "FAIL" in statuses:
-        return "FAIL"
-
-    if "WARN" in statuses:
-        return "WARN"
-
-    return "PASS"
-
-
-def main() -> None:
-    print(
-        "Feature-QC: startar."
-    )
-
-    feature_paths = sorted(
-        FEATURES_DIR.glob(
-            FEATURES_GLOB
-        )
-    )
-
-    print(
-        f"Feature-chunks: "
-        f"{len(feature_paths)}"
-    )
-
-    features = load_feature_chunks()
-
-    print(
-        f"Feature-rader: {len(features):,}"
-    )
-
-    column_check = (
-        check_required_columns(
-            features
-        )
-    )
-
-    if column_check[
-        "status"
-    ] == "FAIL":
-        report = {
-            "dataset": (
-                "Blankdiss FI + price features"
-            ),
-            "status": "FAIL",
-            "checks": {
-                "required_columns": column_check,
-            },
-        }
-
-        QC_PATH.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        with QC_PATH.open(
-            "w",
-            encoding="utf-8",
-        ) as handle:
-            json.dump(
-                report,
-                handle,
-                ensure_ascii=False,
-                indent=2,
-            )
-
-        raise SystemExit(
-            "Feature-QC FAIL: "
-            "obligatoriska kolumner saknas."
-        )
-
-    features = prepare_dates(
-        features
-    )
-
-    mapping = load_mapping()
-
-    price_files = load_price_files()
-
-    prices = load_prices(
-        price_files
-    )
-
-    checks: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    checks[
-        "required_columns"
-    ] = column_check
-
-    checks[
-        "date_integrity"
-    ] = check_date_integrity(
-        features
-    )
-
-    checks[
-        "match_distances"
-    ] = check_match_distances(
-        features
-    )
-
-    checks[
-        "first_price_problem"
-    ] = check_first_price_problem(
-        features,
-        prices,
-    )
-
-    checks[
-        "mapping_integrity"
-    ] = check_mapping_integrity(
-        features,
-        mapping,
-    )
-
-    checks[
-        "mapping_sources"
-    ] = check_mapping_sources(
-        features
-    )
-
-    checks[
-        "identity_consistency"
-    ] = check_identity_consistency(
-        features
-    )
-
-    checks[
-        "duplicate_features"
-    ] = check_duplicate_features(
-        features
-    )
-
-    checks[
-        "price_values"
-    ] = check_price_values(
-        features
-    )
-
-    checks[
-        "forward_returns"
-    ] = check_forward_returns(
-        features
-    )
-
-    checks[
-        "forward_return_alignment"
-    ] = check_forward_return_alignment(
-        features,
-        prices,
-    )
-
-    checks[
-        "price_leakage"
-    ] = check_price_leakage(
-        features
-    )
-
-    checks[
-        "unmatched_rows"
-    ] = check_unmatched_rows(
-        features
-    )
-
-    checks[
-        "feature_numeric_values"
-    ] = check_feature_numeric_values(
-        features
-    )
-
-    checks[
-        "threshold_logic"
-    ] = check_threshold_logic(
-        features
-    )
-
-    status = build_summary(
-        checks
-    )
-
-    report = {
-        "dataset": (
-            "Blankdiss FI + price features"
-        ),
-        "status": status,
-        "feature_files": [
-            str(
-                path.relative_to(
-                    ROOT
-                )
-            )
-            for path in feature_paths
-        ],
-        "price_files": [
-            str(
-                path.relative_to(
-                    ROOT
-                )
-            )
-            for path in price_files
-        ],
-        "rows": int(
-            len(features)
-        ),
-        "symbols": int(
-            features[
-                "yahoo_symbol"
-            ]
-            .dropna()
-            .nunique()
-        ),
-        "fi_period": {
-            "start": (
-                features[
-                    "snapshot_date"
-                ]
-                .min()
-                .date()
-                .isoformat()
-                if features[
-                    "snapshot_date"
-                ].notna().any()
-                else None
-            ),
-            "end": (
-                features[
-                    "snapshot_date"
-                ]
-                .max()
-                .date()
-                .isoformat()
-                if features[
-                    "snapshot_date"
-                ].notna().any()
-                else None
-            ),
-        },
-        "checks": checks,
-    }
-
-    QC_PATH.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    with QC_PATH.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(
-            report,
-            handle,
-            ensure_ascii=False,
-            indent=2,
-        )
-
-    print()
-    print(
-        "Feature-QC"
-    )
-    print(
-        f"Status: {status}"
-    )
-
-    for name, result in checks.items():
-        print(
-            f"{name}: "
-            f"{result.get('status')}"
-        )
-
-    print()
-    print(
-        f"QC-rapport: {QC_PATH}"
-    )
-
-    if status == "FAIL":
-        raise SystemExit(1)
-
-
-if __name__ == "__main__":
-    main()
+                counts[
+                    "value_mismatch"
+                ] += 1
+
+                if len(
+                    examples[
+                        "value_mismatch"
+                    ]
+                ) < max_examples:
+                    examples[
+                        "value_mismatch"
+                    ].append(
+                        {
+                            "yahoo_symbol":
