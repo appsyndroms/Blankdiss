@@ -1,64 +1,16 @@
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
-import numpy as np
-
+from .analysis_utils import (
+    regime_rate,
+    stable_seed,
+)
 from .bootstrap import (
     bootstrap_binary_rate_difference_between_groups,
 )
 from .cache import ResearchCache, _tail_key
 from .spec import SignalSpec
-
-
-def _stable_seed(
-    *parts: object,
-) -> int:
-    payload = "|".join(
-        str(part)
-        for part in parts
-    ).encode("utf-8")
-
-    digest = hashlib.sha256(
-        payload
-    ).digest()
-
-    return int.from_bytes(
-        digest[:8],
-        byteorder="little",
-        signed=False,
-    ) % (2**32 - 1)
-
-
-def _regime_rate(
-    target,
-    mask,
-) -> dict[str, Any]:
-    selected = target[mask]
-
-    selected = selected[
-        np.isfinite(selected)
-    ]
-
-    n = int(selected.shape[0])
-
-    if n == 0:
-        return {
-            "n": 0,
-            "events": 0,
-            "event_rate": None,
-        }
-
-    events = int(
-        (selected > 0).sum()
-    )
-
-    return {
-        "n": n,
-        "events": events,
-        "event_rate": events / n,
-    }
 
 
 def analyse_conditional_regime_comparison(
@@ -158,17 +110,17 @@ def analyse_conditional_regime_comparison(
         & window_mask
     )
 
-    baseline_metrics = _regime_rate(
+    baseline_metrics = regime_rate(
         target,
         baseline_in_window,
     )
 
-    incremental_metrics = _regime_rate(
+    incremental_metrics = regime_rate(
         target,
         incremental_in_window,
     )
 
-    comparator_metrics = _regime_rate(
+    comparator_metrics = regime_rate(
         target,
         comparator_in_window,
     )
@@ -208,7 +160,7 @@ def analyse_conditional_regime_comparison(
     ci_high = None
 
     if bootstrap:
-        seed = _stable_seed(
+        seed = stable_seed(
             spec_id,
             *(
                 part
