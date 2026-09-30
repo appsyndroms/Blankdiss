@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Blankdiss – Köpläge</title>
+    <link
+        rel="stylesheet"
+        href="./style.css?v=3"
+    >
+</head>
+
+<body>
+
+<header class="hero">
+    <div class="container">
+
+        <div class="brand">
+            📉 BLANKDISS
+        </div>
+
+        <h1>
+            Köpläge
+        </h1>
+
+        <p class="lead">
+            Aktuella observationer och förändringar i blankning.
+        </p>
+
+        <nav class="tabs" aria-label="Huvudnavigation">
+
+            <a
+                class="tab"
+                href="./index.html"
+            >
+                Hem
+            </a>
+
+            <a
+                class="tab active"
+                href="./koplage.html"
+            >
+                Köpläge
+            </a>
+
+            <a
+                class="tab"
+                href="./bedomning.html"
+            >
+                Bedömning
+            </a>
+
+            <a
+                class="tab"
+                href="./dataanalys.html"
+            >
+                Dataanalys
+            </a>
+
+        </nav>
+
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="cards">
+
+        <div class="card">
+            <span class="label">
+                Händelser
+            </span>
+
+            <strong>
+                {{EVENT_COUNT}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Analys
+            </span>
+
+            <strong>
+                Event study
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                ML-experiment
+            </span>
+
+            <strong>
+                {{ML_EXPERIMENT_COUNT}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Senast uppdaterad
+            </span>
+
+            <strong class="timestamp">
+                {{GENERATED_AT}}
+            </strong>
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
+                AKTUELLT
+            </span>
+
+            <h2>
+                Aktuella fynd
+            </h2>
+
+            <p>
+                De senaste observerade förändringarna i blankning.
+            </p>
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>
+                            Aktie
+                        </th>
+
+                        <th>
+                            Blankning
+                        </th>
+
+                        <th>
+                            Förändring
+                        </th>
+
+                        <th>
+                            1d
+                        </th>
+
+                        <th>
+                            5d
+                        </th>
+
+                        <th>
+                            20d
+                        </th>
+
+                        <th>
+                            60d
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+                    {{EVENT_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <section class="explanation">
+
+        <span class="eyebrow">
+            HUR BLANKDISS ANVÄNDS
+        </span>
+
+        <h2>
+            Från observation till signal
+        </h2>
+
+        <p>
+            Blankdiss börjar med att observera förändringar i
+            blankning. Därefter jämförs dessa observationer med
+            vad som historiskt hänt med aktien.
+        </p>
+
+        <p>
+            Tabellen visar observationen och den efterföljande
+            aktieutvecklingen över olika tidsperioder.
+        </p>
+
+        <p>
+            Ett aktuellt blankningsmönster är en observation och
+            inte i sig en automatisk köp- eller säljrekommendation.
+        </p>
+
+    </section>
+
+
+    <footer>
+
+        <span>
+            Blankdiss
+        </span>
+
+        <span>
+            Genererad {{GENERATED_AT}}
+        </span>
+
+    </footer>
+
+</main>
+
+</body>
+</html>
