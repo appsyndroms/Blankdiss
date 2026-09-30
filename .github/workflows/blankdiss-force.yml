@@ -52,7 +52,7 @@ jobs:
 
       - name: Update OMXSPI
         run: |
-          python -u -m analysis.update_market
+          bash scripts/update_market.sh --force
 
       - name: Build features
         run: |
