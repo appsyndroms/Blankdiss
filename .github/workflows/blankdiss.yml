@@ -158,6 +158,10 @@ jobs:
         run: |
           python -u -m analysis.update_market
 
+      - name: Build features
+        run: |
+          bash scripts/build_features.sh
+
       - name: Run research scan
         run: |
           python -u -m ml.research.entrypoint scan
