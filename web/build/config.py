@@ -1,24 +1,45 @@
 from __future__ import annotations
 from pathlib import Path
 from zoneinfo import ZoneInfo
-PROJECT_ROOT = (
+ROOT = (
     Path(__file__)
     .resolve()
     .parents[2]
 )
 OUTPUT_DIR = (
-    PROJECT_ROOT
+    ROOT
     / "pages"
 )
 STATIC_DIR = (
-    PROJECT_ROOT
+    ROOT
     / "web"
     / "static"
 )
 TEMPLATE_DIR = (
-    PROJECT_ROOT
+    ROOT
     / "web"
     / "templates"
+)
+ANALYSIS_DIR = (
+    ROOT
+    / "data"
+    / "analysis"
+)
+EVENT_DIR = (
+    ROOT
+    / "data"
+    / "events"
+)
+ML_DIR = (
+    ROOT
+    / "data"
+    / "processed"
+    / "ml"
+)
+EVALUATION_DIR = (
+    ML_DIR
+    / "research"
+    / "evaluation"
 )
 STOCKHOLM = ZoneInfo(
     "Europe/Stockholm"
