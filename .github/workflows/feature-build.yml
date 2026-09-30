@@ -1,115 +1,51 @@
 name: Build Features
+
 on:
   workflow_dispatch:
   schedule:
     - cron: "30 2 * * *"
       timezone: "Europe/Stockholm"
+
 permissions:
   contents: write
+
 concurrency:
-  group: feature-build-main
+  group: blankdiss-data-main
   cancel-in-progress: false
+
 env:
   OMP_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
   MKL_NUM_THREADS: "1"
   VECLIB_MAXIMUM_THREADS: "1"
   NUMEXPR_NUM_THREADS: "1"
+
 jobs:
   build:
     name: Bygg features
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Build features
         run: |
-          python -u -m analysis.build_features
-      - name: Verify feature dataset
-        run: |
-          set -e
-          test -f data/processed/analysis/features_metadata.json
-          test -f data/processed/analysis/fi_price_features.jsonl
-          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
-          echo "=========================================="
-          echo "FEATURE DATASET FINNS"
-          echo "=========================================="
-          echo
-          echo "Feature chunks:"
-          ls -lh data/processed/analysis/features_*.jsonl
-          echo
-          echo "Legacy feature view:"
-          ls -lh data/processed/analysis/fi_price_features.jsonl
-          echo
-          echo "Metadata:"
-          cat data/processed/analysis/features_metadata.json
-      - name: Kontrollera feature-storlek
-        run: |
-          set -e
-          python - <<'PY'
-          from pathlib import Path
-          paths = sorted(
-              Path("data/processed/analysis").glob("features_*.jsonl")
-          )
-          if not paths:
-              raise SystemExit("Inga feature-chunks hittades.")
-          limit = 20 * 1024 * 1024
-          for path in paths:
-              size = path.stat().st_size
-              mb = size / 1024 / 1024
-              print(f"{path.name}: {mb:.2f} MB")
-              if size >= limit:
-                  raise SystemExit(
-                      f"{path.name} är större än eller lika med 20 MB."
-                  )
-          PY
-      - name: Run Feature QC
-        run: |
-          python -u -m analysis.features_qc
-      - name: Kontrollera Feature QC-status
-        run: |
-          set -e
-          test -f data/processed/analysis/features_qc.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path(
-              "data/processed/analysis/features_qc.json"
-          )
-          data = json.loads(
-              path.read_text(encoding="utf-8")
-          )
-          status = data.get("status")
-          print(f"Feature QC status: {status}")
-          if status == "FAIL":
-              raise SystemExit(
-                  "Feature QC failed with status: FAIL"
-              )
-          if status == "WARN":
-              print(
-                  "Feature QC har status WARN. "
-                  "Varningar tillåts och workflow fortsätter."
-              )
-          elif status == "PASS":
-              print(
-                  "Feature QC har status PASS."
-              )
-          else:
-              raise SystemExit(
-                  f"Feature QC returnerade okänd status: {status}"
-              )
-          PY
+          bash scripts/build_features.sh
+
       - name: Archive feature dataset
         uses: actions/upload-artifact@v4
         with:
@@ -122,84 +58,3 @@ jobs:
             data/processed/analysis/features_qc.json
           retention-days: 14
           if-no-files-found: error
-      - name: Commit generated features
-        run: |
-          set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # ==========================================================
-          # LEGACY-FILER
-          #
-          # Legacy-datasetet sparas som artifact men ska inte
-          # påverka Git-committen eller rebase.
-          #
-          # fi_price_features_metadata.json är tracked och återställs
-          # till versionen i HEAD.
-          #
-          # fi_price_features.jsonl är untracked och tas bort.
-          # ==========================================================
-          git checkout -- \
-            data/processed/analysis/fi_price_features_metadata.json
-          rm -f \
-            data/processed/analysis/fi_price_features.jsonl
-          # ==========================================================
-          # STAGE CANONICAL FEATURE DATASET
-          # ==========================================================
-          git add \
-            data/processed/analysis/features_*.jsonl \
-            data/processed/analysis/features_metadata.json \
-            data/processed/analysis/features_qc.json
-          # Säkerhetskontroll:
-          # Legacy-dataseten får aldrig hamna i committen.
-          git reset -- \
-            data/processed/analysis/fi_price_features.jsonl \
-            data/processed/analysis/fi_price_features_metadata.json \
-            2>/dev/null || true
-          echo "=========================================="
-          echo "WORKING TREE FÖRE COMMIT"
-          echo "=========================================="
-          git status --short
-          if git diff --cached --quiet; then
-            echo "Inga feature-förändringar att committa."
-            exit 0
-          fi
-          echo
-          echo "Filer som kommer att committas:"
-          git diff --cached --name-status
-          git commit -m "Update feature dataset"
-          echo
-          echo "=========================================="
-          echo "WORKING TREE EFTER COMMIT"
-          echo "=========================================="
-          git status --short
-          # Rebase kräver ren working tree.
-          # Om något oväntat finns kvar ska workflowen
-          # stoppa direkt i stället för att göra meningslösa
-          # retry-försök.
-          if [ -n "$(git status --porcelain)" ]; then
-            echo
-            echo "ERROR: Working tree är inte ren efter commit."
-            echo
-            git status --short
-            exit 1
-          fi
-          for attempt in 1 2 3 4 5; do
-            echo
-            echo "Push attempt $attempt..."
-            git fetch origin main
-            if git rebase origin/main; then
-              if git push origin HEAD:main; then
-                echo "Push lyckades."
-                exit 0
-              fi
-            else
-              echo "Rebase misslyckades."
-              git rebase --abort || true
-            fi
-            if [ "$attempt" -lt 5 ]; then
-              echo "Remote ändrades, försöker igen..."
-              sleep 5
-            fi
-          done
-          echo "Kunde inte pusha efter 5 försök."
-          exit 1
