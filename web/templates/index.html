@@ -27,34 +27,40 @@
         </h1>
 
         <p class="lead">
-            En datadriven katalog över förändringar i blankning
-            och vad som historiskt hänt med aktien därefter.
+            En datadriven katalog över förändringar i blankning,
+            historiska mönster och prospektiv modellutvärdering.
         </p>
 
         <nav class="tabs" aria-label="Huvudnavigation">
-            <button
+
+            <a
                 class="tab active"
-                data-tab="koplage"
-                type="button"
+                href="./index.html"
+            >
+                Hem
+            </a>
+
+            <a
+                class="tab"
+                href="./koplage.html"
             >
                 Köpläge
-            </button>
+            </a>
 
-            <button
+            <a
                 class="tab"
-                data-tab="bedomning"
-                type="button"
+                href="./bedomning.html"
             >
                 Bedömning
-            </button>
+            </a>
 
-            <button
+            <a
                 class="tab"
-                data-tab="dataanalys"
-                type="button"
+                href="./dataanalys.html"
             >
                 Dataanalys
-            </button>
+            </a>
+
         </nav>
 
     </div>
@@ -62,240 +68,73 @@
 
 <main class="container">
 
-    <!-- ========================================================= -->
-    <!-- KÖPLÄGE                                                    -->
-    <!-- ========================================================= -->
+    <section class="cards">
 
-    <section
-        id="koplage"
-        class="tab-content active"
-    >
-
-        <section class="cards">
-
-            <div class="card">
-                <span class="label">
-                    Händelser
-                </span>
-                <strong>
-                    {{EVENT_COUNT}}
-                </strong>
-            </div>
-
-            <div class="card">
-                <span class="label">
-                    Analys
-                </span>
-                <strong>
-                    Event study
-                </strong>
-            </div>
-
-            <div class="card">
-                <span class="label">
-                    ML-experiment
-                </span>
-                <strong>
-                    {{ML_EXPERIMENT_COUNT}}
-                </strong>
-            </div>
-
-            <div class="card">
-                <span class="label">
-                    Senast uppdaterad
-                </span>
-                <strong class="timestamp">
-                    {{GENERATED_AT}}
-                </strong>
-            </div>
-
-        </section>
-
-        <section class="panel">
-
-            <div class="section-header">
-
-                <div>
-                    <span class="eyebrow">
-                        AKTUELLT
-                    </span>
-
-                    <h2>
-                        Aktuella fynd
-                    </h2>
-
-                    <p>
-                        De senaste observerade förändringarna i blankning.
-                    </p>
-                </div>
-
-            </div>
-
-            <div class="table-wrapper">
-
-                <table>
-
-                    <thead>
-                        <tr>
-                            <th>
-                                Aktie
-                            </th>
-
-                            <th>
-                                Blankning
-                            </th>
-
-                            <th>
-                                Förändring
-                            </th>
-
-                            <th>
-                                1d
-                            </th>
-
-                            <th>
-                                5d
-                            </th>
-
-                            <th>
-                                20d
-                            </th>
-
-                            <th>
-                                60d
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {{EVENT_ROWS}}
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </section>
-
-        <section class="explanation">
-
-            <span class="eyebrow">
-                HUR BLANKDISS ANVÄNDS
+        <div class="card">
+            <span class="label">
+                Händelser
             </span>
 
-            <h2>
-                Från observation till signal
-            </h2>
+            <strong>
+                {{EVENT_COUNT}}
+            </strong>
+        </div>
 
-            <p>
-                Blankdiss börjar med att observera förändringar i
-                blankning. Därefter jämförs dessa observationer med
-                vad som historiskt hänt med aktien.
-            </p>
+        <div class="card">
+            <span class="label">
+                ML-experiment
+            </span>
 
-            <p>
-                Startsidan visar de aktuella observationerna.
-                Fördjupningen finns under <strong>Bedömning</strong>
-                och <strong>Dataanalys</strong>.
-            </p>
+            <strong>
+                {{ML_EXPERIMENT_COUNT}}
+            </strong>
+        </div>
 
-            <p>
-                Ett aktuellt blankningsmönster är därför en observation
-                och inte i sig en automatisk köp- eller säljrekommendation.
-            </p>
+        <div class="card">
+            <span class="label">
+                Evaluation-körningar
+            </span>
 
-        </section>
+            <strong>
+                {{EVALUATION_RUN_COUNT}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Senast uppdaterad
+            </span>
+
+            <strong class="timestamp">
+                {{GENERATED_AT}}
+            </strong>
+        </div>
 
     </section>
 
 
-    <!-- ========================================================= -->
-    <!-- BEDÖMNING                                                  -->
-    <!-- ========================================================= -->
+    <section class="panel">
 
-    <section
-        id="bedomning"
-        class="tab-content"
-        hidden
-    >
-
-        <section class="panel assessment-intro">
+        <div class="section-header">
 
             <span class="eyebrow">
-                BLANKDISS NULÄGE
+                BLANKDISS
             </span>
 
             <h2>
-                Bedömning
+                Vad vill du undersöka?
             </h2>
 
-            <p class="large-text">
-                Blankdiss befinner sig i steget mellan historisk
-                analys och löpande prospektiv utvärdering.
-            </p>
-
             <p>
-                Den historiska analysen visar vad som har hänt efter
-                liknande förändringar i blankning. ML-modellerna försöker
-                därefter identifiera kombinationer av signaler som kan
-                skilja olika framtida utfall åt.
+                Blankdiss är uppdelat i tre olika perspektiv:
+                aktuella signaler, den samlade bedömningen och den
+                underliggande dataanalysen.
             </p>
 
-            <p>
-                Den viktigaste utvecklingen nu är att resultaten från
-                den prospektiva <code>evaluate</code>-körningen sparas
-                dag för dag. Det gör att Blankdiss kan följas över tid
-                utan att blanda ihop vad modellen visste vid ett visst
-                datum med information som blev tillgänglig senare.
-            </p>
+        </div>
 
-        </section>
 
-        <section class="cards">
-
-            <div class="card">
-                <span class="label">
-                    Evaluation-körningar
-                </span>
-
-                <strong>
-                    {{EVALUATION_RUN_COUNT}}
-                </strong>
-            </div>
-
-            <div class="card">
-                <span class="label">
-                    Aktuell kandidat
-                </span>
-
-                <strong class="compact-value">
-                    {{EVALUATION_CANDIDATE}}
-                </strong>
-            </div>
-
-            <div class="card">
-                <span class="label">
-                    Feature-datum
-                </span>
-
-                <strong class="compact-value">
-                    {{EVALUATION_FEATURE_DATE}}
-                </strong>
-            </div>
-
-            <div class="card">
-                <span class="label">
-                    Observationer
-                </span>
-
-                <strong>
-                    {{EVALUATION_OBSERVATIONS}}
-                </strong>
-            </div>
-
-        </section>
-
-        <section class="method">
+        <div class="method">
 
             <div class="method-item">
 
@@ -304,18 +143,26 @@
                 </span>
 
                 <div>
+
                     <h3>
-                        Historisk evidens
+                        Köpläge
                     </h3>
 
                     <p>
-                        Event study används för att se om förändringar
-                        i blankning följs av återkommande mönster i
-                        aktieutvecklingen.
+                        Se aktuella observationer och de senaste
+                        förändringarna i blankning.
                     </p>
+
+                    <p>
+                        <a href="./koplage.html">
+                            Öppna Köpläge →
+                        </a>
+                    </p>
+
                 </div>
 
             </div>
+
 
             <div class="method-item">
 
@@ -324,17 +171,26 @@
                 </span>
 
                 <div>
+
                     <h3>
-                        ML-modeller
+                        Bedömning
                     </h3>
 
                     <p>
-                        Modellerna tränas på historiska observationer
-                        och utvärderas separat på out-of-sample-data.
+                        Se var Blankdiss befinner sig i utvecklingen
+                        från historisk analys till prospektiv testning.
                     </p>
+
+                    <p>
+                        <a href="./bedomning.html">
+                            Öppna Bedömning →
+                        </a>
+                    </p>
+
                 </div>
 
             </div>
+
 
             <div class="method-item">
 
@@ -343,438 +199,54 @@
                 </span>
 
                 <div>
+
                     <h3>
-                        Prospektiv testning
+                        Dataanalys
                     </h3>
 
                     <p>
-                        Varje evaluation-körning sparas så att resultat
-                        från olika observationsdagar kan följas separat.
+                        Gå ner i den historiska event-studien,
+                        ML-resultaten och den dagliga evaluation-historiken.
                     </p>
-                </div>
-
-            </div>
-
-            <div class="method-item">
-
-                <span class="method-number">
-                    04
-                </span>
-
-                <div>
-                    <h3>
-                        Mognad
-                    </h3>
 
                     <p>
-                        Framtida målvariabler får inte räknas som
-                        färdiga innan tillräckligt många handelsdagar
-                        har passerat.
+                        <a href="./dataanalys.html">
+                            Öppna Dataanalys →
+                        </a>
                     </p>
 
                 </div>
 
             </div>
 
-        </section>
-
-        <section class="panel">
-
-            <div class="section-header">
-
-                <span class="eyebrow">
-                    SENASTE STATUS
-                </span>
-
-                <h2>
-                    Senaste evaluation
-                </h2>
-
-                <p>
-                    Den senaste körningen som Blankdiss har sparat.
-                </p>
-
-            </div>
-
-            <div class="status-grid">
-
-                <div class="status-item">
-                    <span>
-                        Kandidat
-                    </span>
-
-                    <strong>
-                        {{EVALUATION_CANDIDATE}}
-                    </strong>
-                </div>
-
-                <div class="status-item">
-                    <span>
-                        Feature-datum
-                    </span>
-
-                    <strong>
-                        {{EVALUATION_FEATURE_DATE}}
-                    </strong>
-                </div>
-
-                <div class="status-item">
-                    <span>
-                        Feature-rader
-                    </span>
-
-                    <strong>
-                        {{EVALUATION_LATEST_ROWS}}
-                    </strong>
-                </div>
-
-                <div class="status-item">
-                    <span>
-                        Mogna observationer
-                    </span>
-
-                    <strong>
-                        {{EVALUATION_MATURED}}
-                    </strong>
-                </div>
-
-            </div>
-
-        </section>
+        </div>
 
     </section>
 
 
-    <!-- ========================================================= -->
-    <!-- DATAANALYS                                                 -->
-    <!-- ========================================================= -->
-
-    <section
-        id="dataanalys"
-        class="tab-content"
-        hidden
-    >
-
-        <section class="panel">
-
-            <div class="section-header">
-
-                <span class="eyebrow">
-                    HISTORISK ANALYS
-                </span>
-
-                <h2>
-                    Historiskt mönster
-                </h2>
-
-                <p>
-                    Vad har hänt efter liknande förändringar tidigare?
-                </p>
-
-            </div>
-
-            <div class="table-wrapper">
-
-                <table>
-
-                    <thead>
-                        <tr>
-                            <th>
-                                Förändring
-                            </th>
-
-                            <th>
-                                Händelser
-                            </th>
-
-                            <th>
-                                Median 1d
-                            </th>
-
-                            <th>
-                                Median 5d
-                            </th>
-
-                            <th>
-                                Median 20d
-                            </th>
-
-                            <th>
-                                Median 60d
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {{ANALYSIS_ROWS}}
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </section>
-
-
-        <section class="panel">
-
-            <div class="section-header">
-
-                <span class="eyebrow">
-                    MACHINE LEARNING
-                </span>
-
-                <h2>
-                    ML & ekonomiskt OOS-test
-                </h2>
-
-                <p>
-                    Resultat från modeller som tränats på historiska data
-                    och därefter testats på out-of-sample-perioder.
-                    Top 1 %, 10 bps och fem observationsdagars rebalance
-                    visas som primär strategi.
-                </p>
-
-            </div>
-
-            <div class="table-wrapper">
-
-                <table>
-
-                    <thead>
-                        <tr>
-                            <th>
-                                Feature set
-                            </th>
-
-                            <th>
-                                Target
-                            </th>
-
-                            <th>
-                                Task
-                            </th>
-
-                            <th>
-                                Modell
-                            </th>
-
-                            <th>
-                                Riktning
-                            </th>
-
-                            <th>
-                                Netto
-                            </th>
-
-                            <th>
-                                Benchmark
-                            </th>
-
-                            <th>
-                                Excess
-                            </th>
-
-                            <th>
-                                Max DD
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {{ML_ROWS}}
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </section>
-
-
-        <section class="panel">
-
-            <div class="section-header">
-
-                <span class="eyebrow">
-                    PROSPEKTIV FORSKNING
-                </span>
-
-                <h2>
-                    Evaluation-historik
-                </h2>
-
-                <p>
-                    Varje daglig evaluation sparas separat. På så sätt
-                    går det att följa vad Blankdiss visste vid respektive
-                    observationsdatum och hur resultaten senare mognar.
-                </p>
-
-            </div>
-
-            <div class="table-wrapper">
-
-                <table>
-
-                    <thead>
-                        <tr>
-                            <th>
-                                Feature-datum
-                            </th>
-
-                            <th>
-                                Körning
-                            </th>
-
-                            <th>
-                                Kandidat
-                            </th>
-
-                            <th>
-                                Observationer
-                            </th>
-
-                            <th>
-                                Mogna
-                            </th>
-
-                            <th>
-                                AUC
-                            </th>
-
-                            <th>
-                                Lift
-                            </th>
-
-                            <th>
-                                Run
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {{EVALUATION_HISTORY_ROWS}}
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </section>
-
-
-        <section class="explanation">
-
-            <span class="eyebrow">
-                METOD
-            </span>
-
-            <h2>
-                Så läser du dataanalysen
-            </h2>
-
-            <p>
-                Event study-delen beskriver historiska samband.
-                ML-delen går ett steg längre genom att träna modeller
-                på historiska observationer och sedan utvärdera dem på
-                data som modellen inte tränat på.
-            </p>
-
-            <p>
-                Netto anger strategins sammansatta avkastning efter
-                den angivna transaktionskostnaden. Benchmark är
-                motsvarande universums genomsnittliga utveckling.
-                Excess är skillnaden mellan strategin och benchmark.
-            </p>
-
-            <p>
-                Ett OOS-resultat är fortfarande inte automatiskt en
-                framtida prognos. Därför ingår robusthet,
-                känslighetsanalys och olika målvariabler i experimenten.
-            </p>
-
-        </section>
-
-
-        <section class="method">
-
-            <div class="method-item">
-
-                <span class="method-number">
-                    01
-                </span>
-
-                <div>
-                    <h3>
-                        Blankning
-                    </h3>
-
-                    <p>
-                        Data från Finansinspektionens
-                        blankningsregister.
-                    </p>
-                </div>
-
-            </div>
-
-            <div class="method-item">
-
-                <span class="method-number">
-                    02
-                </span>
-
-                <div>
-                    <h3>
-                        Förändring
-                    </h3>
-
-                    <p>
-                        Förändringen mellan två observerade
-                        blankningsnivåer beräknas i procentenheter.
-                    </p>
-                </div>
-
-            </div>
-
-            <div class="method-item">
-
-                <span class="method-number">
-                    03
-                </span>
-
-                <div>
-                    <h3>
-                        Aktie
-                    </h3>
-
-                    <p>
-                        Efterföljande utveckling mäts över
-                        1, 5, 20 och 60 handelsdagar.
-                    </p>
-                </div>
-
-            </div>
-
-            <div class="method-item">
-
-                <span class="method-number">
-                    04
-                </span>
-
-                <div>
-                    <h3>
-                        Statistik
-                    </h3>
-
-                    <p>
-                        Händelser grupperas och jämförs för att
-                        hitta eventuella återkommande mönster.
-                    </p>
-                </div>
-
-            </div>
-
-        </section>
+    <section class="explanation">
+
+        <span class="eyebrow">
+            GRUNDIDÉ
+        </span>
+
+        <h2>
+            Från observation till testad signal
+        </h2>
+
+        <p>
+            Blankdiss börjar med observerade förändringar i blankning.
+            Därefter analyseras vad som historiskt hänt med aktier efter
+            liknande händelser.
+        </p>
+
+        <p>
+            ML-delen försöker därefter hitta kombinationer av
+            information som kan ge ytterligare signaler. Den prospektiva
+            evaluation-körningen sparas dag för dag så att framtida
+            resultat kan utvärderas utan att blanda ihop information
+            från olika tidpunkter.
+        </p>
 
     </section>
 
@@ -792,67 +264,6 @@
     </footer>
 
 </main>
-
-
-<script>
-(function () {
-    const tabs = document.querySelectorAll(".tab");
-    const sections = document.querySelectorAll(".tab-content");
-
-    function activateTab(tabName) {
-        tabs.forEach(function (tab) {
-            const active = tab.dataset.tab === tabName;
-
-            tab.classList.toggle(
-                "active",
-                active
-            );
-
-            tab.setAttribute(
-                "aria-selected",
-                active ? "true" : "false"
-            );
-        });
-
-        sections.forEach(function (section) {
-            const active =
-                section.id === tabName;
-
-            section.classList.toggle(
-                "active",
-                active
-            );
-
-            section.hidden = !active;
-        });
-
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-        });
-    }
-
-    tabs.forEach(function (tab) {
-        tab.addEventListener(
-            "click",
-            function () {
-                activateTab(
-                    tab.dataset.tab
-                );
-            }
-        );
-    });
-
-    tabs.forEach(function (tab) {
-        tab.setAttribute(
-            "aria-selected",
-            tab.classList.contains("active")
-                ? "true"
-                : "false"
-        );
-    });
-})();
-</script>
 
 </body>
 </html>
