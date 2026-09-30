@@ -1,0 +1,3 @@
+"""
+Bygglogik för Blankdiss webbplats.
+"""
