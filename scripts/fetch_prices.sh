@@ -5,6 +5,16 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 cd "$ROOT"
 
+FORCE=false
+
+if [[ "${1:-}" == "--force" ]]; then
+    FORCE=true
+fi
+
+if [[ "${FORCE_SYNC:-false}" == "true" ]]; then
+    FORCE=true
+fi
+
 echo "=========================================="
 echo "FETCH PRICES"
 echo "=========================================="
@@ -12,28 +22,35 @@ echo "=========================================="
 SWEDISH_WEEKDAY="$(TZ=Europe/Stockholm date '+%u')"
 SWEDISH_TIME="$(TZ=Europe/Stockholm date '+%H:%M')"
 
-if [ "$SWEDISH_WEEKDAY" -ge 6 ]; then
+if [ "$FORCE" = true ]; then
     echo
-    echo "Yahoo-hämtning hoppas över."
-    echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
-    echo "Idag är lördag eller söndag enligt svensk tid."
+    echo "FORCE SYNC AKTIVERAD."
+    echo "Normal tids- och helgspärr kringgås."
     echo "Svensk tid: $SWEDISH_TIME"
-    exit 0
-fi
+else
+    if [ "$SWEDISH_WEEKDAY" -ge 6 ]; then
+        echo
+        echo "Yahoo-hämtning hoppas över."
+        echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
+        echo "Idag är lördag eller söndag enligt svensk tid."
+        echo "Svensk tid: $SWEDISH_TIME"
+        exit 0
+    fi
 
-if [[ "$SWEDISH_TIME" < "17:00" ]]; then
+    if [[ "$SWEDISH_TIME" < "17:00" ]]; then
+        echo
+        echo "Yahoo-hämtning hoppas över."
+        echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
+        echo "Klockan är före 17:00 svensk tid."
+        echo "Svensk tid: $SWEDISH_TIME"
+        exit 0
+    fi
+
     echo
-    echo "Yahoo-hämtning hoppas över."
-    echo "Orsak: hämtning är endast tillåten måndag–fredag kl. 17:00–23:59 svensk tid."
-    echo "Klockan är före 17:00 svensk tid."
+    echo "Yahoo-hämtning tillåten."
+    echo "Tillåtet tidsfönster: måndag–fredag kl. 17:00–23:59 svensk tid."
     echo "Svensk tid: $SWEDISH_TIME"
-    exit 0
 fi
-
-echo
-echo "Yahoo-hämtning tillåten."
-echo "Tillåtet tidsfönster: måndag–fredag kl. 17:00–23:59 svensk tid."
-echo "Svensk tid: $SWEDISH_TIME"
 
 echo
 echo "Hämtar Yahoo-priser från 2022-01-01..."
@@ -68,8 +85,6 @@ echo "=========================================="
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-# Committera prisfiler som har skapats eller ändrats av den aktuella
-# hämtningen. Befintliga oförändrade prisfiler påverkas inte.
 git add \
   data/raw/prices/*.jsonl \
   prices/known_yahoo_symbols.jsonl \
