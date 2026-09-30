@@ -1,32 +1,37 @@
 from __future__ import annotations
+
 import math
+
+import numpy as np
 import pandas as pd
+
 from analysis.feature_config import (
+    FEATURE_GLOB,
     OUTPUT_DIR,
     PRICE_DIR,
     RETURN_HORIZONS,
-    FEATURE_GLOB,
 )
 from analysis.feature_prices import (
     find_price_files,
     load_prices,
 )
-from analysis.feature_returns import (
-    add_forward_returns,
-)
+
+
 TOLERANCE = 1e-9
-MAX_EXAMPLES = 20
+MAX_EXAMPLES = 50
+
+
 def _load_features() -> pd.DataFrame:
     paths = sorted(
-        OUTPUT_DIR.glob(
-            FEATURE_GLOB
-        )
+        OUTPUT_DIR.glob(FEATURE_GLOB)
     )
+
     if not paths:
         raise FileNotFoundError(
             "Inga feature-chunks hittades i "
             f"{OUTPUT_DIR}"
         )
+
     frames = [
         pd.read_json(
             path,
@@ -34,117 +39,13 @@ def _load_features() -> pd.DataFrame:
         )
         for path in paths
     ]
+
     return pd.concat(
         frames,
         ignore_index=True,
     )
-def _calculate_yahoo_forward_returns(
-    frame: pd.DataFrame,
-    prices: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Oberoende beräkning av forward returns där
-    yahoo_symbol används som identitet.
-    Detta ska INTE använda feature_returns.py:s
-    implementation, eftersom det är just identiteten
-    vi vill jämföra.
-    """
-    result = frame.copy()
-    price_groups = {
-        symbol: group.sort_values(
-            "date",
-            kind="mergesort",
-        ).reset_index(
-            drop=True
-        )
-        for symbol, group in prices.groupby(
-            "yahoo_symbol",
-            sort=False,
-        )
-    }
-    for horizon in RETURN_HORIZONS:
-        result[
-            f"_yahoo_forward_return_{horizon}d"
-        ] = float("nan")
-    for index, row in result.iterrows():
-        symbol = row.get(
-            "yahoo_symbol"
-        )
-        if pd.isna(symbol):
-            continue
-        symbol = str(
-            symbol
-        ).strip()
-        if not symbol:
-            continue
-        series = price_groups.get(
-            symbol
-        )
-        if series is None or series.empty:
-            continue
-        price_date = pd.to_datetime(
-            row.get(
-                "price_date"
-            ),
-            errors="coerce",
-        )
-        if pd.isna(price_date):
-            continue
-        dates = series[
-            "date"
-        ].to_numpy(
-            dtype="datetime64[ns]"
-        )
-        price_date_np = (
-            price_date.to_datetime64()
-        )
-        entry_idx = int(
-            dates.searchsorted(
-                price_date_np,
-                side="left",
-            )
-        )
-        if entry_idx >= len(series):
-            continue
-        entry_price = float(
-            series.iloc[
-                entry_idx
-            ]["close"]
-        )
-        if (
-            not math.isfinite(
-                entry_price
-            )
-            or entry_price <= 0
-        ):
-            continue
-        for horizon in RETURN_HORIZONS:
-            target_idx = (
-                entry_idx + horizon
-            )
-            if target_idx >= len(series):
-                continue
-            target_price = float(
-                series.iloc[
-                    target_idx
-                ]["close"]
-            )
-            if (
-                not math.isfinite(
-                    target_price
-                )
-                or target_price <= 0
-            ):
-                continue
-            result.at[
-                index,
-                f"_yahoo_forward_return_{horizon}d",
-            ] = (
-                target_price
-                / entry_price
-                - 1.0
-            )
-    return result
+
+
 def _same(
     left,
     right,
@@ -153,35 +54,64 @@ def _same(
         left is None
         or pd.isna(left)
     )
+
     right_missing = (
         right is None
         or pd.isna(right)
     )
+
     if left_missing and right_missing:
         return True
+
     if left_missing != right_missing:
         return False
+
     return math.isclose(
         float(left),
         float(right),
         rel_tol=TOLERANCE,
         abs_tol=TOLERANCE,
     )
-def test_forward_return_identity_diagnostic():
+
+
+def _build_price_lookup(
+    prices: pd.DataFrame,
+) -> dict[str, pd.DataFrame]:
+    return {
+        key: group.sort_values(
+            "date",
+            kind="mergesort",
+        ).reset_index(
+            drop=True
+        )
+        for key, group in prices.groupby(
+            "security_key",
+            sort=False,
+        )
+    }
+
+
+def test_forward_return_availability_diagnostic():
     """
-    Diagnostiskt test för att avgöra om forward returns
-    är konsekventa mellan security_key och yahoo_symbol.
-    Produktionslogiken använder security_key.
-    QC använder i nuläget yahoo_symbol.
-    Testet ändrar ingen produktionskod och committar inget.
+    Diagnostik för forward-return targets.
+
+    Testet undersöker varför vissa redan lagrade
+    forward_return_* targets inte längre kan räknas fram
+    från det aktuella prisarkivet.
+
+    Ingen produktionskod ändras.
     """
+
     features = _load_features()
+
     price_files = find_price_files(
         PRICE_DIR
     )
+
     prices = load_prices(
         price_files
     )
+
     matched = features.loc[
         features[
             "price_match_available"
@@ -190,404 +120,402 @@ def test_forward_return_identity_diagnostic():
             "security_key"
         ].notna()
         & features[
-            "yahoo_symbol"
-        ].notna()
-        & features[
             "price_date"
         ].notna()
     ].copy()
+
     if matched.empty:
         raise AssertionError(
             "Inga matchade feature-rader "
             "kunde analyseras."
         )
-    # ---------------------------------------------------------
-    # 1. SECURITY_KEY
-    #
-    # Använd exakt samma produktionsfunktion som bygger
-    # forward returns.
-    # ---------------------------------------------------------
-    security_key_result = add_forward_returns(
-        matched[
-            [
-                "security_key",
-                "price_date",
-            ]
-        ].copy(),
-        prices,
+
+    lookup = _build_price_lookup(
+        prices
     )
-    # ---------------------------------------------------------
-    # 2. YAHOO_SYMBOL
-    #
-    # Oberoende implementation med yahoo_symbol som identitet.
-    # ---------------------------------------------------------
-    yahoo_result = (
-        _calculate_yahoo_forward_returns(
-            matched,
-            prices,
-        )
-    )
+
     classification_counts = {
-        "matches_both": 0,
-        "matches_security_key_only": 0,
-        "matches_yahoo_only": 0,
-        "matches_neither": 0,
-        "not_comparable": 0,
+        "exact_match": 0,
+        "stored_only": 0,
+        "computed_only": 0,
+        "value_mismatch": 0,
+        "both_missing": 0,
     }
-    examples = []
-    yahoo_mismatch_rows = 0
-    security_mismatch_rows = 0
-    for position, (_, row) in enumerate(
-        matched.iterrows()
-    ):
-        security_row = (
-            security_key_result.iloc[
-                position
-            ]
+
+    mismatch_examples = []
+    stored_only_examples = []
+
+    horizon_counts = {
+        horizon: {
+            "exact_match": 0,
+            "stored_only": 0,
+            "computed_only": 0,
+            "value_mismatch": 0,
+            "both_missing": 0,
+        }
+        for horizon in RETURN_HORIZONS
+    }
+
+    current_max_dates = []
+
+    for _, row in matched.iterrows():
+        security_key = row[
+            "security_key"
+        ]
+
+        series = lookup.get(
+            security_key
         )
-        yahoo_row = (
-            yahoo_result.iloc[
-                position
-            ]
+
+        if (
+            series is None
+            or series.empty
+        ):
+            continue
+
+        dates = series[
+            "date"
+        ].to_numpy(
+            dtype="datetime64[ns]"
         )
-        security_matches = True
-        yahoo_matches = True
-        horizon_details = {}
+
+        price_date = pd.to_datetime(
+            row["price_date"],
+            errors="coerce",
+        )
+
+        if pd.isna(price_date):
+            continue
+
+        entry_idx = int(
+            np.searchsorted(
+                dates,
+                price_date.to_datetime64(),
+                side="left",
+            )
+        )
+
+        if entry_idx >= len(series):
+            continue
+
+        entry_price = float(
+            series.iloc[
+                entry_idx
+            ]["close"]
+        )
+
+        if (
+            not math.isfinite(
+                entry_price
+            )
+            or entry_price <= 0
+        ):
+            continue
+
+        max_date = pd.Timestamp(
+            series.iloc[-1]["date"]
+        )
+
+        current_max_dates.append(
+            max_date
+        )
+
+        row_problem_horizons = []
+
         for horizon in RETURN_HORIZONS:
             column = (
                 f"forward_return_{horizon}d"
             )
+
             stored = row.get(
                 column
             )
-            security_value = (
-                security_row.get(
-                    column
+
+            target_idx = (
+                entry_idx + horizon
+            )
+
+            if target_idx >= len(series):
+                computed = np.nan
+                required_date = None
+            else:
+                target_price = float(
+                    series.iloc[
+                        target_idx
+                    ]["close"]
                 )
-            )
-            yahoo_value = (
-                yahoo_row.get(
-                    f"_yahoo_forward_return_{horizon}d"
+
+                if (
+                    not math.isfinite(
+                        target_price
+                    )
+                    or target_price <= 0
+                ):
+                    computed = np.nan
+                else:
+                    computed = (
+                        target_price
+                        / entry_price
+                        - 1.0
+                    )
+
+                required_date = pd.Timestamp(
+                    series.iloc[
+                        target_idx
+                    ]["date"]
                 )
+
+            stored_missing = (
+                stored is None
+                or pd.isna(stored)
             )
-            if not _same(
-                stored,
-                security_value,
+
+            computed_missing = (
+                computed is None
+                or pd.isna(computed)
+            )
+
+            if (
+                not stored_missing
+                and not computed_missing
             ):
-                security_matches = False
-            if not _same(
-                stored,
-                yahoo_value,
+                if _same(
+                    stored,
+                    computed,
+                ):
+                    classification = (
+                        "exact_match"
+                    )
+                else:
+                    classification = (
+                        "value_mismatch"
+                    )
+
+            elif (
+                not stored_missing
+                and computed_missing
             ):
-                yahoo_matches = False
-            horizon_details[horizon] = {
-                "stored": (
-                    None
-                    if pd.isna(stored)
-                    else float(stored)
-                ),
-                "security_key": (
-                    None
-                    if pd.isna(
-                        security_value
-                    )
-                    else float(
-                        security_value
-                    )
-                ),
-                "yahoo_symbol": (
-                    None
-                    if pd.isna(
-                        yahoo_value
-                    )
-                    else float(
-                        yahoo_value
-                    )
-                ),
-            }
-        if (
-            security_matches
-            and yahoo_matches
-        ):
-            classification = (
-                "matches_both"
-            )
-        elif security_matches:
-            classification = (
-                "matches_security_key_only"
-            )
-            yahoo_mismatch_rows += 1
-        elif yahoo_matches:
-            classification = (
-                "matches_yahoo_only"
-            )
-            security_mismatch_rows += 1
-        elif (
-            any(
-                value["security_key"]
-                is not None
-                for value in horizon_details.values()
-            )
-            or any(
-                value["yahoo_symbol"]
-                is not None
-                for value in horizon_details.values()
-            )
-        ):
-            classification = (
-                "matches_neither"
-            )
-            security_mismatch_rows += 1
-            yahoo_mismatch_rows += 1
-        else:
-            classification = (
-                "not_comparable"
-            )
-        classification_counts[
-            classification
-        ] += 1
-        if (
-            classification
-            != "matches_both"
-            and len(examples)
-            < MAX_EXAMPLES
-        ):
-            examples.append(
-                {
-                    "security_key": (
-                        row.get(
-                            "security_key"
-                        )
-                    ),
-                    "yahoo_symbol": (
-                        row.get(
-                            "yahoo_symbol"
-                        )
-                    ),
-                    "isin": row.get(
-                        "isin"
-                    ),
-                    "issuer": row.get(
-                        "issuer"
-                    ),
-                    "price_date": (
-                        str(
-                            row.get(
-                                "price_date"
+                classification = (
+                    "stored_only"
+                )
+                row_problem_horizons.append(
+                    {
+                        "horizon": horizon,
+                        "stored": float(stored),
+                        "entry_index": entry_idx,
+                        "target_index": target_idx,
+                        "current_rows": len(series),
+                        "current_last_date": str(
+                            max_date.date()
+                        ),
+                        "required_date": (
+                            None
+                            if required_date is None
+                            else str(
+                                required_date.date()
                             )
-                        )
-                    ),
-                    "price_mapping_source": (
-                        row.get(
-                            "price_mapping_source"
-                        )
-                    ),
-                    "classification": (
-                        classification
-                    ),
-                    "horizons": (
-                        horizon_details
-                    ),
-                }
-            )
-    # ---------------------------------------------------------
-    # 3. Kontrollera identitetskollisioner i prisdata
-    #
-    # Detta är den centrala kontrollen:
-    # samma Yahoo-symbol + datum ska kunna tillhöra
-    # flera security_keys om Yahoo-symbolen inte är
-    # en entydig instrumentidentitet.
-    # ---------------------------------------------------------
-    collision_counts = (
-        prices
-        .groupby(
-            [
-                "yahoo_symbol",
-                "date",
-            ]
-        )["security_key"]
-        .nunique()
-    )
-    collisions = collision_counts.loc[
-        collision_counts > 1
-    ]
-    collision_examples = []
-    for (
-        symbol,
-        date,
-    ), count in collisions.head(
-        MAX_EXAMPLES
-    ).items():
-        keys = sorted(
-            prices.loc[
-                (
-                    prices[
-                        "yahoo_symbol"
-                    ]
-                    == symbol
+                        ),
+                    }
                 )
-                & (
-                    prices["date"]
-                    == date
-                ),
-                "security_key",
-            ]
-            .dropna()
-            .unique()
-            .tolist()
-        )
-        collision_examples.append(
-            {
-                "yahoo_symbol": symbol,
-                "date": str(
-                    pd.Timestamp(
-                        date
-                    ).date()
-                ),
-                "security_key_count": int(
-                    count
-                ),
-                "security_keys": keys,
-            }
-        )
-    # ---------------------------------------------------------
-    # 4. Kontrollera symboler som förekommer på flera
-    #    security_keys över tid.
-    # ---------------------------------------------------------
-    symbol_identity_counts = (
-        prices
-        .groupby(
-            "yahoo_symbol"
-        )["security_key"]
-        .nunique()
-    )
-    ambiguous_symbols = (
-        symbol_identity_counts.loc[
-            symbol_identity_counts > 1
-        ]
-    )
-    ambiguous_examples = []
-    for symbol in ambiguous_symbols.head(
-        MAX_EXAMPLES
-    ).index:
-        keys = sorted(
-            prices.loc[
-                prices[
-                    "yahoo_symbol"
-                ]
-                == symbol,
-                "security_key",
-            ]
-            .dropna()
-            .unique()
-            .tolist()
-        )
-        ambiguous_examples.append(
-            {
-                "yahoo_symbol": symbol,
-                "security_keys": keys,
-            }
-        )
+
+            elif (
+                stored_missing
+                and not computed_missing
+            ):
+                classification = (
+                    "computed_only"
+                )
+
+            else:
+                classification = (
+                    "both_missing"
+                )
+
+            classification_counts[
+                classification
+            ] += 1
+
+            horizon_counts[
+                horizon
+            ][
+                classification
+            ] += 1
+
+            if classification == "value_mismatch":
+                if (
+                    len(mismatch_examples)
+                    < MAX_EXAMPLES
+                ):
+                    mismatch_examples.append(
+                        {
+                            "security_key": security_key,
+                            "yahoo_symbol": row.get(
+                                "yahoo_symbol"
+                            ),
+                            "isin": row.get(
+                                "isin"
+                            ),
+                            "issuer": row.get(
+                                "issuer"
+                            ),
+                            "price_date": str(
+                                pd.Timestamp(
+                                    price_date
+                                ).date()
+                            ),
+                            "horizon": horizon,
+                            "stored": float(stored),
+                            "computed": float(computed),
+                            "difference": float(
+                                computed - stored
+                            ),
+                            "current_last_date": str(
+                                max_date.date()
+                            ),
+                        }
+                    )
+
+        if row_problem_horizons:
+            if (
+                len(stored_only_examples)
+                < MAX_EXAMPLES
+            ):
+                stored_only_examples.append(
+                    {
+                        "security_key": security_key,
+                        "yahoo_symbol": row.get(
+                            "yahoo_symbol"
+                        ),
+                        "isin": row.get(
+                            "isin"
+                        ),
+                        "issuer": row.get(
+                            "issuer"
+                        ),
+                        "price_date": str(
+                            pd.Timestamp(
+                                price_date
+                            ).date()
+                        ),
+                        "current_last_date": str(
+                            max_date.date()
+                        ),
+                        "current_observations": len(
+                            series
+                        ),
+                        "missing_targets": (
+                            row_problem_horizons
+                        ),
+                    }
+                )
+
     print()
     print(
-        "=========================================="
+        "============================================================"
     )
     print(
-        "FORWARD RETURN IDENTITY DIAGNOSTIC"
+        "FORWARD RETURN AVAILABILITY DIAGNOSTIC"
     )
     print(
-        "=========================================="
+        "============================================================"
     )
+
     print(
-        f"Feature rows: "
-        f"{len(features):,}"
+        f"Feature rows: {len(features):,}"
     )
+
     print(
-        f"Matched rows: "
-        f"{len(matched):,}"
+        f"Matched rows: {len(matched):,}"
     )
+
     print(
-        f"Price rows: "
-        f"{len(prices):,}"
+        f"Price rows: {len(prices):,}"
     )
+
+    if current_max_dates:
+        print(
+            "Current maximum price date: "
+            f"{max(current_max_dates).date()}"
+        )
+
     print()
     print(
-        "Classification:"
+        "OVERALL CLASSIFICATION"
     )
+
     for name, count in (
         classification_counts.items()
     ):
         print(
-            f"  {name}: "
-            f"{count:,}"
+            f"  {name}: {count:,}"
         )
+
     print()
     print(
-        "Rows matching security_key "
-        "but not yahoo_symbol: "
-        f"{yahoo_mismatch_rows:,}"
+        "PER HORIZON"
     )
-    print(
-        "Rows matching yahoo_symbol "
-        "but not security_key: "
-        f"{security_mismatch_rows:,}"
-    )
+
+    for horizon in RETURN_HORIZONS:
+        print(
+            f"  {horizon}d:"
+        )
+
+        for name, count in (
+            horizon_counts[
+                horizon
+            ].items()
+        ):
+            print(
+                f"    {name}: {count:,}"
+            )
+
     print()
-    print(
-        "Yahoo symbols with >1 security_key: "
-        f"{len(ambiguous_symbols):,}"
-    )
-    print(
-        "Yahoo symbol/date collision groups: "
-        f"{len(collisions):,}"
-    )
-    if ambiguous_examples:
-        print()
+
+    if stored_only_examples:
         print(
-            "Ambiguous Yahoo symbols:"
+            "STORED TARGETS THAT CURRENT PRICE DATA "
+            "CANNOT RECONSTRUCT"
         )
-        for example in ambiguous_examples:
+
+        for example in stored_only_examples:
             print(
                 f"  {example}"
             )
-    if collision_examples:
-        print()
+
+    print()
+
+    if mismatch_examples:
         print(
-            "Yahoo symbol/date collisions:"
+            "ACTUAL NUMERICAL MISMATCHES"
         )
-        for example in collision_examples:
+
+        for example in mismatch_examples:
             print(
                 f"  {example}"
             )
-    if examples:
-        print()
+
+    else:
         print(
-            "Forward-return examples:"
+            "ACTUAL NUMERICAL MISMATCHES: 0"
         )
-        for example in examples:
-            print(
-                f"  {example}"
-            )
+
     print(
-        "=========================================="
+        "============================================================"
     )
-    # ---------------------------------------------------------
-    # 5. Själva diagnostiska assertionen.
+
+    # Detta är den viktiga kontrollen.
     #
-    # Vi vill INTE kräva att yahoo_symbol fungerar.
-    # Vi vill få ett tydligt FAIL om det finns rader där
-    # produktionsresultatet följer security_key men QC:s
-    # yahoo-baserade serie ger ett annat resultat.
-    # ---------------------------------------------------------
+    # Om båda värdena finns måste de vara numeriskt identiska.
+    # stored_only är däremot inte ett fel i forward-return
+    # beräkningen; det betyder att dagens prisarkiv inte längre
+    # innehåller tillräckligt många framtida observationer.
     assert (
         classification_counts[
-            "matches_security_key_only"
+            "value_mismatch"
         ]
         == 0
     ), (
-        "Forward returns matchar "
-        "security_key men inte yahoo_symbol. "
-        "Det visar att yahoo_symbol och security_key "
-        "inte representerar samma prisserie för dessa "
-        "observationer. Se diagnostiken ovan."
+        "Det finns faktiska numeriska skillnader mellan "
+        "lagrade forward returns och aktuell prisdata. "
+        "Se diagnostiken ovan."
     )
