@@ -21,6 +21,16 @@ def add_forward_returns(
         pris vid N handelsobservationer framåt
         / pris på signal-dagen - 1
 
+    Prisens tidsserie identifieras med yahoo_symbol,
+    eftersom attach_prices() redan har valt den konkreta
+    prisserien och sparat dess symbol i feature-raden.
+
+    security_key används för FI-identitet, men ska inte
+    användas som enda nyckel för prisserien eftersom en
+    issuer-matchad FI-rad kan ha en historisk ISIN-baserad
+    security_key medan prisdata fortfarande identifieras
+    via issuer eller annan prisidentitet.
+
     Ingen framtida information används som feature.
     Forward returns är endast targets.
     """
@@ -29,14 +39,14 @@ def add_forward_returns(
         return frame
 
     lookup = {
-        key: group.sort_values(
+        symbol: group.sort_values(
             "date",
             kind="mergesort",
         ).reset_index(
             drop=True
         )
-        for key, group in prices.groupby(
-            "security_key",
+        for symbol, group in prices.groupby(
+            "yahoo_symbol",
             sort=False,
         )
     }
@@ -49,8 +59,18 @@ def add_forward_returns(
         ] = np.nan
 
     for index, row in frame.iterrows():
+        yahoo_symbol = row.get(
+            "yahoo_symbol"
+        )
+
+        if (
+            yahoo_symbol is None
+            or pd.isna(yahoo_symbol)
+        ):
+            continue
+
         series = lookup.get(
-            row["security_key"]
+            str(yahoo_symbol).strip()
         )
 
         if series is None or series.empty:
