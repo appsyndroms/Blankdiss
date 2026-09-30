@@ -199,12 +199,12 @@ def verify_training_period(
 ) -> None:
     start = _parse_boundary(
         candidate.training_period.start,
-        "training_period.start",
+        "candidate.training_period.start",
     )
 
     end = _parse_boundary(
         candidate.training_period.end,
-        "training_period.end",
+        "candidate.training_period.end",
     )
 
     cutoff = _parse_boundary(
@@ -406,6 +406,7 @@ def verify_no_evaluation_optimization(
 
 def verify_evaluation_period_data(
     frame: pd.DataFrame,
+    candidate: CandidateSpec,
     evaluation: EvaluationSpec,
 ) -> dict[str, Any]:
     if "snapshot_date" not in frame.columns:
@@ -453,12 +454,67 @@ def verify_evaluation_period_data(
     max_date = evaluation_dates.max()
     min_date = evaluation_dates.min()
 
-    if pd.isna(max_date) or max_date < end:
-        raise ValueError(
-            "Feature-data når inte "
-            "evaluation-periodens slutdatum: "
-            f"max={max_date}, end={end}."
+    feature_coverage: dict[str, Any] = {}
+
+    for feature in candidate.features:
+        signal = build_signal(
+            frame,
+            feature.name,
         )
+
+        usable_mask = (
+            evaluation_mask
+            & signal.notna()
+        )
+
+        usable_dates = dates[
+            usable_mask
+        ]
+
+        if usable_dates.empty:
+            raise ValueError(
+                "Candidate feature saknar "
+                "användbara observationer i "
+                "evaluation-perioden: "
+                f"{feature.name}"
+            )
+
+        feature_min_date = (
+            usable_dates.min()
+        )
+        feature_max_date = (
+            usable_dates.max()
+        )
+
+        if (
+            pd.isna(feature_max_date)
+            or feature_max_date < end
+        ):
+            raise ValueError(
+                "Candidate feature når inte "
+                "evaluation-periodens slutdatum: "
+                f"feature={feature.name}, "
+                f"max={feature_max_date}, "
+                f"end={end}."
+            )
+
+        feature_coverage[
+            feature.name
+        ] = {
+            "usable_rows": int(
+                usable_mask.sum()
+            ),
+            "min_snapshot_date": (
+                feature_min_date.isoformat()
+                if pd.notna(feature_min_date)
+                else None
+            ),
+            "max_snapshot_date": (
+                feature_max_date.isoformat()
+                if pd.notna(feature_max_date)
+                else None
+            ),
+        }
 
     return {
         "rows": evaluation_rows,
@@ -472,6 +528,7 @@ def verify_evaluation_period_data(
             if pd.notna(max_date)
             else None
         ),
+        "feature_coverage": feature_coverage,
     }
 
 
@@ -829,6 +886,7 @@ def verify_evaluation_data(
 
     period = verify_evaluation_period_data(
         frame,
+        candidate,
         evaluation,
     )
 
