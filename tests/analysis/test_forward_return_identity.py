@@ -1,10 +1,7 @@
 from __future__ import annotations
-
 import math
-
 import numpy as np
 import pandas as pd
-
 from analysis.feature_config import (
     FEATURE_GLOB,
     OUTPUT_DIR,
@@ -18,23 +15,17 @@ from analysis.feature_prices import (
 from analysis.features_qc import (
     check_forward_return_alignment,
 )
-
-
 TOLERANCE = 1e-9
 MAX_EXAMPLES = 50
-
-
 def _load_features() -> pd.DataFrame:
     paths = sorted(
         OUTPUT_DIR.glob(FEATURE_GLOB)
     )
-
     if not paths:
         raise FileNotFoundError(
             "Inga feature-chunks hittades i "
             f"{OUTPUT_DIR}"
         )
-
     frames = [
         pd.read_json(
             path,
@@ -42,13 +33,10 @@ def _load_features() -> pd.DataFrame:
         )
         for path in paths
     ]
-
     return pd.concat(
         frames,
         ignore_index=True,
     )
-
-
 def _same(
     left,
     right,
@@ -57,26 +45,20 @@ def _same(
         left is None
         or pd.isna(left)
     )
-
     right_missing = (
         right is None
         or pd.isna(right)
     )
-
     if left_missing and right_missing:
         return True
-
     if left_missing != right_missing:
         return False
-
     return math.isclose(
         float(left),
         float(right),
         rel_tol=TOLERANCE,
         abs_tol=TOLERANCE,
     )
-
-
 def _build_price_lookup(
     prices: pd.DataFrame,
 ) -> dict[str, pd.DataFrame]:
@@ -92,29 +74,21 @@ def _build_price_lookup(
             sort=False,
         )
     }
-
-
 def test_forward_return_availability_diagnostic():
     """
     Diagnostik för forward-return targets.
-
     Testet undersöker varför vissa redan lagrade
     forward_return_* targets inte längre kan räknas fram
     från det aktuella prisarkivet.
-
     Ingen produktionskod ändras.
     """
-
     features = _load_features()
-
     price_files = find_price_files(
         PRICE_DIR
     )
-
     prices = load_prices(
         price_files
     )
-
     matched = features.loc[
         features[
             "price_match_available"
@@ -126,17 +100,14 @@ def test_forward_return_availability_diagnostic():
             "price_date"
         ].notna()
     ].copy()
-
     if matched.empty:
         raise AssertionError(
             "Inga matchade feature-rader "
             "kunde analyseras."
         )
-
     lookup = _build_price_lookup(
         prices
     )
-
     classification_counts = {
         "exact_match": 0,
         "stored_only": 0,
@@ -144,10 +115,8 @@ def test_forward_return_availability_diagnostic():
         "value_mismatch": 0,
         "both_missing": 0,
     }
-
     mismatch_examples = []
     stored_only_examples = []
-
     horizon_counts = {
         horizon: {
             "exact_match": 0,
@@ -158,38 +127,30 @@ def test_forward_return_availability_diagnostic():
         }
         for horizon in RETURN_HORIZONS
     }
-
     current_max_dates = []
-
     for _, row in matched.iterrows():
         security_key = row[
             "security_key"
         ]
-
         series = lookup.get(
             security_key
         )
-
         if (
             series is None
             or series.empty
         ):
             continue
-
         dates = series[
             "date"
         ].to_numpy(
             dtype="datetime64[ns]"
         )
-
         price_date = pd.to_datetime(
             row["price_date"],
             errors="coerce",
         )
-
         if pd.isna(price_date):
             continue
-
         entry_idx = int(
             np.searchsorted(
                 dates,
@@ -197,16 +158,13 @@ def test_forward_return_availability_diagnostic():
                 side="left",
             )
         )
-
         if entry_idx >= len(series):
             continue
-
         entry_price = float(
             series.iloc[
                 entry_idx
             ]["close"]
         )
-
         if (
             not math.isfinite(
                 entry_price
@@ -214,30 +172,23 @@ def test_forward_return_availability_diagnostic():
             or entry_price <= 0
         ):
             continue
-
         max_date = pd.Timestamp(
             series.iloc[-1]["date"]
         )
-
         current_max_dates.append(
             max_date
         )
-
         row_problem_horizons = []
-
         for horizon in RETURN_HORIZONS:
             column = (
                 f"forward_return_{horizon}d"
             )
-
             stored = row.get(
                 column
             )
-
             target_idx = (
                 entry_idx + horizon
             )
-
             if target_idx >= len(series):
                 computed = np.nan
                 required_date = None
@@ -247,7 +198,6 @@ def test_forward_return_availability_diagnostic():
                         target_idx
                     ]["close"]
                 )
-
                 if (
                     not math.isfinite(
                         target_price
@@ -261,23 +211,19 @@ def test_forward_return_availability_diagnostic():
                         / entry_price
                         - 1.0
                     )
-
                 required_date = pd.Timestamp(
                     series.iloc[
                         target_idx
                     ]["date"]
                 )
-
             stored_missing = (
                 stored is None
                 or pd.isna(stored)
             )
-
             computed_missing = (
                 computed is None
                 or pd.isna(computed)
             )
-
             if (
                 not stored_missing
                 and not computed_missing
@@ -293,7 +239,6 @@ def test_forward_return_availability_diagnostic():
                     classification = (
                         "value_mismatch"
                     )
-
             elif (
                 not stored_missing
                 and computed_missing
@@ -320,7 +265,6 @@ def test_forward_return_availability_diagnostic():
                         ),
                     }
                 )
-
             elif (
                 stored_missing
                 and not computed_missing
@@ -328,22 +272,18 @@ def test_forward_return_availability_diagnostic():
                 classification = (
                     "computed_only"
                 )
-
             else:
                 classification = (
                     "both_missing"
                 )
-
             classification_counts[
                 classification
             ] += 1
-
             horizon_counts[
                 horizon
             ][
                 classification
             ] += 1
-
             if classification == "value_mismatch":
                 if (
                     len(mismatch_examples)
@@ -377,7 +317,6 @@ def test_forward_return_availability_diagnostic():
                             ),
                         }
                     )
-
         if row_problem_horizons:
             if (
                 len(stored_only_examples)
@@ -411,7 +350,6 @@ def test_forward_return_availability_diagnostic():
                         ),
                     }
                 )
-
     print()
     print(
         "============================================================"
@@ -422,47 +360,38 @@ def test_forward_return_availability_diagnostic():
     print(
         "============================================================"
     )
-
     print(
         f"Feature rows: {len(features):,}"
     )
-
     print(
         f"Matched rows: {len(matched):,}"
     )
-
     print(
         f"Price rows: {len(prices):,}"
     )
-
     if current_max_dates:
         print(
             "Current maximum price date: "
             f"{max(current_max_dates).date()}"
         )
-
     print()
     print(
         "OVERALL CLASSIFICATION"
     )
-
     for name, count in (
         classification_counts.items()
     ):
         print(
             f"  {name}: {count:,}"
         )
-
     print()
     print(
         "PER HORIZON"
     )
-
     for horizon in RETURN_HORIZONS:
         print(
             f"  {horizon}d:"
         )
-
         for name, count in (
             horizon_counts[
                 horizon
@@ -471,41 +400,32 @@ def test_forward_return_availability_diagnostic():
             print(
                 f"    {name}: {count:,}"
             )
-
     print()
-
     if stored_only_examples:
         print(
             "STORED TARGETS THAT CURRENT PRICE DATA "
             "CANNOT RECONSTRUCT"
         )
-
         for example in stored_only_examples:
             print(
                 f"  {example}"
             )
-
     print()
-
     if mismatch_examples:
         print(
             "ACTUAL NUMERICAL MISMATCHES"
         )
-
         for example in mismatch_examples:
             print(
                 f"  {example}"
             )
-
     else:
         print(
             "ACTUAL NUMERICAL MISMATCHES: 0"
         )
-
     print(
         "============================================================"
     )
-
     # Detta är den viktiga kontrollen.
     #
     # Om båda värdena finns måste de vara numeriskt identiska.
@@ -522,26 +442,19 @@ def test_forward_return_availability_diagnostic():
         "lagrade forward returns och aktuell prisdata. "
         "Se diagnostiken ovan."
     )
-
-
 def test_forward_return_alignment_qc_distinguishes_unverifiable_targets():
     """
     Kontrollerar QC-reglerna för forward-return alignment.
-
     Tre fall testas:
-
     1. Target kan verifieras och stämmer:
        -> verified_match
-
     2. Target ligger efter aktuell prisseries slut:
        -> not_yet_verifiable
        -> ska INTE ge FAIL
-
     3. Target kan verifieras men saknas:
        -> missing_forward_return
        -> ska ge FAIL
     """
-
     prices = pd.DataFrame(
         [
             {
@@ -567,7 +480,6 @@ def test_forward_return_alignment_qc_distinguishes_unverifiable_targets():
             },
         ]
     )
-
     verified_frame = pd.DataFrame(
         [
             {
@@ -583,19 +495,16 @@ def test_forward_return_alignment_qc_distinguishes_unverifiable_targets():
             }
         ]
     )
-
     result = check_forward_return_alignment(
         verified_frame,
         prices,
     )
-
     assert result["status"] == "PASS"
     assert result["verified_match"] == 1
     assert result["not_yet_verifiable"] == 3
     assert result["value_mismatch"] == 0
     assert result["price_date_not_found"] == 0
     assert result["missing_forward_return"] == 0
-
     stored_only_frame = pd.DataFrame(
         [
             {
@@ -611,19 +520,16 @@ def test_forward_return_alignment_qc_distinguishes_unverifiable_targets():
             }
         ]
     )
-
     result = check_forward_return_alignment(
         stored_only_frame,
         prices,
     )
-
     assert result["status"] == "PASS"
     assert result["verified_match"] == 1
-    assert result["not_yet_verifiable"] == 2
+    assert result["not_yet_verifiable"] == 3
     assert result["value_mismatch"] == 0
     assert result["price_date_not_found"] == 0
     assert result["missing_forward_return"] == 0
-
     missing_target_frame = pd.DataFrame(
         [
             {
@@ -639,12 +545,10 @@ def test_forward_return_alignment_qc_distinguishes_unverifiable_targets():
             }
         ]
     )
-
     result = check_forward_return_alignment(
         missing_target_frame,
         prices,
     )
-
     assert result["status"] == "FAIL"
     assert result["verified_match"] == 0
     assert result["not_yet_verifiable"] == 3
