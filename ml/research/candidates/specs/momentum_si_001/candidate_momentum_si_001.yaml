@@ -1,1 +1,49 @@
+schema_version: 1
 
+id: candidate_momentum_si_001
+version: 1
+
+question: >
+  Ger hög 60-dagars momentum kombinerat med positiv förändring
+  i short interest en förändrad sannolikhet för framtida
+  positiv prisrörelse över 20 dagar?
+
+created_at: "2026-07-01T00:00:00Z"
+discovery_cutoff: "2026-06-30T00:00:00Z"
+freeze_at: "2026-07-15T00:00:00Z"
+
+candidate_status: frozen
+
+features:
+  - name: price_momentum_60d
+  - name: short_interest_change
+
+parameters:
+  price_momentum_60d:
+    direction: upper
+    quantile: 0.10
+
+  short_interest_change:
+    direction: upper
+    quantile: 0.10
+
+target:
+  name: positive_20d
+
+analysis:
+  type: interaction
+  bootstrap: true
+  bootstrap_iterations: 2000
+
+training_period:
+  start: "2022-01-01T00:00:00Z"
+  end: "2026-06-30T00:00:00Z"
+
+provenance:
+  source: discovery
+  discovery_spec: null
+  research_engine: existing
+
+fingerprint:
+  algorithm: sha256
+  value: "aeb3926ed0c1c2ba1abdd815420b2dc52bd964c5d16f594fde1f2a9d8a6009dd"
