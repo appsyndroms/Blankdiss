@@ -1701,16 +1701,6 @@
     "ticker": null,
     "yahoo_symbol": "CIBUS.ST"
   },
-  "ISIN:SE0010832287": {
-    "exchange": null,
-    "isin": "SE0010832287",
-    "issuer": "KlaraBo Sverige AB",
-    "lei": "5493001FIOIXOKMHG857",
-    "map_key": "ISIN:SE0010832287",
-    "mapping_source": "migrated",
-    "ticker": null,
-    "yahoo_symbol": "KLARA-B.ST"
-  },
   "ISIN:SE0010948588": {
     "exchange": null,
     "isin": "SE0010948588",
@@ -3036,6 +3026,16 @@
     "mapping_source": "issuer_search",
     "ticker": null,
     "yahoo_symbol": "2I9.SG"
+  },
+  "LEI:5493001FIOIXOKMHG857": {
+    "exchange": null,
+    "isin": "SE0010832287",
+    "issuer": "KlaraBo Sverige AB",
+    "lei": "5493001FIOIXOKMHG857",
+    "map_key": "LEI:5493001FIOIXOKMHG857",
+    "mapping_source": "migrated",
+    "ticker": null,
+    "yahoo_symbol": "KLARA-B.ST"
   },
   "LEI:5493001IZXU12M8NYV95": {
     "exchange": null,
