@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Blankdiss – Dataanalys</title>
+    <link
+        rel="stylesheet"
+        href="./style.css?v=3"
+    >
+</head>
+
+<body>
+
+<header class="hero">
+    <div class="container">
+
+        <div class="brand">
+            📉 BLANKDISS
+        </div>
+
+        <h1>
+            Dataanalys
+        </h1>
+
+        <p class="lead">
+            Historisk event study, ML-resultat och prospektiv
+            evaluation-historik.
+        </p>
+
+        <nav class="tabs" aria-label="Huvudnavigation">
+
+            <a
+                class="tab"
+                href="./index.html"
+            >
+                Hem
+            </a>
+
+            <a
+                class="tab"
+                href="./koplage.html"
+            >
+                Köpläge
+            </a>
+
+            <a
+                class="tab"
+                href="./bedomning.html"
+            >
+                Bedömning
+            </a>
+
+            <a
+                class="tab active"
+                href="./dataanalys.html"
+            >
+                Dataanalys
+            </a>
+
+        </nav>
+
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
+                HISTORISK ANALYS
+            </span>
+
+            <h2>
+                Historiskt mönster
+            </h2>
+
+            <p>
+                Vad har hänt efter liknande förändringar tidigare?
+            </p>
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>
+                            Förändring
+                        </th>
+
+                        <th>
+                            Händelser
+                        </th>
+
+                        <th>
+                            Median 1d
+                        </th>
+
+                        <th>
+                            Median 5d
+                        </th>
+
+                        <th>
+                            Median 20d
+                        </th>
+
+                        <th>
+                            Median 60d
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+                    {{ANALYSIS_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
+                MACHINE LEARNING
+            </span>
+
+            <h2>
+                ML & ekonomiskt OOS-test
+            </h2>
+
+            <p>
+                Resultat från modeller som tränats på historiska data
+                och därefter testats på out-of-sample-perioder.
+                Top 1 %, 10 bps och fem observationsdagars rebalance
+                visas som primär strategi.
+            </p>
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>
+                            Feature set
+                        </th>
+
+                        <th>
+                            Target
+                        </th>
+
+                        <th>
+                            Task
+                        </th>
+
+                        <th>
+                            Modell
+                        </th>
+
+                        <th>
+                            Riktning
+                        </th>
+
+                        <th>
+                            Netto
+                        </th>
+
+                        <th>
+                            Benchmark
+                        </th>
+
+                        <th>
+                            Excess
+                        </th>
+
+                        <th>
+                            Max DD
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+                    {{ML_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
+                PROSPEKTIV FORSKNING
+            </span>
+
+            <h2>
+                Evaluation-historik
+            </h2>
+
+            <p>
+                Varje daglig evaluation sparas separat. På så sätt
+                går det att följa vad Blankdiss visste vid respektive
+                observationsdatum och hur resultaten senare mognar.
+            </p>
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>
+                            Feature-datum
+                        </th>
+
+                        <th>
+                            Körning
+                        </th>
+
+                        <th>
+                            Kandidat
+                        </th>
+
+                        <th>
+                            Observationer
+                        </th>
+
+                        <th>
+                            Mogna
+                        </th>
+
+                        <th>
+                            AUC
+                        </th>
+
+                        <th>
+                            Lift
+                        </th>
+
+                        <th>
+                            Run
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+                    {{EVALUATION_HISTORY_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <section class="explanation">
+
+        <span class="eyebrow">
+            METOD
+        </span>
+
+        <h2>
+            Så läser du dataanalysen
+        </h2>
+
+        <p>
+            Event study-delen beskriver historiska samband.
+            ML-delen går ett steg längre genom att träna modeller
+            på historiska observationer och sedan utvärdera dem på
+            data som modellen inte tränat på.
+        </p>
+
+        <p>
+            Netto anger strategins sammansatta avkastning efter
+            den angivna transaktionskostnaden. Benchmark är
+            motsvarande universums genomsnittliga utveckling.
+            Excess är skillnaden mellan strategin och benchmark.
+        </p>
+
+        <p>
+            Ett OOS-resultat är fortfarande inte automatiskt en
+            framtida prognos. Därför ingår robusthet,
+            känslighetsanalys och olika målvariabler i experimenten.
+        </p>
+
+    </section>
+
+
+    <section class="method">
+
+        <div class="method-item">
+
+            <span class="method-number">
+                01
+            </span>
+
+            <div>
+
+                <h3>
+                    Blankning
+                </h3>
+
+                <p>
+                    Data från Finansinspektionens
+                    blankningsregister.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="method-item">
+
+            <span class="method-number">
+                02
+            </span>
+
+            <div>
+
+                <h3>
+                    Förändring
+                </h3>
+
+                <p>
+                    Förändringen mellan två observerade
+                    blankningsnivåer beräknas i procentenheter.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="method-item">
+
+            <span class="method-number">
+                03
+            </span>
+
+            <div>
+
+                <h3>
+                    Aktie
+                </h3>
+
+                <p>
+                    Efterföljande utveckling mäts över
+                    1, 5, 20 och 60 handelsdagar.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="method-item">
+
+            <span class="method-number">
+                04
+            </span>
+
+            <div>
+
+                <h3>
+                    Statistik
+                </h3>
+
+                <p>
+                    Händelser grupperas och jämförs för att
+                    hitta eventuella återkommande mönster.
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <footer>
+
+        <span>
+            Blankdiss
+        </span>
+
+        <span>
+            Genererad {{GENERATED_AT}}
+        </span>
+
+    </footer>
+
+</main>
+
+</body>
+</html>
