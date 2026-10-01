@@ -40,13 +40,14 @@
     "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
-    "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl"
+    "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl",
+    "data/raw/prices/prices_2026-09-30_2026-09-30.jsonl"
   ],
-  "rows": 208257,
+  "rows": 208594,
   "symbols": 311,
   "fi_period": {
     "start": "2022-05-25",
-    "end": "2026-09-30"
+    "end": "2026-10-01"
   },
   "checks": {
     "required_columns": {
@@ -62,13 +63,13 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 135489,
-      "same_day": 130397,
-      "one_day": 1289,
-      "two_days": 933,
+      "matched_rows": 135753,
+      "same_day": 130654,
+      "one_day": 1290,
+      "two_days": 934,
       "three_days": 374,
-      "four_to_five_days": 139,
-      "more_than_five_days": 2357,
+      "four_to_five_days": 140,
+      "more_than_five_days": 2361,
       "more_than_ten_days": 2344,
       "max_calendar_days": 1576,
       "median_calendar_days": 0.0
@@ -89,9 +90,9 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 133348,
-        "unmatched": 72768,
-        "issuer": 2141
+        "isin": 133355,
+        "unmatched": 72841,
+        "issuer": 2398
       },
       "unexpected_sources": []
     },
@@ -115,26 +116,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 134133,
-          "null": 74124,
+          "non_null": 134430,
+          "null": 74164,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 131845,
-          "null": 76412,
+          "non_null": 132141,
+          "null": 76453,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 128074,
-          "null": 80183,
+          "non_null": 128213,
+          "null": 80381,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 122162,
-          "null": 86095,
+          "non_null": 122311,
+          "null": 86283,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -142,8 +143,8 @@
     },
     "forward_return_alignment": {
       "status": "PASS",
-      "verified_match": 516214,
-      "not_yet_verifiable": 25742,
+      "verified_match": 517095,
+      "not_yet_verifiable": 25917,
       "value_mismatch": 0,
       "price_date_not_found": 0,
       "missing_forward_return": 0,
@@ -157,140 +158,140 @@
             "price_date": "2026-09-14",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-14",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-15",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-15",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-16",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-16",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-17",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-17",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-18",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-18",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-21",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-21",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-21",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-21",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-22",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-22",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
-          },
-          {
-            "yahoo_symbol": "MER.ST",
-            "price_date": "2026-09-23",
-            "window": 5,
-            "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-23",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-23",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
           },
           {
             "yahoo_symbol": "MER.ST",
             "price_date": "2026-09-24",
             "window": 5,
             "stored": null,
-            "current_last_date": "2026-09-29"
+            "current_last_date": "2026-09-30"
+          },
+          {
+            "yahoo_symbol": "MER.ST",
+            "price_date": "2026-09-24",
+            "window": 20,
+            "stored": null,
+            "current_last_date": "2026-09-30"
           }
         ]
       }
@@ -301,9 +302,9 @@
     },
     "unmatched_rows": {
       "status": "WARN",
-      "total_rows": 208257,
-      "rows_with_price": 135489,
-      "rows_without_price": 72768,
+      "total_rows": 208594,
+      "rows_with_price": 135753,
+      "rows_without_price": 72841,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {
