@@ -13,13 +13,42 @@ from .formatting import (
 )
 
 
+def _event_identity(
+    event: dict,
+) -> tuple[str, str]:
+    event_date = str(
+        event.get("event_date")
+        or ""
+    )
+
+    identity = (
+        event.get("isin")
+        or event.get("lei")
+        or event.get("yahoo_symbol")
+        or event.get("issuer")
+        or ""
+    )
+
+    return (
+        event_date,
+        str(identity),
+    )
+
+
 def build_event_rows(
     events: list[dict],
+    include_ranking: bool = False,
 ) -> str:
+    colspan = (
+        8
+        if include_ranking
+        else 7
+    )
+
     if not events:
-        return """
+        return f"""
         <tr>
-            <td colspan="7" class="empty">
+            <td colspan="{colspan}" class="empty">
                 Inga händelser ännu.
             </td>
         </tr>
@@ -35,6 +64,31 @@ def build_event_rows(
         ),
         reverse=True,
     )
+
+    ranking: dict[
+        tuple[str, str],
+        int
+    ] = {}
+
+    if include_ranking:
+        ranked_events = sorted(
+            sorted_events,
+            key=lambda event: (
+                event.get("change_pp")
+                if event.get(
+                    "change_pp"
+                ) is not None
+                else float("inf")
+            )
+        )
+
+        for index, event in enumerate(
+            ranked_events,
+            start=1,
+        ):
+            ranking[
+                _event_identity(event)
+            ] = index
 
     rows: list[str] = []
 
@@ -74,9 +128,23 @@ def build_event_rows(
             f"</span>"
         )
 
+        ranking_html = ""
+
+        if include_ranking:
+            rank = ranking.get(
+                _event_identity(event)
+            )
+
+            ranking_html = (
+                f'<td data-sort-value="{rank or ""}">'
+                f"{rank or '—'}"
+                f"</td>"
+            )
+
         rows.append(
             f"""
             <tr>
+                {ranking_html}
                 <td>
                     <strong>{issuer}</strong>
                 </td>
