@@ -1,398 +1,179 @@
-Blankdiss Diagnostics
-
-Diagnostics används för hypotesdrivna analyser som kräver mer specifik experimentlogik än den generella research-matrisen.
-
-Exempel:
-
-* volatility × short interest
-* short-interest change × event risk
-* volatility regime
-* directional tail analysis
-* report-date proximity
-* sector-relative return
-
-⸻
-
-Arkitektur
-
-ml/diagnostics/
-│
-├── framework/
-│   ├── __init__.py
-│   ├── base.py
-│   ├── context.py
-│   ├── metrics.py
-│   ├── reporting.py
-│   ├── runner.py
-│   └── stratification.py
-│
-└── experiments/
-    ├── *_diagnostic.py
-    └── ...
-
-Det finns en tydlig separation mellan:
-
-framework
-    = gemensam infrastruktur
-
-experiments
-    = specifika forskningsfrågor
-
-⸻
-
-DiagnosticExperiment
-
-Alla nya diagnostics ska normalt ärva från:
-
-DiagnosticExperiment
-
-Exempel:
-
-from ml.diagnostics.framework import DiagnosticExperiment
-
-class MyExperiment(DiagnosticExperiment):
-    name = "my_experiment"
-
-    targets = (
-        "down_5pct_5d",
-    )
-
-    def analyze_window(self, context):
-        ...
-
-Experimentet behöver normalt bara implementera:
-
-analyze_window(context)
-
-⸻
-
-ExperimentContext
-
-Runnern skapar ett:
-
-ExperimentContext
-
-för varje walk-forward-window.
-
-Context innehåller:
-
-train
-validation
-pretest
-test
-
-Exempel:
-
-def analyze_window(self, context):
-    train = context.train
-    validation = context.validation
-    test = context.test
-
-Experimenten ska inte själva implementera walk-forward-datumfilter.
-
-⸻
-
-ExperimentResult
-
-Experimentet returnerar resultat som frameworket konverterar till:
-
-ExperimentResult
-
-Resultatet kan innehålla:
-
-tables
-metrics
-metadata
-
-Exempel:
-
-return {
-    "analysis": analysis_table,
-    "bootstrap": bootstrap_table,
-}
-
-Standardiserad reporting hanteras av frameworket.
-
-⸻
-
-Helpers
-
-Gemensam analyslogik ska ligga i frameworket.
-
-Exempel:
-
-make_pretest_bins()
-build_2d_analysis()
-
-samt andra helpers för:
-
-* logistic screening
-* event-risk modelling
-* feature-set comparison
-* directional tail analysis
-* bootstrap
-* volatility regimes
-* economic tail analysis
-
-Målet är att experimentfilerna ska vara små och deklarativa.
-
-⸻
-
-Exempel
-
-Ett enkelt experiment:
-
-class VolatilitySIInteractionExperiment(
-    DiagnosticExperiment
-):
-    name = "volatility_si_interaction"
-
-    targets = (
-        "down_5pct_5d",
-        "down_7pct_5d",
-        "down_10pct_5d",
-    )
-
-    def analyze_window(self, context):
-        volatility_bins = self.make_pretest_bins(
-            context.test,
-            "price_volatility_20d",
-        )
-
-        si_bins = self.make_pretest_bins(
-            context.test,
-            "short_interest_pct",
-        )
-
-        return self.build_2d_analysis(
-            context.test,
-            volatility_bins,
-            si_bins,
-            self.targets,
-        )
-
-Poängen är att experimentet beskriver vad som ska analyseras, medan frameworket beskriver hur den gemensamma infrastrukturen fungerar.
-
-⸻
-
-När ska en hypotes bli Diagnostics?
-
-Diagnostics är inte en fallback för funktionalitet som ännu inte finns i Research Engine.
-
-Innan en ny Diagnostic skapas ska följande frågor ställas:
-
-1. Kan frågan uttryckas med befintlig Research Engine?
-2. Om inte, är den saknade analysformen generell?
-3. Kan samma analysform rimligen användas av flera framtida hypoteser?
-
-Om svaret är JA på fråga 2 och 3 ska Research Engine utökas.
-
-Därefter ska den konkreta hypotesen uttryckas som YAML.
-
-Om analysen däremot kräver verkligt unik och specialiserad logik kan Diagnostics vara rätt nivå.
-
-Exempel:
-
-Ny generell modelljämförelse
-    ↓
-Research Engine
-
-Specifik hypotes som använder modelljämförelsen
-    ↓
-YAML
-
-Unik mekanismanalys
-    ↓
 Diagnostics
 
-Det är alltså inte korrekt att skapa ett Diagnostic bara för att Research Engine saknar en generell analysform.
+ml/diagnostics/ innehåller specialiserade diagnostiska analyser som används för att undersöka egenskaper, problem och fenomen i Blankdiss data och forskningsresultat.
 
-⸻
+Diagnostics är ett komplement till Research Engine, inte en alternativ generell forskningsmotor.
 
-Walk-forward
+Roll i arkitekturen
 
-Diagnostics följer samma grundprincip som övrig ML:
+                    analysis/
+                        │
+                        ▼
+                feature dataset
+                        │
+          ┌─────────────┴─────────────┐
+          ▼                           ▼
+   Research Engine              Diagnostics
+          │                           │
+          ▼                           ▼
+   forskningsresultat          diagnostiska resultat
 
-TRAIN
-   ↓
-VALIDATION
-   ↓
-MODEL SELECTION
-   ↓
-REFIT
-   ↓
-OOS TEST
+Research Engine används när en analys kan beskrivas som ett återanvändbart generellt experiment.
 
-Testperioden får inte användas för:
+Diagnostics används när analysen är mer specialiserad och framför allt syftar till att förstå eller kontrollera ett specifikt fenomen.
 
-* modellval
-* threshold selection
-* feature selection
-* optimering av experimentet
+När ska Diagnostics användas?
 
-Detta gäller även deskriptiva diagnostics när testpopulationer definieras med quantiles eller thresholds.
+Diagnostics passar exempelvis när man behöver undersöka:
 
-⸻
+* varför ett resultat ser ut som det gör
+* om ett dataset innehåller ett särskilt problem
+* om en viss feature beter sig oväntat
+* om en modell eller signal har en specifik egenskap
+* om ett experiment behöver kompletteras med en specialiserad kontroll
+* om en forskningshypotes kräver en analys som inte passar Research Engines generella spec-modell
 
-Pre-test populationer
+Det behöver alltså inte vara en ny prediktionsmodell för att motivera en diagnostic.
 
-När ett experiment behöver exempelvis:
+När ska Research Engine användas?
 
-HIGH VOL
-HIGH SI
-HIGH EVENT RISK
-
-ska grupperna definieras med information som är tillgänglig före testperioden.
-
-Exempel:
-
-pretest
-   ↓
-quantile threshold
-   ↓
-test classification
-
-Inte:
-
-test outcomes
-   ↓
-optimera threshold
-
-⸻
-
-2D-interaktioner
-
-För två faktorer används exempelvis:
-
-                    LOW SI       HIGH SI
-LOW VOL                A             B
-HIGH VOL               C             D
-
-Interaktion:
-
-(D - C) - (B - A)
-
-Detta skiljer en faktisk interaktion från en situation där den högsta gruppen bara råkar ha högst event rate.
-
-⸻
-
-Event-risk
-
-Event-risk kan fungera som en mellanliggande dimension i flera diagnostics.
+Om samma typ av analys kan beskrivas generellt och återanvändas för många olika features, targets eller hypoteser bör den normalt placeras i Research Engine.
 
 Exempel:
 
-abs(forward_return_5d) >= 10 %
+"Testa feature X mot target Y"
 
-En event-riskmodell kan tränas och väljas genom:
+är typiskt en Research Engine-uppgift.
 
-TRAIN
-   ↓
-VALIDATION
-   ↓
-REFIT
-   ↓
-OOS SCORE
+Medan:
 
-Andra diagnostics kan sedan analysera exempelvis:
+"Undersök varför signalen X endast fungerar
+under ett specifikt marknadsfenomen"
 
-event-risk tail
-        ×
-short-interest level
+kan vara en diagnostisk analys om den kräver särskild logik.
 
-eller:
+Struktur
 
-event-risk tail
-        ×
-short-interest change
+Diagnostics är uppdelat i två huvudsakliga delar:
 
-⸻
+ml/diagnostics/
+├── framework/
+└── experiments/
 
-Experimentfiler
+framework/
 
-Experimentfilerna ska normalt vara små.
+Innehåller gemensam infrastruktur som kan användas av flera diagnostiska analyser.
 
-Undvik att lägga följande direkt i experimentfilen:
+Syftet är att undvika att samma tekniska stöd implementeras flera gånger.
 
-* stora data-loading-block
-* egna walk-forward-splitter
-* duplicerad modellträning
-* duplicerad threshold-logik
-* duplicerad bootstrap-kod
-* duplicerad reporting
-* terminalorienterad output
+experiments/
 
-Om samma kod behövs av flera experiment ska den normalt flyttas till frameworket.
+Innehåller de konkreta diagnostiska analyserna.
 
-⸻
+Varje experiment ska ha ett tydligt syfte och beskriva vilket fenomen eller vilken frågeställning det undersöker.
 
-Nya experiment
+Förhållande till Research Engine
 
-Processen för Diagnostics är:
+Research Engine:
 
-1. Formulera forskningsfrågan.
-2. Kontrollera Research Engine.
-3. Kontrollera om hypotesen kan uttryckas deklarativt.
-4. Kontrollera om eventuell saknad funktionalitet egentligen är generell Engine-funktionalitet.
-5. Om JA: utöka Research Engine och använd YAML.
-6. Om NEJ: bedöm om frågan kräver verkligt specialiserad Diagnostics-logik.
-7. Skapa experimentklass.
-8. Återanvänd framework helpers.
-9. Lägg eventuell generell ny logik i framework.
-10. Registrera experimentet.
-11. Kör walk-forward.
-12. Inspektera OOS-resultat.
-
-Ett nytt Diagnostics-experiment ska alltså inte skapas bara för att Research Engine ännu inte har implementerat en generell analysis type.
-
-⸻
-
-Designmål
-
-Diagnostics-systemet ska göra det möjligt att gå från:
-
-Ny specialiserad hypotes
-
-till:
-
-Liten experimentklass
-        ↓
-Gemensam framework
-        ↓
-Walk-forward
-        ↓
-OOS
-        ↓
-Standardiserat resultat
-
-Det innebär att forskningslogiken blir mer återanvändbar och att nya experiment kan implementeras utan att duplicera infrastrukturen.
-
-Samtidigt ska generiska analyser stanna i Research Engine.
-
-Målet är därför:
-
-Generisk analys
-    → Research Engine + YAML
-
-Specialiserad analys
-    → Diagnostics
-
-⸻
-
-Relaterad dokumentation
-
-Övergripande projekt:
-
-README.md
-
-ML-system:
-
-ml/README.md
-
-Research:
-
-ml/research/README.md
+generell
+återanvändbar
+deklarativ
+experimentorienterad
 
 Diagnostics:
 
-ml/diagnostics/README.md
+specialiserad
+frågestyrd
+diagnostisk
+fenomenorienterad
+
+Gränsen behöver inte vara absolut. Om en diagnostisk analys visar sig vara återanvändbar på ett generellt sätt kan logiken senare flyttas eller abstraheras in i Research Engine.
+
+Förhållande till AI Lab
+
+AI Lab kan använda diagnostiska resultat som underlag för nästa forskningssteg.
+
+Exempel:
+
+AI Lab
+   │
+   ▼
+Research Engine
+   │
+   ▼
+Intressant resultat
+   │
+   ▼
+Diagnostics
+   │
+   ▼
+Förklaring / ytterligare information
+   │
+   ▼
+AI Lab
+   │
+   ▼
+Nästa experiment
+
+Diagnostics är därmed ett verktyg som kan ge mer information till forskningsprocessen, men är inte själva forskningsorkestreringen.
+
+OOS och tidsmässig separation
+
+Diagnostiska analyser måste följa samma grundläggande tidsmässiga principer som övrig forskning.
+
+När analysen används för att bedöma en hypotes ska man vara tydlig med:
+
+* vilken period som analyseras
+* om data användes vid hypotesgenerering
+* om analysen är in-sample eller out-of-sample
+* vilka observationer som är tillgängliga vid den aktuella tidpunkten
+* om analysen kan introducera look-ahead bias
+
+En diagnostic får alltså inte omedvetet göra en historisk signal starkare genom att använda framtida information.
+
+Resultat
+
+Diagnostiska resultat ska vara spårbara till:
+
+* det experiment som kördes
+* aktuell datamängd
+* relevant tidsperiod
+* parametrar
+* eventuella forskningsresultat som analyserades
+
+Om ett diagnostiskt resultat leder till en ny kandidat ska kandidaten hanteras via det ordinarie kandidatflödet i Research Engine.
+
+Vad Diagnostics inte ska göra
+
+Diagnostics ska inte bli en alternativ plats för generell forskningslogik.
+
+Undvik exempelvis att skapa separata implementationer för:
+
+* samma signaltest som Research Engine redan stöder
+* samma targetanalys
+* samma feature-ranking
+* samma standardiserade evaluation
+* samma kandidatflöde
+
+Om en funktion blir generell bör den i stället övervägas för Research Engine.
+
+Grundprincip
+
+Diagnostics ska hjälpa Blankdiss att förstå varför ett resultat ser ut som det gör, inte bara konstatera att ett resultat finns.
+
+Research
+   │
+   ▼
+Observation
+   │
+   ▼
+Diagnostic question
+   │
+   ▼
+Specialized analysis
+   │
+   ▼
+Better understanding
+
+Det gör ml/diagnostics/ till ett kompletterande analyslager mellan generell forskning och djupare förståelse av specifika resultat.
