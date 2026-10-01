@@ -93,6 +93,18 @@ jobs:
         run: |
           python web_build.py
 
+      - name: Verify generated website
+        run: |
+          test -f pages/index.html
+          test -f pages/koplage.html
+          test -f pages/bedomning.html
+          test -f pages/dataanalys.html
+          test -f pages/style.css
+          test -f pages/data.json
+
+          echo "Webb byggd:"
+          ls -lh pages/
+
       - name: Upload generated website
         uses: actions/upload-artifact@v4
         with:
