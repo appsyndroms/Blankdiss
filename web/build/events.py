@@ -50,7 +50,15 @@ def _event_change(
 
 def _build_event_cells(
     event: dict,
-) -> tuple[str, str, str, str, str, str]:
+) -> tuple[
+    str,
+    str,
+    str,
+    str,
+    str,
+    str,
+    str,
+]:
     issuer = html.escape(
         str(
             event.get(
@@ -153,12 +161,8 @@ def build_buy_signal_rows(
             return_60d,
         ) = _build_event_cells(event)
 
-        # Den här kolumnen kommer senare att fyllas
-        # med antalet historiskt jämförbara events.
         historical_events = "—"
 
-        # Utan mogna historiska utfall finns ännu
-        # ingen statistiskt underbyggd köpsignal.
         signal = "—"
 
         rows.append(
