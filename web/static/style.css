@@ -340,6 +340,37 @@ tbody tr:hover {
 
 
 /* =========================================================
+   TABLE SORTING
+   ========================================================= */
+
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+th.sortable::after {
+    content: "↕";
+    margin-left: 7px;
+    opacity: 0.45;
+}
+
+th.sortable.sort-ascending::after {
+    content: "↑";
+    opacity: 1;
+}
+
+th.sortable.sort-descending::after {
+    content: "↓";
+    opacity: 1;
+}
+
+th.sortable:hover {
+    color: var(--text);
+}
+
+
+/* =========================================================
    STATUS
    ========================================================= */
 
