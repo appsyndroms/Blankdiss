@@ -31,7 +31,7 @@
         </h1>
 
         <p class="lead">
-            Aktuella observationer och förändringar i blankning.
+            Aktuella observationer och historisk evidens för möjliga köpsignaler.
         </p>
 
         <nav class="tabs" aria-label="Huvudnavigation">
@@ -128,11 +128,93 @@
         <div class="section-header">
 
             <span class="eyebrow">
+                KÖPLÄGE
+            </span>
+
+            <h2>
+                Topp 10
+            </h2>
+
+            <p>
+                Aktier där den aktuella förändringen i blankning
+                matchar historiska observationer. Ranking och signal
+                byggs successivt när tillräckligt många historiska
+                utfall har mognat.
+            </p>
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>
+                            Ranking
+                        </th>
+
+                        <th>
+                            Aktie
+                        </th>
+
+                        <th>
+                            Blankning
+                        </th>
+
+                        <th>
+                            Förändring
+                        </th>
+
+                        <th>
+                            Historiska events
+                        </th>
+
+                        <th>
+                            1d
+                        </th>
+
+                        <th>
+                            5d
+                        </th>
+
+                        <th>
+                            20d
+                        </th>
+
+                        <th>
+                            60d
+                        </th>
+
+                        <th>
+                            Köpsignal
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+                    {{KOPLAGE_TOP_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
                 AKTUELLT
             </span>
 
             <h2>
-                Aktuella fynd
+                Aktuella observationer
             </h2>
 
             <p>
@@ -149,10 +231,6 @@
                 <thead>
 
                     <tr>
-                        <th>
-                            Ranking köpläge
-                        </th>
-
                         <th>
                             Aktie
                         </th>
