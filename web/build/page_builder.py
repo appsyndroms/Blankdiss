@@ -221,7 +221,7 @@ def _page_replacements(
 
     replacements.update(
         {
-            "{{BUY_SIGNAL_ROWS}}": (
+            "{{KOPLAGE_TOP_ROWS}}": (
                 build_buy_signal_rows(
                     payload["events"],
                     limit=10,
