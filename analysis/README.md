@@ -1,547 +1,218 @@
-# Analysis – Feature Pipeline
+Analysis
 
-Det här katalogen innehåller den del av Blankdiss som bygger och kvalitetssäkrar det
-feature-dataset som används av ML och Research Engine.
+analysis/ ansvarar för Blankdiss centrala feature-pipeline.
 
-Målet är att hålla feature-bygget generellt och reproducerbart.
+Syftet är att bygga ett gemensamt, reproducerbart feature-dataset från rådata som sedan kan användas av ML, Research Engine, diagnostics och andra analyser.
 
-Grundprincipen är:
+Ansvarsområde
 
-    Rådata
-      ↓
-    Feature generation
-      ↓
-    Feature dataset
-      ↓
-    Feature QC
-      ↓
-    ML / Research Engine
+Analysis-lagret ansvarar för:
 
-Research Engine ska i första hand välja och kombinera befintliga features.
-Ny forskning ska därför normalt inte kräva att feature-pipelinen ändras.
+* inläsning av rådata
+* synkronisering av FI-data och prisdata
+* sammanfogning med marknads- och sektordata
+* beräkning av features
+* skapande av targets
+* kvalitetskontroller
+* skrivning av det kanoniska feature-datasetet
 
----
+Det är viktigt att skilja detta från forskningslagret.
 
-## 1. Vad feature-lagret gör
+analysis/ svarar på:
 
-Feature-pipelinen kombinerar framför allt:
+Vilka datapunkter och features ska finnas som grund för forskningen?
 
-- FI-data
-- historiska aktiekurser
-- OMXSPI
-- sektortillhörighet
+ml/research/ svarar på:
 
-och bygger ett gemensamt dataset där varje rad representerar en FI-observation
-kopplad till ett prisdatum och historiska/framåtblickande features.
+Vilka samband, signaler och hypoteser kan vi hitta i dessa data?
 
-Exempel på befintliga prisfeatures:
+Huvudflöde
 
-- `price_return_5d`
-- `price_return_20d`
-- `price_return_60d`
-- `price_volatility_20d`
-- `price_distance_from_20d_high`
-- `price_distance_from_60d_high`
+Rådata
+  │
+  ├── FI blankningsdata
+  ├── aktiekurser
+  ├── marknadsdata
+  └── sektor-/branschdata
+          │
+          ▼
+    analysis/build_features.py
+          │
+          ├── tidsmässig synkronisering
+          ├── feature engineering
+          ├── targets
+          └── kvalitetskontroller
+          │
+          ▼
+data/processed/analysis/
+          │
+          ├── features_0001.jsonl
+          ├── features_0002.jsonl
+          ├── ...
+          └── metadata / QC
 
-Forward returns och targets byggs från den matchade signalprispunkten.
+Det resulterande datasetet är den gemensamma datagrunden för efterföljande analys.
 
-Feature-datasetet är alltså den gemensamma datagrunden för senare analyser.
+Feature builder
 
----
+Den centrala implementationen finns i:
 
-## 2. Varför relativa features byggs
+analysis/build_features.py
 
-En akties egen utveckling säger inte alltid om den är svag eller stark i ett
-bredare marknadsläge.
+Den kan bygga om feature-datasetet från underliggande data.
 
-Exempel:
+Full ombyggnad kan göras med:
 
-En aktie har fallit 8 % på 20 dagar.
+python analysis/build_features.py --force
 
-Det kan betyda helt olika saker om:
+Exakta parametrar och ytterligare CLI-alternativ ska alltid hämtas från den aktuella implementationen.
 
-- OMXSPI samtidigt har fallit 10 %
-- OMXSPI är oförändrat
-- OMXSPI har stigit 8 %
+Feature-dataset
 
-På samma sätt kan en akties utveckling behöva jämföras med utvecklingen i dess
-egen sektor.
+Resultatet skrivs till:
 
-Därför bygger feature-lagret både absoluta och relativa mått.
+data/processed/analysis/
 
-Det gör att Research Engine senare kan testa frågor som:
+Datasetet är uppdelat i JSONL-chunks för att kunna hantera stora datamängder utan att behöva läsa hela datasetet som ett enda objekt.
 
-- Är absolut momentum viktigare än relativt momentum?
-- Är en aktie svag relativt marknaden?
-- Är den svag relativt sin sektor?
-- Uppstår FI-/volatilitetseffekten framför allt när aktien underpresterar
-  marknaden eller sektorn?
-- Är ett observerat samband egentligen bara ett uttryck för börsklimatet?
+Varje rad representerar en datapunkt för en aktie och ett relevant datum och innehåller bland annat:
 
-Detta är en generell utökning av feature-lagret, inte en speciallösning för
-en enskild research-hypotes.
+* identifierande information
+* datum
+* blankningsrelaterade värden
+* prisrelaterade features
+* volatilitet
+* marknadsrelaterade features
+* sektor-/branschinformation
+* targets
 
----
+Vilka features som faktiskt finns ska betraktas som en implementationdetalj och läsas från den aktuella feature-builden och dess metadata, inte från en statisk lista i denna README.
 
-## 3. Relativa features
+Dataflöde
 
-Relativa features byggs för tre horisonter:
+Analysis-lagret kombinerar flera datakällor.
 
-- 5 dagar
-- 20 dagar
-- 60 dagar
+FI-data
 
-### Marknad
+Blankningsdata från Finansinspektionen används som central källa för blankningsrelaterade observationer.
 
-Marknadsavkastning:
+Prisdata
 
-- `market_return_5d`
-- `market_return_20d`
-- `market_return_60d`
+Prisdata används bland annat för att skapa:
 
-Dessa beskriver utvecklingen för OMXSPI under motsvarande period.
+* avkastningsmått
+* prisförändringar
+* volatilitet
+* tidsserierelaterade features
+* framtida targets
 
-### Sektor
+Marknadsdata
 
-Sektoravkastning:
+Marknadsdata används för att sätta individuella aktier i ett bredare marknadssammanhang.
 
-- `sector_return_5d`
-- `sector_return_20d`
-- `sector_return_60d`
+Det gör exempelvis att en akties utveckling kan analyseras relativt marknaden i stället för isolerat.
 
-Dessa beskriver utvecklingen för den sektor som aktien tillhör.
+Sektordata
 
-### Aktien relativt marknaden
+Sektor- och branschinformation gör det möjligt att kontrollera eller analysera skillnader mellan olika delar av marknaden.
 
-- `price_return_5d_relative_market`
-- `price_return_20d_relative_market`
-- `price_return_60d_relative_market`
+Targets
 
-Dessa beskriver aktiens utveckling i relation till OMXSPI.
+Targets definieras som en del av feature-pipelinen eftersom forskningen behöver ett konsekvent sätt att beskriva vad som ska förutsägas eller analyseras.
 
-### Aktien relativt sektorn
+Ett target kan exempelvis representera framtida prisutveckling under en viss horisont.
 
-- `price_return_5d_relative_sector`
-- `price_return_20d_relative_sector`
-- `price_return_60d_relative_sector`
+Research Engine ska använda dessa definierade targets i stället för att varje experiment skapar sin egen grundläggande target-definition.
 
-Dessa beskriver aktiens utveckling i relation till den egna sektorn.
+Kvalitetskontroll
 
----
+Feature-builden innehåller kontroller för att upptäcka problem i datasetet.
 
-## 4. Varför 5d, 20d och 60d byggs samtidigt
+Exempel på sådant som behöver kontrolleras är:
 
-Research Engine ska inte behöva ändra feature-pipelinen varje gång en ny
-hypotes undersöker en annan tidshorisont.
+* saknade värden
+* ogiltiga datum
+* otillräckliga prisserier
+* felaktiga joinar
+* duplicerade observationer
+* orimliga värden
+* bristande tidsmässig täckning
 
-Därför byggs 5d, 20d och 60d som en generell featurefamilj.
+QC-information sparas tillsammans med resultatet av feature-builden.
 
-Det är viktigt även när den aktuella hypotesen bara använder två av
-horisonterna.
+Chunking
 
-Exempel:
+Feature-datasetet skrivs i flera JSONL-filer.
 
-En första analys kan undersöka:
+Det gör att:
 
-    5d × 60d
+* stora dataset kan bearbetas stegvis
+* ML- och analysjobb kan läsa data chunkvis
+* resultatet blir enklare att hantera i Git/LFS och lokala arbetsflöden
+* en komplett rebuild inte behöver representeras som en enda mycket stor fil
 
-En senare analys kan undersöka:
+Chunkningen är en lagringsdetalj. Den ska inte påverka den logiska betydelsen av datasetet.
 
-    5d × 20d
+Förhållande till ML
 
-eller:
+ML-lagret använder feature-datasetet som input.
 
-    20d × 60d
+analysis/
+    │
+    ▼
+data/processed/analysis/
+    │
+    ├── conventional ML
+    ├── Research Engine
+    ├── diagnostics
+    └── AI Lab
 
-eller kombinera absolut och relativ momentum.
+Analysis ska därför inte innehålla experimentlogik som egentligen hör hemma i ml/research/.
 
-Feature-lagret behöver då inte byggas om för varje forskningsfråga.
+Om en ny idé handlar om att testa om en befintlig feature har prediktiv kraft är det normalt en Research Engine-fråga.
 
-Research-specifik selektion ska i stället ske i YAML-specen för Research Engine.
+Om idén däremot kräver att en ny generell feature skapas från rådata hör implementationen hemma i analysis-lagret.
 
----
+Reproducerbarhet
 
-## 5. Marknadsdata
+Feature-datasetet är en central del av Blankdiss reproducerbarhet.
 
-Marknadsdata kommer från OMXSPI och lagras som rådata under:
+En forskningskörning ska kunna hänvisa till den feature-grund som användes när experimentet genomfördes.
 
-    data/raw/market/omxspi.jsonl
+Det är därför viktigt att inte manuellt modifiera feature-filer utan att gå via feature-pipelinen när data behöver byggas om.
 
-Marknadsdatan innehåller i grunden:
+Vad som inte hör hemma här
 
-- `market_date`
-- `market_close`
+Följande ska normalt inte implementeras i analysis/:
 
-`analysis.update_market` ansvarar för att hålla denna historik uppdaterad.
+* kandidatbedömning
+* prospektiv utvärdering
+* Research Engine-specifikationer
+* AI Lab-state
+* webbpresentation
+* rapportlogik för enskilda forskningskörningar
+* beslut om vilka hypoteser som ska testas
 
-Feature-pipelinen använder därefter marknadsserien för att beräkna
-marknadsrelaterade features.
+Dessa hör till andra delar av projektet.
 
-Marknadsdata är alltså en källa till features, inte en del av själva
-Research Engine.
+Relation till övriga projektet
 
----
+                  analysis/
+                      │
+                      ▼
+            feature-dataset
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+     ml/research   diagnostics   ai-lab
+          │
+          ▼
+      candidates
+          │
+          ▼
+     evaluation
+          │
+          ▼
+      verification
 
-## 6. Sektordata
-
-Sektortillhörighet finns som en separat mappning under:
-
-    data/analysis/sector_map.json
-
-Sektormappningen är en generell metadata-/datakälla som används för att kunna
-beräkna sektorrelaterade features.
-
-Det är viktigt att sektortillhörigheten hålls separat från själva
-forskningsspecifikationerna.
-
-Research Engine ska exempelvis inte behöva känna till hur en akties sektor
-hämtades eller beräknades.
-
-Den ska bara kunna använda:
-
-    sector_return_20d
-
-eller:
-
-    price_return_20d_relative_sector
-
-som vanliga features.
-
----
-
-## 7. Absolut momentum kontra relativt momentum
-
-Det finns en viktig skillnad mellan:
-
-    price_return_20d
-
-och:
-
-    price_return_20d_relative_market
-
-Den första frågar:
-
-> Hur mycket har aktien rört sig?
-
-Den andra frågar:
-
-> Hur mycket har aktien rört sig relativt marknaden?
-
-På motsvarande sätt skiljer sig:
-
-    price_return_20d_relative_market
-
-från:
-
-    price_return_20d_relative_sector
-
-Den senare frågar om aktien under- eller överpresterat sin egen sektor.
-
-Det gör det möjligt att separera flera tänkbara mekanismer.
-
-Exempel:
-
-    Aktien faller
-        ↓
-    hela marknaden faller
-        ↓
-    aktien är kanske inte särskilt svag relativt marknaden
-
-kontra:
-
-    Aktien faller
-        ↓
-    marknaden är stabil
-        ↓
-    aktien är tydligt svag relativt marknaden
-
-och:
-
-    Aktien faller
-        ↓
-    sektorn faller lika mycket
-        ↓
-    rörelsen kan vara sektordriven
-
-Detta är särskilt relevant när man försöker förstå om ett samband i
-FI-/prisdata verkligen är aktiespecifikt.
-
----
-
-## 8. Relation till den aktuella momentumforskningen
-
-En aktuell forskningslinje undersöker samspelet mellan:
-
-- kortsiktigt momentum
-- längre momentum
-- 20-dagars volatilitet
-- framtida downside events
-
-De första analyserna har bland annat jämfört:
-
-    5d × 20d
-    5d × 60d
-    20d × 60d
-
-Resultaten har gjort det relevant att undersöka om den observerade effekten
-fortfarande finns när momentum sätts i relation till:
-
-- den breda marknaden
-- den egna sektorn
-
-Det är viktigt att skilja mellan två frågor:
-
-1. Finns ett samband mellan aktiens egna momentum/volatilitet och framtida
-   downside?
-
-2. Finns sambandet fortfarande när man kontrollerar för att aktien samtidigt
-   rör sig tillsammans med marknaden eller sektorn?
-
-Den första frågan kan besvaras med absoluta features.
-
-Den andra kräver relativa features.
-
-Feature-lagret ska därför tillhandahålla båda.
-
----
-
-## 9. Feature generation och Research Engine ska hållas separata
-
-Feature generation ansvarar för att skapa mätbara variabler.
-
-Research Engine ansvarar för att formulera och testa hypoteser med dessa
-variabler.
-
-Exempel:
-
-Feature-lagret skapar:
-
-    price_return_5d
-    price_return_20d
-    price_return_60d
-    price_return_5d_relative_market
-    price_return_20d_relative_market
-    price_return_60d_relative_market
-
-Research Engine kan sedan få en YAML-spec som testar:
-
-    5d momentum
-        ×
-    60d relative-to-market momentum
-        ×
-    high 20d volatility
-
-utan att feature-pipelinen behöver känna till denna specifika hypotes.
-
-Detta är en central arkitekturprincip i Blankdiss.
-
----
-
-## 10. Feature QC
-
-Efter feature generation körs Feature QC.
-
-QC kontrollerar bland annat:
-
-- obligatoriska kolumner
-- datumintegritet
-- matchning mellan FI och prisdata
-- mapping/instrumentidentitet
-- dubbletter
-- numeriska featurevärden
-- forward returns
-- forward-return alignment
-- price leakage
-- threshold-logik
-
-QC kan returnera:
-
-    PASS
-    WARN
-    FAIL
-
-`WARN` betyder att datasetet innehåller en känd avvikelse som inte
-nödvändigtvis gör datasetet oanvändbart.
-
-`FAIL` betyder att feature-datasetet inte ska betraktas som giltigt för
-nedströms analys.
-
-Warnings ska inte automatiskt "fixas" bara för att få en PASS-status.
-Först måste man förstå vad varningen representerar.
-
----
-
-## 11. Leakage
-
-Feature-lagret måste skilja mellan information som är känd vid
-signalögonblicket och information som inträffar efter signalögonblicket.
-
-Historiska features får endast använda information som var tillgänglig vid
-den aktuella observationen.
-
-Forward returns och event targets får däremot använda framtida prisdata,
-eftersom de representerar det som ska förklaras/predikteras.
-
-Feature QC kontrollerar därför bland annat:
-
-    price_leakage
-    forward_return_alignment
-
-Detta är en grundläggande del av reproducerbarheten i hela forskningskedjan.
-
----
-
-## 12. Reproducerbarhet
-
-Feature-datasetet ska kunna byggas om från rådata.
-
-Det innebär att en ändring i feature-logiken inte ska kräva manuell redigering
-av gamla featurefiler.
-
-Build Features-workflowen bygger hela feature-datasetet på nytt från de
-aktuella rådatakällorna.
-
-Det gör processen:
-
-    rådata
-      ↓
-    build features
-      ↓
-    QC
-      ↓
-    nytt feature-dataset
-
-Det minskar risken för att gamla och nya features blandas ihop.
-
----
-
-## 13. Build Features-workflow
-
-Feature-bygget körs separat från Research Engine.
-
-Workflowen ansvarar för:
-
-1. Hämta/utgå från aktuella rådata.
-2. Bygga feature-datasetet.
-3. Kontrollera storleken på feature-chunks.
-4. Köra Feature QC.
-5. Stoppa vid QC-status `FAIL`.
-6. Tillåta `PASS` och `WARN`.
-7. Spara feature-datasetet som artifact.
-8. Uppdatera de versionshanterade featurefilerna.
-
-Det är medvetet separerat från ML/Research Engine.
-
-Research Engine ska kunna köras flera gånger mot samma feature-dataset utan
-att behöva bygga om features varje gång.
-
----
-
-## 14. Filstruktur
-
-De viktigaste delarna är:
-
-    analysis/
-        build_features.py
-        feature_config.py
-        feature_prices.py
-        feature_source.py
-        feature_relative.py
-        features_qc.py
-        update_market.py
-        build_sector_map.py
-        README.md
-
-Rådata:
-
-    data/raw/market/omxspi.jsonl
-    data/raw/prices/...
-
-Sektormetadata:
-
-    data/analysis/sector_map.json
-
-Genererat feature-dataset:
-
-    data/processed/analysis/features_*.jsonl
-    data/processed/analysis/features_metadata.json
-    data/processed/analysis/features_qc.json
-
-Det äldre:
-
-    data/processed/analysis/fi_price_features.jsonl
-
-är en legacy feature-vy och ska inte vara den primära versionshanterade
-featuremodellen.
-
----
-
-## 15. Vad som inte hör hemma här
-
-Research-specifik logik ska normalt inte läggas i `analysis/`.
-
-Exempel på sådant som inte bör byggas som specialkod här:
-
-- en specifik momentumkombination
-- ett specifikt event
-- en specifik hypotes
-- en viss bootstrap-analys
-- en viss train/test-split
-- ranking av forskningsresultat
-- automatisk optimering av signaltrösklar
-
-Sådant hör hemma i Research Engine och dess YAML-specifikationer.
-
-Om en ny hypotes kräver en feature som saknas kan feature-lagret utökas med en
-generell featurefamilj.
-
-Exempel:
-
-Om flera framtida analyser kan behöva relativ momentum är det rimligt att
-bygga hela den generella relativa momentumfamiljen.
-
-Däremot ska vi inte bygga:
-
-    price_return_17d_relative_market_for_this_one_experiment
-
-bara för att en enskild hypotes råkar behöva 17 dagar.
-
----
-
-## 16. Forskningsprincip
-
-Feature-lagrets uppgift är att göra det möjligt att ställa bättre frågor.
-
-Det ska inte försöka svara på frågorna självt.
-
-Exempel:
-
-    Feature layer
-        ↓
-    "Vad hände med aktien relativt marknaden?"
-
-    Research Engine
-        ↓
-    "Förändras FI/volatilitets-effekten när relativt momentum är negativt?"
-
-På så sätt kan samma feature-dataset användas för många olika analyser.
-
----
-
-## 17. Nästa steg
-
-När de relativa featuresen är byggda och QC är godkänd kan Research Engine
-använda dem för kontroller av de observerade momentum-/volatilitetseffekterna.
-
-En naturlig forskningsordning är exempelvis:
-
-1. Absoluta momentumfeatures.
-2. Marknadsrelativa momentumfeatures.
-3. Sektorrelativa momentumfeatures.
-4. Kontrollera om effekten överlever dessa relativa perspektiv.
-5. Därefter undersöka mer specifika mekanismer, om resultaten motiverar det.
-
-Det viktiga är att varje steg är en ny, explicit forskningsfråga.
-
-Feature-lagret ska förbli generellt och återanvändbart.
-Research Engine ska bära hypoteserna.
+På detta sätt fungerar analysis/ som projektets gemensamma datagrund medan forsknings- och ML-lagren kan utvecklas oberoende av själva databyggandet.
