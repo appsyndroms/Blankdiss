@@ -1,39 +1,20 @@
-Jag har gått igenom den aktuella web/-strukturen och byggflödet i Blankdiss. 
-
-Jag skapade README-innehållet utifrån den faktiska implementationen, inklusive:
-
-* web/build/ och dess ansvarsfördelning
-* templates och genererade sidor
-* dataflödet från data/
-* prospektiv evaluation
-* pages/ som build-output
-* python web_build.py
-* separationen mellan forskningslogik och presentationslager
-
-Jag försökte även skriva web/README.md direkt till GitHub, men GitHub-anslutningen saknar skrivbehörighet och returnerade 403 Resource not accessible by integration. Så filen är inte committad till repot ännu.
-
-Här är den färdiga README:n:
-
-Blankdiss Web
-
+# Blankdiss Web
 Den här katalogen innehåller den statiska webbplatsen för Blankdiss.
-
-Webb-delen presenterar resultat från Blankdiss data- och ML-pipelines på ett sammanhållet sätt. Webbplatsen byggs från datafiler i repositoryt och består av HTML-sidor, en gemensam CSS-fil och en genererad JSON-payload.
-
-Syfte
-
-Webbplatsen är presentationslagret för Blankdiss. Den ska göra det möjligt att följa hela kedjan:
-
+Webb-delen är presentationslagret för Blankdiss. Webbplatsen byggs från datafiler i repositoryt och presenterar aktuella short-observationer, historiska events, analyser, ML-resultat och prospektiva evaluation-körningar.
+Webben ska i första hand presentera resultat. Datainsamling, feature engineering, modellträning och övrig forskningslogik ligger på andra ställen i repositoryt.
+https://github.com/appsyndroms/Blankdiss
+## Syfte
+Webbplatsen ska göra det möjligt att följa Blankdiss från rå observation till analyserad signal:
 1. observerade förändringar i blankning,
-2. historiska samband mellan blankningshändelser och aktieutveckling,
-3. ML-experiment och deras ekonomiska resultat,
-4. prospektiva evaluation-körningar,
-5. utvecklingen från historisk analys till testning på framtida, tidigare okända observationer.
-
-Webb-koden ska i första hand presentera data. Datainsamling, feature engineering, modellträning och själva forskningslogiken ligger på andra ställen i repositoryt.
-
-Struktur
-
+2. historiska short-events,
+3. aktiens efterföljande utveckling efter dessa events,
+4. historiska samband mellan blankningsförändringar och aktieutveckling,
+5. ML-experiment och deras ekonomiska resultat,
+6. prospektiva evaluation-körningar,
+7. utvecklingen mot en historiskt validerad köpsignal.
+Webben är alltså ett presentationslager för forskningen och ska inte själv skapa forskningsresultat som inte finns i underliggande data.
+## Struktur
+```text
 web/
 ├── build/
 │   ├── __init__.py
@@ -46,12 +27,15 @@ web/
 │   ├── ml.py
 │   └── page_builder.py
 ├── static/
+│   ├── site.js
 │   └── style.css
-└── templates/
-    ├── index.html
-    ├── koplage.html
-    ├── bedomning.html
-    └── dataanalys.html
+├── templates/
+│   ├── index.html
+│   ├── koplage.html
+│   ├── events.html
+│   ├── bedomning.html
+│   └── dataanalys.html
+└── README.md
 
 Den färdiga webbplatsen skrivs till repositoryts pages/-katalog.
 
@@ -61,35 +45,49 @@ Byggningen startar via repositoryts web_build.py:
 
 python web_build.py
 
-Den filen anropar:
+web_build.py anropar:
 
 from web.build.page_builder import build
 
-och page_builder.py ansvarar för att:
+page_builder.py ansvarar för att:
 
 * läsa in aktuell data,
 * skapa den gemensamma payloaden,
+* skapa presentationsrader,
 * rendera HTML-mallarna,
-* kopiera CSS,
+* kopiera CSS och JavaScript,
 * skriva data.json,
-* skriva de fyra färdiga HTML-sidorna.
+* skriva de färdiga HTML-sidorna.
 
 Byggningen använder endast Python-standardbibliotek i web-lagret.
 
 Dataflöde
 
-Webbbyggaren läser data från följande delar av repositoryt:
+Webbbyggaren läser data från repositoryts datalager.
 
-Källa	Användning
-data/analysis/analysis_*.json	Senaste historiska analysresultatet
-data/events/short_events_*.jsonl	Historiska short-events
-data/processed/ml/economic_results.json	Ekonomiska ML-resultat
-data/processed/ml/research/evaluation/*/evaluation.json	Prospektiva evaluation-resultat
+Exempel:
 
-Data laddas av web/build/data_loader.py. Presentationslogiken är uppdelad efter datatyp:
+data/analysis/analysis_*.json
+        ↓
+historiska analysresultat
+data/events/short_events_*.jsonl
+        ↓
+historiska short-events
+data/processed/ml/economic_results.json
+        ↓
+ekonomiska ML-resultat
+data/processed/ml/research/evaluation/*/evaluation.json
+        ↓
+prospektiva evaluation-resultat
+
+Data laddas av:
+
+web/build/data_loader.py
+
+Presentationslogiken är uppdelad efter datatyp:
 
 * analysis.py – historiska analysresultat
-* events.py – short-events
+* events.py – short-events och köpläge
 * ml.py – ekonomiska ML-resultat
 * evaluation.py – prospektiva evaluation-resultat
 * formatting.py – gemensam formatering
@@ -101,50 +99,163 @@ Hem
 
 index.html
 
-Översikt över Blankdiss med:
+Översikt över Blankdiss med bland annat:
 
 * antal händelser,
 * antal ML-experiment,
 * antal evaluation-körningar,
 * senaste uppdatering,
-* kort introduktion till Blankdiss analysflöde.
+* introduktion till Blankdiss analysflöde.
 
 Köpläge
 
 koplage.html
 
-Presenterar aktuella observationer och de senaste förändringarna i blankning.
+Köpläge består av två separata tabeller.
+
+Topp 10
+
+Den övre tabellen visar de tio aktuella observationer som för närvarande är kandidater till köpläge.
+
+Tabellen innehåller:
+
+* Ranking
+* Aktie
+* Blankning
+* Förändring
+* Historiska events
+* 1d
+* 5d
+* 20d
+* 60d
+* Köpsignal
+
+Den långsiktiga definitionen av ranking är inte att största minskningen i blankning automatiskt är bäst.
+
+Tanken är i stället:
+
+Aktuell observation
+        ↓
+identifiera jämförbara historiska events
+        ↓
+studera efterföljande aktieutveckling
+        ↓
+1d / 5d / 20d / 60d
+        ↓
+sammanväg historisk evidens
+        ↓
+köpsignal
+        ↓
+ranking
+
+Det innebär att en stor minskning av blankningen bara är en observation. Den blir intressant som köpsignal först när historiska data visar vad liknande förändringar normalt har följts av.
+
+När tillräckligt många historiska events och mogna efterföljande avkastningar finns ska ranking därför baseras på den historiska evidensen.
+
+Webben ska inte fabricera en signal eller sannolikhet när underlaget saknas. Saknade eller omogna resultat visas som —.
+
+Placeholder:
+
+{{KOPLAGE_TOP_ROWS}}
+
+Aktuella observationer
+
+Den nedre tabellen visar de aktuella observationerna utan ranking.
+
+Kolumner:
+
+* Aktie
+* Blankning
+* Förändring
+* 1d
+* 5d
+* 20d
+* 60d
+
+Placeholder:
+
+{{KOPLAGE_ROWS}}
+
+Den här tabellen är avsedd att visa själva observationerna, medan den övre tabellen ska representera den analyserade köplägesbedömningen.
+
+Händelser
+
+events.html
+
+Visar historiska short-events.
+
+Kolumner:
+
+* Aktie
+* Blankning
+* Förändring
+* 1d
+* 5d
+* 20d
+* 60d
+
+Events dedupliceras innan presentation så att samma event inte visas flera gånger om det förekommer i flera eventfiler.
 
 Bedömning
 
 bedomning.html
 
-Presenterar var projektet befinner sig i övergången från historisk analys till prospektiv testning.
+Presenterar projektets övergång från historisk analys till prospektiv testning.
+
+Sidan används för att följa hur mycket av evaluation-resultaten som faktiskt har hunnit mogna.
 
 Dataanalys
 
 dataanalys.html
 
-Presenterar den underliggande historiska analysen, ML-resultaten och evaluation-historiken.
+Presenterar bland annat:
+
+* historiska analysresultat,
+* ML-resultat,
+* evaluation-historik,
+* underliggande mätvärden.
 
 Templates
 
-HTML-mallarna ligger i web/templates/.
+HTML-mallarna ligger i:
 
-De innehåller placeholders som ersätts av page_builder.py vid byggning. Exempel:
+web/templates/
+
+De innehåller placeholders som ersätts av page_builder.py vid byggning.
+
+Exempel:
 
 {{EVENT_COUNT}}
 {{ML_EXPERIMENT_COUNT}}
 {{EVALUATION_RUN_COUNT}}
 {{GENERATED_AT}}
+{{KOPLAGE_TOP_ROWS}}
+{{KOPLAGE_ROWS}}
 {{EVENT_ROWS}}
 {{ANALYSIS_ROWS}}
 {{ML_ROWS}}
 {{EVALUATION_HISTORY_ROWS}}
 
-Gemensamma ersättningar och sid-specifika ersättningar hanteras centralt i page_builder.py.
+Templates ska inte läsa rådata direkt.
 
-Det innebär att templates inte ska läsa rådata direkt.
+All data ska först gå via bygglagret och omvandlas till presentationsformat.
+
+Sortering
+
+Tabellerna på webbplatsen kan sorteras genom att klicka på kolumnrubrikerna.
+
+Sorteringen hanteras av:
+
+web/static/site.js
+
+JavaScript-filen:
+
+* gör tabellrubriker klickbara,
+* hanterar stigande och fallande sortering,
+* använder data-sort-value när ett numeriskt sorteringsvärde finns,
+* fungerar även med tangentbord via Enter och mellanslag.
+
+Sorteringen är en presentationsfunktion och förändrar inte underliggande data.
 
 Genererad output
 
@@ -153,9 +264,11 @@ Efter en lyckad byggning skapas bland annat:
 pages/
 ├── index.html
 ├── koplage.html
+├── events.html
 ├── bedomning.html
 ├── dataanalys.html
 ├── style.css
+├── site.js
 └── data.json
 
 data.json innehåller den samlade payload som byggningen använder, inklusive:
@@ -168,7 +281,9 @@ data.json innehåller den samlade payload som byggningen använder, inklusive:
 * evaluation-historik,
 * sammanställd evaluation-information.
 
-Genererad output ska betraktas som build artifacts. Källan är datafilerna, templates och Python-koden under web/.
+Genererad output ska betraktas som build artifacts.
+
+Källan är datafilerna, templates och Python-koden under web/.
 
 Tidszon
 
@@ -180,7 +295,7 @@ Genereringstiden som visas på webbplatsen är därför svensk lokal tid.
 
 Prospektiv evaluation
 
-Evaluation-delen är särskilt viktig för Blankdiss eftersom den skiljer mellan historisk analys och framtida testning.
+Evaluation-delen är viktig eftersom den skiljer mellan historisk analys och framtida testning.
 
 Evaluation-resultaten läses från:
 
@@ -198,23 +313,74 @@ Webblagret försöker läsa information om bland annat:
 * feature rows,
 * fingerprint.
 
-Evaluation-presentationskoden är avsiktligt tolerant mot mindre skillnader i resultatformat och letar efter metrics på flera vanliga nivåer i evaluation-resultatet.
+Evaluation-presentationskoden är tolerant mot mindre skillnader i resultatformat och letar efter metrics på flera vanliga nivåer i evaluation-resultatet.
 
-Designprinciper
+Köpläge och historisk evidens
 
-Web-lagret följer några enkla principer.
+Köpläget ska utvecklas från en enkel observationslista till en empiriskt underbyggd signal.
+
+Den centrala principen är:
+
+En förändring i blankning är inte i sig en köpsignal. Det intressanta är vad som historiskt har hänt efter jämförbara förändringar.
+
+För en aktuell observation kan framtida analys därför exempelvis använda:
+
+aktuell förändring i blankning
++ aktuell blankningsnivå
++ aktie
++ historiska jämförbara events
+        ↓
+efterföljande avkastning
+        ↓
+1d / 5d / 20d / 60d
+        ↓
+historisk evidens
+        ↓
+köpsignal
+
+När datamängden är tillräckligt mogen kan den övre Topp 10-tabellen använda denna information för att rangordna kandidaterna.
+
+Fram till dess ska webbplatsen tydligt visa när information saknas.
+
+Det är viktigt att presentationen inte ersätter saknad historisk evidens med påhittade sannolikheter eller signalvärden.
 
 Separation av ansvar
 
-Data ska läsas i data_loader.py, bearbetas till presentationsformat i respektive modul och renderas av page_builder.py.
+Web-lagret följer några grundprinciper.
+
+Data ska laddas centralt
+
+data_loader.py ansvarar för att läsa datafilerna.
+
+Presentation ska hanteras av byggmoduler
+
+Exempel:
+
+events.py
+analysis.py
+ml.py
+evaluation.py
+formatting.py
+
+Dessa omvandlar rådata till HTML-kompatibla presentationsvärden.
 
 Templates ska vara enkla
 
-HTML-filerna ska främst beskriva struktur och presentation. De ska inte innehålla Python-logik eller direkt läsa repositorydata.
+HTML-filerna ska främst beskriva struktur och presentation.
 
-Ingen forskningslogik i webben
+De ska inte innehålla Python-logik eller läsa repositorydata direkt.
 
-Webben ska inte träna modeller, skapa features eller förändra forskningsresultat. Den ska visa resultat som redan har producerats av övriga delar av Blankdiss.
+Ingen modellträning i webben
+
+Webben ska inte:
+
+* träna modeller,
+* skapa ML-features,
+* ändra forskningsresultat,
+* köra forskningspipeline,
+* anta resultat som inte finns i data.
+
+Webben ska presentera resultat som redan har producerats av övriga delar av Blankdiss.
 
 Build utifrån aktuell data
 
@@ -230,15 +396,18 @@ Vid ändringar av presentationen:
 
 * ändra HTML-strukturen i web/templates/,
 * ändra styling i web/static/style.css,
+* ändra tabellbeteende i web/static/site.js,
 * ändra dataläsning i web/build/data_loader.py,
 * ändra presentationslogik i rätt modul under web/build/,
-* ändra byggflödet endast i page_builder.py när det faktiskt behövs.
+* ändra byggflödet i page_builder.py endast när det faktiskt behövs.
 
 Efter ändringar bör webbbyggningen köras från repositoryts rot:
 
 python web_build.py
 
-Kontrollera därefter innehållet i pages/.
+Kontrollera därefter innehållet i:
+
+pages/
 
 Viktigt vid framtida ändringar
 
@@ -252,16 +421,17 @@ datafil
         ↓
 web/build/data_loader.py
         ↓
-presentationsmodul
+presentationslogik
         ↓
 template
         ↓
 pages/
 
-Det gör det möjligt att hålla forskningslogiken och webbens presentationslogik separerade och minskar risken att webbändringar påverkar själva Blankdiss-analysen.
+Om ny analyslogik behövs bör den i första hand placeras i Blankdiss centrala analys-/forskningslager och inte gömmas i HTML eller JavaScript.
+
+Det gör det möjligt att hålla forskningslogiken och webbens presentationslogik separerade.
 
 Relaterat
 
 Repositoryts huvudprojekt:
-
 https://github.com/appsyndroms/Blankdiss
