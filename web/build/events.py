@@ -57,9 +57,7 @@ def build_event_rows(
     sorted_events = sorted(
         events,
         key=lambda event: (
-            event.get(
-                "event_date"
-            )
+            event.get("event_date")
             or ""
         ),
         reverse=True,
@@ -71,6 +69,9 @@ def build_event_rows(
     ] = {}
 
     if include_ranking:
+        # Köpläge ska vara försorterat efter
+        # bästa ranking. Största minskningen
+        # av blankningen får rank 1.
         ranked_events = sorted(
             sorted_events,
             key=lambda event: (
@@ -79,7 +80,7 @@ def build_event_rows(
                     "change_pp"
                 ) is not None
                 else float("inf")
-            )
+            ),
         )
 
         for index, event in enumerate(
@@ -89,6 +90,11 @@ def build_event_rows(
             ranking[
                 _event_identity(event)
             ] = index
+
+        # Viktigt: själva tabellen ska också
+        # visas i rankingordning när sidan
+        # öppnas.
+        sorted_events = ranked_events
 
     rows: list[str] = []
 
