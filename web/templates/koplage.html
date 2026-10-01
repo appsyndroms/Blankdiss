@@ -11,6 +11,10 @@
         rel="stylesheet"
         href="./style.css?v=3"
     >
+    <script
+        src="./site.js?v=1"
+        defer
+    ></script>
 </head>
 
 <body>
@@ -44,6 +48,13 @@
                 href="./koplage.html"
             >
                 Köpläge
+            </a>
+
+            <a
+                class="tab"
+                href="./events.html"
+            >
+                Händelser
             </a>
 
             <a
@@ -126,6 +137,7 @@
 
             <p>
                 De senaste observerade förändringarna i blankning.
+                Klicka på valfri kolumn för att sortera.
             </p>
 
         </div>
@@ -137,6 +149,10 @@
                 <thead>
 
                     <tr>
+                        <th>
+                            Ranking köpläge
+                        </th>
+
                         <th>
                             Aktie
                         </th>
@@ -169,41 +185,12 @@
                 </thead>
 
                 <tbody>
-                    {{EVENT_ROWS}}
+                    {{KOPLAGE_ROWS}}
                 </tbody>
 
             </table>
 
         </div>
-
-    </section>
-
-
-    <section class="explanation">
-
-        <span class="eyebrow">
-            HUR BLANKDISS ANVÄNDS
-        </span>
-
-        <h2>
-            Från observation till signal
-        </h2>
-
-        <p>
-            Blankdiss börjar med att observera förändringar i
-            blankning. Därefter jämförs dessa observationer med
-            vad som historiskt hänt med aktien.
-        </p>
-
-        <p>
-            Tabellen visar observationen och den efterföljande
-            aktieutvecklingen över olika tidsperioder.
-        </p>
-
-        <p>
-            Ett aktuellt blankningsmönster är en observation och
-            inte i sig en automatisk köp- eller säljrekommendation.
-        </p>
 
     </section>
 
