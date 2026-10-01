@@ -1,59 +1,77 @@
 """
 Bygger Blankdiss statiska webbplats.
-Webbplatsen består av en rot-sida och tre
-separata innehållssidor:
+
+Webbplatsen består av:
     index.html
     koplage.html
+    events.html
     bedomning.html
     dataanalys.html
+
 All dataläsning och presentationslogik ligger
 i separata build-moduler.
 """
+
 from __future__ import annotations
+
 import html
 import json
+
 from datetime import datetime
+
 from .analysis import build_analysis_rows
+
 from .config import (
     OUTPUT_DIR,
     STATIC_DIR,
     STOCKHOLM,
     TEMPLATE_DIR,
 )
+
 from .data_loader import (
     read_economic_results,
     read_evaluation_history,
     read_events,
     read_latest_analysis,
 )
+
 from .evaluation import (
     build_evaluation_history_rows,
     build_evaluation_latest,
     build_evaluation_payload,
     build_evaluation_summary,
 )
+
 from .events import build_event_rows
 from .ml import build_ml_rows
+
+
 def build_payload() -> dict:
     analysis = (
         read_latest_analysis()
     )
+
     events = read_events()
+
     economic_results = (
         read_economic_results()
     )
+
     evaluations = (
         read_evaluation_history()
     )
+
     generated_at = datetime.now(
         STOCKHOLM
     )
+
     analysis_results = (
         analysis.get(
             "results",
             [],
         )
     )
+
     analysis_event_count = sum(
         int(
             item.get(
@@ -64,6 +82,7 @@ def build_payload() -> dict:
         )
         for item in analysis_results
     )
+
     return {
         "generated_at": (
             generated_at.strftime(
@@ -93,6 +112,8 @@ def build_payload() -> dict:
             )
         ),
     }
+
+
 def _common_replacements(
     payload: dict,
 ) -> dict[str, str]:
@@ -101,20 +122,24 @@ def _common_replacements(
             payload["evaluations"]
         )
     )
+
     latest_evaluation = (
         build_evaluation_latest(
             payload["evaluations"]
         )
     )
+
     matured = (
         evaluation_summary[
             "matured_observations"
         ]
     )
+
     if matured is None:
         matured_text = "—"
     else:
         matured_text = f"{matured:,}"
+
     return {
         "{{GENERATED_AT}}": (
             payload["generated_at"]
@@ -181,17 +206,27 @@ def _common_replacements(
             )
         ),
     }
+
+
 def _page_replacements(
     payload: dict,
 ) -> dict[str, str]:
     replacements = _common_replacements(
         payload
     )
+
     replacements.update(
         {
+            "{{KOPLAGE_ROWS}}": (
+                build_event_rows(
+                    payload["events"],
+                    include_ranking=True,
+                )
+            ),
             "{{EVENT_ROWS}}": (
                 build_event_rows(
-                    payload["events"]
+                    payload["events"],
+                    include_ranking=False,
                 )
             ),
             "{{ANALYSIS_ROWS}}": (
@@ -221,7 +256,10 @@ def _page_replacements(
             ),
         }
     )
+
     return replacements
+
+
 def _render_template(
     template_name: str,
     replacements: dict[str, str],
@@ -230,11 +268,13 @@ def _render_template(
         TEMPLATE_DIR
         / template_name
     )
+
     html_output = (
         template_path.read_text(
             encoding="utf-8"
         )
     )
+
     for placeholder, value in (
         replacements.items()
     ):
@@ -244,7 +284,10 @@ def _render_template(
                 value,
             )
         )
+
     return html_output
+
+
 def _write_page(
     template_name: str,
     output_name: str,
@@ -254,6 +297,7 @@ def _write_page(
         template_name,
         replacements,
     )
+
     (
         OUTPUT_DIR
         / output_name
@@ -261,21 +305,31 @@ def _write_page(
         html_output,
         encoding="utf-8",
     )
+
+
 def _copy_static() -> None:
-    static_source = (
-        STATIC_DIR
-        / "style.css"
-    )
-    static_target = (
-        OUTPUT_DIR
-        / "style.css"
-    )
-    static_target.write_text(
-        static_source.read_text(
-            encoding="utf-8"
-        ),
-        encoding="utf-8",
-    )
+    for filename in (
+        "style.css",
+        "site.js",
+    ):
+        static_source = (
+            STATIC_DIR
+            / filename
+        )
+
+        static_target = (
+            OUTPUT_DIR
+            / filename
+        )
+
+        static_target.write_text(
+            static_source.read_text(
+                encoding="utf-8"
+            ),
+            encoding="utf-8",
+        )
+
+
 def _write_data(
     payload: dict,
 ) -> None:
@@ -290,46 +344,65 @@ def _write_data(
         ),
         encoding="utf-8",
     )
+
+
 def build() -> None:
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
+
     payload = build_payload()
+
     replacements = _page_replacements(
         payload
     )
+
     _write_page(
         "index.html",
         "index.html",
         replacements,
     )
+
     _write_page(
         "koplage.html",
         "koplage.html",
         replacements,
     )
+
+    _write_page(
+        "events.html",
+        "events.html",
+        replacements,
+    )
+
     _write_page(
         "bedomning.html",
         "bedomning.html",
         replacements,
     )
+
     _write_page(
         "dataanalys.html",
         "dataanalys.html",
         replacements,
     )
+
     _copy_static()
+
     _write_data(
         payload
     )
+
     print(
         f"Webb byggd: {OUTPUT_DIR}"
     )
+
     print(
         "Svensk tid:",
         payload["generated_at"],
     )
+
     print(
         "ML-experiment:",
         payload[
@@ -339,6 +412,7 @@ def build() -> None:
             0,
         ),
     )
+
     print(
         "Prospektiva evaluation-körningar:",
         len(
