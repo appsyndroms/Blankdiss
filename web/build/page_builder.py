@@ -42,7 +42,11 @@ from .evaluation import (
     build_evaluation_summary,
 )
 
-from .events import build_event_rows
+from .events import (
+    build_buy_signal_rows,
+    build_event_rows,
+)
+
 from .ml import build_ml_rows
 
 
@@ -217,10 +221,16 @@ def _page_replacements(
 
     replacements.update(
         {
+            "{{BUY_SIGNAL_ROWS}}": (
+                build_buy_signal_rows(
+                    payload["events"],
+                    limit=10,
+                )
+            ),
             "{{KOPLAGE_ROWS}}": (
                 build_event_rows(
                     payload["events"],
-                    include_ranking=True,
+                    include_ranking=False,
                 )
             ),
             "{{EVENT_ROWS}}": (
