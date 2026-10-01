@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Blankdiss – Händelser</title>
+    <link
+        rel="stylesheet"
+        href="./style.css?v=3"
+    >
+    <script
+        src="./site.js?v=1"
+        defer
+    ></script>
+</head>
+
+<body>
+
+<header class="hero">
+    <div class="container">
+
+        <div class="brand">
+            📉 BLANKDISS
+        </div>
+
+        <h1>
+            Händelser
+        </h1>
+
+        <p class="lead">
+            Historiska short-events och efterföljande aktieutveckling.
+        </p>
+
+        <nav class="tabs" aria-label="Huvudnavigation">
+
+            <a
+                class="tab"
+                href="./index.html"
+            >
+                Hem
+            </a>
+
+            <a
+                class="tab"
+                href="./koplage.html"
+            >
+                Köpläge
+            </a>
+
+            <a
+                class="tab active"
+                href="./events.html"
+            >
+                Händelser
+            </a>
+
+            <a
+                class="tab"
+                href="./bedomning.html"
+            >
+                Bedömning
+            </a>
+
+            <a
+                class="tab"
+                href="./dataanalys.html"
+            >
+                Dataanalys
+            </a>
+
+        </nav>
+
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="cards">
+
+        <div class="card">
+            <span class="label">
+                Händelser
+            </span>
+
+            <strong>
+                {{EVENT_COUNT}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Analys
+            </span>
+
+            <strong>
+                Event study
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                ML-experiment
+            </span>
+
+            <strong>
+                {{ML_EXPERIMENT_COUNT}}
+            </strong>
+        </div>
+
+        <div class="card">
+            <span class="label">
+                Senast uppdaterad
+            </span>
+
+            <strong class="timestamp">
+                {{GENERATED_AT}}
+            </strong>
+        </div>
+
+    </section>
+
+
+    <section class="panel">
+
+        <div class="section-header">
+
+            <span class="eyebrow">
+                HISTORISKA HÄNDELSER
+            </span>
+
+            <h2>
+                Short-events
+            </h2>
+
+            <p>
+                Varje händelse visas en gång. Klicka på valfri
+                kolumn för att sortera stigande eller fallande.
+            </p>
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>
+                            Aktie
+                        </th>
+
+                        <th>
+                            Blankning
+                        </th>
+
+                        <th>
+                            Förändring
+                        </th>
+
+                        <th>
+                            1d
+                        </th>
+
+                        <th>
+                            5d
+                        </th>
+
+                        <th>
+                            20d
+                        </th>
+
+                        <th>
+                            60d
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+                    {{EVENT_ROWS}}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <footer>
+
+        <span>
+            Blankdiss
+        </span>
+
+        <span>
+            Genererad {{GENERATED_AT}}
+        </span>
+
+    </footer>
+
+</main>
+
+</body>
+</html>
