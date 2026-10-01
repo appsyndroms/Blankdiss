@@ -1,459 +1,233 @@
-Blankdiss ML
+Machine Learning
 
-Detta är den övergripande dokumentationen för Blankdiss ML-system.
+ml/ innehåller Blankdiss maskininlärning, forskningsmotorer, diagnostik och AI-baserad forskningsorkestrering.
+
+ML-lagret använder i huvudsak feature-datasetet som byggs av analysis/.
 
 Arkitektur
 
-ml/
-├── config.py
-├── dataset.py
-├── walk_forward.py
-│
-├── research/
-│   ├── spec.py
-│   ├── session.py
-│   ├── cache.py
-│   ├── signals.py
-│   ├── engine.py
-│   ├── runner.py
-│   ├── reporting.py
-│   ├── bootstrap.py
-│   ├── specs/
-│   └── custom/
-│
-└── diagnostics/
-    ├── framework/
-    └── experiments/
+analysis/
+    │
+    ▼
+data/processed/analysis/
+    │
+    ├──────────────┬──────────────┬──────────────┐
+    ▼              ▼              ▼              ▼
+conventional ML  research/    diagnostics/    ai-lab/
+                    │
+                    ▼
+               candidates
+                    │
+                    ▼
+               evaluation
+                    │
+                    ▼
+               verification
 
-ML-systemet har två forskningsvägar:
+De olika delarna har olika ansvar och ska inte duplicera varandra.
 
-                    ML
-                     │
-             ┌───────┴───────┐
-             │               │
-          Research       Diagnostics
-             │               │
-        deklarativt       specialiserat
-             │               │
-             └───────┬───────┘
-                     ▼
-                  OOS
+Conventional ML
 
-⸻
+Den vanliga ML-koden används för modeller och analyser som inte behöver Research Engines deklarativa forskningsflöde.
 
-1. config.py
+Den kan exempelvis användas för:
 
-Innehåller gemensam ML-konfiguration:
+* modellträning
+* prediktion
+* feature importance
+* modellutvärdering
+* jämförelser mellan modeller
 
-* targets
-* target thresholds
-* target directions
-* walk-forward windows
-* gemensamma konstanter
-
-Konfiguration som delas av flera delar av systemet ska ligga här.
-
-⸻
-
-2. dataset.py
-
-Ansvarar för datasetet.
-
-Viktiga funktioner inkluderar:
-
-* load_features()
-* build_target()
-* feature preparation
-* ML-data preparation
-
-Feature-data kommer från:
+Den gemensamma datagrunden kommer från:
 
 data/processed/analysis/
 
-Datasetlagret ska inte innehålla forskningsspecifik analyslogik.
-
-⸻
-
-3. walk_forward.py
-
-Innehåller den gemensamma tidsmässiga uppdelningen.
-
-Grundprincip:
-
-TRAIN
-   ↓
-VALIDATION
-   ↓
-MODEL SELECTION
-   ↓
-REFIT
-   ↓
-TEST / OOS
-
-Testperioden är den slutliga out-of-sample-gränsen.
-
-⸻
-
-4. Research Engine
-
-ml/research/ är den generiska forskningsmotorn.
-
-Den är optimerad för:
-
-idé
- ↓
-YAML
- ↓
-SCAN
- ↓
-DEEP
- ↓
-resultat
-
-Den ska minimera behovet av ny Python-kod för vanliga hypoteser.
-
-⸻
-
-Research Engine-komponenter
-
-spec.py
-
-Definierar YAML-formatet.
-
-En research spec beskriver bland annat:
-
-* forskningsfråga
-* signaler
-* riktning
-* tail fractions
-* targets
-* analysis type
-* mode
-* windows
-* splits
-* metadata
-
-⸻
-
-session.py
-
-Skapar en gemensam ResearchSession.
-
-Sessionen laddar feature-datasetet en gång och identifierar vilka komponenter som behövs för alla specs.
-
-⸻
-
-cache.py
-
-Bygger gemensamma cache-komponenter.
-
-Exempel:
-
-* signaler
-* targets
-* returns
-* tail masks
-* window masks
-
-Samma data ska inte beräknas om för varje hypotes.
-
-⸻
-
-signals.py
-
-Definierar standardiserade research-signaler.
-
-Exempel:
-
-* short interest level
-* short interest change
-* short interest acceleration
-* price momentum
-* volatility
-* distance from highs
-
-⸻
-
-engine.py
-
-Kör den generiska analysen.
-
-Engine innehåller återanvändbar analyslogik.
-
-Exempel på analysis types:
-
-* tail
-* interaction
-* incremental_model
-
-En analysis type beskriver en generell typ av forskningsanalys, inte en specifik hypotes.
-
-Exempel:
-
-incremental_model kan användas för att jämföra:
-
-M0 = baseline signal
-
-M1 = baseline signal + incremental signal
-
-M2 = baseline signal + incremental signal + interaction
-
-Den konkreta hypotesen ska sedan beskrivas i YAML.
-
-Engine beräknar standardiserade resultat såsom:
-
-* antal observationer
-* event count
-* event rate
-* baseline
-* lift
-* mean return
-* median return
-* return difference
-* modellmetrics
-* bootstrap-resultat i DEEP
-
-Gemensam analyslogik ska ligga centralt i Engine.
-
-⸻
-
-runner.py
-
-Orkestrerar research.
-
-load specs
-    ↓
-build session
-    ↓
-build shared cache
-    ↓
-run specs
-    ↓
-write results
-    ↓
-write manifest
-
-Alla specs i samma körning delar session och cache.
-
-⸻
-
-reporting.py
-
-Ansvarar för standardiserad output.
-
-Resultaten ska vara maskinläsbara och lämpade för vidare analys.
-
-⸻
-
-bootstrap.py
-
-Gemensam bootstrap-funktionalitet för DEEP-analyser.
-
-Bootstrap ska inte implementeras separat i varje hypotes.
-
-⸻
-
-5. SCAN och DEEP
-
-SCAN
-
-SCAN är billig screening.
-
-Syftet är:
-
-Finns det någonting här som är värt att undersöka vidare?
-
-SCAN kan testa:
-
-* flera signaler
-* flera tail fractions
-* flera targets
-* flera windows
-
-Dyra analyser ska normalt inte ligga här.
-
-DEEP
-
-DEEP används efter ett intressant SCAN-resultat.
-
-DEEP kan innehålla:
-
-* bootstrap
-* confidence intervals
-* alternativa cutoffs
-* robusthetskontroller
-* placebo-/kontrollanalyser
-* fler tidsperioder
-* specialiserad analys
-
-⸻
-
-6. När ska Python skrivas?
-
-Börja alltid med YAML.
-
-Innan ny Python skrivs ska följande kontrolleras:
-
-1. Kan hypotesen uttryckas med befintlig Research Engine?
-2. Finns redan nödvändiga signaler?
-3. Finns redan nödvändiga targets?
-4. Finns redan nödvändiga cache-komponenter?
-5. Finns redan en lämplig analysis type?
-
-Om svaret är JA:
-
-Hypotes
-   ↓
-YAML
-   ↓
 Research Engine
 
-Ingen ny experimentklass ska skapas.
+ml/research/ är Blankdiss generella forskningsmotor.
 
-Om svaret är NEJ ska nästa fråga vara:
+Research Engine är byggd för att göra experiment reproducerbara och deklarativa.
 
-Är den saknade funktionaliteten generell?
+Centrala komponenter är bland annat:
 
-Om JA:
+ml/research/
+├── spec.py
+├── session.py
+├── cache.py
+├── signals.py
+├── engine.py
+├── runner.py
+├── reporting.py
+├── verification.py
+├── candidates/
+├── evaluation/
+└── specs/
 
-Hypotes
-   ↓
-ny generell Engine-funktionalitet
-   ↓
-YAML
-   ↓
-Research Engine
+Research Engine kan köra olika typer av forskning utan att varje ny hypotes behöver få en separat implementation.
+
+Research modes
+
+De huvudsakliga körlägena är:
+
+scan
+deep
+
+scan används för bredare och snabbare undersökningar.
+
+deep används för mer omfattande analys av intressanta områden.
 
 Exempel:
 
-Om Research Engine saknar incremental_model ska man inte skapa:
+python -m ml.research.entrypoint scan
+python -m ml.research.entrypoint deep
 
-momentum_incremental_si.py
+Research specs
 
-för den första hypotesen.
+Experiment beskrivs med Research Engine-specifikationer.
 
-I stället ska incremental_model implementeras generellt i Engine.
+Specifikationen anger bland annat vad som ska analyseras, vilka targets som ska användas och vilka parametrar som gäller för körningen.
 
-Sedan ska:
+Det innebär att experimentdefinitionen kan separeras från själva engine-koden.
 
-momentum + SI change
+Research results
 
-beskrivas som en YAML-spec.
-
-Om funktionaliteten däremot är unik och inte rimligen ska bli en generell analysis type kan den placeras i:
-
-ml/research/custom/
-
-eller, om den kräver ett separat specialiserat experimentframework:
-
-ml/diagnostics/
-
-Grundregel:
-
-Ny hypotes
-    → YAML
-
-Ny generell analysform
-    → Engine + YAML
-
-Unik specialanalys
-    → custom / Diagnostics
-
-⸻
-
-7. Research kontra Diagnostics
-
-Diagnostics är den specialiserade forskningsvägen.
-
-Den används när generisk Research Engine inte räcker efter att det har bedömts att den saknade logiken inte bör vara en generell Engine-funktion.
-
-Diagnostics ska inte användas som wrapper för analyser som enkelt kan uttryckas i YAML.
-
-Diagnostics ska inte heller användas enbart för att Research Engine ännu inte råkar stödja en viss generell analysform.
-
-⸻
-
-8. Resultat
-
-Research-resultat:
+Research runs skrivs normalt till:
 
 data/processed/ml/research/spec_runs/
 
-En körning innehåller exempelvis:
+En körning identifieras av sitt run-directory och innehåller bland annat manifest och resultat per spec.
 
-spec_runs/
-└── <timestamp>/
-    ├── manifest.json
-    ├── spec_a.json
-    └── spec_b.json
+Candidates
 
-Resultatfilerna är den primära källan för statistisk analys.
+Research Engine kan generera kandidater från intressanta historiska resultat.
 
-⸻
+Kandidatkod finns under:
 
-9. Forskningsloop
+ml/research/candidates/
 
-Den normala arbetsprocessen är:
+En kandidat representerar en konkretiserad hypotes som kan tas vidare till utvärdering.
 
-Hypotes
-   ↓
-Läs README
-   ↓
-Kontrollera befintlig Engine
-   ↓
-Kan YAML beskriva den?
+Det är viktigt att skilja på:
+
+historiskt forskningsresultat
+        ≠
+fryst kandidat
+        ≠
+prospektivt verifierat resultat
+
+Prospective evaluation
+
+Prospektiv utvärdering finns under:
+
+ml/research/evaluation/
+
+Evaluation används för att testa frysta kandidater på data som inte användes för att skapa hypotesen.
+
+Exempel:
+
+python -m ml.research.entrypoint freeze <candidate.yaml>
+python -m ml.research.entrypoint evaluate <candidate.yaml> <evaluation.yaml>
+
+Resultaten skrivs normalt till:
+
+data/processed/ml/research/evaluation/
+
+Diagnostics
+
+ml/diagnostics/ innehåller specialiserade diagnostiska analyser.
+
+Diagnostics används när en undersökning inte naturligt passar Research Engines generella experimentmodell.
+
+Strukturen är:
+
+ml/diagnostics/
+├── framework/
+└── experiments/
+
+framework/ innehåller gemensam diagnostisk infrastruktur.
+
+experiments/ innehåller de specifika diagnostiska analyserna.
+
+Research Engine bör användas när analysen är en generell forskningsoperation som kan beskrivas deklarativt.
+
+Diagnostics används när analysen är mer specialiserad.
+
+AI Lab
+
+ml/ai-lab/ innehåller AI Labs forskningsorkestrering.
+
+AI Lab kan:
+
+* hålla state
+* planera experiment
+* välja nästa experiment
+* arbeta adaptivt
+* hantera kandidater
+* styra forskningsloopar
+
+AI Lab ska använda Research Engine som experimentmotor när det är lämpligt i stället för att skapa en parallell implementation av samma analyslogik.
+
+AI Lab
    │
-   ├── JA → Research spec
-   │          ↓
-   │        SCAN
-   │          ↓
-   │        DEEP
+   │ planerar
+   ▼
+Research Engine
    │
-   └── NEJ
-        ↓
-   Är den nya analysformen generell?
-        │
-        ├── JA → utöka Engine
-        │          ↓
-        │        Research spec
-        │
-        └── NEJ → custom / diagnostics
+   │ kör
+   ▼
+Research result
 
-Efter resultat:
+Verification
 
-resultat
-   ↓
-tolkning
-   ↓
-nästa hypotes
+Verifieringslogiken finns i Research Engine och används för att kontrollera forskningsresultat och kandidatflöden.
 
-Målet är kortast möjliga väg mellan idé och information.
+Verifiering ska hjälpa till att säkerställa att ett resultat inte betraktas som starkare än vad experimentet faktiskt stödjer.
 
-⸻
+Reproducerbarhet
 
-10. Viktiga principer
+ML-lagret bygger på att experiment ska kunna återköras och förstås i efterhand.
 
-* Gemensam logik ska ligga centralt.
-* Hypoteser ska vara små.
-* Nya konkreta hypoteser ska normalt vara YAML.
-* SCAN ska vara billig.
-* DEEP ska användas selektivt.
-* OOS är den slutliga kontrollen.
-* Test leakage ska undvikas.
-* Resultat ska vara maskinläsbara.
-* Duplicerad kod ska undvikas.
-* Speciallogik ska vara explicit.
-* Död kod ska tas bort.
-* En ny generell analysform ska implementeras i Engine.
-* Diagnostics ska inte användas som fallback för saknad generell Engine-funktionalitet.
-* Legacy-implementationer ska tas bort efter verifierad migrering.
+Därför ska experiment i möjligaste mån kunna kopplas till:
 
-⸻
+* feature-dataset
+* research spec
+* target
+* tidsperiod
+* parametrar
+* run-id
+* kandidat
+* evaluation
+* resultat
 
-Relaterad dokumentation
+Separation av ansvar
 
-* README.md
-* ml/research/README.md
-* ml/diagnostics/README.md
-* ml/research/specs/README.md
-* ml/research/custom/README.md
+En förenklad tumregel:
+
+Fråga	Placering
+Hur byggs feature-datasetet?	analysis/
+Hur tränas en vanlig ML-modell?	ml/
+Hur definieras ett generellt forskningsförsök?	ml/research/
+Hur körs research specs?	ml/research/
+Hur hanteras kandidater?	ml/research/candidates/
+Hur görs prospektiv evaluation?	ml/research/evaluation/
+Hur görs specialiserad diagnostik?	ml/diagnostics/
+Hur styrs adaptiv AI-forskning?	ml/ai-lab/
+Var sparas Research Engine-resultat?	data/processed/ml/research/
+Var sparas AI Lab-specifika artefakter?	data/ai_lab/results/
+
+Grundprincip
+
+ml/ är alltså inte en enda monolitisk ML-modul.
+
+Det är ett lager där olika typer av maskininlärning och forskning hålls separerade:
+
+                  ml/
+                   │
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+ conventional   research   diagnostics
+ ML                │
+                   ▼
+                AI Lab
+
+Separationen gör att den generella forskningsmotorn kan utvecklas utan att bli beroende av specifika experiment, samtidigt som AI Lab kan utvecklas som ett högre lager ovanpå den.
