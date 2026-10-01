@@ -1,436 +1,364 @@
-Ja. Då börjar vi med första faktiska implementationssteget, och jag skriver ut hela filer — inte fragment.
+Research Engine
 
-Jag vill inte aktivera den nya dagliga kedjan ännu. Först bygger vi spec-lagret och kontrakten. Den befintliga ml/research/ får fortsätta vara motorn tills vi har kopplat den mot detta.
+ml/research/ är Blankdiss generella forskningsmotor.
 
-1. research/README.md
+Den används för att definiera, köra, cacha, rapportera och verifiera forskningsförsök på feature-datasetet utan att varje ny hypotes behöver implementeras som separat analyskod.
 
-# Blankdiss Research Specifications
-Detta katalogträd innehåller Blankdiss forskningsspecifikationer.
-`research/` är ett input-/specifikationslager.
-Det är inte en alternativ resultatinfrastruktur.
-## Struktur
-```text
-research/
-├── discovery/
-│   └── specs/
+Roll i arkitekturen
+
+analysis/
+    │
+    ▼
+feature dataset
+    │
+    ▼
+Research Engine
+    │
+    ├── specs
+    ├── scan
+    ├── deep
+    ├── analysis
+    ├── candidates
+    ├── evaluation
+    └── verification
+
+Research Engine ligger mellan den gemensamma datagrunden och kandidat-/valideringsprocessen.
+
+Grundprincip
+
+Research Engine ska skilja mellan:
+
+* vad som ska undersökas
+* hur experimentet genomförs
+* vilket resultat experimentet gav
+* om resultatet är tillräckligt intressant för att bli kandidat
+* om kandidaten senare klarar prospektiv utvärdering
+
+Det gör forskningsprocessen mer reproducerbar och minskar risken för att enskilda experiment får egen, duplicerad logik.
+
+Centrala komponenter
+
+ml/research/
+├── spec.py
+├── session.py
+├── cache.py
+├── signals.py
+├── engine.py
+├── runner.py
+├── reporting.py
+├── verification.py
 ├── candidates/
-│   └── specs/
-└── evaluation/
-    └── specs/
+├── evaluation/
+└── specs/
 
-Ansvar
+spec.py
 
-discovery/
+Definierar strukturen för research specs.
 
-Discovery beskriver hur Blankdiss får söka efter möjliga strukturer och
-hypoteser.
+En spec beskriver ett experiment på ett deklarativt sätt.
 
-Discovery får vara explorativ.
+session.py
 
-Resultatet från discovery får däremot inte automatiskt betraktas som
-validerat.
+Hanterar kontexten för en research-körning.
 
-candidates/
+cache.py
 
-Candidates innehåller frysta forskningskandidater.
+Hanterar återanvändning av beräknade resultat där samma analys kan återanvändas utan att köras om i onödan.
 
-En kandidat är en explicit och reproducerbar hypotesdefinition.
+signals.py
 
-När en kandidat har frysts får dess parametrar inte ändras.
+Innehåller signalrelaterad logik som används av forskningsmotorn.
 
-En ändring av en kandidatdefinition skapar en ny kandidat.
+engine.py
+
+Är den centrala motorn som genomför research-analyser.
+
+runner.py
+
+Ansvarar för att driva research-körningar.
+
+reporting.py
+
+Sammanställer och skriver forskningsresultat.
+
+verification.py
+
+Innehåller verifieringsrelaterad logik för att kontrollera forskningsresultat och kandidatflöden.
+
+Research specs
+
+Research specs gör experiment deklarativa.
+
+I stället för att skapa en ny Python-implementation för varje hypotes kan forskaren beskriva experimentets parametrar i en spec.
+
+Specifikationen kan bland annat ange:
+
+* dataset
+* target
+* features eller feature-grupper
+* analys
+* tidsperiod
+* parametrar
+* körläge
+* begränsningar
+
+Exakt schema styrs av implementationen i spec.py och de aktuella specs som finns i:
+
+ml/research/specs/
+
+Körlägen
+
+Research Engine har två centrala körlägen:
+
+scan
+deep
+
+Scan
+
+scan används för bredare sökningar.
+
+Syftet är att snabbt kunna undersöka många potentiella samband och identifiera områden som förtjänar djupare analys.
+
+Deep
+
+deep används när ett område eller en signal redan är intressant och behöver undersökas mer omfattande.
+
+Det kan exempelvis innebära fler analyser, fler parametrar eller djupare uppdelningar av resultatet.
+
+Entrypoint
+
+Research Engine kan köras via:
+
+ml.research.entrypoint
 
 Exempel:
 
-momentum_60d_quantile: 0.10
+python -m ml.research.entrypoint scan
+python -m ml.research.entrypoint deep
 
-ändras till:
+Kandidat- och evaluation-flöden kan exempelvis startas med:
 
-momentum_60d_quantile: 0.15
+python -m ml.research.entrypoint freeze <candidate.yaml>
+python -m ml.research.entrypoint evaluate <candidate.yaml> <evaluation.yaml>
 
-Detta är en ny kandidat.
+Det finns även ett pipeline-läge:
 
-Den gamla kandidaten ska fortfarande kunna reproduceras.
+python -m ml.research.entrypoint pipeline
 
-evaluation/
+Research results
 
-Evaluation beskriver hur en fryst kandidat ska testas på data som ligger
-efter kandidatens freeze-/cutoff-tidpunkt.
+Research Engine-resultat skrivs normalt till:
 
-Evaluation får mäta, analysera och rapportera.
+data/processed/ml/research/spec_runs/
 
-Evaluation får inte ändra kandidaten.
+En körning har ett eget run-directory.
+
+En typisk struktur är:
+
+spec_runs/
+└── <timestamp>/
+    ├── manifest.json
+    └── <spec-resultat>.json
+
+Manifestet gör det möjligt att identifiera vilka specs och förutsättningar som hör till körningen.
+
+Session och reproducerbarhet
+
+En research session representerar kontexten för ett experiment eller en grupp experiment.
+
+Det är viktigt att en research-körning kan kopplas till:
+
+* vilken spec som användes
+* vilket dataset som användes
+* vilken tidsperiod som användes
+* vilka parametrar som användes
+* vilket run-id som skapades
+* vilka resultat som genererades
+
+Detta är särskilt viktigt när ett resultat senare ska bli kandidat.
+
+Cache
+
+Research Engine använder cache för att undvika att samma dyra beräkning behöver göras flera gånger när indata och analys är oförändrade.
+
+Cache får dock inte förändra den logiska betydelsen av ett experiment.
+
+Ett cache-hit ska motsvara samma beräkning som om experimentet hade körts från början.
+
+Candidates
+
+Research Engine har ett separat kandidatflöde:
+
+ml/research/candidates/
+
+En kandidat är en fryst representation av en forskningshypotes som bedöms vara tillräckligt konkret för att testas vidare.
+
+Kandidaten ska kunna beskriva exakt vad som ska utvärderas.
+
+Det är viktigt att skilja mellan:
+
+Research result
+      │
+      ▼
+Candidate
+      │
+      ▼
+Evaluation
+      │
+      ▼
+Verification
+
+Ett historiskt resultat är alltså inte automatiskt en kandidat, och en kandidat är inte automatiskt verifierad.
+
+Prospective evaluation
+
+Prospektiv utvärdering finns under:
+
+ml/research/evaluation/
+
+Syftet är att testa frysta kandidater på data som inte användes för att skapa hypotesen.
+
+Exempel:
+
+python -m ml.research.entrypoint freeze <candidate.yaml>
+python -m ml.research.entrypoint evaluate <candidate.yaml> <evaluation.yaml>
+
+Resultat skrivs normalt till:
+
+data/processed/ml/research/evaluation/
+
+En evaluation-körning ska vara tydligt kopplad till den kandidat som utvärderades.
+
+Verification
+
+Verifiering är det steg där forskningsresultat och kandidater kontrolleras mot de krav som gäller för nästa steg.
+
+Verifiering kan bland annat hjälpa till att upptäcka:
+
+* felaktiga antaganden
+* bristande reproducerbarhet
+* tidsmässig läckage
+* problem i kandidatdefinitionen
+* skillnader mellan historiskt och prospektivt resultat
+
+Verifiering är därför en separat del av forskningsprocessen.
+
+Relation till AI Lab
+
+AI Lab finns under:
+
+ml/ai-lab/
+
+AI Lab kan använda Research Engine som sin experimentmotor.
+
+AI Lab
+   │
+   │ planerar
+   ▼
+Research spec
+   │
+   ▼
+Research Engine
+   │
+   ▼
+Resultat
+   │
+   ▼
+AI Lab
+
+Research Engine behöver alltså inte känna till hela AI Labs forskningsstrategi.
+
+Relation till Diagnostics
+
+ml/diagnostics/ innehåller specialiserade analyser.
+
+Research Engine bör användas för generella, återanvändbara experiment.
+
+Diagnostics används när en specifik frågeställning kräver särskild analyslogik.
+
+Om en diagnostic senare visar sig vara generell kan funktionaliteten abstraheras till Research Engine.
 
 Dataflöde
 
-DISCOVERY SPEC
-      ↓
-DISCOVERY RESULT
-      ↓
-HYPOTHESIS
-      ↓
-FROZEN CANDIDATE
-      ↓
-EVALUATION SPEC
-      ↓
-PROSPECTIVE EVALUATION
-      ↓
-WALK-FORWARD
-      ↓
-RESULT
-
-Viktig separation
-
-Specifikationer och resultat ska hållas separerade.
-
-research/
-    ↓
-YAML
-    ↓
-Blankdiss
-    ↓
-data/processed/ml/research/
-    ↓
-JSON / JSONL
-
-research/ ska därför inte börja innehålla genererade resultatfiler.
-
-Reproducerbarhet
-
-En forskningskörning ska kunna rekonstrueras från:
-
-1. kandidat/specifikation,
-2. versionsinformation,
-3. data cutoff,
-4. feature-version,
-5. evaluation-period,
-6. körningsmetadata.
-
-Grundregler
-
-1. Discovery får hitta kandidater.
-2. En fryst kandidat är immutable.
-3. Evaluation får inte optimera kandidaten.
-4. Framtida information får inte påverka tidigare beslut.
-5. En parameterändring innebär ny kandidat.
-6. Resultat skrivs som JSON/JSONL.
-7. YAML används för forskningsspecifikationer.
-8. research/ är input, inte output.
-
----
-### 2. `research/discovery/specs/README.md`
-```markdown
-# Discovery Specifications
-Discovery-specifikationer beskriver hur Blankdiss får söka efter
-potentiella forskningsstrukturer.
-Discovery är explorativ.
-Ett discovery-resultat är inte en validerad forskningskandidat.
-## Syfte
-Discovery ska kunna söka över exempelvis:
-- signaler,
-- signalinteraktioner,
-- targets,
-- tidsfönster,
-- tail-fraktioner,
-- kombinationer av befintliga features.
-Målet är att hitta strukturer som är tillräckligt intressanta för att
-formuleras som explicita hypoteser.
-## Exempel
-```yaml
-id: discovery_momentum_si_001
-version: 1
-question: >
-  Finns det en kombination mellan momentum och förändring i
-  short interest som är värd att undersöka vidare?
-signals:
-  - name: price_return_60d
-    directions:
-      - upper
-      - lower
-    fractions:
-      - 0.05
-      - 0.10
-      - 0.20
-  - name: short_interest_delta_pp
-    directions:
-      - upper
-      - lower
-    fractions:
-      - 0.05
-      - 0.10
-      - 0.20
-targets:
-  - forward_return_20d
-windows:
-  - window_1
-  - window_2
-output:
-  propose_candidates: true
-
-Detta är en discovery-specifikation.
-
-Den skapar inte en fryst kandidat.
-
-Discovery får
-
-Discovery får:
-
-* söka över flera parametrar,
-* testa många kombinationer,
-* identifiera intressanta mönster,
-* föreslå hypoteser,
-* rangordna discovery-resultat internt för vidare analys.
-
-Discovery får inte
-
-Discovery får inte:
-
-* kalla ett resultat validerat,
-* ändra en redan fryst kandidat,
-* använda framtida evaluation-resultat,
-* skriva över befintliga kandidater,
-* göra en evaluation-driven parameterjustering.
-
-Nästa steg
-
-Ett intressant discovery-resultat ska omvandlas till en explicit
-controlled hypothesis.
-
-Den hypotesen kan därefter bli en frozen candidate.
-
-Discovery
-   ↓
-Result
-   ↓
-Hypothesis
-   ↓
-Controlled test
-   ↓
-Frozen candidate
----
-### 3. `research/candidates/specs/README.md`
-```markdown
-# Candidate Specifications
-Denna katalog innehåller specifikationer för frysta forskningskandidater.
-En candidate-specifikation representerar en explicit hypotes som ska kunna
-reproduceras exakt.
-## Candidate lifecycle
-```text
-DISCOVERY
-    ↓
-CONTROLLED HYPOTHESIS TEST
-    ↓
-FROZEN CANDIDATE
-    ↓
-PROSPECTIVE EVALUATION
-    ↓
-WALK-FORWARD
-
-Immutable
-
-När en kandidat har frysts får dess definition inte ändras.
-
-Exempel:
-
-id: candidate_momentum_si_001
-version: 1
-signal:
-  name: momentum_60d
-  quantile: 0.10
-
-Om quantile ändras:
-
-quantile: 0.15
-
-ska det skapas en ny kandidat:
-
-id: candidate_momentum_si_002
-version: 1
-
-Den första kandidaten får inte ändras retroaktivt.
-
-Minimum metadata
-
-En candidate-spec ska innehålla:
-
-* id
-* version
-* question
-* created_at
-* discovery_cutoff
-* freeze_at
-* features
-* parameters
-* target
-* training_period
-* candidate_status
-
-Exempel
-
-id: candidate_momentum_si_001
-version: 1
-question: >
-  Ger hög 60-dagars momentum kombinerat med positiv förändring
-  i short interest en förändrad sannolikhet för framtida prisrörelse?
-created_at: "2026-09-28T00:00:00Z"
-discovery_cutoff: "2026-06-30"
-freeze_at: "2026-07-15"
-candidate_status: frozen
-features:
-  - price_return_60d
-  - short_interest_delta_pp
-parameters:
-  momentum_quantile: 0.10
-  short_interest_delta_quantile: 0.10
-target:
-  name: forward_return_20d
-training_period:
-  start: "2022-01-01"
-  end: "2026-06-30"
-
-Candidate-status
-
-Tillåtna statusar ska vara:
-
-draft
-tested
-frozen
-retired
-
-En kandidat som är frozen får inte ändras.
-
-Om definitionen behöver ändras ska en ny kandidat skapas.
-
-Evaluation
-
-Evaluation ska referera till kandidatens ID och version.
-
-Evaluation ska aldrig innehålla en alternativ kandidatdefinition.
-
-Exempel:
-
-candidate_id: candidate_momentum_si_001
-candidate_version: 1
-
-och inte:
-
-candidate_id: candidate_momentum_si_001
-parameters:
-  momentum_quantile: 0.15
-
-Det senare skulle innebära att evaluation-definitionen skiljer sig från
-den frysta kandidaten.
-
----
-### 4. `research/evaluation/specs/README.md`
-```markdown
-# Evaluation Specifications
-Evaluation-specifikationer beskriver hur en fryst forskningskandidat ska
-testas på framtida data.
-Evaluation ska vara prospektiv.
-## Grundregel
-Evaluation får läsa:
-```text
-FROZEN CANDIDATE
-       +
-FUTURE DATA
-
-Evaluation får inte ändra kandidaten.
-
-Exempel
-
-id: evaluation_candidate_momentum_si_001_2026q3
-version: 1
-candidate:
-  id: candidate_momentum_si_001
-  version: 1
-evaluation_period:
-  start: "2026-07-01"
-  end: "2026-09-30"
-targets:
-  - forward_return_20d
-metrics:
-  - sample_size
-  - event_rate
-  - mean_return
-  - median_return
-  - lift
-walk_forward:
-  enabled: true
-
-Temporal separation
-
-Evaluation-perioden måste ligga efter kandidatens cutoff.
-
-Exempel:
-
-candidate discovery cutoff
-        2026-06-30
-             ↓
-candidate frozen
-        2026-07-15
-             ↓
-evaluation starts
-        2026-07-16
-
-Evaluation får inte använda information från evaluation-perioden för att
-ändra:
-
-* features,
-* thresholds,
-* candidate parameters,
-* target definition,
-* signaldefinition.
-
-Evaluation-AI
-
-Evaluation-AI får:
-
-* mäta resultat,
-* analysera resultat,
-* identifiera problem,
-* beräkna diagnostik,
-* rapportera osäkerhet,
-* identifiera stabilitet eller instabilitet.
-
-Evaluation-AI får inte:
-
-* ändra kandidaten,
-* optimera kandidatens parametrar,
-* välja en ny parameterkombination efter resultatet,
-* skapa en bättre kandidat genom att använda evaluation-resultatet.
-
-Om en annan parameterkombination blir intressant ska den bli en ny
-candidate.
-
-Walk-forward
-
-En fryst kandidat får testas över flera framtida fönster.
-
-Frozen candidate
-      │
-      ├── window 1
-      ├── window 2
-      ├── window 3
-      ├── window 4
-      └── ...
-
-Samma kandidatdefinition ska användas i samtliga fönster.
-
-Resultat
-
-Evaluation ska producera maskinläsbara resultat.
-
-Exempel:
-
-data/processed/ml/research/
-└── <run_id>/
-    ├── evaluation.json
-    └── manifest.json
-
-Resultaten ska innehålla tillräcklig provenance för att körningen ska
-kunna reproduceras.
-
----
-Det här är **första implementationssteget**. Jag skulle inte ändra `blankdiss.yml` ännu. Den nuvarande workflowen har dessutom fortfarande en kommenterad `git commit`/`git push`-sektion — den ska vi ta bort när vi bygger om workflowet. **Den ska inte kunna committa någonting alls.**
-Nästa konkreta steg är att implementera **candidate-schema + freeze/verifiering** och därefter koppla den befintliga `ml/research`-motorn till de nya `research/`-specarna.
+Research Engine läser den feature-grund som byggs av analysis/.
+
+analysis/build_features.py
+          │
+          ▼
+data/processed/analysis/
+          │
+          ▼
+     Research Engine
+          │
+          ├── scan
+          ├── deep
+          └── other research analyses
+                  │
+                  ▼
+             spec_runs
+                  │
+                  ▼
+              candidates
+                  │
+                  ▼
+             evaluation
+                  │
+                  ▼
+             verification
+
+Research Engine ska inte själv vara ansvarig för att bygga om den centrala feature-grunden.
+
+Tidsmässig separation
+
+Research Engine måste hantera tidsdimensionen korrekt.
+
+När en signal undersöks måste det vara möjligt att skilja mellan:
+
+* information som fanns tillgänglig vid observationstidpunkten
+* framtida information
+* historisk träningsperiod
+* testperiod
+* eventuell OOS-period
+
+Detta är centralt för att undvika look-ahead bias.
+
+Forskningslivscykel
+
+En typisk Blankdiss-forskningsprocess kan beskrivas som:
+
+1. Feature dataset
+       │
+       ▼
+2. Scan
+       │
+       ▼
+3. Intressant observation
+       │
+       ▼
+4. Deep analysis
+       │
+       ▼
+5. Hypotes
+       │
+       ▼
+6. Candidate freeze
+       │
+       ▼
+7. Prospective evaluation
+       │
+       ▼
+8. Verification
+
+Det är denna separation som gör det möjligt att skilja mellan upptäckt och faktisk validering.
+
+Grundprincip
+
+Research Engine ska vara Blankdiss generella experimentmotor.
+
+När en ny forskningsidé kan uttryckas som:
+
+“Kör denna analys på dessa features och targets under dessa förutsättningar”
+
+bör den i första hand implementeras som en Research Engine-spec eller som en generell utökning av Research Engine.
+
+En ny separat experimentimplementation bör först skapas när problemet faktiskt kräver specialiserad logik.
