@@ -1,6 +1,8 @@
 """Inläsning och konstruktion av FI-features."""
+
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +15,9 @@ from analysis.feature_config import (
 from analysis.feature_utils import (
     normalize_text,
     security_key,
+)
+from shared.instrument_identity import (
+    load_identity,
 )
 
 
@@ -81,6 +86,120 @@ def _aggregate_snapshot_files(
     ]
 
 
+def _resolve_entity_identity(
+    identity,
+    *,
+    isin: str | None,
+    lei: str | None,
+    issuer: str | None,
+    target_date: date | None,
+) -> tuple[str | None, str | None]:
+    """
+    Löser FI-observationens långsiktiga entity-identitet.
+
+    Viktigt:
+
+    - Explicit ISIN ändras aldrig.
+    - entity_id beskriver den långsiktiga entityn.
+    - Matchningen är datumstyrd.
+    - Om identiteten inte kan lösas returneras None.
+    """
+
+    match = identity.resolve(
+        isin=isin,
+        lei=lei,
+        issuer=issuer,
+        target_date=target_date,
+    )
+
+    if match is None:
+        return (
+            None,
+            None,
+        )
+
+    return (
+        match.entity_id,
+        match.resolution,
+    )
+
+
+def _add_entity_identity(
+    frame: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Lägger till entity_id och identity_resolution.
+
+    security_key förblir helt oförändrad.
+
+    Detta är avsiktligt eftersom:
+
+        entity_id
+            =
+        långsiktig issuer/entity-identitet
+
+        security_key
+            =
+        specifikt instrument
+
+    Ett ISIN-byte ska alltså inte slå ihop två instrument
+    till samma security_key.
+    """
+
+    result = frame.copy()
+
+    identity = load_identity()
+
+    entity_ids: list[str | None] = []
+    resolutions: list[str | None] = []
+
+    for _, row in result.iterrows():
+        snapshot_date = row.get(
+            "snapshot_date"
+        )
+
+        if pd.isna(snapshot_date):
+            target_date = None
+        else:
+            target_date = (
+                pd.Timestamp(
+                    snapshot_date
+                ).date()
+            )
+
+        entity_id, resolution = (
+            _resolve_entity_identity(
+                identity,
+                isin=row.get(
+                    "isin"
+                ),
+                lei=row.get(
+                    "lei"
+                ),
+                issuer=row.get(
+                    "issuer"
+                ),
+                target_date=target_date,
+            )
+        )
+
+        entity_ids.append(
+            entity_id
+        )
+
+        resolutions.append(
+            resolution
+        )
+
+    result["entity_id"] = entity_ids
+
+    result["identity_resolution"] = (
+        resolutions
+    )
+
+    return result
+
+
 def _load_aggregate_snapshots(
     historical: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -147,6 +266,7 @@ def _load_aggregate_snapshots(
         #
         # På så sätt används aldrig fetched/publication date
         # som signal-/feature-datum.
+
         frame["snapshot_date"] = (
             pd.to_datetime(
                 frame["position_date"],
@@ -181,6 +301,7 @@ def _load_aggregate_snapshots(
         # Om ISIN saknas används None och resolutionen nedan
         # kan falla tillbaka till historisk security-identitet
         # när den är entydig.
+
         if "isin" not in frame.columns:
             frame["isin"] = None
 
@@ -256,6 +377,7 @@ def _load_aggregate_snapshots(
         # ISIN är security-identiteten och ska alltid vinna
         # över issuer-identiteten.
         # -----------------------------------------------------
+
         if isin:
             resolved = security_key(
                 isin,
@@ -273,6 +395,7 @@ def _load_aggregate_snapshots(
         # Om issuern historiskt bara har en security kan den
         # identiteten återanvändas.
         # -----------------------------------------------------
+
         key = normalize_text(
             issuer
         )
@@ -291,6 +414,7 @@ def _load_aggregate_snapshots(
         # Då får vi inte välja en security godtyckligt.
         # Behåll issuer som explicit osäker fallback.
         # -----------------------------------------------------
+
         return security_key(
             None,
             issuer,
@@ -306,6 +430,22 @@ def _load_aggregate_snapshots(
             aggregate["issuer"],
         )
     ]
+
+    # ---------------------------------------------------------
+    # Entity-identiteten läggs ovanpå security-identiteten.
+    #
+    # security_key:
+    #     vilket specifikt instrument?
+    #
+    # entity_id:
+    #     vilken långsiktig entity?
+    #
+    # ISIN ändras aldrig av identity-lagret.
+    # ---------------------------------------------------------
+
+    aggregate = _add_entity_identity(
+        aggregate
+    )
 
     aggregate[
         "active_holders"
@@ -326,6 +466,8 @@ def _load_aggregate_snapshots(
         "lei",
         "issuer",
         "isin",
+        "entity_id",
+        "identity_resolution",
         "security_key",
         "short_interest_pct",
         "active_holders",
@@ -401,6 +543,18 @@ def load_fi(
             frame["issuer"],
         )
     ]
+
+    # ---------------------------------------------------------
+    # Entity-identitet.
+    #
+    # Detta är separat från security_key.
+    # Ett ISIN-byte skapar alltså fortfarande två olika
+    # security_keys men kan ha samma entity_id.
+    # ---------------------------------------------------------
+
+    frame = _add_entity_identity(
+        frame
+    )
 
     for column in (
         "short_interest_pct",
