@@ -112,6 +112,7 @@ def _load_aggregate_snapshots(
 
         required = {
             "snapshot_date",
+            "position_date",
             "issuer",
             "short_interest_pct",
         }
@@ -130,9 +131,15 @@ def _load_aggregate_snapshots(
                 + f" ({path})"
             )
 
+        # snapshot_date beskriver när FI-snapshoten
+        # hämtades/publicerades.
+        #
+        # position_date är däremot den faktiska
+        # observationsdagen för blankningen och ska
+        # användas som feature-datum.
         frame["snapshot_date"] = (
             pd.to_datetime(
-                frame["snapshot_date"],
+                frame["position_date"],
                 errors="coerce",
             )
         )
