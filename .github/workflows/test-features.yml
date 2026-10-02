@@ -1,0 +1,190 @@
+name: Test Features
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: blankdiss-test-features
+  cancel-in-progress: false
+
+env:
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  build-features:
+    name: Testa feature-build utan commit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build features
+        run: |
+          python -u -m analysis.build_features --force
+
+      - name: Verify feature dataset
+        run: |
+          test -f data/processed/analysis/features_metadata.json
+          test -n "$(find data/processed/analysis -maxdepth 1 -name 'features_*.jsonl' -print -quit)"
+
+          echo
+          echo "Feature chunks:"
+          ls -lh data/processed/analysis/features_*.jsonl
+
+          echo
+          echo "Metadata:"
+          cat data/processed/analysis/features_metadata.json
+
+      - name: Run feature QC
+        run: |
+          python -u -m analysis.features_qc
+
+      - name: Verify feature QC
+        run: |
+          test -f data/processed/analysis/features_qc.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("data/processed/analysis/features_qc.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          status = data.get("status")
+          print(f"Feature QC status: {status}")
+
+          if status == "FAIL":
+              raise SystemExit("Feature QC failed with status: FAIL")
+
+          if status == "WARN":
+              print("Feature QC status WARN. Workflow continues.")
+
+          elif status == "PASS":
+              print("Feature QC status PASS.")
+
+          else:
+              raise SystemExit(
+                  f"Feature QC returned unknown status: {status}"
+              )
+          PY
+
+      - name: Validate Sinch identity continuity
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = sorted(
+              Path("data/processed/analysis").glob("features_*.jsonl")
+          )
+
+          old_isin = "SE0007439112"
+          new_isin = "SE0016101844"
+
+          rows = []
+
+          for path in paths:
+              with path.open(encoding="utf-8") as handle:
+                  for line in handle:
+                      if not line.strip():
+                          continue
+
+                      row = json.loads(line)
+
+                      if row.get("isin") in {old_isin, new_isin}:
+                          rows.append(row)
+
+          print(f"Sinch feature rows: {len(rows)}")
+
+          if not rows:
+              raise SystemExit("Inga Sinch-rader hittades.")
+
+          entities = {
+              row.get("entity_id")
+              for row in rows
+              if row.get("entity_id")
+          }
+
+          print(f"Sinch entity_id values: {sorted(entities)}")
+
+          if len(entities) > 1:
+              raise SystemExit(
+                  "Sinch har flera entity_id. "
+                  "Historiska instrument verkar inte ha förenats."
+              )
+
+          for isin in (old_isin, new_isin):
+              isin_rows = [
+                  row for row in rows
+                  if row.get("isin") == isin
+              ]
+
+              print()
+              print(f"ISIN: {isin}")
+              print(f"Rows: {len(isin_rows)}")
+
+              if isin_rows:
+                  entity_ids = {
+                      row.get("entity_id")
+                      for row in isin_rows
+                  }
+
+                  resolutions = {
+                      row.get("identity_resolution")
+                      for row in isin_rows
+                  }
+
+                  matches = {
+                      row.get("price_match_available")
+                      for row in isin_rows
+                  }
+
+                  print(f"entity_id: {sorted(entity_ids)}")
+                  print(f"identity_resolution: {sorted(resolutions)}")
+                  print(f"price_match_available: {sorted(matches)}")
+
+          print()
+          print("Sinch identity continuity validation klar.")
+          PY
+
+      - name: Check working tree
+        run: |
+          echo "=========================================="
+          echo "WORKING TREE EFTER FEATURE BUILD"
+          echo "=========================================="
+          git status --short
+
+          echo
+          echo "Ingen commit eller push görs av detta workflow."
+
+      - name: Upload feature test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blankdiss-feature-test
+          if-no-files-found: ignore
+          path: |
+            data/processed/analysis/features_metadata.json
+            data/processed/analysis/features_qc.json
