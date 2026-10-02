@@ -1,4 +1,6 @@
-"""Diagnostik för FI -> feature -> price-kedjan."""
+"""
+Diagnostik för FI -> feature -> price-kedjan.
+"""
 
 from __future__ import annotations
 
@@ -464,6 +466,75 @@ def print_fi_diagnosis(fi: pd.DataFrame) -> dict:
             )
 
     return target_fi
+
+
+def print_fi_identity_window(
+    fi: pd.DataFrame,
+) -> None:
+    separator(
+        "2B. FI IDENTITY AROUND EVENT"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        target_date = pd.Timestamp(
+            target["event_date"]
+        )
+
+        identity_rows = fi.loc[
+            fi.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ].copy()
+
+        if identity_rows.empty:
+            print(
+                "NO FI ROWS FOR IDENTITY"
+            )
+            continue
+
+        identity_rows = identity_rows.loc[
+            identity_rows["snapshot_date"].between(
+                target_date
+                - pd.Timedelta(days=10),
+                target_date
+                + pd.Timedelta(days=10),
+            )
+        ].sort_values(
+            "snapshot_date"
+        )
+
+        if identity_rows.empty:
+            print(
+                "NO FI ROWS WITHIN +/-10 DAYS"
+            )
+            continue
+
+        print(
+            f"event date: {target_date.date()}"
+        )
+
+        print(
+            f"rows in window: "
+            f"{len(identity_rows)}"
+        )
+
+        for index, row in identity_rows.iterrows():
+            print(
+                f"  "
+                f"{row['snapshot_date'].date()} "
+                f"| index={index} "
+                f"| isin={row.get('isin')} "
+                f"| issuer={row.get('issuer')} "
+                f"| security={row.get('security_key')} "
+                f"| short={row.get('short_interest_pct')}"
+            )
 
 
 def print_feature_exact_diagnosis(
@@ -1083,6 +1154,10 @@ def main() -> None:
     )
 
     target_fi = print_fi_diagnosis(
+        fi
+    )
+
+    print_fi_identity_window(
         fi
     )
 
