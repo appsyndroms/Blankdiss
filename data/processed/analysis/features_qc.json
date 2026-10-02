@@ -38,6 +38,7 @@
     "data/raw/prices/prices_2022-01-03_2026-09-18.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-09-29.jsonl",
     "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
+    "data/raw/prices/prices_2025-10-08_2026-10-01.jsonl",
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
     "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl",
@@ -65,20 +66,20 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 133845,
-      "same_day": 128966,
-      "one_day": 1313,
+      "matched_rows": 133984,
+      "same_day": 129183,
+      "one_day": 1314,
       "two_days": 677,
-      "three_days": 376,
+      "three_days": 377,
       "four_to_five_days": 141,
-      "more_than_five_days": 2372,
-      "more_than_ten_days": 2354,
+      "more_than_five_days": 2292,
+      "more_than_ten_days": 2274,
       "max_calendar_days": 1576,
       "median_calendar_days": 0.0
     },
     "first_price_problem": {
       "status": "WARN",
-      "fi_rows_before_first_price": 2251,
+      "fi_rows_before_first_price": 2171,
       "symbols_without_price_history": 0,
       "rows_without_price_history": 0
     },
@@ -92,9 +93,9 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 133495,
-        "unmatched": 72093,
-        "issuer": 350
+        "isin": 133629,
+        "unmatched": 71954,
+        "issuer": 355
       },
       "unexpected_sources": []
     },
@@ -118,26 +119,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 132619,
-          "null": 73319,
+          "non_null": 132775,
+          "null": 73163,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 130886,
-          "null": 75052,
+          "non_null": 131037,
+          "null": 74901,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 128341,
-          "null": 77597,
+          "non_null": 128562,
+          "null": 77376,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 122378,
-          "null": 83560,
+          "non_null": 122601,
+          "null": 83337,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -145,8 +146,8 @@
     },
     "forward_return_alignment": {
       "status": "PASS",
-      "verified_match": 514224,
-      "not_yet_verifiable": 21156,
+      "verified_match": 514975,
+      "not_yet_verifiable": 20961,
       "value_mismatch": 0,
       "price_date_not_found": 0,
       "missing_forward_return": 0,
@@ -160,140 +161,140 @@
             "price_date": "2026-07-17",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-10",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-10",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-28",
             "window": 5,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-28",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-28",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
-          },
-          {
-            "yahoo_symbol": "IPCO.ST",
-            "price_date": "2026-09-30",
-            "window": 1,
-            "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-30",
             "window": 5,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-30",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-30",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
-          },
-          {
-            "yahoo_symbol": "BETCO.ST",
-            "price_date": "2026-07-08",
-            "window": 60,
-            "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-09",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-10",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-13",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-14",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-15",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-16",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-17",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-20",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-21",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-09-30"
+            "current_last_date": "2026-10-01"
+          },
+          {
+            "yahoo_symbol": "BETCO.ST",
+            "price_date": "2026-07-22",
+            "window": 60,
+            "stored": null,
+            "current_last_date": "2026-10-01"
+          },
+          {
+            "yahoo_symbol": "BETCO.ST",
+            "price_date": "2026-07-23",
+            "window": 60,
+            "stored": null,
+            "current_last_date": "2026-10-01"
           }
         ]
       }
@@ -305,8 +306,8 @@
     "unmatched_rows": {
       "status": "WARN",
       "total_rows": 205938,
-      "rows_with_price": 133845,
-      "rows_without_price": 72093,
+      "rows_with_price": 133984,
+      "rows_without_price": 71954,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {
