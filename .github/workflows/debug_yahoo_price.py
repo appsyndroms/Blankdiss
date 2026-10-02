@@ -1,4 +1,4 @@
-name: Felsökning - Fingerprint Yahoo Price
+name: Felsökning - Yahoo Price
 
 on:
   workflow_dispatch:
