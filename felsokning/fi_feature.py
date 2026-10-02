@@ -54,19 +54,12 @@ EVENT_DIR = (
 
 
 TARGETS = {
-    "Fingerprint": {
-        "issuer": "Fingerprint Cards AB",
-        "event_date": "2023-11-24",
-        "isin": "SE0008374250",
-        "lei": "5493004YF5D7Z612Z822",
-        "yahoo_symbol": "FING-B.ST",
-    },
-    "Viaplay": {
-        "issuer": "Viaplay Group AB (publ)",
-        "event_date": "2026-08-28",
-        "isin": "SE0012116390",
-        "lei": "5493006E0IJD0DHJSR89",
-        "yahoo_symbol": "VPLAY-B.ST",
+    "Sinch": {
+        "issuer": "Sinch AB (publ)",
+        "event_date": "2026-09-17",
+        "isin": "SE0007439112",
+        "lei": "549300UXY7QM6IDCGI12",
+        "yahoo_symbol": "SINCH.ST",
     },
 }
 
