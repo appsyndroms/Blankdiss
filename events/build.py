@@ -3,6 +3,15 @@ Bygger event-data från blankningssnapshots.
 Event-data innehåller endast själva FI-händelsen.
 Prisdata och forward returns kommer från det kanoniska
 feature-datasetet och beräknas/enrichas inte här.
+Identity-regel:
+    issuer identity
+        ↓
+    security identity
+        ↓
+    price identity
+Om eventet innehåller ISIN används det alltid före issuer.
+Issuer får endast användas som fallback när exakt en mapping
+matchar issuern.
 """
 from __future__ import annotations
 import json
@@ -78,11 +87,27 @@ def normalize(
         .strip()
         .lower()
     )
+def normalize_isin(
+    value,
+) -> str:
+    return (
+        normalize(value)
+        .replace(" ", "")
+    )
 def resolve_instrument(
     row: dict,
     mapping: dict,
-) -> dict | None:
-    isin = normalize(
+) -> tuple[dict | None, str | None]:
+    """
+    Resolve event -> instrument deterministiskt.
+    Prioritet:
+        1. exakt ISIN
+        2. exakt LEI om entydig
+        3. exakt issuer om entydig
+    En issuer får aldrig längre välja första bästa
+    instrument när flera mappingar finns.
+    """
+    isin = normalize_isin(
         row.get("isin")
     )
     lei = normalize(
@@ -91,33 +116,107 @@ def resolve_instrument(
     issuer = normalize(
         row.get("issuer")
     )
+    # ---------------------------------------------------------
+    # 1. ISIN
+    # ---------------------------------------------------------
     if isin:
+        candidates = []
         for key, item in mapping.items():
-            if normalize(key) == isin:
-                return item
-            if normalize(
+            if not isinstance(
+                item,
+                dict,
+            ):
+                continue
+            mapped_isin = normalize_isin(
                 item.get("isin")
-            ) == isin:
-                return item
-    if lei:
-        for key, item in mapping.items():
-            if normalize(key) == lei:
-                return item
-            if normalize(
-                item.get("lei")
-            ) == lei:
-                return item
-    if issuer:
-        for item in mapping.values():
-            mapped_issuer = normalize(
-                item.get("issuer")
             )
             if (
-                mapped_issuer
-                and mapped_issuer == issuer
+                normalize(key) == isin
+                or mapped_isin == isin
             ):
-                return item
-    return None
+                candidates.append(
+                    item
+                )
+        if len(candidates) == 1:
+            return (
+                candidates[0],
+                "isin",
+            )
+        if len(candidates) > 1:
+            # Samma ISIN får inte ge flera
+            # konkurrerande instrument.
+            unique_symbols = {
+                normalize(
+                    item.get(
+                        "yahoo_symbol"
+                    )
+                )
+                for item in candidates
+            }
+            unique_symbols.discard("")
+            if len(unique_symbols) == 1:
+                return (
+                    candidates[0],
+                    "isin",
+                )
+            return (
+                None,
+                "ambiguous_isin",
+            )
+    # ---------------------------------------------------------
+    # 2. LEI
+    # ---------------------------------------------------------
+    if lei:
+        candidates = [
+            item
+            for item in mapping.values()
+            if isinstance(
+                item,
+                dict,
+            )
+            and normalize(
+                item.get("lei")
+            ) == lei
+        ]
+        if len(candidates) == 1:
+            return (
+                candidates[0],
+                "lei",
+            )
+        if len(candidates) > 1:
+            return (
+                None,
+                "ambiguous_lei",
+            )
+    # ---------------------------------------------------------
+    # 3. Issuer
+    # ---------------------------------------------------------
+    if issuer:
+        candidates = [
+            item
+            for item in mapping.values()
+            if isinstance(
+                item,
+                dict,
+            )
+            and normalize(
+                item.get("issuer")
+            ) == issuer
+        ]
+        if len(candidates) == 1:
+            return (
+                candidates[0],
+                "issuer",
+            )
+        if len(candidates) > 1:
+            return (
+                None,
+                "ambiguous_issuer",
+            )
+    return (
+        None,
+        "unresolved",
+    )
 def load_fi_data() -> pd.DataFrame:
     records = read_all_jsonl(
         FI_RAW_DIR,
@@ -134,8 +233,9 @@ def load_fi_data() -> pd.DataFrame:
         "issuer",
         "short_interest_pct",
     }
-    missing = required - set(
-        frame.columns
+    missing = (
+        required
+        - set(frame.columns)
     )
     if missing:
         raise RuntimeError(
@@ -144,13 +244,17 @@ def load_fi_data() -> pd.DataFrame:
                 sorted(missing)
             )
         )
-    frame["position_date"] = pd.to_datetime(
-        frame["position_date"],
-        errors="coerce",
+    frame["position_date"] = (
+        pd.to_datetime(
+            frame["position_date"],
+            errors="coerce",
+        )
     )
-    frame["short_interest_pct"] = pd.to_numeric(
-        frame["short_interest_pct"],
-        errors="coerce",
+    frame["short_interest_pct"] = (
+        pd.to_numeric(
+            frame["short_interest_pct"],
+            errors="coerce",
+        )
     )
     frame = frame.dropna(
         subset=[
@@ -172,19 +276,67 @@ def prepare_events(
             "position_date",
         ]
     )
+    # ---------------------------------------------------------
+    # Behåll separata security-identiteter.
+    #
+    # LEI är issuer-identitet och får därför inte ensamt
+    # användas som security-nyckel när samma issuer kan ha
+    # flera värdepapper.
+    # ---------------------------------------------------------
+    identity_columns = [
+        column
+        for column in (
+            "isin",
+            "lei",
+            "issuer",
+        )
+        if column in frame.columns
+    ]
     frame = frame.drop_duplicates(
         subset=[
-            "lei",
+            *identity_columns,
             "position_date",
         ],
         keep="last",
     )
+    # ---------------------------------------------------------
+    # Föregående observation beräknas inom samma security
+    # när ISIN finns.
+    #
+    # Om ISIN saknas används LEI som fallback.
+    # ---------------------------------------------------------
+    if "isin" in frame.columns:
+        frame["_security_group"] = (
+            frame["isin"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+        frame.loc[
+            frame["_security_group"] == "",
+            "_security_group",
+        ] = (
+            "LEI:"
+            + frame["lei"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        frame["_security_group"] = (
+            "LEI:"
+            + frame["lei"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
     frame[
         "previous_short_interest_pct"
     ] = (
-        frame.groupby("lei")[
-            "short_interest_pct"
-        ].shift(1)
+        frame.groupby(
+            "_security_group"
+        )["short_interest_pct"]
+        .shift(1)
     )
     frame["change_pp"] = (
         frame["short_interest_pct"]
@@ -203,14 +355,17 @@ def prepare_events(
     events: list[dict] = []
     for _, row in frame.iterrows():
         source_row = row.to_dict()
-        instrument = resolve_instrument(
-            source_row,
-            mapping,
+        instrument, resolution = (
+            resolve_instrument(
+                source_row,
+                mapping,
+            )
         )
         if instrument is None:
             instrument = {}
-        isin = instrument.get(
-            "isin"
+        isin = (
+            instrument.get("isin")
+            or row.get("isin")
         )
         lei = (
             instrument.get("lei")
@@ -223,26 +378,28 @@ def prepare_events(
         ticker = instrument.get(
             "ticker"
         )
-        yahoo_symbol = instrument.get(
-            "yahoo_symbol"
+        yahoo_symbol = (
+            instrument.get(
+                "yahoo_symbol"
+            )
         )
         event_date = row[
             "position_date"
         ]
-        # Event-datumet kommer direkt från
-        # FI position_date.
-        #
-        # Detta måste vara samma datum som
-        # feature-datasetets snapshot_date.
         event = {
-            "event_date": event_date.strftime(
-                "%Y-%m-%d"
+            "event_date": (
+                event_date.strftime(
+                    "%Y-%m-%d"
+                )
             ),
             "isin": isin,
             "lei": lei,
             "issuer": issuer,
             "ticker": ticker,
             "yahoo_symbol": yahoo_symbol,
+            "identity_resolution": (
+                resolution
+            ),
             "short_interest_pct": float(
                 row[
                     "short_interest_pct"
@@ -257,6 +414,7 @@ def prepare_events(
                 row["change_pp"]
             ),
         }
+        # -----------------------------------------------------
         # Inga returns beräknas här.
         #
         # Canonical pipeline:
@@ -265,14 +423,14 @@ def prepare_events(
         #       ↓
         # feature snapshot_date
         #       ↓
-        # feature price_date
+        # security identity
         #       ↓
-        # feature forward_return_*
+        # price identity
         #       ↓
-        # web data_loader
-        #
-        # Event-filerna ska alltså inte ha en
-        # konkurrerande return-beräkning.
+        # price_date
+        #       ↓
+        # forward returns
+        # -----------------------------------------------------
         events.append(
             event
         )
@@ -293,7 +451,7 @@ def write_events(
     )
     with path.open(
         "w",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as handle:
         for event in events:
             handle.write(
@@ -323,11 +481,26 @@ def main() -> None:
     mapped = sum(
         1
         for event in events
-        if event.get("ticker")
+        if event.get(
+            "yahoo_symbol"
+        )
+    )
+    unresolved = sum(
+        1
+        for event in events
+        if event.get(
+            "identity_resolution"
+        ) in {
+            "unresolved",
+            "ambiguous_isin",
+            "ambiguous_lei",
+            "ambiguous_issuer",
+        }
     )
     print(
         f"Events: {len(events)} "
-        f"({mapped} med prisinstrument) "
+        f"({mapped} med prisinstrument, "
+        f"{unresolved} olösta/ambigua) "
         f"→ {path}"
     )
 if __name__ == "__main__":
