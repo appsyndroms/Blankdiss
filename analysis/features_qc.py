@@ -1328,35 +1328,337 @@ def check_price_leakage(
 def check_unmatched_rows(
     frame: pd.DataFrame,
 ) -> dict[str, Any]:
-    """Summerar FI-rader utan pris."""
+    """
+    Diagnostik för FI-rader utan pris.
+    Skiljer mellan:
+    1. identifierad entity + känt Yahoo-symbol
+       men pris saknas för datumet
+    2. identifierad entity men inget Yahoo-symbol
+    3. ingen identifierad entity
+    Dessutom grupperas omatchade rader efter:
+        - Yahoo-symbol
+        - entity_id
+        - ISIN
+        - år
+        - price_mapping_source
+    Diagnostiken ändrar inte QC-statusen.
+    Omatchade rader ger fortfarande WARN.
+    """
 
     matched = frame[
         "price_match_available"
     ].fillna(False)
 
+    unmatched = frame.loc[
+        ~matched
+    ].copy()
+
+    total_rows = int(
+        len(frame)
+    )
+
+    rows_with_price = int(
+        matched.sum()
+    )
+
+    rows_without_price = int(
+        (~matched).sum()
+    )
+
+    # --------------------------------------------------
+    # Grundläggande identitetsdiagnostik
+    # --------------------------------------------------
+
+    entity_column_exists = (
+        "entity_id" in unmatched.columns
+    )
+
+    if entity_column_exists:
+        entity_present = (
+            unmatched[
+                "entity_id"
+            ]
+            .notna()
+            & unmatched[
+                "entity_id"
+            ]
+            .astype(str)
+            .str.strip()
+            .ne("")
+        )
+    else:
+        entity_present = pd.Series(
+            False,
+            index=unmatched.index,
+        )
+
+    yahoo_present = (
+        unmatched[
+            "yahoo_symbol"
+        ]
+        .notna()
+        & unmatched[
+            "yahoo_symbol"
+        ]
+        .astype(str)
+        .str.strip()
+        .ne("")
+    )
+
+    isin_present = (
+        unmatched[
+            "isin"
+        ]
+        .notna()
+        & unmatched[
+            "isin"
+        ]
+        .astype(str)
+        .str.strip()
+        .ne("")
+    )
+
+    with_entity_and_yahoo = (
+        entity_present
+        & yahoo_present
+    )
+
+    entity_without_yahoo = (
+        entity_present
+        & ~yahoo_present
+    )
+
+    without_entity = (
+        ~entity_present
+    )
+
+    # --------------------------------------------------
+    # Symbols
+    # --------------------------------------------------
+
+    symbols_without_price = int(
+        unmatched.loc[
+            yahoo_present,
+            "yahoo_symbol",
+        ]
+        .nunique()
+    )
+
+    symbol_counts = (
+        unmatched.loc[
+            yahoo_present,
+            "yahoo_symbol",
+        ]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .value_counts()
+        .head(50)
+        .to_dict()
+    )
+
+    # --------------------------------------------------
+    # Entity IDs
+    # --------------------------------------------------
+
+    entity_counts: dict[str, int] = {}
+
+    if entity_column_exists:
+        entity_counts = {
+            str(key): int(value)
+            for key, value
+            in (
+                unmatched.loc[
+                    entity_present,
+                    "entity_id",
+                ]
+                .astype(str)
+                .value_counts()
+                .head(50)
+                .to_dict()
+                .items()
+            )
+        }
+
+    # --------------------------------------------------
+    # ISIN
+    # --------------------------------------------------
+
+    isin_counts = {
+        str(key): int(value)
+        for key, value
+        in (
+            unmatched.loc[
+                isin_present,
+                "isin",
+            ]
+            .astype(str)
+            .value_counts()
+            .head(50)
+            .to_dict()
+            .items()
+        )
+    }
+
+    # --------------------------------------------------
+    # År
+    # --------------------------------------------------
+
+    unmatched_dates = pd.to_datetime(
+        unmatched[
+            "snapshot_date"
+        ],
+        errors="coerce",
+    )
+
+    unmatched[
+        "_unmatched_year"
+    ] = unmatched_dates.dt.year
+
+    year_counts = {
+        str(int(key)): int(value)
+        for key, value
+        in (
+            unmatched[
+                "_unmatched_year"
+            ]
+            .dropna()
+            .astype(int)
+            .value_counts()
+            .sort_index()
+            .to_dict()
+            .items()
+        )
+    }
+
+    # --------------------------------------------------
+    # Mapping source
+    # --------------------------------------------------
+
+    mapping_source = (
+        unmatched[
+            "price_mapping_source"
+        ]
+        .fillna("unmatched")
+        .astype(str)
+        .str.strip()
+    )
+
+    mapping_source_counts = {
+        str(key): int(value)
+        for key, value
+        in mapping_source.value_counts()
+        .to_dict()
+        .items()
+    }
+
+    # --------------------------------------------------
+    # Kombinerad diagnostik
+    # --------------------------------------------------
+
+    diagnostic_rows = {
+        "entity_and_yahoo_symbol": int(
+            with_entity_and_yahoo.sum()
+        ),
+        "entity_without_yahoo_symbol": int(
+            entity_without_yahoo.sum()
+        ),
+        "without_entity_id": int(
+            without_entity.sum()
+        ),
+    }
+
+    # --------------------------------------------------
+    # Exempel på problemrader
+    # --------------------------------------------------
+
+    example_columns = [
+        column
+        for column in (
+            "snapshot_date",
+            "issuer",
+            "isin",
+            "entity_id",
+            "security_key",
+            "yahoo_symbol",
+            "price_mapping_source",
+            "price_date",
+        )
+        if column in unmatched.columns
+    ]
+
+    examples: list[dict[str, Any]] = []
+
+    if example_columns:
+        sample = unmatched[
+            example_columns
+        ].head(20)
+
+        for row in sample.to_dict(
+            orient="records"
+        ):
+            cleaned: dict[str, Any] = {}
+
+            for key, value in row.items():
+                if pd.isna(value):
+                    cleaned[key] = None
+                elif isinstance(
+                    value,
+                    pd.Timestamp,
+                ):
+                    cleaned[key] = (
+                        value.date().isoformat()
+                    )
+                else:
+                    cleaned[key] = value
+
+            examples.append(
+                cleaned
+            )
+
     return {
         "status": (
             "WARN"
-            if (~matched).any()
+            if rows_without_price > 0
             else "PASS"
         ),
-        "total_rows": int(
-            len(frame)
+        "total_rows": total_rows,
+        "rows_with_price": rows_with_price,
+        "rows_without_price": rows_without_price,
+        "match_rate_pct": (
+            round(
+                (
+                    rows_with_price
+                    / total_rows
+                    * 100
+                ),
+                2,
+            )
+            if total_rows
+            else None
         ),
-        "rows_with_price": int(
-            matched.sum()
+        "symbols_without_price": (
+            symbols_without_price
         ),
-        "rows_without_price": int(
-            (~matched).sum()
+        "diagnostic_rows": (
+            diagnostic_rows
         ),
-        "symbols_without_price": int(
-            frame.loc[
-                ~matched,
-                "yahoo_symbol",
-            ]
-            .dropna()
-            .nunique()
+        "unmatched_by_year": (
+            year_counts
         ),
+        "unmatched_by_mapping_source": (
+            mapping_source_counts
+        ),
+        "top_unmatched_yahoo_symbols": (
+            symbol_counts
+        ),
+        "top_unmatched_entity_ids": (
+            entity_counts
+        ),
+        "top_unmatched_isins": (
+            isin_counts
+        ),
+        "examples": examples,
     }
 
 
