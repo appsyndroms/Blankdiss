@@ -28,4 +28,4 @@ jobs:
 
       - name: Kör FI -> feature diagnostik
         run: |
-          python felsokning/fi_feature.py
+          python -m felsokning.fi_feature
