@@ -22,5 +22,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Yahoo price diagnostic
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python felsokning/debug_yahoo_price.py
