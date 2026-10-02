@@ -797,6 +797,141 @@ def print_same_identity_features(
             )
 
 
+def print_duplicate_feature_keys(
+    features: pd.DataFrame,
+) -> None:
+    separator(
+        "4B. DUPLICATE FEATURE INDEX KEYS"
+    )
+
+    duplicate_keys: dict[
+        tuple[str, str, str],
+        list,
+    ] = {}
+
+    for _, feature in features.iterrows():
+        snapshot_value = feature.get(
+            "snapshot_date"
+        )
+
+        if pd.isna(snapshot_value):
+            continue
+
+        snapshot_date = (
+            pd.Timestamp(
+                snapshot_value
+            )
+            .date()
+            .isoformat()
+        )
+
+        for field, value in identity_keys(
+            feature
+        ):
+            key = (
+                snapshot_date,
+                field,
+                value,
+            )
+
+            duplicate_keys.setdefault(
+                key,
+                [],
+            ).append(feature)
+
+    duplicates = {
+        key: rows
+        for key, rows in duplicate_keys.items()
+        if len(rows) > 1
+    }
+
+    print(
+        f"Duplicate feature keys: "
+        f"{len(duplicates)}"
+    )
+
+    target_issuer = normalize(
+        TARGETS["Viaplay"]["issuer"]
+    )
+
+    for (
+        snapshot_date,
+        field,
+        value,
+    ), rows in sorted(
+        duplicates.items()
+    ):
+        if normalize(value) != target_issuer:
+            continue
+
+        print()
+        print(
+            f"KEY: {snapshot_date} | "
+            f"{field} | {value}"
+        )
+
+        print(
+            f"  occurrences: {len(rows)}"
+        )
+
+        for index, row in enumerate(
+            rows,
+            start=1,
+        ):
+            print()
+            print(
+                f"  row {index}:"
+            )
+
+            print(
+                f"    source={row.get('_source_file')}:"
+                f"{row.get('_source_line')}"
+            )
+
+            print(
+                f"    isin={row.get('isin')}"
+            )
+
+            print(
+                f"    lei={row.get('lei')}"
+            )
+
+            print(
+                f"    yahoo_symbol="
+                f"{row.get('yahoo_symbol')}"
+            )
+
+            print(
+                f"    price_date="
+                f"{row.get('price_date')}"
+            )
+
+            print(
+                f"    price_match="
+                f"{row.get('price_match_available')}"
+            )
+
+            print(
+                f"    return_1d="
+                f"{row.get('forward_return_1d')}"
+            )
+
+            print(
+                f"    return_5d="
+                f"{row.get('forward_return_5d')}"
+            )
+
+            print(
+                f"    return_20d="
+                f"{row.get('forward_return_20d')}"
+            )
+
+            print(
+                f"    return_60d="
+                f"{row.get('forward_return_60d')}"
+            )
+
+
 def print_security_key_diagnosis(
     target_fi: dict,
     features: pd.DataFrame,
@@ -1536,6 +1671,10 @@ def main() -> None:
     )
 
     print_same_identity_features(
+        features
+    )
+
+    print_duplicate_feature_keys(
         features
     )
 
