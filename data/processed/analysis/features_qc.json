@@ -41,13 +41,14 @@
     "data/raw/prices/prices_2026-03-19_latest.jsonl",
     "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
     "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl",
-    "data/raw/prices/prices_2026-09-30_2026-09-30.jsonl"
+    "data/raw/prices/prices_2026-09-30_2026-09-30.jsonl",
+    "data/raw/prices/prices_2026-09-30_2026-10-01.jsonl"
   ],
-  "rows": 208594,
+  "rows": 209133,
   "symbols": 311,
   "fi_period": {
     "start": "2022-05-25",
-    "end": "2026-10-01"
+    "end": "2026-10-02"
   },
   "checks": {
     "required_columns": {
@@ -63,13 +64,13 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 135753,
-      "same_day": 130654,
+      "matched_rows": 135795,
+      "same_day": 130695,
       "one_day": 1290,
       "two_days": 934,
-      "three_days": 374,
-      "four_to_five_days": 140,
-      "more_than_five_days": 2361,
+      "three_days": 375,
+      "four_to_five_days": 139,
+      "more_than_five_days": 2362,
       "more_than_ten_days": 2344,
       "max_calendar_days": 1576,
       "median_calendar_days": 0.0
@@ -90,9 +91,9 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 133355,
-        "unmatched": 72841,
-        "issuer": 2398
+        "isin": 133495,
+        "unmatched": 73338,
+        "issuer": 2300
       },
       "unexpected_sources": []
     },
@@ -116,26 +117,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 134430,
-          "null": 74164,
+          "non_null": 134433,
+          "null": 74700,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 132141,
-          "null": 76453,
+          "non_null": 132144,
+          "null": 76989,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 128213,
-          "null": 80381,
+          "non_null": 128216,
+          "null": 80917,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 122311,
-          "null": 86283,
+          "non_null": 122314,
+          "null": 86819,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -143,8 +144,8 @@
     },
     "forward_return_alignment": {
       "status": "PASS",
-      "verified_match": 517095,
-      "not_yet_verifiable": 25917,
+      "verified_match": 517107,
+      "not_yet_verifiable": 26073,
       "value_mismatch": 0,
       "price_date_not_found": 0,
       "missing_forward_return": 0,
@@ -302,9 +303,9 @@
     },
     "unmatched_rows": {
       "status": "WARN",
-      "total_rows": 208594,
-      "rows_with_price": 135753,
-      "rows_without_price": 72841,
+      "total_rows": 209133,
+      "rows_with_price": 135795,
+      "rows_without_price": 73338,
       "symbols_without_price": 0
     },
     "feature_numeric_values": {
