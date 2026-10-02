@@ -616,14 +616,10 @@ def print_same_identity_features(
             print(
                 f"  "
                 f"{row['snapshot_date'].date()} "
-                f"| "
-                f"security={row.get('security_key')} "
-                f"| "
-                f"price={row.get('price_date')} "
-                f"| "
-                f"symbol={row.get('yahoo_symbol')} "
-                f"| "
-                f"mapping={row.get('price_mapping_source')}"
+                f"| security={row.get('security_key')} "
+                f"| price={row.get('price_date')} "
+                f"| symbol={row.get('yahoo_symbol')} "
+                f"| mapping={row.get('price_mapping_source')}"
             )
 
 
@@ -855,17 +851,41 @@ def print_feature_price_relation(
             continue
 
         for _, row in rows.iterrows():
+            snapshot_value = row.get(
+                "snapshot_date"
+            )
+
+            if pd.isna(snapshot_value):
+                print(
+                    "  snapshot_date: MISSING"
+                )
+                continue
+
             snapshot = pd.Timestamp(
-                row["snapshot_date"]
+                snapshot_value
             ).date()
 
             price_value = row.get(
                 "price_date"
             )
 
-            if not price_value:
+            if pd.isna(price_value):
                 print(
-                    "  price_date: MISSING"
+                    f"  snapshot : {snapshot}"
+                )
+                print(
+                    "  price    : MISSING"
+                )
+                print(
+                    "  delta    : MISSING"
+                )
+                print(
+                    f"  symbol   : "
+                    f"{row.get('yahoo_symbol')}"
+                )
+                print(
+                    f"  mapping  : "
+                    f"{row.get('price_mapping_source')}"
                 )
                 continue
 
@@ -886,7 +906,8 @@ def print_feature_price_relation(
             )
 
             print(
-                f"  delta    : {days} calendar days"
+                f"  delta    : "
+                f"{days} calendar days"
             )
 
             print(
