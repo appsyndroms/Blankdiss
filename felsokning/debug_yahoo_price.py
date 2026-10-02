@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from prices.fetch import (
@@ -13,7 +14,49 @@ SYMBOL = "SINCH.ST"
 START = "2022-01-01"
 END = "2026-10-01"
 
+# Separat testintervall för att tvinga fram ett riktigt Yahoo-anrop.
+# Detta påverkas inte av befintlig lokal prisdata.
+YAHOO_TEST_START = "2026-09-01"
+YAHOO_TEST_END = "2026-10-01"
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def print_records(
+    records: list[dict],
+) -> None:
+    print()
+    print(f"Returnerade records: {len(records):,}")
+
+    if not records:
+        print("INGEN DATA RETURNERADES.")
+        return
+
+    dates = [
+        record["date"]
+        for record in records
+        if record.get("date")
+    ]
+
+    if dates:
+        print(
+            f"Första record: {min(dates)}"
+        )
+        print(
+            f"Sista record : {max(dates)}"
+        )
+
+    print()
+    print("Första 5 records:")
+
+    for record in records[:5]:
+        print(record)
+
+    print()
+    print("Sista 5 records:")
+
+    for record in records[-5:]:
+        print(record)
 
 
 def main() -> None:
@@ -33,6 +76,7 @@ def main() -> None:
     print()
     print("INSTRUMENT")
     print("-" * 70)
+
     for key, value in instrument.items():
         print(f"{key}: {value}")
 
@@ -48,30 +92,37 @@ def main() -> None:
         Path("data/raw/prices")
     )
 
-    symbol_bounds = bounds.get(SYMBOL)
+    symbol_bounds = bounds.get(
+        SYMBOL
+    )
 
     if symbol_bounds is None:
         print("Ingen lokal historik hittades.")
     else:
         print(
-            f"first: {symbol_bounds['first'].isoformat()}"
+            f"first: "
+            f"{symbol_bounds['first'].isoformat()}"
         )
         print(
-            f"last : {symbol_bounds['last'].isoformat()}"
+            f"last : "
+            f"{symbol_bounds['last'].isoformat()}"
         )
 
     # ---------------------------------------------------------
-    # 2. Befintlig intervallberäkning
+    # 2. Befintlig produktionslogik
     # ---------------------------------------------------------
 
     print()
     print("2. FETCH-INTERVALL")
     print("-" * 70)
 
-    from datetime import date
+    requested_start = date.fromisoformat(
+        START
+    )
 
-    requested_start = date.fromisoformat(START)
-    effective_end = date.fromisoformat(END)
+    effective_end = date.fromisoformat(
+        END
+    )
 
     intervals = _build_fetch_intervals(
         instrument=instrument,
@@ -81,9 +132,20 @@ def main() -> None:
     )
 
     if not intervals:
-        print("Inga intervall skapades.")
+        print(
+            "Inga intervall skapades."
+        )
+        print(
+            "Lokal historik täcker det "
+            "begärda intervallet."
+        )
+
     else:
-        for fetch_start, fetch_end, reason in intervals:
+        for (
+            fetch_start,
+            fetch_end,
+            reason,
+        ) in intervals:
             print(
                 f"{reason}: "
                 f"{fetch_start.isoformat()} -> "
@@ -91,14 +153,26 @@ def main() -> None:
             )
 
     # ---------------------------------------------------------
-    # 3. Använd exakt befintlig Yahoo-funktion
+    # 3. Yahoo-hämtning enligt produktionslogiken
     # ---------------------------------------------------------
 
     print()
-    print("3. BEFINTLIG YAHOO-HÄMTNING")
+    print("3. YAHOO-HÄMTNING VIA FETCH-INTERVALL")
     print("-" * 70)
 
-    for fetch_start, fetch_end, reason in intervals:
+    if not intervals:
+        print(
+            "Hoppar över eftersom "
+            "produktionslogiken inte skapade "
+            "något intervall."
+        )
+
+    for (
+        fetch_start,
+        fetch_end,
+        reason,
+    ) in intervals:
+
         print()
         print(
             f"Kör _download_batch(): "
@@ -113,40 +187,61 @@ def main() -> None:
             fetch_end,
         )
 
-        print()
-        print(f"Returnerade records: {len(records):,}")
-
-        if not records:
-            print("INGEN DATA RETURNERADES.")
-            continue
-
-        dates = [
-            record["date"]
-            for record in records
-            if record.get("date")
-        ]
-
-        print(
-            f"Första record: {min(dates)}"
+        print_records(
+            records
         )
-        print(
-            f"Sista record : {max(dates)}"
-        )
-
-        print()
-        print("Första 5 records:")
-
-        for record in records[:5]:
-            print(record)
-
-        print()
-        print("Sista 5 records:")
-
-        for record in records[-5:]:
-            print(record)
 
     # ---------------------------------------------------------
-    # Slutsats
+    # 4. Tvingat direkt Yahoo-test
+    #
+    # Detta kringgår ENDAST den lokala intervallkontrollen.
+    #
+    # Själva Yahoo-hämtningen är exakt samma
+    # _download_batch() som produktionen använder.
+    # ---------------------------------------------------------
+
+    print()
+    print("4. DIREKT YAHOO-TEST")
+    print("-" * 70)
+
+    yahoo_test_start = date.fromisoformat(
+        YAHOO_TEST_START
+    )
+
+    yahoo_test_end = date.fromisoformat(
+        YAHOO_TEST_END
+    )
+
+    print(
+        "Detta test ignorerar befintlig lokal "
+        "prisdata och anropar direkt "
+        "_download_batch()."
+    )
+
+    print()
+    print(
+        f"Testintervall: "
+        f"{yahoo_test_start.isoformat()} -> "
+        f"{yahoo_test_end.isoformat()}"
+    )
+
+    print()
+    print(
+        "Kör _download_batch()..."
+    )
+
+    direct_records = _download_batch(
+        [instrument],
+        yahoo_test_start,
+        yahoo_test_end,
+    )
+
+    print_records(
+        direct_records
+    )
+
+    # ---------------------------------------------------------
+    # 5. Slutsats
     # ---------------------------------------------------------
 
     print()
@@ -155,17 +250,35 @@ def main() -> None:
     print("=" * 70)
 
     print()
-    print(
-        "Om backfill skapas men _download_batch() "
-        "returnerar 0 records är problemet i Yahoo/yfinance "
-        "eller hur svaret tolkas."
-    )
 
-    print()
-    print(
-        "Om records returneras fungerar Yahoo-hämtningen "
-        "och felet ligger efter _download_batch()."
-    )
+    if direct_records:
+        print(
+            "YAHOO TEST OK:"
+        )
+        print(
+            "_download_batch() returnerade "
+            f"{len(direct_records):,} records."
+        )
+        print(
+            "Yahoo/yfinance och "
+            "Close-tolkningen fungerar "
+            "för testintervallet."
+        )
+
+    else:
+        print(
+            "YAHOO TEST MISSLYCKADES:"
+        )
+        print(
+            "_download_batch() returnerade "
+            "0 records för det direkta "
+            "testintervallet."
+        )
+        print(
+            "Problemet är därmed isolerat "
+            "till Yahoo/yfinance eller "
+            "hur Yahoo-svaret tolkas."
+        )
 
 
 if __name__ == "__main__":
