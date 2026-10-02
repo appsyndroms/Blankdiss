@@ -1,4 +1,4 @@
-name: Check Feature Returns
+name: Kontrollera feature returns
 
 on:
   workflow_dispatch:
@@ -8,77 +8,128 @@ permissions:
 
 jobs:
   check-feature-returns:
-    name: Kontrollera Fingerprint och Viaplay
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Kontrollera feature returns
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Kör feature return diagnostik
         run: |
           python - <<'PY'
-          import json
-          import math
-          from pathlib import Path
+          from __future__ import annotations
 
-          ROOT = Path(".")
+          import json
+          from pathlib import Path
+          from datetime import date
+
+          import pandas as pd
+
+
+          ROOT = Path.cwd()
+
           EVENT_DIR = ROOT / "data" / "events"
-          FEATURE_DIR = ROOT / "data" / "processed" / "analysis"
+          FEATURE_DIR = (
+              ROOT
+              / "data"
+              / "processed"
+              / "analysis"
+          )
+          PRICE_DIR = (
+              ROOT
+              / "data"
+              / "raw"
+              / "prices"
+          )
 
           TARGETS = {
               "Fingerprint": {
-                  "issuer_contains": "Fingerprint",
-                  "symbols": {"FING-B.ST"},
+                  "issuer": "Fingerprint Cards AB",
+                  "event_date": "2023-11-24",
+                  "isin": "SE0008374250",
+                  "yahoo_symbol": "FING-B.ST",
               },
               "Viaplay": {
-                  "issuer_contains": "Viaplay",
-                  "symbols": {"VPLAY-B.ST"},
+                  "issuer": "Viaplay Group AB (publ)",
+                  "event_date": "2026-08-28",
+                  "isin": "SE0012116390",
+                  "yahoo_symbol": "VPLAY-B.ST",
               },
           }
 
-          RETURN_FIELDS = (
-              "forward_return_1d",
-              "forward_return_5d",
-              "forward_return_20d",
-              "forward_return_60d",
-          )
 
-          IDENTITY_FIELDS = (
-              "isin",
-              "lei",
-              "yahoo_symbol",
-              "issuer",
-          )
+          def normalize(value):
+              if value is None:
+                  return ""
 
-
-          def is_number(value):
-              return (
-                  isinstance(value, (int, float))
-                  and not isinstance(value, bool)
-                  and math.isfinite(value)
-              )
+              return str(value).strip().upper()
 
 
           def identity_keys(row):
               keys = []
 
-              for field in IDENTITY_FIELDS:
-                  value = row.get(field)
+              for field in (
+                  "isin",
+                  "lei",
+                  "yahoo_symbol",
+                  "issuer",
+              ):
+                  value = normalize(row.get(field))
 
-                  if value is None:
-                      continue
-
-                  value = str(value).strip()
-
-                  if not value:
-                      continue
-
-                  keys.append((field, value))
+                  if value:
+                      keys.append(
+                          (
+                              field,
+                              value,
+                          )
+                      )
 
               return keys
+
+
+          def matches_identity(row, target):
+              target_isin = normalize(
+                  target["isin"]
+              )
+              target_symbol = normalize(
+                  target["yahoo_symbol"]
+              )
+              target_issuer = normalize(
+                  target["issuer"]
+              )
+
+              row_isin = normalize(
+                  row.get("isin")
+              )
+              row_symbol = normalize(
+                  row.get("yahoo_symbol")
+              )
+              row_issuer = normalize(
+                  row.get("issuer")
+              )
+
+              if row_isin and row_isin == target_isin:
+                  return True
+
+              if row_symbol and row_symbol == target_symbol:
+                  return True
+
+              if row_issuer and row_issuer == target_issuer:
+                  return True
+
+              return False
 
 
           print("=" * 80)
@@ -86,89 +137,135 @@ jobs:
           print("=" * 80)
 
           print()
-          print("Event files:")
-          event_files = sorted(EVENT_DIR.glob("short_events_*.jsonl"))
+          print("Repository:")
+          print(ROOT)
+
+          print()
+          print("Event directory:")
+          print(EVENT_DIR)
+
+          event_files = sorted(
+              EVENT_DIR.glob(
+                  "short_events_*.jsonl"
+              )
+          )
+
+          print(
+              f"Hittade {len(event_files)} event-filer."
+          )
 
           if not event_files:
               raise SystemExit(
-                  "ERROR: Inga event-filer hittades."
+                  "FAIL: inga event-filer hittades."
               )
 
-          print(f"  Hittade {len(event_files)} event-filer.")
 
-          targets = {}
+          # ------------------------------------------------------------------
+          # 1. Läs events
+          # ------------------------------------------------------------------
+
+          target_events = {
+              name: []
+              for name in TARGETS
+          }
 
           for path in event_files:
-              with path.open(encoding="utf-8") as handle:
-                  for line_number, line in enumerate(handle, 1):
+              with path.open(
+                  "r",
+                  encoding="utf-8",
+              ) as handle:
+
+                  for line_number, line in enumerate(
+                      handle,
+                      start=1,
+                  ):
                       line = line.strip()
 
                       if not line:
                           continue
 
                       try:
-                          event = json.loads(line)
-                      except json.JSONDecodeError as exc:
-                          print(
-                              f"WARNING: Kunde inte läsa "
-                              f"{path}:{line_number}: {exc}"
-                          )
+                          row = json.loads(line)
+                      except json.JSONDecodeError:
                           continue
 
-                      issuer = str(event.get("issuer") or "")
-                      symbol = str(event.get("yahoo_symbol") or "")
-
                       for name, target in TARGETS.items():
-                          issuer_match = (
-                              target["issuer_contains"].lower()
-                              in issuer.lower()
-                          )
-
-                          symbol_match = symbol in target["symbols"]
-
-                          if issuer_match or symbol_match:
-                              targets.setdefault(name, []).append(
+                          if matches_identity(
+                              row,
+                              target,
+                          ):
+                              target_events[name].append(
                                   {
-                                      "file": str(path),
+                                      "path": path,
                                       "line": line_number,
-                                      "event": event,
+                                      "row": row,
                                   }
                               )
 
+
           print()
-          print("Identifierade events:")
+          print("=" * 80)
+          print("IDENTIFIERADE EVENTS")
+          print("=" * 80)
 
-          for name in TARGETS:
-              events = targets.get(name, [])
-
+          for name, events in target_events.items():
               print()
               print(f"--- {name} ---")
 
               if not events:
-                  print("  ERROR: Inga events hittades.")
+                  print("  EVENT SAKNAS")
                   continue
 
+              seen = set()
+
               for item in events:
-                  event = item["event"]
+                  row = item["row"]
+
+                  identity = (
+                      row.get("event_date"),
+                      row.get("isin"),
+                      row.get("yahoo_symbol"),
+                  )
+
+                  if identity in seen:
+                      continue
+
+                  seen.add(identity)
 
                   print(
-                      f"  {item['file']}:{item['line']}"
+                      f"  {item['path'].relative_to(ROOT)}:"
+                      f"{item['line']}"
                   )
+
                   print(
-                      f"    issuer:        {event.get('issuer')}"
+                      f"    issuer:        "
+                      f"{row.get('issuer')}"
                   )
+
                   print(
-                      f"    event_date:    {event.get('event_date')}"
+                      f"    event_date:    "
+                      f"{row.get('event_date')}"
                   )
+
                   print(
-                      f"    yahoo_symbol:  {event.get('yahoo_symbol')}"
+                      f"    yahoo_symbol:  "
+                      f"{row.get('yahoo_symbol')}"
                   )
+
                   print(
-                      f"    isin:          {event.get('isin')}"
+                      f"    isin:          "
+                      f"{row.get('isin')}"
                   )
+
                   print(
-                      f"    lei:           {event.get('lei')}"
+                      f"    lei:           "
+                      f"{row.get('lei')}"
                   )
+
+
+          # ------------------------------------------------------------------
+          # 2. Indexera feature-dataset
+          # ------------------------------------------------------------------
 
           print()
           print("=" * 80)
@@ -176,73 +273,71 @@ jobs:
           print("=" * 80)
 
           feature_files = sorted(
-              FEATURE_DIR.glob("features_*.jsonl")
-          )
-
-          if not feature_files:
-              raise SystemExit(
-                  "ERROR: Inga feature-chunks hittades."
+              FEATURE_DIR.glob(
+                  "features_*.jsonl"
               )
+          )
 
           print(
               f"Hittade {len(feature_files)} feature-chunks."
           )
 
-          required = set()
+          if not feature_files:
+              raise SystemExit(
+                  "FAIL: inga feature-chunks hittades."
+              )
 
-          for name, items in targets.items():
-              for item in items:
-                  event = item["event"]
-                  event_date = event.get("event_date")
-
-                  if not event_date:
-                      continue
-
-                  for field, value in identity_keys(event):
-                      required.add(
-                          (event_date, field, value)
-                      )
-
-          matches = {}
+          feature_index = {}
 
           for path in feature_files:
-              with path.open(encoding="utf-8") as handle:
-                  for line_number, line in enumerate(handle, 1):
+              with path.open(
+                  "r",
+                  encoding="utf-8",
+              ) as handle:
+
+                  for line_number, line in enumerate(
+                      handle,
+                      start=1,
+                  ):
                       line = line.strip()
 
                       if not line:
                           continue
 
                       try:
-                          feature = json.loads(line)
+                          row = json.loads(line)
                       except json.JSONDecodeError:
                           continue
 
-                      snapshot_date = feature.get("snapshot_date")
+                      snapshot_date = row.get(
+                          "snapshot_date"
+                      )
 
                       if not snapshot_date:
                           continue
 
-                      feature_keys = identity_keys(feature)
-
-                      for field, value in feature_keys:
+                      for field, value in identity_keys(row):
                           key = (
-                              snapshot_date,
+                              str(snapshot_date)[:10],
                               field,
                               value,
                           )
 
-                          if key not in required:
-                              continue
-
-                          matches.setdefault(
+                          feature_index.setdefault(
                               key,
+                              [],
+                          ).append(
                               {
-                                  "file": str(path),
+                                  "path": path,
                                   "line": line_number,
-                                  "feature": feature,
-                              },
+                                  "row": row,
+                              }
                           )
+
+
+          # ------------------------------------------------------------------
+          # 3. Hitta faktiska feature-rader
+          # ------------------------------------------------------------------
 
           print()
           print("=" * 80)
@@ -251,171 +346,565 @@ jobs:
 
           failures = []
 
-          for name in TARGETS:
+          matched_features = {}
+
+          for name, target in TARGETS.items():
               print()
               print(f"### {name}")
 
-              events = targets.get(name, [])
+              event_date = target["event_date"]
 
-              if not events:
+              candidates = []
+
+              for field, value in (
+                  identity_keys(target)
+              ):
+                  key = (
+                      event_date,
+                      field,
+                      value,
+                  )
+
+                  candidates.extend(
+                      feature_index.get(
+                          key,
+                          [],
+                      )
+                  )
+
+              # Deduplicera samma feature-rad.
+              unique = {}
+
+              for item in candidates:
+                  identity = (
+                      str(item["path"]),
+                      item["line"],
+                  )
+
+                  unique[identity] = item
+
+              candidates = list(
+                  unique.values()
+              )
+
+              if not candidates:
+                  print(
+                      f"  Event: {event_date} | "
+                      f"{target['issuer']} | "
+                      f"{target['yahoo_symbol']}"
+                  )
+
+                  print(
+                      "  FEATURE MATCH: MISSING"
+                  )
+
                   failures.append(
-                      f"{name}: event saknas"
+                      f"{name}: ingen feature-match "
+                      f"för {event_date}"
+                  )
+
+                  continue
+
+              # Förväntat är exakt en feature-rad.
+              if len(candidates) > 1:
+                  print(
+                      f"  VARNING: {len(candidates)} "
+                      "feature-rader matchade."
+                  )
+
+              item = candidates[0]
+              row = item["row"]
+
+              matched_features[name] = row
+
+              print(
+                  f"  Event: {event_date} | "
+                  f"{target['issuer']} | "
+                  f"{target['yahoo_symbol']}"
+              )
+
+              print(
+                  "  FEATURE MATCH: OK"
+              )
+
+              print(
+                  f"  feature file:              "
+                  f"{item['path'].relative_to(ROOT)}:"
+                  f"{item['line']}"
+              )
+
+              print(
+                  f"  snapshot_date:             "
+                  f"{row.get('snapshot_date')}"
+              )
+
+              print(
+                  f"  price_date:                "
+                  f"{row.get('price_date')}"
+              )
+
+              print(
+                  f"  price_match_available:     "
+                  f"{row.get('price_match_available')}"
+              )
+
+              print(
+                  f"  yahoo_symbol:              "
+                  f"{row.get('yahoo_symbol')}"
+              )
+
+              print(
+                  f"  price_mapping_source:      "
+                  f"{row.get('price_mapping_source')}"
+              )
+
+              print(
+                  f"  close:                     "
+                  f"{row.get('close')}"
+              )
+
+              print("  forward returns:")
+
+              for horizon in (
+                  1,
+                  5,
+                  20,
+                  60,
+              ):
+                  print(
+                      f"    forward_return_{horizon}d: "
+                      f"{row.get(f'forward_return_{horizon}d')}"
+                  )
+
+
+          # ------------------------------------------------------------------
+          # 4. Kontrollera själva prisarkivet
+          # ------------------------------------------------------------------
+
+          print()
+          print("=" * 80)
+          print("KONTROLL AV RÅ PRISDATA")
+          print("=" * 80)
+
+          price_files = sorted(
+              PRICE_DIR.glob(
+                  "prices_*.jsonl"
+              )
+          )
+
+          print(
+              f"Hittade {len(price_files)} prisfiler."
+          )
+
+          if not price_files:
+              failures.append(
+                  "Inga prices_*.jsonl hittades."
+              )
+
+          target_symbols = {
+              target["yahoo_symbol"]
+              for target in TARGETS.values()
+          }
+
+          price_rows = {
+              symbol: []
+              for symbol in target_symbols
+          }
+
+          for path in price_files:
+              with path.open(
+                  "r",
+                  encoding="utf-8",
+              ) as handle:
+
+                  for line_number, line in enumerate(
+                      handle,
+                      start=1,
+                  ):
+                      line = line.strip()
+
+                      if not line:
+                          continue
+
+                      try:
+                          row = json.loads(line)
+                      except json.JSONDecodeError:
+                          continue
+
+                      symbol = normalize(
+                          row.get(
+                              "yahoo_symbol"
+                          )
+                      )
+
+                      if symbol not in target_symbols:
+                          continue
+
+                      price_rows[symbol].append(
+                          {
+                              "path": path,
+                              "line": line_number,
+                              "row": row,
+                          }
+                      )
+
+
+          for name, target in TARGETS.items():
+              print()
+              print(f"### {name}")
+
+              symbol = normalize(
+                  target["yahoo_symbol"]
+              )
+
+              rows = price_rows.get(
+                  symbol,
+                  [],
+              )
+
+              print(
+                  f"  symbol: {symbol}"
+              )
+
+              print(
+                  f"  prisrader: {len(rows)}"
+              )
+
+              if not rows:
+                  print(
+                      "  PRICE SERIES: MISSING"
+                  )
+
+                  failures.append(
+                      f"{name}: ingen prisserie "
+                      f"för {symbol}"
+                  )
+
+                  continue
+
+              dates = []
+
+              for item in rows:
+                  value = item["row"].get(
+                      "date"
+                  )
+
+                  if value:
+                      try:
+                          dates.append(
+                              pd.Timestamp(
+                                  value
+                              ).date()
+                          )
+                      except Exception:
+                          pass
+
+              if dates:
+                  print(
+                      f"  min_date: {min(dates)}"
+                  )
+
+                  print(
+                      f"  max_date: {max(dates)}"
+                  )
+
+              # Kontrollera identiteten i prisraderna.
+              identity_variants = set()
+
+              for item in rows:
+                  row = item["row"]
+
+                  identity_variants.add(
+                      (
+                          row.get("isin"),
+                          row.get("issuer"),
+                      )
+                  )
+
+              print(
+                  "  identitetsvarianter:"
+              )
+
+              for isin, issuer in sorted(
+                  identity_variants,
+                  key=lambda value: (
+                      str(value[0]),
+                      str(value[1]),
+                  ),
+              ):
+                  print(
+                      f"    isin={isin} | "
+                      f"issuer={issuer}"
+                  )
+
+              # Datum runt eventet.
+              event_date = pd.Timestamp(
+                  target["event_date"]
+              ).date()
+
+              around = []
+
+              for item in rows:
+                  row = item["row"]
+
+                  value = row.get(
+                      "date"
+                  )
+
+                  if not value:
+                      continue
+
+                  try:
+                      row_date = pd.Timestamp(
+                          value
+                      ).date()
+                  except Exception:
+                      continue
+
+                  if (
+                      abs(
+                          (
+                              row_date
+                              - event_date
+                          ).days
+                      )
+                      <= 7
+                  ):
+                      around.append(
+                          item
+                      )
+
+              print()
+              print(
+                  f"  prisrader runt event "
+                  f"{event_date}:"
+              )
+
+              if not around:
+                  print(
+                      "    INGA PRISRADER "
+                      "INOM ±7 DAGAR"
+                  )
+              else:
+                  for item in sorted(
+                      around,
+                      key=lambda item: item["row"].get(
+                          "date",
+                          "",
+                      ),
+                  ):
+                      row = item["row"]
+
+                      print(
+                          f"    {row.get('date')} "
+                          f"close={row.get('close')} "
+                          f"isin={row.get('isin')} "
+                          f"issuer={row.get('issuer')}"
+                      )
+
+
+          # ------------------------------------------------------------------
+          # 5. Kontrollera feature → prisrelation
+          # ------------------------------------------------------------------
+
+          print()
+          print("=" * 80)
+          print("KONTROLL AV FEATURE → PRIS")
+          print("=" * 80)
+
+          for name, target in TARGETS.items():
+              print()
+              print(f"### {name}")
+
+              row = matched_features.get(
+                  name
+              )
+
+              if row is None:
+                  print(
+                      "  SKIP: feature saknas."
                   )
                   continue
 
-              seen = set()
+              feature_price_date = row.get(
+                  "price_date"
+              )
 
-              for item in events:
-                  event = item["event"]
-                  event_date = event.get("event_date")
+              feature_symbol = normalize(
+                  row.get(
+                      "yahoo_symbol"
+                  )
+              )
 
-                  event_identity = tuple(
-                      identity_keys(event)
+              print(
+                  f"  feature snapshot: "
+                  f"{row.get('snapshot_date')}"
+              )
+
+              print(
+                  f"  feature price_date: "
+                  f"{feature_price_date}"
+              )
+
+              print(
+                  f"  feature symbol: "
+                  f"{feature_symbol}"
+              )
+
+              if (
+                  feature_symbol
+                  != normalize(
+                      target["yahoo_symbol"]
+                  )
+              ):
+                  failures.append(
+                      f"{name}: feature yahoo_symbol "
+                      f"är {feature_symbol}, "
+                      f"förväntade "
+                      f"{target['yahoo_symbol']}"
                   )
 
-                  dedup_key = (
-                      event_date,
-                      event_identity,
-                  )
+              if feature_price_date:
+                  snapshot = pd.Timestamp(
+                      row["snapshot_date"]
+                  ).date()
 
-                  if dedup_key in seen:
-                      continue
+                  price_date = pd.Timestamp(
+                      feature_price_date
+                  ).date()
 
-                  seen.add(dedup_key)
-
-                  print()
-                  print(
-                      f"Event: {event_date} | "
-                      f"{event.get('issuer')} | "
-                      f"{event.get('yahoo_symbol')}"
-                  )
-
-                  found = None
-
-                  for field, value in identity_keys(event):
-                      key = (
-                          event_date,
-                          field,
-                          value,
+                  if price_date < snapshot:
+                      failures.append(
+                          f"{name}: price_date "
+                          f"{price_date} ligger före "
+                          f"snapshot_date {snapshot}"
                       )
 
-                      if key in matches:
-                          found = matches[key]
-                          break
+                  days = (
+                      price_date - snapshot
+                  ).days
 
-                  if found is None:
+                  print(
+                      f"  dagar mellan FI och pris: "
+                      f"{days}"
+                  )
+
+                  if days > 5:
                       print(
-                          "  FEATURE MATCH: MISSING"
+                          "  VARNING: prisdatum ligger "
+                          "mer än 5 kalenderdagar efter "
+                          "FI-datum."
                       )
 
+
+          # ------------------------------------------------------------------
+          # 6. Kontrollera forward-return-mognad
+          # ------------------------------------------------------------------
+
+          print()
+          print("=" * 80)
+          print("KONTROLL AV FORWARD-RETURN MOGNAD")
+          print("=" * 80)
+
+          today = date.today()
+
+          for name, target in TARGETS.items():
+              row = matched_features.get(
+                  name
+              )
+
+              print()
+              print(f"### {name}")
+
+              if row is None:
+                  print(
+                      "  SKIP: feature saknas."
+                  )
+                  continue
+
+              event_date = pd.Timestamp(
+                  target["event_date"]
+              ).date()
+
+              age_days = (
+                  today - event_date
+              ).days
+
+              print(
+                  f"  event age: {age_days} kalenderdagar"
+              )
+
+              # Vi kräver inte 60d om eventet ännu
+              # inte är 60 handelsdagar gammalt.
+              #
+              # Däremot ska 1d, 5d och 20d finnas när
+              # tillräckligt många kalenderdagar gått.
+              expected = []
+
+              if age_days >= 5:
+                  expected.extend(
+                      [1, 5]
+                  )
+
+              if age_days >= 30:
+                  expected.append(20)
+
+              if age_days >= 90:
+                  expected.append(60)
+
+              for horizon in expected:
+                  value = row.get(
+                      f"forward_return_{horizon}d"
+                  )
+
+                  if value is None:
                       failures.append(
-                          f"{name}: ingen feature-match "
-                          f"för {event_date}"
+                          f"{name}: "
+                          f"forward_return_{horizon}d "
+                          "saknas trots att "
+                          "eventet borde vara moget"
                       )
 
-                      continue
-
-                  feature = found["feature"]
-
-                  print(
-                      f"  FEATURE MATCH: OK"
-                  )
-                  print(
-                      f"  feature file:              "
-                      f"{found['file']}:{found['line']}"
-                  )
-                  print(
-                      f"  snapshot_date:             "
-                      f"{feature.get('snapshot_date')}"
-                  )
-                  print(
-                      f"  price_date:                "
-                      f"{feature.get('price_date')}"
-                  )
-                  print(
-                      f"  price_match_available:     "
-                      f"{feature.get('price_match_available')}"
-                  )
-                  print(
-                      f"  yahoo_symbol:              "
-                      f"{feature.get('yahoo_symbol')}"
-                  )
-                  print(
-                      f"  price_mapping_source:      "
-                      f"{feature.get('price_mapping_source')}"
-                  )
-                  print(
-                      f"  close:                     "
-                      f"{feature.get('close')}"
-                  )
-
-                  print(
-                      "  forward returns:"
-                  )
-
-                  for field in RETURN_FIELDS:
-                      value = feature.get(field)
-
-                      if value is None:
-                          print(
-                              f"    {field}: None"
-                          )
-                      else:
-                          print(
-                              f"    {field}: {value}"
-                          )
-
-                  if (
-                      feature.get("price_match_available")
-                      is not True
-                  ):
-                      failures.append(
-                          f"{name}: price_match_available "
-                          f"är inte True för {event_date}"
+                      print(
+                          f"  {horizon}d: MISSING"
+                      )
+                  else:
+                      print(
+                          f"  {horizon}d: OK "
+                          f"({value})"
                       )
 
-                  if not feature.get("yahoo_symbol"):
-                      failures.append(
-                          f"{name}: yahoo_symbol saknas "
-                          f"för {event_date}"
-                      )
+
+          # ------------------------------------------------------------------
+          # 7. Eventdatum får inte ligga i framtiden
+          # ------------------------------------------------------------------
 
           print()
           print("=" * 80)
           print("KONTROLL AV EVENTDATUM")
           print("=" * 80)
 
-          from datetime import date
+          for name, target in TARGETS.items():
+              event_date = pd.Timestamp(
+                  target["event_date"]
+              ).date()
 
-          today = date.today()
+              print(
+                  f"  {name}: "
+                  f"{event_date}"
+              )
 
-          for name, items in targets.items():
-              for item in items:
-                  event = item["event"]
-                  event_date = event.get("event_date")
+              if event_date > today:
+                  failures.append(
+                      f"{name}: event_date "
+                      f"{event_date} ligger i framtiden "
+                      f"(idag {today})"
+                  )
 
-                  if not event_date:
-                      continue
 
-                  try:
-                      parsed = date.fromisoformat(event_date)
-                  except ValueError:
-                      failures.append(
-                          f"{name}: ogiltigt event_date "
-                          f"{event_date}"
-                      )
-                      continue
-
-                  if parsed > today:
-                      print(
-                          f"ERROR: {name} har framtida "
-                          f"event_date: {event_date}"
-                      )
-
-                      failures.append(
-                          f"{name}: framtida event_date "
-                          f"{event_date}"
-                      )
+          # ------------------------------------------------------------------
+          # 8. Slutsats
+          # ------------------------------------------------------------------
 
           print()
           print("=" * 80)
@@ -423,14 +912,16 @@ jobs:
           print("=" * 80)
 
           if failures:
-              print()
               print("FAILURES:")
 
               for failure in failures:
-                  print(f"  - {failure}")
+                  print(
+                      f"  - {failure}"
+                  )
 
               raise SystemExit(1)
 
-          print()
-          print("OK: Alla kontroller passerade.")
+          print(
+              "OK: inga diagnostiska fel hittades."
+          )
           PY
