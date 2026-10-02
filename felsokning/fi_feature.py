@@ -1,979 +1,1578 @@
 """
-Diagnostik för FI → feature → price → forward return → web.
-Filen ändrar ingen data.
-Den kontrollerar den kanoniska kedjan:
-    FI aggregate
-        ↓
-    feature_fi.py
-        ↓
-    features_*.jsonl
-        ↓
-    feature_prices.py
-        ↓
-    feature_returns.py
-        ↓
-    data_loader.py
-        ↓
-    events.py
-        ↓
-    Köpläge
+Diagnostik för FI -> feature -> price-kedjan.
 """
+
 from __future__ import annotations
+
 import json
-import math
+from datetime import date
 from pathlib import Path
-import numpy as np
+
 import pandas as pd
-from analysis.feature_config import (
-    FEATURE_GLOB,
-    PRICE_DIR,
-    RETURN_HORIZONS,
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+FI_PATH = (
+    ROOT
+    / "data"
+    / "processed"
+    / "fi"
+    / "aggregate"
+    / "reconstructed.jsonl"
 )
-from analysis.feature_prices import (
-    find_price_files,
-    load_prices,
+
+RAW_FI_PATH = (
+    ROOT
+    / "data"
+    / "raw"
+    / "fi"
+    / "positions"
+    / "historical"
+    / "fi_historical_positions.jsonl"
 )
-from analysis.feature_returns import (
-    add_forward_returns,
-)
-from web.build.data_loader import (
-    _event_identity_keys,
-    _feature_identity_keys,
-    _read_feature_returns,
-)
-ROOT = Path(
-    __file__
-).resolve().parents[1]
+
 FEATURE_DIR = (
     ROOT
     / "data"
     / "processed"
     / "analysis"
 )
+
+PRICE_DIR = (
+    ROOT
+    / "data"
+    / "raw"
+    / "prices"
+)
+
 EVENT_DIR = (
     ROOT
     / "data"
     / "events"
 )
-FI_AGGREGATE_DIR = (
-    ROOT
-    / "data"
-    / "raw"
-    / "fi"
-    / "aggregate"
-    / "snapshots"
-)
-MAX_EXAMPLES = 30
-TOLERANCE = 1e-9
-def _load_features() -> pd.DataFrame:
-    paths = sorted(
-        FEATURE_DIR.glob(
-            FEATURE_GLOB
-        )
-    )
-    if not paths:
-        raise FileNotFoundError(
-            "Inga feature-chunks hittades i "
-            f"{FEATURE_DIR}"
-        )
-    frames = []
-    for path in paths:
-        frames.append(
-            pd.read_json(
-                path,
-                lines=True,
+
+
+TARGETS = {
+    "Fingerprint": {
+        "issuer": "Fingerprint Cards AB",
+        "event_date": "2023-11-24",
+        "isin": "SE0008374250",
+        "lei": "5493004YF5D7Z612Z822",
+        "yahoo_symbol": "FING-B.ST",
+    },
+    "Viaplay": {
+        "issuer": "Viaplay Group AB (publ)",
+        "event_date": "2026-08-28",
+        "isin": "SE0012116390",
+        "lei": "5493006E0IJD0DHJSR89",
+        "yahoo_symbol": "VPLAY-B.ST",
+    },
+}
+
+
+def normalize(value) -> str:
+    if value is None:
+        return ""
+
+    return str(value).strip().casefold()
+
+
+def security_key(isin, issuer) -> str:
+    normalized_isin = normalize(isin)
+
+    if normalized_isin:
+        return "ISIN:" + normalized_isin
+
+    return "ISSUER:" + normalize(issuer)
+
+
+def identity_keys(row) -> list[tuple[str, str]]:
+    keys = []
+
+    for field in (
+        "isin",
+        "lei",
+        "yahoo_symbol",
+        "issuer",
+    ):
+        value = normalize(row.get(field))
+
+        if value:
+            keys.append(
+                (
+                    field,
+                    value,
+                )
             )
+
+    return keys
+
+
+def matches_identity(row, target) -> bool:
+    for field in (
+        "isin",
+        "yahoo_symbol",
+        "issuer",
+    ):
+        target_value = normalize(
+            target.get(field)
         )
-    return pd.concat(
-        frames,
-        ignore_index=True,
+
+        row_value = normalize(
+            row.get(field)
+        )
+
+        if (
+            target_value
+            and row_value
+            and target_value == row_value
+        ):
+            return True
+
+    return False
+
+
+def matches_raw_fi_identity(
+    row: dict,
+    target: dict,
+) -> bool:
+    """
+    Matchar rå FI-data mot target.
+
+    Rå FI kan sakna yahoo_symbol och kan ha andra
+    issuer-formuleringar. Därför används de identiteter
+    som faktiskt finns i rådata.
+    """
+
+    target_isin = normalize(
+        target.get("isin")
     )
-def _load_events() -> list[dict]:
-    records: list[dict] = []
-    for path in sorted(
+
+    target_lei = normalize(
+        target.get("lei")
+    )
+
+    target_issuer = normalize(
+        target.get("issuer")
+    )
+
+    for field, target_value in (
+        ("isin", target_isin),
+        ("lei", target_lei),
+        ("issuer", target_issuer),
+    ):
+        if not target_value:
+            continue
+
+        row_value = normalize(
+            row.get(field)
+        )
+
+        if row_value and row_value == target_value:
+            return True
+
+    return False
+
+
+def separator(title: str) -> None:
+    print()
+    print("=" * 80)
+    print(title)
+    print("=" * 80)
+
+
+def load_fi() -> pd.DataFrame:
+    if not FI_PATH.exists():
+        raise SystemExit(
+            f"FI-fil saknas: {FI_PATH}"
+        )
+
+    frame = pd.read_json(
+        FI_PATH,
+        lines=True,
+    )
+
+    frame["snapshot_date"] = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+
+    frame["isin"] = frame["isin"].where(
+        frame["isin"].notna(),
+        None,
+    )
+
+    frame["security_key"] = [
+        security_key(
+            isin,
+            issuer,
+        )
+        for isin, issuer in zip(
+            frame["isin"],
+            frame["issuer"],
+        )
+    ]
+
+    return frame
+
+
+def load_raw_fi_rows() -> list[dict]:
+    """
+    Läser rå FI-historik rad för rad.
+
+    Filen kan vara stor, så hela datasetet laddas inte
+    in i en DataFrame. Endast relevanta target-rader
+    behålls.
+    """
+
+    if not RAW_FI_PATH.exists():
+        raise SystemExit(
+            f"Rå FI-fil saknas: {RAW_FI_PATH}"
+        )
+
+    target_rows = []
+
+    with RAW_FI_PATH.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
+
+        for line_number, line in enumerate(
+            handle,
+            start=1,
+        ):
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            for name, target in TARGETS.items():
+                if matches_raw_fi_identity(
+                    row,
+                    target,
+                ):
+                    target_rows.append(
+                        {
+                            "target": name,
+                            "line": line_number,
+                            "row": row,
+                        }
+                    )
+
+    return target_rows
+
+
+def load_features() -> pd.DataFrame:
+    files = sorted(
+        FEATURE_DIR.glob(
+            "features_*.jsonl"
+        )
+    )
+
+    if not files:
+        raise SystemExit(
+            "Inga feature-chunks hittades."
+        )
+
+    rows = []
+
+    for path in files:
+        with path.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+
+            for line_number, line in enumerate(
+                handle,
+                start=1,
+            ):
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                row["_source_file"] = str(
+                    path.relative_to(ROOT)
+                )
+
+                row["_source_line"] = line_number
+
+                rows.append(row)
+
+    frame = pd.DataFrame(rows)
+
+    if frame.empty:
+        raise SystemExit(
+            "Feature-datasetet är tomt."
+        )
+
+    frame["snapshot_date"] = pd.to_datetime(
+        frame["snapshot_date"],
+        errors="coerce",
+    )
+
+    return frame
+
+
+def load_prices() -> pd.DataFrame:
+    files = sorted(
+        PRICE_DIR.glob(
+            "prices_*.jsonl"
+        )
+    )
+
+    if not files:
+        raise SystemExit(
+            "Inga price-filer hittades."
+        )
+
+    rows = []
+
+    for path in files:
+        with path.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+
+            for line_number, line in enumerate(
+                handle,
+                start=1,
+            ):
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                row["_source_file"] = str(
+                    path.relative_to(ROOT)
+                )
+
+                row["_source_line"] = line_number
+
+                rows.append(row)
+
+    frame = pd.DataFrame(rows)
+
+    if frame.empty:
+        return frame
+
+    frame["date"] = pd.to_datetime(
+        frame["date"],
+        errors="coerce",
+    )
+
+    frame["security_key"] = [
+        security_key(
+            isin,
+            issuer,
+        )
+        for isin, issuer in zip(
+            frame["isin"],
+            frame["issuer"],
+        )
+    ]
+
+    return frame
+
+
+def load_events() -> dict[str, list[dict]]:
+    events = {
+        name: []
+        for name in TARGETS
+    }
+
+    files = sorted(
         EVENT_DIR.glob(
             "short_events_*.jsonl"
         )
-    ):
+    )
+
+    for path in files:
         with path.open(
-            encoding="utf-8"
+            "r",
+            encoding="utf-8",
         ) as handle:
-            for line in handle:
+
+            for line_number, line in enumerate(
+                handle,
+                start=1,
+            ):
                 line = line.strip()
-                if line:
-                    records.append(
-                        json.loads(line)
-                    )
-    return records
-def _load_raw_aggregate() -> pd.DataFrame:
-    frames: list[pd.DataFrame] = []
-    for path in sorted(
-        FI_AGGREGATE_DIR.glob(
-            "*.jsonl"
-        )
-    ):
-        try:
-            frame = pd.read_json(
-                path,
-                lines=True,
+
+                if not line:
+                    continue
+
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                for name, target in TARGETS.items():
+                    if matches_identity(
+                        row,
+                        target,
+                    ):
+                        events[name].append(
+                            {
+                                "path": path,
+                                "line": line_number,
+                                "row": row,
+                            }
+                        )
+
+    return events
+
+
+def print_event_diagnosis(events) -> None:
+    separator("1. EVENTS")
+
+    for name, items in events.items():
+        print()
+        print(f"### {name}")
+
+        if not items:
+            print("EVENT: MISSING")
+            continue
+
+        seen = set()
+
+        for item in items:
+            row = item["row"]
+
+            identity = (
+                row.get("event_date"),
+                row.get("isin"),
+                row.get("yahoo_symbol"),
             )
-        except (
-            OSError,
-            ValueError,
-            TypeError,
-        ):
-            continue
-        if frame.empty:
-            continue
-        required = {
-            "position_date",
-            "issuer",
-        }
-        if not required.issubset(
-            frame.columns
-        ):
-            continue
-        frames.append(
-            frame
+
+            if identity in seen:
+                continue
+
+            seen.add(identity)
+
+            print(
+                f"{item['path'].relative_to(ROOT)}:"
+                f"{item['line']}"
+            )
+
+            print(
+                f"  event_date   : {row.get('event_date')}"
+            )
+
+            print(
+                f"  issuer       : {row.get('issuer')}"
+            )
+
+            print(
+                f"  isin         : {row.get('isin')}"
+            )
+
+            print(
+                f"  lei          : {row.get('lei')}"
+            )
+
+            print(
+                f"  yahoo_symbol : {row.get('yahoo_symbol')}"
+            )
+
+
+def print_fi_diagnosis(fi: pd.DataFrame) -> dict:
+    separator("2. FI -> SECURITY KEY")
+
+    target_fi = {}
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        target_date = pd.Timestamp(
+            target["event_date"]
         )
-    if not frames:
-        return pd.DataFrame()
-    frame = pd.concat(
-        frames,
-        ignore_index=True,
+
+        rows = fi.loc[
+            fi["snapshot_date"]
+            == target_date
+        ].copy()
+
+        rows = rows.loc[
+            rows.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ]
+
+        target_fi[name] = rows
+
+        if rows.empty:
+            print("FI MATCH: MISSING")
+            continue
+
+        print(
+            f"FI MATCH: {len(rows)} row(s)"
+        )
+
+        for index, row in rows.iterrows():
+            print()
+            print(
+                f"  row index      : {index}"
+            )
+
+            print(
+                f"  snapshot_date  : "
+                f"{row.get('snapshot_date')}"
+            )
+
+            print(
+                f"  issuer         : "
+                f"{row.get('issuer')}"
+            )
+
+            print(
+                f"  isin           : "
+                f"{row.get('isin')}"
+            )
+
+            print(
+                f"  security_key   : "
+                f"{row.get('security_key')}"
+            )
+
+            print(
+                f"  short_interest : "
+                f"{row.get('short_interest_pct')}"
+            )
+
+        if len(rows) > 1:
+            print()
+            print(
+                "WARNING: flera FI-rader matchar "
+                "samma target."
+            )
+
+    return target_fi
+
+
+def print_fi_identity_window(
+    fi: pd.DataFrame,
+) -> None:
+    separator(
+        "2B. FI IDENTITY AROUND EVENT"
     )
-    frame["position_date"] = pd.to_datetime(
-        frame["position_date"],
-        errors="coerce",
-    )
-    frame["issuer"] = (
-        frame["issuer"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-    if "lei" not in frame.columns:
-        frame["lei"] = None
-    return frame.loc[
-        frame["position_date"].notna()
-    ].copy()
-def _same(
-    left,
-    right,
-) -> bool:
-    left_missing = (
-        left is None
-        or pd.isna(left)
-    )
-    right_missing = (
-        right is None
-        or pd.isna(right)
-    )
-    if left_missing and right_missing:
-        return True
-    if left_missing != right_missing:
-        return False
-    return math.isclose(
-        float(left),
-        float(right),
-        rel_tol=TOLERANCE,
-        abs_tol=TOLERANCE,
-    )
-def _feature_key(
-    date_value,
-    field: str,
-    value: str,
-) -> tuple[str, str, str]:
-    return (
-        str(date_value)[:10],
-        field,
-        str(value),
-    )
-def _build_feature_index(
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        target_date = pd.Timestamp(
+            target["event_date"]
+        )
+
+        identity_rows = fi.loc[
+            fi.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ].copy()
+
+        if identity_rows.empty:
+            print(
+                "NO FI ROWS FOR IDENTITY"
+            )
+            continue
+
+        identity_rows = identity_rows.loc[
+            identity_rows["snapshot_date"].between(
+                target_date
+                - pd.Timedelta(days=10),
+                target_date
+                + pd.Timedelta(days=10),
+            )
+        ].sort_values(
+            "snapshot_date"
+        )
+
+        if identity_rows.empty:
+            print(
+                "NO FI ROWS WITHIN +/-10 DAYS"
+            )
+            continue
+
+        print(
+            f"event date: {target_date.date()}"
+        )
+
+        print(
+            f"rows in window: "
+            f"{len(identity_rows)}"
+        )
+
+        for index, row in identity_rows.iterrows():
+            print(
+                f"  "
+                f"{row['snapshot_date'].date()} "
+                f"| index={index} "
+                f"| isin={row.get('isin')} "
+                f"| issuer={row.get('issuer')} "
+                f"| security={row.get('security_key')} "
+                f"| short={row.get('short_interest_pct')}"
+            )
+
+
+def print_feature_exact_diagnosis(
     features: pd.DataFrame,
-) -> dict[
-    tuple[str, str, str],
-    int,
-]:
-    index: dict[
-        tuple[str, str, str],
-        int,
-    ] = {}
-    for row_index, row in features.iterrows():
-        feature_date = str(
-            row.get(
+) -> dict:
+    separator(
+        "3. EXACT FI DATE -> FEATURE"
+    )
+
+    target_features = {}
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        target_date = pd.Timestamp(
+            target["event_date"]
+        )
+
+        rows = features.loc[
+            features["snapshot_date"]
+            == target_date
+        ].copy()
+
+        rows = rows.loc[
+            rows.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ]
+
+        target_features[name] = rows
+
+        if rows.empty:
+            print(
+                "FEATURE MATCH: MISSING"
+            )
+            continue
+
+        print(
+            f"FEATURE MATCH: {len(rows)} row(s)"
+        )
+
+        for _, row in rows.iterrows():
+            print()
+            print(
+                f"  source       : "
+                f"{row.get('_source_file')}:"
+                f"{row.get('_source_line')}"
+            )
+
+            print(
+                f"  snapshot     : "
+                f"{row.get('snapshot_date')}"
+            )
+
+            print(
+                f"  issuer       : "
+                f"{row.get('issuer')}"
+            )
+
+            print(
+                f"  isin         : "
+                f"{row.get('isin')}"
+            )
+
+            print(
+                f"  security_key : "
+                f"{row.get('security_key')}"
+            )
+
+            print(
+                f"  price_date   : "
+                f"{row.get('price_date')}"
+            )
+
+            print(
+                f"  price_match  : "
+                f"{row.get('price_match_available')}"
+            )
+
+            print(
+                f"  yahoo_symbol : "
+                f"{row.get('yahoo_symbol')}"
+            )
+
+            print(
+                f"  mapping      : "
+                f"{row.get('price_mapping_source')}"
+            )
+
+            print(
+                f"  close        : "
+                f"{row.get('close')}"
+            )
+
+            for horizon in (
+                1,
+                5,
+                20,
+                60,
+            ):
+                print(
+                    f"  return {horizon:>2}d : "
+                    f"{row.get(f'forward_return_{horizon}d')}"
+                )
+
+    return target_features
+
+
+def print_same_identity_features(
+    features: pd.DataFrame,
+) -> None:
+    separator(
+        "4. SAME IDENTITY THROUGH FEATURE DATASET"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        rows = features.loc[
+            features.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ].copy()
+
+        if rows.empty:
+            print(
+                "NO FEATURE ROWS FOR IDENTITY"
+            )
+            continue
+
+        rows = rows.sort_values(
+            "snapshot_date"
+        )
+
+        print(
+            f"Feature rows: {len(rows)}"
+        )
+
+        for _, row in rows.tail(25).iterrows():
+            print(
+                f"  "
+                f"{row['snapshot_date'].date()} "
+                f"| security={row.get('security_key')} "
+                f"| price={row.get('price_date')} "
+                f"| symbol={row.get('yahoo_symbol')} "
+                f"| mapping={row.get('price_mapping_source')}"
+            )
+
+
+def print_security_key_diagnosis(
+    target_fi: dict,
+    features: pd.DataFrame,
+) -> None:
+    separator(
+        "5. SECURITY KEY -> FEATURE CONTINUITY"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        fi_rows = target_fi[name]
+
+        if fi_rows.empty:
+            print(
+                "SKIP: ingen FI-rad."
+            )
+            continue
+
+        keys = sorted(
+            fi_rows[
+                "security_key"
+            ]
+            .dropna()
+            .map(normalize)
+            .unique()
+            .tolist()
+        )
+
+        for normalized_key in keys:
+            rows = features.loc[
+                features["security_key"]
+                .fillna("")
+                .map(normalize)
+                == normalized_key
+            ].sort_values(
                 "snapshot_date"
             )
-            or ""
-        )[:10]
-        if not feature_date:
-            continue
-        feature = row.to_dict()
-        for field, value in _feature_identity_keys(
-            feature
-        ):
-            index[
-                _feature_key(
-                    feature_date,
-                    field,
-                    value,
-                )
-            ] = row_index
-    return index
-def _check_raw_fi_to_features(
-    raw_fi: pd.DataFrame,
-    features: pd.DataFrame,
-) -> dict:
-    """
-    Kontrollerar:
-        raw position_date
-            ==
-        feature snapshot_date
-    """
-    result = {
-        "raw_rows": int(
-            len(raw_fi)
-        ),
-        "matched": 0,
-        "missing": 0,
-        "examples": [],
-    }
-    feature_index = _build_feature_index(
-        features
-    )
-    for _, row in raw_fi.iterrows():
-        feature_date = (
-            row["position_date"]
-            .strftime("%Y-%m-%d")
-        )
-        identities = []
-        if pd.notna(
-            row.get("lei")
-        ):
-            identities.append(
-                (
-                    "lei",
-                    str(
-                        row["lei"]
-                    ).strip(),
-                )
+
+            print()
+            print(
+                f"SECURITY KEY: {normalized_key}"
             )
-        identities.append(
-            (
-                "issuer",
-                str(
-                    row["issuer"]
-                ).strip(),
-            )
-        )
-        found = False
-        for field, value in identities:
-            if not value:
+
+            if rows.empty:
+                print(
+                    "  NO FEATURE ROWS"
+                )
                 continue
-            key = _feature_key(
-                feature_date,
-                field,
-                value,
+
+            target_date = pd.Timestamp(
+                target["event_date"]
             )
-            if key in feature_index:
-                found = True
-                break
-        if found:
-            result["matched"] += 1
-        else:
-            result["missing"] += 1
-            if len(
-                result["examples"]
-            ) < MAX_EXAMPLES:
-                result["examples"].append(
-                    {
-                        "position_date": (
-                            feature_date
-                        ),
-                        "lei": row.get(
-                            "lei"
-                        ),
-                        "issuer": row.get(
-                            "issuer"
-                        ),
-                    }
-                )
-    return result
-def _check_feature_price_alignment(
-    features: pd.DataFrame,
-    prices: pd.DataFrame,
-) -> dict:
-    """
-    Kontrollerar att price_date är den första
-    tillgängliga handelsdagen på eller efter
-    feature snapshot_date.
-    """
-    lookup = {
-        symbol: group.sort_values(
-            "date",
-            kind="mergesort",
-        ).reset_index(
-            drop=True
-        )
-        for symbol, group in prices.groupby(
-            "yahoo_symbol",
-            sort=False,
-        )
-    }
-    result = {
-        "matched_rows": 0,
-        "verified": 0,
-        "missing": 0,
-        "mismatch": 0,
-        "examples": [],
-    }
-    matched = features.loc[
-        features[
-            "price_match_available"
-        ].fillna(False)
-        & features[
-            "yahoo_symbol"
-        ].notna()
-        & features[
-            "price_date"
-        ].notna()
-    ]
-    result["matched_rows"] = int(
-        len(matched)
-    )
-    for index, row in matched.iterrows():
-        symbol = str(
-            row["yahoo_symbol"]
-        ).strip()
-        series = lookup.get(
-            symbol
-        )
-        if series is None:
-            result["missing"] += 1
-            continue
-        feature_date = pd.to_datetime(
-            row["snapshot_date"],
-            errors="coerce",
-        )
-        stored_price_date = pd.to_datetime(
-            row["price_date"],
-            errors="coerce",
-        )
-        if (
-            pd.isna(feature_date)
-            or pd.isna(stored_price_date)
-        ):
-            result["missing"] += 1
-            continue
-        dates = series[
-            "date"
-        ].to_numpy(
-            dtype="datetime64[ns]"
-        )
-        entry_idx = int(
-            np.searchsorted(
-                dates,
-                feature_date.to_datetime64(),
-                side="left",
-            )
-        )
-        if entry_idx >= len(
-            series
-        ):
-            result["missing"] += 1
-            continue
-        expected_date = pd.Timestamp(
-            series.iloc[
-                entry_idx
-            ]["date"]
-        )
-        if expected_date.normalize() == (
-            stored_price_date.normalize()
-        ):
-            result["verified"] += 1
-        else:
-            result["mismatch"] += 1
-            if len(
-                result["examples"]
-            ) < MAX_EXAMPLES:
-                result["examples"].append(
-                    {
-                        "feature_index": index,
-                        "issuer": row.get(
-                            "issuer"
-                        ),
-                        "snapshot_date": str(
-                            feature_date.date()
-                        ),
-                        "stored_price_date": str(
-                            stored_price_date.date()
-                        ),
-                        "expected_price_date": str(
-                            expected_date.date()
-                        ),
-                        "yahoo_symbol": symbol,
-                    }
-                )
-    return result
-def _check_forward_returns(
-    features: pd.DataFrame,
-    prices: pd.DataFrame,
-) -> dict:
-    """
-    Kör production-funktionen add_forward_returns()
-    och verifierar den mot samma konkreta prisserier.
-    """
-    matched = features.loc[
-        features[
-            "price_match_available"
-        ].fillna(False)
-        & features[
-            "yahoo_symbol"
-        ].notna()
-        & features[
-            "price_date"
-        ].notna()
-    ].copy()
-    recomputed = add_forward_returns(
-        matched,
-        prices,
-    )
-    lookup = {
-        symbol: group.sort_values(
-            "date",
-            kind="mergesort",
-        ).reset_index(
-            drop=True
-        )
-        for symbol, group in prices.groupby(
-            "yahoo_symbol",
-            sort=False,
-        )
-    }
-    result = {
-        "verified": 0,
-        "not_yet_verifiable": 0,
-        "missing": 0,
-        "mismatch": 0,
-        "examples": [],
-    }
-    for index, row in matched.iterrows():
-        symbol = str(
-            row["yahoo_symbol"]
-        ).strip()
-        series = lookup.get(
-            symbol
-        )
-        if series is None:
-            result["missing"] += 1
-            continue
-        price_date = pd.to_datetime(
-            row["price_date"],
-            errors="coerce",
-        )
-        if pd.isna(price_date):
-            result["missing"] += 1
-            continue
-        dates = series[
-            "date"
-        ].to_numpy(
-            dtype="datetime64[ns]"
-        )
-        entry_idx = int(
-            np.searchsorted(
-                dates,
-                price_date.to_datetime64(),
-                side="left",
-            )
-        )
-        if entry_idx >= len(
-            series
-        ):
-            result["missing"] += 1
-            continue
-        entry_price = float(
-            series.iloc[
-                entry_idx
-            ]["close"]
-        )
-        if (
-            not np.isfinite(entry_price)
-            or entry_price <= 0
-        ):
-            result["missing"] += 1
-            continue
-        for horizon in RETURN_HORIZONS:
-            target_idx = (
-                entry_idx + horizon
-            )
-            column = (
-                f"forward_return_{horizon}d"
-            )
-            stored = row.get(
-                column
-            )
-            computed = recomputed.loc[
-                index,
-                column,
+
+            before = rows.loc[
+                rows["snapshot_date"]
+                < target_date
             ]
-            if target_idx >= len(
-                series
-            ):
-                result[
-                    "not_yet_verifiable"
-                ] += 1
-                continue
-            target_price = float(
-                series.iloc[
-                    target_idx
-                ]["close"]
-            )
-            if (
-                not np.isfinite(
-                    target_price
+
+            exact = rows.loc[
+                rows["snapshot_date"]
+                == target_date
+            ]
+
+            after = rows.loc[
+                rows["snapshot_date"]
+                > target_date
+            ]
+
+            print(
+                "  before: "
+                + (
+                    str(
+                        before[
+                            "snapshot_date"
+                        ].max().date()
+                    )
+                    if not before.empty
+                    else "NONE"
                 )
-                or target_price <= 0
-            ):
-                result["missing"] += 1
-                continue
-            expected = (
-                target_price
-                / entry_price
-                - 1.0
             )
+
+            print(
+                f"  exact : {len(exact)}"
+            )
+
+            print(
+                "  after : "
+                + (
+                    str(
+                        after[
+                            "snapshot_date"
+                        ].min().date()
+                    )
+                    if not after.empty
+                    else "NONE"
+                )
+            )
+
+
+def print_price_diagnosis(
+    prices: pd.DataFrame,
+) -> None:
+    separator(
+        "6. RAW PRICE DATA"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        rows = prices.loc[
+            (
+                prices["isin"]
+                .fillna("")
+                .map(normalize)
+                == normalize(target["isin"])
+            )
+            |
+            (
+                prices["yahoo_symbol"]
+                .fillna("")
+                .map(normalize)
+                == normalize(
+                    target["yahoo_symbol"]
+                )
+            )
+            |
+            (
+                prices["issuer"]
+                .fillna("")
+                .map(normalize)
+                == normalize(
+                    target["issuer"]
+                )
+            )
+        ].copy()
+
+        if rows.empty:
+            print(
+                "PRICE DATA: MISSING"
+            )
+            continue
+
+        print(
+            f"price rows: {len(rows)}"
+        )
+
+        print(
+            f"min date: "
+            f"{rows['date'].min().date()}"
+        )
+
+        print(
+            f"max date: "
+            f"{rows['date'].max().date()}"
+        )
+
+        print(
+            "symbols: "
+            + str(
+                sorted(
+                    rows[
+                        "yahoo_symbol"
+                    ]
+                    .dropna()
+                    .unique()
+                    .tolist()
+                )
+            )
+        )
+
+        print()
+        print(
+            "rows around event:"
+        )
+
+        event_date = pd.Timestamp(
+            target["event_date"]
+        )
+
+        around = rows.loc[
+            rows["date"].between(
+                event_date
+                - pd.Timedelta(days=10),
+                event_date
+                + pd.Timedelta(days=70),
+            )
+        ].sort_values(
+            "date"
+        )
+
+        if around.empty:
+            print(
+                "  NONE"
+            )
+        else:
+            for _, row in around.iterrows():
+                print(
+                    f"  "
+                    f"{row['date'].date()} "
+                    f"| "
+                    f"{row['yahoo_symbol']} "
+                    f"| "
+                    f"close={row['close']} "
+                    f"| "
+                    f"{row['_source_file']}"
+                )
+
+
+def print_feature_price_relation(
+    target_features: dict,
+) -> None:
+    separator(
+        "7. FEATURE -> PRICE RELATION"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        rows = target_features[name]
+
+        if rows.empty:
+            print(
+                "SKIP: feature saknas."
+            )
+            continue
+
+        for _, row in rows.iterrows():
+            snapshot_value = row.get(
+                "snapshot_date"
+            )
+
+            if pd.isna(snapshot_value):
+                print(
+                    "  snapshot_date: MISSING"
+                )
+                continue
+
+            snapshot = pd.Timestamp(
+                snapshot_value
+            ).date()
+
+            price_value = row.get(
+                "price_date"
+            )
+
+            if pd.isna(price_value):
+                print(
+                    f"  snapshot : {snapshot}"
+                )
+                print(
+                    "  price    : MISSING"
+                )
+                print(
+                    "  delta    : MISSING"
+                )
+                print(
+                    f"  symbol   : "
+                    f"{row.get('yahoo_symbol')}"
+                )
+                print(
+                    f"  mapping  : "
+                    f"{row.get('price_mapping_source')}"
+                )
+                continue
+
+            price_date = pd.Timestamp(
+                price_value
+            ).date()
+
+            days = (
+                price_date - snapshot
+            ).days
+
+            print(
+                f"  snapshot : {snapshot}"
+            )
+
+            print(
+                f"  price    : {price_date}"
+            )
+
+            print(
+                f"  delta    : "
+                f"{days} calendar days"
+            )
+
+            print(
+                f"  symbol   : "
+                f"{row.get('yahoo_symbol')}"
+            )
+
+            print(
+                f"  mapping  : "
+                f"{row.get('price_mapping_source')}"
+            )
+
+            if days > 5:
+                print(
+                    "  WARNING: price_date ligger "
+                    "mer än 5 kalenderdagar efter "
+                    "snapshot_date."
+                )
+
+
+def print_forward_return_diagnosis(
+    target_features: dict,
+) -> None:
+    separator(
+        "8. FORWARD RETURN MATURITY"
+    )
+
+    today = date.today()
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        rows = target_features[name]
+
+        if rows.empty:
+            print(
+                "SKIP: feature saknas."
+            )
+            continue
+
+        event_date = pd.Timestamp(
+            target["event_date"]
+        ).date()
+
+        age = (
+            today - event_date
+        ).days
+
+        print(
+            f"event age: {age} calendar days"
+        )
+
+        expected = []
+
+        if age >= 5:
+            expected.extend(
+                [1, 5]
+            )
+
+        if age >= 30:
+            expected.append(20)
+
+        if age >= 90:
+            expected.append(60)
+
+        for _, row in rows.iterrows():
+            for horizon in expected:
+                value = row.get(
+                    f"forward_return_{horizon}d"
+                )
+
+                if pd.isna(value):
+                    status = "MISSING / NaN"
+                else:
+                    status = f"OK ({value})"
+
+                print(
+                    f"  {horizon}d: {status}"
+                )
+
+
+def print_event_date_check(events) -> None:
+    separator(
+        "9. EVENT DATE"
+    )
+
+    today = date.today()
+
+    for name, items in events.items():
+        print()
+        print(f"### {name}")
+
+        if not items:
+            print(
+                "EVENT: MISSING"
+            )
+            continue
+
+        for item in items:
+            event_date = item["row"].get(
+                "event_date"
+            )
+
+            if not event_date:
+                continue
+
+            value = pd.Timestamp(
+                event_date
+            ).date()
+
+            status = (
+                "FUTURE"
+                if value > today
+                else "OK"
+            )
+
+            print(
+                f"  {value}: {status}"
+            )
+
+
+def print_raw_fi_diagnosis(
+    raw_rows: list[dict],
+    fi: pd.DataFrame,
+) -> None:
+    separator(
+        "10. RAW FI -> RECONSTRUCTED"
+    )
+
+    print(
+        f"Raw FI source: {RAW_FI_PATH}"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        target_rows = [
+            item
+            for item in raw_rows
+            if item["target"] == name
+        ]
+
+        if not target_rows:
+            print(
+                "RAW FI: NO MATCHING ROWS"
+            )
+            print(
+                "  -> Target finns inte i råfilen "
+                "enligt ISIN/LEI/issuer."
+            )
+            continue
+
+        print(
+            f"RAW FI MATCH: {len(target_rows)} row(s)"
+        )
+
+        dates = []
+
+        for item in target_rows:
+            row = item["row"]
+
+            snapshot_value = (
+                row.get("snapshot_date")
+                or row.get("date")
+                or row.get("position_date")
+            )
+
+            snapshot = pd.to_datetime(
+                snapshot_value,
+                errors="coerce",
+            )
+
+            if pd.notna(snapshot):
+                dates.append(snapshot)
+
+        if dates:
+            print(
+                f"first raw date: "
+                f"{min(dates).date()}"
+            )
+
+            print(
+                f"last raw date:  "
+                f"{max(dates).date()}"
+            )
+        else:
+            print(
+                "raw dates: MISSING / UNREADABLE"
+            )
+
+        target_date = pd.Timestamp(
+            target["event_date"]
+        )
+
+        print()
+        print(
+            "raw rows around event "
+            "(+/-10 days):"
+        )
+
+        around = []
+
+        for item in target_rows:
+            row = item["row"]
+
+            snapshot_value = (
+                row.get("snapshot_date")
+                or row.get("date")
+                or row.get("position_date")
+            )
+
+            snapshot = pd.to_datetime(
+                snapshot_value,
+                errors="coerce",
+            )
+
+            if pd.isna(snapshot):
+                continue
+
             if (
-                pd.isna(computed)
-                or computed is None
+                target_date
+                - pd.Timedelta(days=10)
+                <= snapshot
+                <= target_date
+                + pd.Timedelta(days=10)
             ):
-                result["missing"] += 1
-                if len(
-                    result["examples"]
-                ) < MAX_EXAMPLES:
-                    result["examples"].append(
-                        {
-                            "feature_index": index,
-                            "issuer": row.get(
-                                "issuer"
-                            ),
-                            "yahoo_symbol": symbol,
-                            "price_date": str(
-                                price_date.date()
-                            ),
-                            "horizon": horizon,
-                            "stored": stored,
-                            "expected": expected,
-                            "reason": (
-                                "production_return_missing"
-                            ),
-                        }
+                around.append(
+                    (
+                        snapshot,
+                        item,
                     )
-                continue
-            if not _same(
-                computed,
-                expected,
-            ):
-                result["mismatch"] += 1
-                if len(
-                    result["examples"]
-                ) < MAX_EXAMPLES:
-                    result["examples"].append(
-                        {
-                            "feature_index": index,
-                            "issuer": row.get(
-                                "issuer"
-                            ),
-                            "yahoo_symbol": symbol,
-                            "price_date": str(
-                                price_date.date()
-                            ),
-                            "horizon": horizon,
-                            "stored": stored,
-                            "computed": computed,
-                            "expected": expected,
-                        }
-                    )
-                continue
-            result["verified"] += 1
-    return result
-def _check_events_to_features(
-    events: list[dict],
-    features: pd.DataFrame,
-) -> dict:
-    """
-    Kontrollerar:
-        event_date
-            ==
-        feature snapshot_date
-    samt att eventets identity faktiskt kan hitta
-    feature-raden.
-    """
-    feature_index = _build_feature_index(
+                )
+
+        around.sort(
+            key=lambda value: value[0]
+        )
+
+        if not around:
+            print(
+                "  NONE"
+            )
+        else:
+            for snapshot, item in around:
+                row = item["row"]
+
+                print(
+                    f"  "
+                    f"{snapshot.date()} "
+                    f"| line={item['line']} "
+                    f"| issuer={row.get('issuer')} "
+                    f"| isin={row.get('isin')} "
+                    f"| lei={row.get('lei')} "
+                    f"| short={row.get('short_interest_pct')} "
+                    f"| position={row.get('position_pct')}"
+                )
+
+        print()
+        print(
+            "raw row on exact event date:"
+        )
+
+        exact = [
+            item
+            for snapshot, item in around
+            if snapshot == target_date
+        ]
+
+        if not exact:
+            print(
+                "  NONE"
+            )
+        else:
+            for item in exact:
+                row = item["row"]
+
+                print(
+                    f"  line={item['line']} "
+                    f"| issuer={row.get('issuer')} "
+                    f"| isin={row.get('isin')} "
+                    f"| lei={row.get('lei')} "
+                    f"| short={row.get('short_interest_pct')} "
+                    f"| position={row.get('position_pct')}"
+                )
+
+        print()
+        print(
+            "reconstructed rows for same identity:"
+        )
+
+        reconstructed_rows = fi.loc[
+            fi.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ].copy()
+
+        if reconstructed_rows.empty:
+            print(
+                "  NONE"
+            )
+            continue
+
+        reconstructed_rows = (
+            reconstructed_rows.sort_values(
+                "snapshot_date"
+            )
+        )
+
+        print(
+            f"  count: {len(reconstructed_rows)}"
+        )
+
+        print(
+            f"  first: "
+            f"{reconstructed_rows['snapshot_date'].min().date()}"
+        )
+
+        print(
+            f"  last:  "
+            f"{reconstructed_rows['snapshot_date'].max().date()}"
+        )
+
+        print()
+        print(
+            "  reconstructed rows around event:"
+        )
+
+        reconstructed_around = (
+            reconstructed_rows.loc[
+                reconstructed_rows[
+                    "snapshot_date"
+                ].between(
+                    target_date
+                    - pd.Timedelta(days=10),
+                    target_date
+                    + pd.Timedelta(days=10),
+                )
+            ]
+        )
+
+        if reconstructed_around.empty:
+            print(
+                "    NONE"
+            )
+        else:
+            for _, row in reconstructed_around.iterrows():
+                print(
+                    f"    "
+                    f"{row['snapshot_date'].date()} "
+                    f"| issuer={row.get('issuer')} "
+                    f"| isin={row.get('isin')} "
+                    f"| short={row.get('short_interest_pct')}"
+                )
+
+        if around and reconstructed_around.empty:
+            print()
+            print(
+                "  DIAGNOSIS: RAW FI HAR observationer "
+                "runt eventdatum men reconstructed saknar dem."
+            )
+
+        if not around:
+            print()
+            print(
+                "  DIAGNOSIS: inga matchande rå-FI-"
+                "observationer runt eventdatum."
+            )
+
+
+def main() -> None:
+    separator(
+        "FI -> FEATURE DIAGNOSTIK"
+    )
+
+    print(
+        f"Repository: {ROOT}"
+    )
+
+    print(
+        f"FI:        {FI_PATH}"
+    )
+
+    print(
+        f"Raw FI:    {RAW_FI_PATH}"
+    )
+
+    print(
+        f"Features:  {FEATURE_DIR}"
+    )
+
+    print(
+        f"Prices:    {PRICE_DIR}"
+    )
+
+    print(
+        f"Events:    {EVENT_DIR}"
+    )
+
+    fi = load_fi()
+    raw_fi_rows = load_raw_fi_rows()
+    features = load_features()
+    prices = load_prices()
+    events = load_events()
+
+    print()
+    print(
+        f"FI rows:       {len(fi)}"
+    )
+
+    print(
+        f"Raw FI target rows: "
+        f"{len(raw_fi_rows)}"
+    )
+
+    print(
+        f"Feature rows:  {len(features)}"
+    )
+
+    print(
+        f"Price rows:    {len(prices)}"
+    )
+
+    print(
+        f"Event files:   "
+        f"{len(list(EVENT_DIR.glob('short_events_*.jsonl')))}"
+    )
+
+    print_event_diagnosis(
+        events
+    )
+
+    target_fi = print_fi_diagnosis(
+        fi
+    )
+
+    print_fi_identity_window(
+        fi
+    )
+
+    target_features = (
+        print_feature_exact_diagnosis(
+            features
+        )
+    )
+
+    print_same_identity_features(
         features
     )
-    result = {
-        "events": int(
-            len(events)
-        ),
-        "matched": 0,
-        "missing": 0,
-        "examples": [],
-    }
-    for event in events:
-        event_date = str(
-            event.get(
-                "event_date"
-            )
-            or ""
-        )[:10]
-        found = False
-        for field, value in _event_identity_keys(
-            event
-        ):
-            key = _feature_key(
-                event_date,
-                field,
-                value,
-            )
-            if key in feature_index:
-                found = True
-                break
-        if found:
-            result["matched"] += 1
-        else:
-            result["missing"] += 1
-            if len(
-                result["examples"]
-            ) < MAX_EXAMPLES:
-                result["examples"].append(
-                    {
-                        "event_date": event_date,
-                        "isin": event.get(
-                            "isin"
-                        ),
-                        "lei": event.get(
-                            "lei"
-                        ),
-                        "issuer": event.get(
-                            "issuer"
-                        ),
-                        "yahoo_symbol": event.get(
-                            "yahoo_symbol"
-                        ),
-                    }
-                )
-    return result
-def _check_web_enrichment(
-    events: list[dict],
-) -> dict:
-    """
-    Kör samma canonical enrichment som webbens
-    data_loader använder.
-    """
-    enriched = []
-    feature_returns = _read_feature_returns(
+
+    print_security_key_diagnosis(
+        target_fi,
+        features,
+    )
+
+    print_price_diagnosis(
+        prices
+    )
+
+    print_feature_price_relation(
+        target_features
+    )
+
+    print_forward_return_diagnosis(
+        target_features
+    )
+
+    print_event_date_check(
         events
     )
-    for event in events:
-        event_date = str(
-            event.get(
-                "event_date"
-            )
-            or ""
-        )[:10]
-        matched = None
-        for field, value in _event_identity_keys(
-            event
-        ):
-            matched = feature_returns.get(
-                (
-                    event_date,
-                    field,
-                    value,
-                )
-            )
-            if matched is not None:
-                break
-        enriched.append(
-            (
-                event,
-                matched,
-            )
-        )
-    result = {
-        "events": int(
-            len(events)
-        ),
-        "matched": 0,
-        "missing": 0,
-        "return_fields_available": 0,
-        "examples": [],
-    }
-    for event, matched in enriched:
-        if matched is None:
-            result["missing"] += 1
-            if len(
-                result["examples"]
-            ) < MAX_EXAMPLES:
-                result["examples"].append(
-                    {
-                        "event_date": event.get(
-                            "event_date"
-                        ),
-                        "issuer": event.get(
-                            "issuer"
-                        ),
-                        "isin": event.get(
-                            "isin"
-                        ),
-                        "lei": event.get(
-                            "lei"
-                        ),
-                    }
-                )
-            continue
-        result["matched"] += 1
-        available = sum(
-            1
-            for field in (
-                "forward_return_1d",
-                "forward_return_5d",
-                "forward_return_20d",
-                "forward_return_60d",
-            )
-            if matched.get(
-                field
-            ) is not None
-        )
-        result[
-            "return_fields_available"
-        ] += available
-    return result
-def main() -> None:
-    print()
-    print("=" * 78)
+
+    print_raw_fi_diagnosis(
+        raw_fi_rows,
+        fi,
+    )
+
+    separator(
+        "DIAGNOSTIK KLAR"
+    )
+
     print(
-        "BLANKDISS FI → FEATURE → PRICE → RETURN → WEB DIAGNOSTIC"
+        "Inga filer ändrades av diagnostiken."
     )
-    print("=" * 78)
-    features = _load_features()
-    events = _load_events()
-    raw_fi = _load_raw_aggregate()
-    price_files = find_price_files(
-        PRICE_DIR
-    )
-    prices = load_prices(
-        price_files
-    )
-    print()
-    print(
-        "DATASET"
-    )
-    print("-" * 78)
-    print(
-        f"Feature rows:       {len(features):,}"
-    )
-    print(
-        f"Event rows:         {len(events):,}"
-    )
-    print(
-        f"Raw FI rows:        {len(raw_fi):,}"
-    )
-    print(
-        f"Price rows:         {len(prices):,}"
-    )
-    print(
-        f"Price files:        {len(price_files):,}"
-    )
-    print()
-    print(
-        "FEATURE DATE"
-    )
-    print("-" * 78)
-    if "snapshot_date" in features.columns:
-        dates = pd.to_datetime(
-            features["snapshot_date"],
-            errors="coerce",
-        ).dropna()
-        if not dates.empty:
-            print(
-                "Feature date range: "
-                f"{dates.min().date()} → "
-                f"{dates.max().date()}"
-            )
-    raw_result = _check_raw_fi_to_features(
-        raw_fi,
-        features,
-    )
-    print()
-    print(
-        "1. RAW FI → FEATURE"
-    )
-    print("-" * 78)
-    print(
-        f"Raw FI rows: {raw_result['raw_rows']:,}"
-    )
-    print(
-        f"Matched:     {raw_result['matched']:,}"
-    )
-    print(
-        f"Missing:     {raw_result['missing']:,}"
-    )
-    if raw_result["examples"]:
-        print(
-            "Examples:"
-        )
-        for example in raw_result[
-            "examples"
-        ]:
-            print(
-                f"  {example}"
-            )
-    price_result = _check_feature_price_alignment(
-        features,
-        prices,
-    )
-    print()
-    print(
-        "2. FEATURE → PRICE"
-    )
-    print("-" * 78)
-    print(
-        f"Matched rows: {price_result['matched_rows']:,}"
-    )
-    print(
-        f"Verified:     {price_result['verified']:,}"
-    )
-    print(
-        f"Missing:      {price_result['missing']:,}"
-    )
-    print(
-        f"Mismatch:     {price_result['mismatch']:,}"
-    )
-    if price_result["examples"]:
-        print(
-            "Examples:"
-        )
-        for example in price_result[
-            "examples"
-        ]:
-            print(
-                f"  {example}"
-            )
-    return_result = _check_forward_returns(
-        features,
-        prices,
-    )
-    print()
-    print(
-        "3. PRICE → FORWARD RETURN"
-    )
-    print("-" * 78)
-    print(
-        f"Verified:             {return_result['verified']:,}"
-    )
-    print(
-        f"Not yet verifiable:   {return_result['not_yet_verifiable']:,}"
-    )
-    print(
-        f"Missing:              {return_result['missing']:,}"
-    )
-    print(
-        f"Mismatch:             {return_result['mismatch']:,}"
-    )
-    if return_result["examples"]:
-        print(
-            "Examples:"
-        )
-        for example in return_result[
-            "examples"
-        ]:
-            print(
-                f"  {example}"
-            )
-    event_result = _check_events_to_features(
-        events,
-        features,
-    )
-    print()
-    print(
-        "4. EVENT → FEATURE"
-    )
-    print("-" * 78)
-    print(
-        f"Events:       {event_result['events']:,}"
-    )
-    print(
-        f"Matched:      {event_result['matched']:,}"
-    )
-    print(
-        f"Missing:      {event_result['missing']:,}"
-    )
-    if event_result["examples"]:
-        print(
-            "Examples:"
-        )
-        for example in event_result[
-            "examples"
-        ]:
-            print(
-                f"  {example}"
-            )
-    web_result = _check_web_enrichment(
-        events
-    )
-    print()
-    print(
-        "5. FEATURE → WEB / KÖPLÄGE"
-    )
-    print("-" * 78)
-    print(
-        f"Events:                    {web_result['events']:,}"
-    )
-    print(
-        f"Feature matched:           {web_result['matched']:,}"
-    )
-    print(
-        f"Feature missing:           {web_result['missing']:,}"
-    )
-    print(
-        "Return fields available:   "
-        f"{web_result['return_fields_available']:,}"
-    )
-    if web_result["examples"]:
-        print(
-            "Examples:"
-        )
-        for example in web_result[
-            "examples"
-        ]:
-            print(
-                f"  {example}"
-            )
-    actual_failures = (
-        raw_result["missing"]
-        + price_result["missing"]
-        + price_result["mismatch"]
-        + return_result["missing"]
-        + return_result["mismatch"]
-        + event_result["missing"]
-        + web_result["missing"]
-    )
-    print()
-    print("=" * 78)
-    print(
-        "RESULT"
-    )
-    print("=" * 78)
-    print(
-        f"Actual failures: {actual_failures:,}"
-    )
-    if actual_failures:
-        print(
-            "FAIL"
-        )
-        raise SystemExit(1)
-    print(
-        "PASS"
-    )
+
+
 if __name__ == "__main__":
     main()
