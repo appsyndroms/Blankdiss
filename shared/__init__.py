@@ -1,0 +1,1 @@
+"""Gemensamma komponenter för Blankdiss."""
