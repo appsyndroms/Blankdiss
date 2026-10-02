@@ -1,6 +1,7 @@
 """Inläsning och matchning av prisdata."""
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,9 @@ from analysis.feature_config import (
 from analysis.feature_utils import (
     normalize_text,
     security_key,
+)
+from shared.instrument_identity import (
+    load_identity,
 )
 
 
@@ -213,6 +217,138 @@ def load_prices(
     )
 
 
+def _resolve_price_entity_ids(
+    prices: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Kopplar varje prisobservation till Grunddatas entity_id.
+
+    Identiteten löses mot prisobservationens eget datum. Det är
+    viktigt eftersom samma entity kan ha haft olika ISIN över tid.
+
+    Prisdata ändras inte semantiskt här. entity_id läggs endast till
+    som ett internt identitetsfält för matchningen mot FI-data.
+    """
+
+    if prices.empty:
+        result = prices.copy()
+
+        if "entity_id" not in result.columns:
+            result["entity_id"] = None
+
+        return result
+
+    identity = load_identity()
+
+    entity_ids: list[str | None] = []
+
+    for row in prices.itertuples(
+        index=False
+    ):
+        observation_date = row.date
+
+        if pd.isna(
+            observation_date
+        ):
+            entity_ids.append(
+                None
+            )
+            continue
+
+        target_date = (
+            observation_date.date()
+            if hasattr(
+                observation_date,
+                "date",
+            )
+            else observation_date
+        )
+
+        match = identity.resolve(
+            isin=getattr(
+                row,
+                "isin",
+                None,
+            ),
+            lei=getattr(
+                row,
+                "lei",
+                None,
+            ),
+            issuer=getattr(
+                row,
+                "issuer",
+                None,
+            ),
+            yahoo_symbol=getattr(
+                row,
+                "yahoo_symbol",
+                None,
+            ),
+            target_date=target_date,
+        )
+
+        entity_ids.append(
+            match.entity_id
+            if match is not None
+            else None
+        )
+
+    result = prices.copy()
+
+    result[
+        "entity_id"
+    ] = entity_ids
+
+    return result
+
+
+def _build_entity_price_lookup(
+    prices: pd.DataFrame,
+) -> dict[str, pd.DataFrame]:
+    """
+    Bygger en entity-baserad prislookup.
+
+    Endast prisobservationer som Grunddata säkert kan koppla till
+    en entity används här.
+
+    Alla historiska prisobservationer för samma entity hamnar i
+    samma serie, även när ISIN har bytts över tid.
+    """
+
+    if (
+        "entity_id"
+        not in prices.columns
+    ):
+        return {}
+
+    matched = prices.loc[
+        prices["entity_id"].notna()
+        & (
+            prices["entity_id"]
+            .astype(str)
+            .str.strip()
+            != ""
+        )
+    ].copy()
+
+    if matched.empty:
+        return {}
+
+    return {
+        key: group.sort_values(
+            "date",
+            kind="mergesort",
+        ).reset_index(
+            drop=True
+        )
+        for key, group in matched.groupby(
+            "entity_id",
+            sort=False,
+        )
+    }
+
+
 def build_price_lookup(
     prices: pd.DataFrame,
 ) -> dict[str, pd.DataFrame]:
@@ -228,6 +364,112 @@ def build_price_lookup(
             sort=False,
         )
     }
+
+
+def _resolve_fi_entity_id(
+    row: Any,
+) -> str | None:
+    """
+    Returnerar entity_id från en FI-rad.
+
+    feature_fi.py har redan löst entity_id. Funktionen finns ändå
+    här som defensiv fallback för äldre/anropade DataFrames.
+    """
+
+    entity_id = getattr(
+        row,
+        "entity_id",
+        None,
+    )
+
+    if (
+        entity_id is not None
+        and str(entity_id).strip()
+    ):
+        return str(
+            entity_id
+        ).strip()
+
+    snapshot_date = getattr(
+        row,
+        "snapshot_date",
+        None,
+    )
+
+    if snapshot_date is None or pd.isna(
+        snapshot_date
+    ):
+        return None
+
+    target_date = (
+        snapshot_date.date()
+        if hasattr(
+            snapshot_date,
+            "date",
+        )
+        else snapshot_date
+    )
+
+    identity = load_identity()
+
+    match = identity.resolve(
+        isin=getattr(
+            row,
+            "isin",
+            None,
+        ),
+        lei=getattr(
+            row,
+            "lei",
+            None,
+        ),
+        issuer=getattr(
+            row,
+            "issuer",
+            None,
+        ),
+        target_date=target_date,
+    )
+
+    if match is None:
+        return None
+
+    return match.entity_id
+
+
+def _select_entity_price_series(
+    row: Any,
+    entity_lookup: dict[str, pd.DataFrame],
+) -> pd.DataFrame | None:
+    """
+    Hittar prisserien för FI-radens entity.
+
+    Entity-matchning används endast efter exakt security_key-matchning
+    har misslyckats. Därmed behåller vi den befintliga deterministiska
+    instrumentmatchningen när den fungerar.
+
+    Vid ISIN-byte kan entity-matchningen däremot länka den nya FI-raden
+    till den historiska Yahoo-serien för samma entity.
+    """
+
+    entity_id = _resolve_fi_entity_id(
+        row
+    )
+
+    if not entity_id:
+        return None
+
+    series = entity_lookup.get(
+        entity_id
+    )
+
+    if (
+        series is None
+        or series.empty
+    ):
+        return None
+
+    return series
 
 
 def add_price_history_features(
@@ -554,17 +796,32 @@ def attach_prices(
         price_match_available = False
         price_mapping_source = "unmatched"
 
+    Pris matchas i följande ordning:
+
+    1. Exakt security_key.
+    2. Entity via Grunddatas identity layer.
+
+    Entity-matchningen gör det möjligt att använda samma Yahoo-serie
+    över ett historiskt ISIN-byte, exempelvis Sinch.
+
     För omatchade observationer är prisfeatures,
     forward returns och severity-targets NaN.
-
-    Detta gör att:
-    - FI-only ML fortfarande kan använda FI-observationen.
-    - prisbaserade ML-experiment kan filtrera på tillgänglig target.
-    - QC kan se det verkliga antalet omatchade FI-observationer.
     """
 
     lookup = build_price_lookup(
         prices
+    )
+
+    prices_with_identity = (
+        _resolve_price_entity_ids(
+            prices
+        )
+    )
+
+    entity_lookup = (
+        _build_entity_price_lookup(
+            prices_with_identity
+        )
     )
 
     rows: list[
@@ -579,6 +836,7 @@ def attach_prices(
         "unmatched_rows": 0,
         "matched_by_isin": 0,
         "matched_by_issuer": 0,
+        "matched_by_entity": 0,
     }
 
     for row in fi.itertuples(
@@ -623,10 +881,35 @@ def attach_prices(
                     "issuer"
                 )
 
+        # -----------------------------------------------------
+        # Ny identity-baserad fallback.
+        #
+        # Detta används framför allt när FI har ett nytt ISIN
+        # men prisarkivet historiskt ligger på ett annat ISIN
+        # för samma entity.
+        # -----------------------------------------------------
+
+        if (
+            series is None
+            or series.empty
+        ):
+            series = _select_entity_price_series(
+                row,
+                entity_lookup,
+            )
+
+            if (
+                series is not None
+                and not series.empty
+            ):
+                mapping_source = (
+                    "entity"
+                )
+
         result = row._asdict()
 
         # -----------------------------------------------------
-        # Ingen prisserie för instrumentet.
+        # Ingen prisserie för instrumentet/entityn.
         #
         # Behåll FI-raden. Prisrelaterade fält markeras som
         # saknade i stället för att observationen försvinner.
@@ -699,9 +982,21 @@ def attach_prices(
             stats[
                 "matched_by_isin"
             ] += 1
-        else:
+
+        elif (
+            mapping_source
+            == "issuer"
+        ):
             stats[
                 "matched_by_issuer"
+            ] += 1
+
+        elif (
+            mapping_source
+            == "entity"
+        ):
+            stats[
+                "matched_by_entity"
             ] += 1
 
         entry = series.iloc[
