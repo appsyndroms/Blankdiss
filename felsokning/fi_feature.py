@@ -22,6 +22,16 @@ FI_PATH = (
     / "reconstructed.jsonl"
 )
 
+RAW_FI_PATH = (
+    ROOT
+    / "data"
+    / "raw"
+    / "fi"
+    / "positions"
+    / "historical"
+    / "fi_historical_positions.jsonl"
+)
+
 FEATURE_DIR = (
     ROOT
     / "data"
@@ -123,6 +133,48 @@ def matches_identity(row, target) -> bool:
     return False
 
 
+def matches_raw_fi_identity(
+    row: dict,
+    target: dict,
+) -> bool:
+    """
+    Matchar rå FI-data mot target.
+
+    Rå FI kan sakna yahoo_symbol och kan ha andra
+    issuer-formuleringar. Därför används de identiteter
+    som faktiskt finns i rådata.
+    """
+
+    target_isin = normalize(
+        target.get("isin")
+    )
+
+    target_lei = normalize(
+        target.get("lei")
+    )
+
+    target_issuer = normalize(
+        target.get("issuer")
+    )
+
+    for field, target_value in (
+        ("isin", target_isin),
+        ("lei", target_lei),
+        ("issuer", target_issuer),
+    ):
+        if not target_value:
+            continue
+
+        row_value = normalize(
+            row.get(field)
+        )
+
+        if row_value and row_value == target_value:
+            return True
+
+    return False
+
+
 def separator(title: str) -> None:
     print()
     print("=" * 80)
@@ -163,6 +215,57 @@ def load_fi() -> pd.DataFrame:
     ]
 
     return frame
+
+
+def load_raw_fi_rows() -> list[dict]:
+    """
+    Läser rå FI-historik rad för rad.
+
+    Filen kan vara stor, så hela datasetet laddas inte
+    in i en DataFrame. Endast relevanta target-rader
+    behålls.
+    """
+
+    if not RAW_FI_PATH.exists():
+        raise SystemExit(
+            f"Rå FI-fil saknas: {RAW_FI_PATH}"
+        )
+
+    target_rows = []
+
+    with RAW_FI_PATH.open(
+        "r",
+        encoding="utf-8",
+    ) as handle:
+
+        for line_number, line in enumerate(
+            handle,
+            start=1,
+        ):
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            for name, target in TARGETS.items():
+                if matches_raw_fi_identity(
+                    row,
+                    target,
+                ):
+                    target_rows.append(
+                        {
+                            "target": name,
+                            "line": line_number,
+                            "row": row,
+                        }
+                    )
+
+    return target_rows
 
 
 def load_features() -> pd.DataFrame:
@@ -719,21 +822,24 @@ def print_security_key_diagnosis(
                 "security_key"
             ]
             .dropna()
+            .map(normalize)
             .unique()
             .tolist()
         )
 
-        for key in keys:
+        for normalized_key in keys:
             rows = features.loc[
                 features["security_key"]
-                == key
+                .fillna("")
+                .map(normalize)
+                == normalized_key
             ].sort_values(
                 "snapshot_date"
             )
 
             print()
             print(
-                f"SECURITY KEY: {key}"
+                f"SECURITY KEY: {normalized_key}"
             )
 
             if rows.empty:
@@ -1051,13 +1157,13 @@ def print_forward_return_diagnosis(
                     f"forward_return_{horizon}d"
                 )
 
+                if pd.isna(value):
+                    status = "MISSING / NaN"
+                else:
+                    status = f"OK ({value})"
+
                 print(
-                    f"  {horizon}d: "
-                    + (
-                        f"OK ({value})"
-                        if value is not None
-                        else "MISSING"
-                    )
+                    f"  {horizon}d: {status}"
                 )
 
 
@@ -1101,6 +1207,258 @@ def print_event_date_check(events) -> None:
             )
 
 
+def print_raw_fi_diagnosis(
+    raw_rows: list[dict],
+    fi: pd.DataFrame,
+) -> None:
+    separator(
+        "10. RAW FI -> RECONSTRUCTED"
+    )
+
+    print(
+        f"Raw FI source: {RAW_FI_PATH}"
+    )
+
+    for name, target in TARGETS.items():
+        print()
+        print(f"### {name}")
+
+        target_rows = [
+            item
+            for item in raw_rows
+            if item["target"] == name
+        ]
+
+        if not target_rows:
+            print(
+                "RAW FI: NO MATCHING ROWS"
+            )
+            print(
+                "  -> Target finns inte i råfilen "
+                "enligt ISIN/LEI/issuer."
+            )
+            continue
+
+        print(
+            f"RAW FI MATCH: {len(target_rows)} row(s)"
+        )
+
+        dates = []
+
+        for item in target_rows:
+            row = item["row"]
+
+            snapshot_value = (
+                row.get("snapshot_date")
+                or row.get("date")
+                or row.get("position_date")
+            )
+
+            snapshot = pd.to_datetime(
+                snapshot_value,
+                errors="coerce",
+            )
+
+            if pd.notna(snapshot):
+                dates.append(snapshot)
+
+        if dates:
+            print(
+                f"first raw date: "
+                f"{min(dates).date()}"
+            )
+
+            print(
+                f"last raw date:  "
+                f"{max(dates).date()}"
+            )
+        else:
+            print(
+                "raw dates: MISSING / UNREADABLE"
+            )
+
+        target_date = pd.Timestamp(
+            target["event_date"]
+        )
+
+        print()
+        print(
+            "raw rows around event "
+            "(+/-10 days):"
+        )
+
+        around = []
+
+        for item in target_rows:
+            row = item["row"]
+
+            snapshot_value = (
+                row.get("snapshot_date")
+                or row.get("date")
+                or row.get("position_date")
+            )
+
+            snapshot = pd.to_datetime(
+                snapshot_value,
+                errors="coerce",
+            )
+
+            if pd.isna(snapshot):
+                continue
+
+            if (
+                target_date
+                - pd.Timedelta(days=10)
+                <= snapshot
+                <= target_date
+                + pd.Timedelta(days=10)
+            ):
+                around.append(
+                    (
+                        snapshot,
+                        item,
+                    )
+                )
+
+        around.sort(
+            key=lambda value: value[0]
+        )
+
+        if not around:
+            print(
+                "  NONE"
+            )
+        else:
+            for snapshot, item in around:
+                row = item["row"]
+
+                print(
+                    f"  "
+                    f"{snapshot.date()} "
+                    f"| line={item['line']} "
+                    f"| issuer={row.get('issuer')} "
+                    f"| isin={row.get('isin')} "
+                    f"| lei={row.get('lei')} "
+                    f"| short={row.get('short_interest_pct')} "
+                    f"| position={row.get('position_pct')}"
+                )
+
+        print()
+        print(
+            "raw row on exact event date:"
+        )
+
+        exact = [
+            item
+            for snapshot, item in around
+            if snapshot == target_date
+        ]
+
+        if not exact:
+            print(
+                "  NONE"
+            )
+        else:
+            for item in exact:
+                row = item["row"]
+
+                print(
+                    f"  line={item['line']} "
+                    f"| issuer={row.get('issuer')} "
+                    f"| isin={row.get('isin')} "
+                    f"| lei={row.get('lei')} "
+                    f"| short={row.get('short_interest_pct')} "
+                    f"| position={row.get('position_pct')}"
+                )
+
+        print()
+        print(
+            "reconstructed rows for same identity:"
+        )
+
+        reconstructed_rows = fi.loc[
+            fi.apply(
+                lambda row: matches_identity(
+                    row,
+                    target,
+                ),
+                axis=1,
+            )
+        ].copy()
+
+        if reconstructed_rows.empty:
+            print(
+                "  NONE"
+            )
+            continue
+
+        reconstructed_rows = (
+            reconstructed_rows.sort_values(
+                "snapshot_date"
+            )
+        )
+
+        print(
+            f"  count: {len(reconstructed_rows)}"
+        )
+
+        print(
+            f"  first: "
+            f"{reconstructed_rows['snapshot_date'].min().date()}"
+        )
+
+        print(
+            f"  last:  "
+            f"{reconstructed_rows['snapshot_date'].max().date()}"
+        )
+
+        print()
+        print(
+            "  reconstructed rows around event:"
+        )
+
+        reconstructed_around = (
+            reconstructed_rows.loc[
+                reconstructed_rows[
+                    "snapshot_date"
+                ].between(
+                    target_date
+                    - pd.Timedelta(days=10),
+                    target_date
+                    + pd.Timedelta(days=10),
+                )
+            ]
+        )
+
+        if reconstructed_around.empty:
+            print(
+                "    NONE"
+            )
+        else:
+            for _, row in reconstructed_around.iterrows():
+                print(
+                    f"    "
+                    f"{row['snapshot_date'].date()} "
+                    f"| issuer={row.get('issuer')} "
+                    f"| isin={row.get('isin')} "
+                    f"| short={row.get('short_interest_pct')}"
+                )
+
+        if around and reconstructed_around.empty:
+            print()
+            print(
+                "  DIAGNOSIS: RAW FI HAR observationer "
+                "runt eventdatum men reconstructed saknar dem."
+            )
+
+        if not around:
+            print()
+            print(
+                "  DIAGNOSIS: inga matchande rå-FI-"
+                "observationer runt eventdatum."
+            )
+
+
 def main() -> None:
     separator(
         "FI -> FEATURE DIAGNOSTIK"
@@ -1112,6 +1470,10 @@ def main() -> None:
 
     print(
         f"FI:        {FI_PATH}"
+    )
+
+    print(
+        f"Raw FI:    {RAW_FI_PATH}"
     )
 
     print(
@@ -1127,6 +1489,7 @@ def main() -> None:
     )
 
     fi = load_fi()
+    raw_fi_rows = load_raw_fi_rows()
     features = load_features()
     prices = load_prices()
     events = load_events()
@@ -1134,6 +1497,11 @@ def main() -> None:
     print()
     print(
         f"FI rows:       {len(fi)}"
+    )
+
+    print(
+        f"Raw FI target rows: "
+        f"{len(raw_fi_rows)}"
     )
 
     print(
@@ -1190,6 +1558,11 @@ def main() -> None:
 
     print_event_date_check(
         events
+    )
+
+    print_raw_fi_diagnosis(
+        raw_fi_rows,
+        fi,
     )
 
     separator(
