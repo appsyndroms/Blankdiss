@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug-fingerprint-price:
+  debug-yahoo-price:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,6 +21,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Fingerprint price diagnostic
+      - name: Run Yahoo price diagnostic
         run: |
           python felsokning/debug_yahoo_price.py
