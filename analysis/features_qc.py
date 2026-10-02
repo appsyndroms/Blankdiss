@@ -1024,18 +1024,18 @@ def check_forward_return_alignment(
                             .isoformat()
                         ),
                         "reason": (
-                            "price_date_not_found"
+                            "price_date_not_found_for_symbol"
                         ),
                     }
                 )
 
             continue
 
-        position = positions[0]
+        signal_position = positions[0]
 
         base_price = float(
             group.loc[
-                position,
+                signal_position,
                 "close",
             ]
         )
@@ -1066,7 +1066,7 @@ def check_forward_return_alignment(
                             .isoformat()
                         ),
                         "reason": (
-                            "invalid_base_price"
+                            "invalid_signal_price"
                         ),
                     }
                 )
@@ -1085,7 +1085,8 @@ def check_forward_return_alignment(
             )
 
             target_position = (
-                position + window
+                signal_position
+                + window
             )
 
             if (
