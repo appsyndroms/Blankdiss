@@ -308,7 +308,262 @@
       "total_rows": 205938,
       "rows_with_price": 133984,
       "rows_without_price": 71954,
-      "symbols_without_price": 0
+      "match_rate_pct": 65.06,
+      "symbols_without_price": 0,
+      "diagnostic_rows": {
+        "entity_and_yahoo_symbol": 0,
+        "entity_without_yahoo_symbol": 0,
+        "without_entity_id": 71954
+      },
+      "unmatched_by_year": {
+        "2019": 1,
+        "2020": 11,
+        "2021": 12,
+        "2022": 8531,
+        "2023": 15171,
+        "2024": 16470,
+        "2025": 17319,
+        "2026": 14439
+      },
+      "unmatched_by_mapping_source": {
+        "unmatched": 71954
+      },
+      "top_unmatched_yahoo_symbols": {},
+      "top_unmatched_entity_ids": {},
+      "top_unmatched_isins": {
+        "CH0256424794": 1114,
+        "SE0000108201": 1114,
+        "SE0000171100": 1114,
+        "SE0000310336": 1114,
+        "SE0000314312": 1114,
+        "SE0000422107": 1114,
+        "SE0000427361": 1114,
+        "SE0000549412": 1114,
+        "SE0000565228": 1114,
+        "SE0000652216": 1114,
+        "SE0000672354": 1114,
+        "SE0001075102": 1114,
+        "SE0001104209": 1114,
+        "SE0001174889": 1114,
+        "SE0001174970": 1114,
+        "SE0001176298": 1114,
+        "SE0001471103": 1114,
+        "SE0001662222": 1114,
+        "SE0002056721": 1114,
+        "SE0003366871": 1114,
+        "SE0003622265": 1114,
+        "SE0003950864": 1114,
+        "SE0005003654": 1114,
+        "SE0005126885": 1114,
+        "SE0005191475": 1114,
+        "SE0005676160": 1114,
+        "SE0005999778": 1114,
+        "SE0006886750": 1114,
+        "SE0006993770": 1114,
+        "SE0007126115": 1114,
+        "SE0007871645": 1114,
+        "SE0008212971": 1114,
+        "SE0008242358": 1114,
+        "SE0008321608": 1114,
+        "SE0009806896": 1114,
+        "SE0010520981": 1114,
+        "SE0011089234": 1114,
+        "SE0011089259": 1114,
+        "SE0011115971": 1114,
+        "SE0011415249": 1114,
+        "SE0012141687": 1114,
+        "SE0012455202": 1114,
+        "SE0012455525": 1114,
+        "SE0016828511": 1114,
+        "SE0017767767": 1112,
+        "SE0018040677": 1107,
+        "SE0016589188": 1081,
+        "SE0017483506": 1066,
+        "SE0014960431": 1044,
+        "SE0016101844": 1009
+      },
+      "examples": [
+        {
+          "snapshot_date": "2026-10-09",
+          "issuer": "INTERNATIONAL PETROLEUM CORPORATION",
+          "isin": null,
+          "security_key": "ISIN:CA46016U1084",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-05-25",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-05-26",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-05-27",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-05-30",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-05-31",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-01",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-02",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-03",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-07",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-08",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-09",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-10",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-13",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-14",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-15",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-16",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-17",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-20",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        },
+        {
+          "snapshot_date": "2022-06-21",
+          "issuer": "Oriflame Holding AG",
+          "isin": "CH0256424794",
+          "security_key": "ISIN:CH0256424794",
+          "yahoo_symbol": null,
+          "price_mapping_source": "unmatched",
+          "price_date": null
+        }
+      ]
     },
     "feature_numeric_values": {
       "status": "PASS",
