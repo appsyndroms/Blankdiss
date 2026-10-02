@@ -21,12 +21,12 @@
   },
   "source_fingerprint": {
     "algorithm": "sha256",
-    "fingerprint": "27e7689cf215103fa808e02efcabc1b1b766e46c54b8d8407e55545ff6df7047",
+    "fingerprint": "7f384476e0b15478f81e2d5420363f936e2074b60762151ccc26ee3a96fa002e",
     "files": [
       {
         "path": "data/processed/fi/aggregate/reconstructed.jsonl",
-        "sha256": "84ae81e79a923b851f4ebe532b9c091f6fc5c4878b006789aba93aab0f84b886",
-        "size_bytes": 79078331
+        "sha256": "3acd5bf14049f6e18a44a9e415dec1771fa600afee46b3b50c68a7ba10691844",
+        "size_bytes": 79078659
       },
       {
         "path": "data/raw/prices/prices_2022-01-01_latest.jsonl",
@@ -85,8 +85,8 @@
       },
       {
         "path": "data/raw/prices/prices_2026-10-01_2026-10-01.jsonl",
-        "sha256": "fafa1bdf423e4a62135637c28a9a2848ee32bcec3a0310b45203e08341e50672",
-        "size_bytes": 76882
+        "sha256": "7c18daa083d3e070261926a89045d0f63d6378e04abd3ccf6b9f8996634482cf",
+        "size_bytes": 3964
       },
       {
         "path": "data/raw/market/omxspi.jsonl",
@@ -100,13 +100,13 @@
       }
     ]
   },
-  "fi_rows": 205929,
-  "price_rows": 455084,
-  "feature_rows": 205929,
-  "matched_fi_rows": 133982,
-  "unmatched_fi_rows": 71947,
-  "matched_by_isin": 133629,
-  "matched_by_issuer": 353,
+  "fi_rows": 205938,
+  "price_rows": 454732,
+  "feature_rows": 205938,
+  "matched_fi_rows": 133845,
+  "unmatched_fi_rows": 72093,
+  "matched_by_isin": 133495,
+  "matched_by_issuer": 350,
   "security_keys_fi": 481,
   "security_keys_prices": 409,
   "feature_columns": [
@@ -119,6 +119,7 @@
     "max_position_share_pct",
     "source",
     "coverage",
+    "lei",
     "security_key",
     "fi_source",
     "previous_snapshot_date",
@@ -243,142 +244,142 @@
     {
       "path": "data/processed/analysis/features_0001.jsonl",
       "rows": 7500,
-      "size_bytes": 19888519
+      "size_bytes": 19984386
     },
     {
       "path": "data/processed/analysis/features_0002.jsonl",
       "rows": 7500,
-      "size_bytes": 19584343
+      "size_bytes": 19679174
     },
     {
       "path": "data/processed/analysis/features_0003.jsonl",
       "rows": 7500,
-      "size_bytes": 19983349
+      "size_bytes": 20077968
     },
     {
       "path": "data/processed/analysis/features_0004.jsonl",
       "rows": 7500,
-      "size_bytes": 20369683
+      "size_bytes": 20464413
     },
     {
       "path": "data/processed/analysis/features_0005.jsonl",
       "rows": 7500,
-      "size_bytes": 19620839
+      "size_bytes": 19715270
     },
     {
       "path": "data/processed/analysis/features_0006.jsonl",
       "rows": 7500,
-      "size_bytes": 18669289
+      "size_bytes": 18765055
     },
     {
       "path": "data/processed/analysis/features_0007.jsonl",
       "rows": 7500,
-      "size_bytes": 18311781
+      "size_bytes": 18408041
     },
     {
       "path": "data/processed/analysis/features_0008.jsonl",
       "rows": 7500,
-      "size_bytes": 19763804
+      "size_bytes": 19858948
     },
     {
       "path": "data/processed/analysis/features_0009.jsonl",
       "rows": 7500,
-      "size_bytes": 19284015
+      "size_bytes": 19379229
     },
     {
       "path": "data/processed/analysis/features_0010.jsonl",
       "rows": 7500,
-      "size_bytes": 18149266
+      "size_bytes": 18245629
     },
     {
       "path": "data/processed/analysis/features_0011.jsonl",
       "rows": 7500,
-      "size_bytes": 19384594
+      "size_bytes": 19479772
     },
     {
       "path": "data/processed/analysis/features_0012.jsonl",
       "rows": 7500,
-      "size_bytes": 19182530
+      "size_bytes": 19278368
     },
     {
       "path": "data/processed/analysis/features_0013.jsonl",
       "rows": 7500,
-      "size_bytes": 18286672
+      "size_bytes": 18382342
     },
     {
       "path": "data/processed/analysis/features_0014.jsonl",
       "rows": 7500,
-      "size_bytes": 19057359
+      "size_bytes": 19152020
     },
     {
       "path": "data/processed/analysis/features_0015.jsonl",
       "rows": 7500,
-      "size_bytes": 18941083
+      "size_bytes": 19036763
     },
     {
       "path": "data/processed/analysis/features_0016.jsonl",
       "rows": 7500,
-      "size_bytes": 19742755
+      "size_bytes": 19837259
     },
     {
       "path": "data/processed/analysis/features_0017.jsonl",
       "rows": 7500,
-      "size_bytes": 19739335
+      "size_bytes": 19833712
     },
     {
       "path": "data/processed/analysis/features_0018.jsonl",
       "rows": 7500,
-      "size_bytes": 18345177
+      "size_bytes": 18441312
     },
     {
       "path": "data/processed/analysis/features_0019.jsonl",
       "rows": 7500,
-      "size_bytes": 19724640
+      "size_bytes": 19818276
     },
     {
       "path": "data/processed/analysis/features_0020.jsonl",
       "rows": 7500,
-      "size_bytes": 19755281
+      "size_bytes": 19850297
     },
     {
       "path": "data/processed/analysis/features_0021.jsonl",
       "rows": 7500,
-      "size_bytes": 18509892
+      "size_bytes": 18606524
     },
     {
       "path": "data/processed/analysis/features_0022.jsonl",
       "rows": 7500,
-      "size_bytes": 17689105
+      "size_bytes": 17784946
     },
     {
       "path": "data/processed/analysis/features_0023.jsonl",
       "rows": 7500,
-      "size_bytes": 18894999
+      "size_bytes": 18990113
     },
     {
       "path": "data/processed/analysis/features_0024.jsonl",
       "rows": 7500,
-      "size_bytes": 19781320
+      "size_bytes": 19876608
     },
     {
       "path": "data/processed/analysis/features_0025.jsonl",
       "rows": 7500,
-      "size_bytes": 18839083
+      "size_bytes": 18932736
     },
     {
       "path": "data/processed/analysis/features_0026.jsonl",
       "rows": 7500,
-      "size_bytes": 18256185
+      "size_bytes": 18352628
     },
     {
       "path": "data/processed/analysis/features_0027.jsonl",
       "rows": 7500,
-      "size_bytes": 17608045
+      "size_bytes": 17704823
     },
     {
       "path": "data/processed/analysis/features_0028.jsonl",
-      "rows": 3429,
-      "size_bytes": 8349584
+      "rows": 3438,
+      "size_bytes": 8420042
     }
   ]
 }
