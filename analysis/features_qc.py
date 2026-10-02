@@ -593,6 +593,7 @@ def check_mapping_sources(
         - {
             "isin",
             "issuer",
+            "entity",
             "unmatched",
         }
     )
@@ -1647,7 +1648,9 @@ def load_prices(
                 f"Prisfil {path} saknar "
                 "kolumner: "
                 + ", ".join(
-                    sorted(missing)
+                    sorted(
+                        missing
+                    )
                 )
             )
 
@@ -1845,7 +1848,7 @@ def main() -> None:
         "mapping_integrity"
     ] = check_mapping_integrity(
         features,
-        mapping,
+        mapping
     )
 
     checks[
@@ -1882,7 +1885,7 @@ def main() -> None:
         "forward_return_alignment"
     ] = check_forward_return_alignment(
         features,
-        prices,
+        prices
     )
 
     checks[
