@@ -23,4 +23,4 @@ jobs:
 
       - name: Run Fingerprint price diagnostic
         run: |
-          python felsokning/debug_price.py
+          python felsokning/debug_yahoo_price.py
