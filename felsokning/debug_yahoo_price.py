@@ -9,22 +9,22 @@ from prices.fetch import (
 )
 
 
-SYMBOL = "FING-B.ST"
+SYMBOL = "SINCH.ST"
 START = "2022-01-01"
-END = "2026-07-16"
+END = "2026-10-01"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
     print("=" * 70)
-    print("FINGERPRINT / YAHOO FELSÖKNING")
+    print("SINCH / YAHOO FELSÖKNING")
     print("=" * 70)
 
     instrument = {
-        "isin": "SE0008374250",
-        "issuer": "Fingerprint Cards AB",
-        "lei": "5493004YF5D7Z612Z822",
+        "isin": "SE0016101844",
+        "issuer": "Sinch AB (publ)",
+        "lei": "549300UXY7QM6IDCGI12",
         "ticker": None,
         "yahoo_symbol": SYMBOL,
         "mapping_source": "known_name",
