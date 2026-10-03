@@ -33,4 +33,4 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest -q tests
+          python -m pytest -q tests --durations=20
