@@ -32,22 +32,11 @@
     "data/processed/analysis/features_0028.jsonl"
   ],
   "price_files": [
-    "data/raw/prices/prices_2022-01-01_latest.jsonl",
-    "data/raw/prices/prices_2022-01-03_2026-09-16.jsonl",
-    "data/raw/prices/prices_2022-01-03_2026-09-17.jsonl",
-    "data/raw/prices/prices_2022-01-03_2026-09-18.jsonl",
-    "data/raw/prices/prices_2022-01-03_2026-09-29.jsonl",
-    "data/raw/prices/prices_2022-05-25_2026-09-12.jsonl",
-    "data/raw/prices/prices_2025-10-08_2026-10-01.jsonl",
-    "data/raw/prices/prices_2026-03-19_latest.jsonl",
-    "data/raw/prices/prices_2026-09-15_2026-09-15.jsonl",
-    "data/raw/prices/prices_2026-09-16_2026-09-16.jsonl",
-    "data/raw/prices/prices_2026-09-30_2026-09-30.jsonl",
-    "data/raw/prices/prices_2026-09-30_2026-10-01.jsonl",
-    "data/raw/prices/prices_2026-10-01_2026-10-01.jsonl"
+    "data/raw/prices/prices_2022-01-03_2026-10-01_cleaned.jsonl",
+    "data/raw/prices/prices_2022-01-03_2026-10-02.jsonl"
   ],
-  "rows": 205938,
-  "symbols": 311,
+  "rows": 206180,
+  "symbols": 315,
   "fi_period": {
     "start": "2019-12-19",
     "end": "2026-12-08"
@@ -66,26 +55,26 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 133984,
-      "same_day": 129183,
-      "one_day": 1314,
-      "two_days": 677,
-      "three_days": 377,
-      "four_to_five_days": 141,
-      "more_than_five_days": 2292,
-      "more_than_ten_days": 2274,
+      "matched_rows": 167620,
+      "same_day": 161140,
+      "one_day": 1649,
+      "two_days": 831,
+      "three_days": 475,
+      "four_to_five_days": 170,
+      "more_than_five_days": 3355,
+      "more_than_ten_days": 3335,
       "max_calendar_days": 1576,
       "median_calendar_days": 0.0
     },
     "first_price_problem": {
       "status": "WARN",
-      "fi_rows_before_first_price": 2171,
+      "fi_rows_before_first_price": 3361,
       "symbols_without_price_history": 0,
       "rows_without_price_history": 0
     },
     "mapping_integrity": {
       "status": "PASS",
-      "feature_symbols": 311,
+      "feature_symbols": 315,
       "mapping_symbols": 466,
       "unknown_yahoo_symbols": [],
       "rows_with_unknown_symbols": 0
@@ -93,9 +82,10 @@
     "mapping_sources": {
       "status": "PASS",
       "sources": {
-        "isin": 133629,
-        "unmatched": 71954,
-        "issuer": 355
+        "isin": 132947,
+        "unmatched": 38560,
+        "entity": 34303,
+        "issuer": 370
       },
       "unexpected_sources": []
     },
@@ -119,26 +109,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 132775,
-          "null": 73163,
+          "non_null": 165191,
+          "null": 40989,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 131037,
-          "null": 74901,
+          "non_null": 163228,
+          "null": 42952,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
-          "non_null": 128562,
-          "null": 77376,
+          "non_null": 160143,
+          "null": 46037,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
-          "non_null": 122601,
-          "null": 83337,
+          "non_null": 152526,
+          "null": 53654,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -146,8 +136,8 @@
     },
     "forward_return_alignment": {
       "status": "PASS",
-      "verified_match": 514975,
-      "not_yet_verifiable": 20961,
+      "verified_match": 641088,
+      "not_yet_verifiable": 29392,
       "value_mismatch": 0,
       "price_date_not_found": 0,
       "missing_forward_return": 0,
@@ -161,140 +151,140 @@
             "price_date": "2026-07-17",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-10",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-10",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-28",
             "window": 5,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-28",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-28",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-30",
             "window": 5,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-30",
             "window": 20,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "IPCO.ST",
             "price_date": "2026-09-30",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
-          },
-          {
-            "yahoo_symbol": "BETCO.ST",
-            "price_date": "2026-07-09",
-            "window": 60,
-            "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-10",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-13",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-14",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-15",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-16",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-17",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-20",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-21",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-22",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
           },
           {
             "yahoo_symbol": "BETCO.ST",
             "price_date": "2026-07-23",
             "window": 60,
             "stored": null,
-            "current_last_date": "2026-10-01"
+            "current_last_date": "2026-10-02"
+          },
+          {
+            "yahoo_symbol": "BETCO.ST",
+            "price_date": "2026-07-24",
+            "window": 60,
+            "stored": null,
+            "current_last_date": "2026-10-02"
           }
         ]
       }
@@ -305,88 +295,135 @@
     },
     "unmatched_rows": {
       "status": "WARN",
-      "total_rows": 205938,
-      "rows_with_price": 133984,
-      "rows_without_price": 71954,
-      "match_rate_pct": 65.06,
+      "total_rows": 206180,
+      "rows_with_price": 167620,
+      "rows_without_price": 38560,
+      "match_rate_pct": 81.3,
       "symbols_without_price": 0,
       "diagnostic_rows": {
         "entity_and_yahoo_symbol": 0,
-        "entity_without_yahoo_symbol": 0,
-        "without_entity_id": 71954
+        "entity_without_yahoo_symbol": 17374,
+        "without_entity_id": 21186
       },
       "unmatched_by_year": {
-        "2019": 1,
         "2020": 11,
         "2021": 12,
-        "2022": 8531,
-        "2023": 15171,
-        "2024": 16470,
-        "2025": 17319,
-        "2026": 14439
+        "2022": 5255,
+        "2023": 8898,
+        "2024": 8763,
+        "2025": 8926,
+        "2026": 6695
       },
       "unmatched_by_mapping_source": {
-        "unmatched": 71954
+        "unmatched": 38560
       },
       "top_unmatched_yahoo_symbols": {},
-      "top_unmatched_entity_ids": {},
+      "top_unmatched_entity_ids": {
+        "ENT-000450": 3347,
+        "ENT-000322": 1117,
+        "ENT-000417": 1116,
+        "ENT-000341": 1116,
+        "ENT-000340": 1116,
+        "ENT-000374": 1116,
+        "ENT-000447": 1115,
+        "ENT-000347": 1115,
+        "ENT-000046": 1115,
+        "ENT-000185": 1115,
+        "ENT-000140": 1044,
+        "ENT-000021": 818,
+        "ENT-000303": 523,
+        "ENT-000137": 440,
+        "ENT-000115": 251,
+        "ENT-000017": 216,
+        "ENT-000022": 132,
+        "ENT-000061": 132,
+        "ENT-000120": 119,
+        "ENT-000301": 112,
+        "ENT-000075": 26,
+        "ENT-000330": 16,
+        "ENT-000274": 12,
+        "ENT-000129": 7,
+        "ENT-000220": 4,
+        "ENT-000020": 2,
+        "ENT-000202": 2,
+        "ENT-000313": 2,
+        "ENT-000379": 2,
+        "ENT-000392": 2,
+        "ENT-000403": 2,
+        "ENT-000443": 2,
+        "ENT-000325": 1,
+        "ENT-000003": 1,
+        "ENT-000158": 1,
+        "ENT-000160": 1,
+        "ENT-000197": 1,
+        "ENT-000187": 1,
+        "ENT-000052": 1,
+        "ENT-000049": 1,
+        "ENT-000198": 1,
+        "ENT-000077": 1,
+        "ENT-000100": 1,
+        "ENT-000030": 1,
+        "ENT-000163": 1,
+        "ENT-000125": 1,
+        "ENT-000039": 1,
+        "ENT-000111": 1,
+        "ENT-000165": 1,
+        "ENT-000048": 1
+      },
       "top_unmatched_isins": {
-        "CH0256424794": 1114,
-        "SE0000108201": 1114,
-        "SE0000171100": 1114,
-        "SE0000310336": 1114,
-        "SE0000314312": 1114,
-        "SE0000422107": 1114,
-        "SE0000427361": 1114,
-        "SE0000549412": 1114,
-        "SE0000565228": 1114,
-        "SE0000652216": 1114,
-        "SE0000672354": 1114,
-        "SE0001075102": 1114,
-        "SE0001104209": 1114,
-        "SE0001174889": 1114,
-        "SE0001174970": 1114,
-        "SE0001176298": 1114,
-        "SE0001471103": 1114,
-        "SE0001662222": 1114,
-        "SE0002056721": 1114,
-        "SE0003366871": 1114,
-        "SE0003622265": 1114,
-        "SE0003950864": 1114,
-        "SE0005003654": 1114,
-        "SE0005126885": 1114,
-        "SE0005191475": 1114,
-        "SE0005676160": 1114,
-        "SE0005999778": 1114,
-        "SE0006886750": 1114,
-        "SE0006993770": 1114,
-        "SE0007126115": 1114,
-        "SE0007871645": 1114,
-        "SE0008212971": 1114,
-        "SE0008242358": 1114,
-        "SE0008321608": 1114,
-        "SE0009806896": 1114,
-        "SE0010520981": 1114,
-        "SE0011089234": 1114,
-        "SE0011089259": 1114,
-        "SE0011115971": 1114,
-        "SE0011415249": 1114,
-        "SE0012141687": 1114,
-        "SE0012455202": 1114,
-        "SE0012455525": 1114,
-        "SE0016828511": 1114,
-        "SE0017767767": 1112,
-        "SE0018040677": 1107,
-        "SE0016589188": 1081,
-        "SE0017483506": 1066,
+        "CH0256424794": 1115,
+        "SE0000310336": 1115,
+        "SE0000427361": 1115,
+        "SE0000549412": 1115,
+        "SE0000565228": 1115,
+        "SE0000652216": 1115,
+        "SE0000672354": 1115,
+        "SE0001075102": 1115,
+        "SE0001104209": 1115,
+        "SE0001174889": 1115,
+        "SE0001176298": 1115,
+        "SE0001471103": 1115,
+        "SE0002056721": 1115,
+        "SE0003366871": 1115,
+        "SE0003622265": 1115,
+        "SE0003950864": 1115,
+        "SE0005003654": 1115,
+        "SE0005126885": 1115,
+        "SE0005191475": 1115,
+        "SE0005676160": 1115,
+        "SE0005999778": 1115,
+        "SE0006993770": 1115,
+        "SE0007126115": 1115,
+        "SE0007871645": 1115,
+        "SE0008212971": 1115,
+        "SE0008321608": 1115,
+        "SE0010520981": 1115,
+        "SE0011115971": 1115,
+        "SE0011415249": 1115,
+        "SE0012455202": 1115,
+        "SE0012455525": 1115,
         "SE0014960431": 1044,
-        "SE0016101844": 1009
+        "SE0013747870": 817,
+        "SE0017161243": 521,
+        "SE0007075056": 438,
+        "SE0007100359": 249,
+        "SE0008374383": 210,
+        "SE0003917798": 131,
+        "SE0007665823": 131,
+        "SE0016075063": 118,
+        "SE0000422107": 56,
+        "SE0008374250": 56,
+        "SE0009806045": 25,
+        "SE0008966295": 14,
+        "SE0001296542": 10,
+        "SE0017083983": 6
       },
       "examples": [
         {
           "snapshot_date": "2026-10-09",
           "issuer": "INTERNATIONAL PETROLEUM CORPORATION",
           "isin": null,
+          "entity_id": "ENT-000325",
           "security_key": "ISIN:CA46016U1084",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -396,6 +433,7 @@
           "snapshot_date": "2022-05-25",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -405,6 +443,7 @@
           "snapshot_date": "2022-05-26",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -414,6 +453,7 @@
           "snapshot_date": "2022-05-27",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -423,6 +463,7 @@
           "snapshot_date": "2022-05-30",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -432,6 +473,7 @@
           "snapshot_date": "2022-05-31",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -441,6 +483,7 @@
           "snapshot_date": "2022-06-01",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -450,6 +493,7 @@
           "snapshot_date": "2022-06-02",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -459,6 +503,7 @@
           "snapshot_date": "2022-06-03",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -468,6 +513,7 @@
           "snapshot_date": "2022-06-07",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -477,6 +523,7 @@
           "snapshot_date": "2022-06-08",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -486,6 +533,7 @@
           "snapshot_date": "2022-06-09",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -495,6 +543,7 @@
           "snapshot_date": "2022-06-10",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -504,6 +553,7 @@
           "snapshot_date": "2022-06-13",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -513,6 +563,7 @@
           "snapshot_date": "2022-06-14",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -522,6 +573,7 @@
           "snapshot_date": "2022-06-15",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -531,6 +583,7 @@
           "snapshot_date": "2022-06-16",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -540,6 +593,7 @@
           "snapshot_date": "2022-06-17",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -549,6 +603,7 @@
           "snapshot_date": "2022-06-20",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
@@ -558,6 +613,7 @@
           "snapshot_date": "2022-06-21",
           "issuer": "Oriflame Holding AG",
           "isin": "CH0256424794",
+          "entity_id": null,
           "security_key": "ISIN:CH0256424794",
           "yahoo_symbol": null,
           "price_mapping_source": "unmatched",
