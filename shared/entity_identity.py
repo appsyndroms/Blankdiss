@@ -14,16 +14,8 @@ Exempel:
         ├── LEI A
         └── LEI B
 
-Detta gör att en entity kan behålla samma interna identitet även om:
-
-- LEI ändras
-- nya instrument tillkommer
-- ett tidigare instrument upphör
-- externa datakällor ändrar sina identifierare
-
-Entity-registret är avsett att ligga i shared så att det kan flyttas
-till andra repos utan att den specifika Blankdiss-importen behöver följa
-med.
+Entity-registret ligger under shared eftersom flera komponenter ska
+kunna använda samma långsiktiga identitet.
 """
 
 from __future__ import annotations
@@ -34,12 +26,10 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[1]
+SHARED_DIR = Path(__file__).resolve().parent
 
 ENTITY_REGISTRY_PATH = (
-    ROOT
-    / "data"
-    / "analysis"
+    SHARED_DIR
     / "instrument_entities.jsonl"
 )
 
@@ -71,22 +61,24 @@ class EntityRegistry:
         path: Path = ENTITY_REGISTRY_PATH,
     ) -> None:
         self.path = path
-
         self.records = self._load()
-
         self._validate()
 
     # ------------------------------------------------------------------
     # Läsning
     # ------------------------------------------------------------------
 
-    def _load(self) -> list[dict[str, Any]]:
+    def _load(
+        self,
+    ) -> list[dict[str, Any]]:
         """Läser entity-registret."""
 
         if not self.path.exists():
             return []
 
-        records: list[dict[str, Any]] = []
+        records: list[
+            dict[str, Any]
+        ] = []
 
         with self.path.open(
             "r",
@@ -109,7 +101,8 @@ class EntityRegistry:
                 except json.JSONDecodeError as exc:
                     raise ValueError(
                         "Ogiltig JSON i "
-                        f"{self.path} rad {line_number}."
+                        f"{self.path} "
+                        f"rad {line_number}."
                     ) from exc
 
                 if not isinstance(
@@ -127,8 +120,10 @@ class EntityRegistry:
 
         return records
 
-    def _validate(self) -> None:
-        """Validerar registret och stoppar tvetydigheter."""
+    def _validate(
+        self,
+    ) -> None:
+        """Validerar entity-registret."""
 
         seen_ids: set[str] = set()
 
@@ -185,8 +180,10 @@ class EntityRegistry:
 
         return None
 
-    def ids(self) -> set[str]:
-        """Returnerar alla befintliga entity-id:n."""
+    def ids(
+        self,
+    ) -> set[str]:
+        """Returnerar alla registrerade entity-id:n."""
 
         return {
             normalize_entity_id(
@@ -196,18 +193,25 @@ class EntityRegistry:
             if record.get("entity_id")
         }
 
+    def contains(
+        self,
+        entity_id: str,
+    ) -> bool:
+        """Kontrollerar om entity-id finns."""
+
+        return (
+            normalize_entity_id(entity_id)
+            in self.ids()
+        )
+
     # ------------------------------------------------------------------
-    # ID-hantering
+    # ID
     # ------------------------------------------------------------------
 
-    def next_entity_id(self) -> str:
-        """
-        Skapar nästa permanenta entity-id.
-
-        ID:t baseras endast på det persistenta registret.
-
-        Discovery-ordning påverkar alltså inte tidigare entity-id:n.
-        """
+    def next_entity_id(
+        self,
+    ) -> str:
+        """Skapar nästa lediga interna entity-id."""
 
         highest = 0
 
@@ -236,19 +240,45 @@ class EntityRegistry:
     def add(
         self,
         *,
-        legal_name: str,
+        legal_name: str | None,
         observed_date: str,
         source: str,
         status: str = "active",
+        entity_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Skapar en ny entity.
+        Lägger till en entity.
 
-        Entity-ID:t genereras från registret och påverkas inte av
-        discovery-ordningen.
+        Om entity_id anges används det befintliga interna ID:t.
+        Annars skapas nästa lediga ID.
         """
 
-        entity_id = self.next_entity_id()
+        if entity_id is not None:
+            normalized_entity_id = (
+                normalize_entity_id(
+                    entity_id
+                )
+            )
+
+            existing = self.by_id(
+                normalized_entity_id
+            )
+
+            if existing is not None:
+                return existing
+
+            if not ENTITY_ID_PATTERN.fullmatch(
+                normalized_entity_id
+            ):
+                raise ValueError(
+                    "Ogiltigt entity_id: "
+                    f"{entity_id}"
+                )
+
+            entity_id = normalized_entity_id
+
+        else:
+            entity_id = self.next_entity_id()
 
         record = {
             "entity_id": entity_id,
@@ -257,9 +287,17 @@ class EntityRegistry:
                 if legal_name is not None
                 else None
             ),
-            "status": status,
-            "created_date": observed_date,
-            "source": str(source).strip(),
+            "status": (
+                str(status).strip()
+                if status
+                else "active"
+            ),
+            "created_date": (
+                str(observed_date).strip()
+            ),
+            "source": (
+                str(source).strip()
+            ),
         }
 
         self.records.append(
@@ -268,18 +306,10 @@ class EntityRegistry:
 
         return record
 
-    # ------------------------------------------------------------------
-    # Skrivning
-    # ------------------------------------------------------------------
-
-    def save(self) -> None:
-        """
-        Skriver hela registret.
-
-        Registret är litet och skrivs därför som en komplett JSONL-fil
-        istället för append-only. Aliasregistret är däremot historiskt
-        append-only.
-        """
+    def save(
+        self,
+    ) -> None:
+        """Skriver hela entity-registret."""
 
         self.path.parent.mkdir(
             parents=True,
