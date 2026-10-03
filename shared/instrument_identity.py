@@ -21,6 +21,10 @@ ISIN:er slås aldrig automatiskt ihop till samma instrument.
 
 Alias-/observationsregistret är append-only och används för att bygga
 upp identitetskunskap över tid.
+
+instrument_map.json innehåller befintlig instrumentkunskap men är inte
+ett historiskt observationsregister. Träffar därifrån används därför
+som instrument-evidens, inte som historiskt giltiga entity-observationer.
 """
 
 from __future__ import annotations
@@ -173,6 +177,16 @@ class IdentityMatch:
     resolution: str
 
 
+@dataclass(frozen=True)
+class InstrumentMatch:
+    """Resultat från en instrumentmatchning."""
+
+    isin: str
+    record: dict[str, Any]
+    resolution: str
+    source: str
+
+
 class InstrumentIdentity:
     """Läser och hanterar Blankdiss identitetsregister."""
 
@@ -322,7 +336,8 @@ class InstrumentIdentity:
 
             if match:
                 numbers.append(
-                    int(match.group(1))
+                    int(match.group(1)
+                    )
                 )
 
         next_number = (
@@ -335,7 +350,7 @@ class InstrumentIdentity:
         )
 
     # ------------------------------------------------------------------
-    # Matchning
+    # Alias-matchning
     # ------------------------------------------------------------------
 
     def _matching_records(
@@ -458,20 +473,217 @@ class InstrumentIdentity:
 
         return matches
 
-    def _unique_entities(
+    # ------------------------------------------------------------------
+    # Instrument-matchning
+    # ------------------------------------------------------------------
+
+    def _matching_instrument_map(
         self,
-        matches: Iterable[IdentityMatch],
-    ) -> list[IdentityMatch]:
-        """Tar bort dubbletter per entity."""
+        *,
+        isin: str | None = None,
+        lei: str | None = None,
+        issuer: str | None = None,
+        ticker: str | None = None,
+        yahoo_symbol: str | None = None,
+    ) -> list[InstrumentMatch]:
+        """
+        Hittar instrument i instrument_map.json.
+
+        instrument_map är inte tidsstämplad. Träffarna representerar
+        därför känd instrumentidentitet, men inte historisk giltighet
+        på ett specifikt datum.
+        """
+
+        normalized_isin = normalize_isin(
+            isin
+        )
+
+        normalized_lei = normalize_lei(
+            lei
+        )
+
+        normalized_issuer = normalize_text(
+            issuer
+        )
+
+        normalized_ticker = normalize_identifier(
+            ticker
+        )
+
+        normalized_yahoo = normalize_identifier(
+            yahoo_symbol
+        )
+
+        matches: list[
+            InstrumentMatch
+        ] = []
+
+        priority = {
+            "isin": 0,
+            "lei": 1,
+            "yahoo_symbol": 2,
+            "ticker": 3,
+            "issuer": 4,
+        }
+
+        for map_key, record in self.instrument_map.items():
+            record_isin = normalize_isin(
+                record.get("isin")
+            )
+
+            record_lei = normalize_lei(
+                record.get("lei")
+            )
+
+            record_issuer = normalize_text(
+                record.get("issuer")
+            )
+
+            record_ticker = normalize_identifier(
+                record.get("ticker")
+            )
+
+            record_yahoo = normalize_identifier(
+                record.get("yahoo_symbol")
+            )
+
+            resolution: str | None = None
+
+            if (
+                normalized_isin
+                and record_isin
+                and normalized_isin
+                == record_isin
+            ):
+                resolution = "isin"
+
+            elif (
+                normalized_lei
+                and record_lei
+                and normalized_lei
+                == record_lei
+            ):
+                resolution = "lei"
+
+            elif (
+                normalized_yahoo
+                and record_yahoo
+                and normalized_yahoo
+                == record_yahoo
+            ):
+                resolution = "yahoo_symbol"
+
+            elif (
+                normalized_ticker
+                and record_ticker
+                and normalized_ticker
+                == record_ticker
+            ):
+                resolution = "ticker"
+
+            elif (
+                normalized_issuer
+                and record_issuer
+                and normalized_issuer
+                == record_issuer
+            ):
+                resolution = "issuer"
+
+            if resolution is None:
+                continue
+
+            instrument_isin = (
+                record_isin
+            )
+
+            if not instrument_isin:
+                continue
+
+            matches.append(
+                InstrumentMatch(
+                    isin=instrument_isin,
+                    record={
+                        **record,
+                        "map_key": map_key,
+                    },
+                    resolution=resolution,
+                    source="instrument_map",
+                )
+            )
+
+        matches.sort(
+            key=lambda match: (
+                priority[
+                    match.resolution
+                ],
+                match.isin,
+            )
+        )
+
+        return matches
+
+    def _matching_alias_instruments(
+        self,
+        *,
+        isin: str | None = None,
+        lei: str | None = None,
+        issuer: str | None = None,
+        ticker: str | None = None,
+        yahoo_symbol: str | None = None,
+        target_date: date | None = None,
+    ) -> list[InstrumentMatch]:
+        """
+        Hittar instrument från det historiska aliasregistret.
+
+        Endast observationer som gäller på target_date tas med.
+        """
+
+        matches = self._matching_records(
+            isin=isin,
+            lei=lei,
+            issuer=issuer,
+            ticker=ticker,
+            yahoo_symbol=yahoo_symbol,
+            target_date=target_date,
+        )
+
+        result: list[
+            InstrumentMatch
+        ] = []
+
+        for match in matches:
+            instrument_isin = normalize_isin(
+                match.record.get("isin")
+            )
+
+            if not instrument_isin:
+                continue
+
+            result.append(
+                InstrumentMatch(
+                    isin=instrument_isin,
+                    record=match.record,
+                    resolution=match.resolution,
+                    source="aliases",
+                )
+            )
+
+        return result
+
+    def _unique_instrument_matches(
+        self,
+        matches: Iterable[InstrumentMatch],
+    ) -> list[InstrumentMatch]:
+        """Tar bort dubbletter per ISIN."""
 
         result: dict[
             str,
-            IdentityMatch,
+            InstrumentMatch,
         ] = {}
 
         for match in matches:
             result.setdefault(
-                match.entity_id,
+                match.isin,
                 match,
             )
 
@@ -479,8 +691,63 @@ class InstrumentIdentity:
             result.values()
         )
 
+    def resolve_instrument(
+        self,
+        *,
+        isin: str | None = None,
+        lei: str | None = None,
+        issuer: str | None = None,
+        ticker: str | None = None,
+        yahoo_symbol: str | None = None,
+        target_date: date | str | None = None,
+    ) -> list[InstrumentMatch]:
+        """
+        Returnerar kända instrument som matchar identifierarna.
+
+        Resultatet kan innehålla flera ISIN eftersom en entity kan ha
+        flera instrument eller eftersom identifieraren kan vara historiskt
+        tvetydig.
+
+        Aliasregistret är tidsbegränsat.
+        instrument_map är inte tidsbegränsad.
+        """
+
+        parsed_date = parse_date(
+            target_date
+        )
+
+        alias_matches = (
+            self._matching_alias_instruments(
+                isin=isin,
+                lei=lei,
+                issuer=issuer,
+                ticker=ticker,
+                yahoo_symbol=yahoo_symbol,
+                target_date=parsed_date,
+            )
+        )
+
+        map_matches = (
+            self._matching_instrument_map(
+                isin=isin,
+                lei=lei,
+                issuer=issuer,
+                ticker=ticker,
+                yahoo_symbol=yahoo_symbol,
+            )
+        )
+
+        combined = (
+            alias_matches
+            + map_matches
+        )
+
+        return self._unique_instrument_matches(
+            combined
+        )
+
     # ------------------------------------------------------------------
-    # Publika resolve-metoder
+    # Publika entity-resolve-metoder
     # ------------------------------------------------------------------
 
     def resolve(
@@ -495,7 +762,7 @@ class InstrumentIdentity:
         target_date: date | str | None = None,
     ) -> IdentityMatch | None:
         """
-        Löser en identitet.
+        Löser en entity.
 
         Prioritet:
 
@@ -510,6 +777,9 @@ class InstrumentIdentity:
             ticker
             ↓
             issuer
+
+        instrument_map används inte för att skapa en entity-match,
+        eftersom instrument_map saknar entity_id.
 
         Om flera entitys matchar samma identifierare returneras
         ingen godtycklig träff.
@@ -613,6 +883,10 @@ class InstrumentIdentity:
             return None
 
         return match.entity_id
+
+    # ------------------------------------------------------------------
+    # Entity → instrument
+    # ------------------------------------------------------------------
 
     def instruments_for_entity(
         self,
@@ -945,7 +1219,7 @@ class InstrumentIdentity:
 
         with self.aliases_path.open(
             "a",
-            encoding="utf-8",
+            encoding="utf-8"
         ) as handle:
             handle.write(
                 json.dumps(
