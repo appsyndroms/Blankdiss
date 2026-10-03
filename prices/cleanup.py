@@ -21,6 +21,14 @@ REPORT_PATH = Path(
 )
 
 
+IDENTITY_FIELDS = (
+    "yahoo_symbol",
+    "lei",
+    "issuer",
+    "ticker",
+)
+
+
 def _parse_date(
     value: Any,
 ) -> date | None:
@@ -52,15 +60,42 @@ def _normalise_isin(
     ).strip().upper()
 
 
-def _normalise_symbol(
+def _normalise_identity_value(
+    field: str,
     value: Any,
 ) -> str:
     if value is None:
         return ""
 
-    return str(
+    value = str(
         value
     ).strip()
+
+    if not value:
+        return ""
+
+    if field in (
+        "yahoo_symbol",
+        "lei",
+        "ticker",
+    ):
+        return value.upper()
+
+    if field == "issuer":
+        return " ".join(
+            value.upper().split()
+        )
+
+    return value
+
+
+def _normalise_symbol(
+    value: Any,
+) -> str:
+    return _normalise_identity_value(
+        "yahoo_symbol",
+        value,
+    )
 
 
 def _parse_close(
@@ -207,16 +242,6 @@ def _load_records(
                     ] += 1
                     continue
 
-                isin = _normalise_isin(
-                    record.get("isin")
-                )
-
-                if not isin:
-                    statistics[
-                        "missing_isin"
-                    ] += 1
-                    continue
-
                 close = _parse_close(
                     record.get("close")
                 )
@@ -243,7 +268,9 @@ def _load_records(
 
                 clean_record[
                     "isin"
-                ] = isin
+                ] = _normalise_isin(
+                    record.get("isin")
+                )
 
                 clean_record[
                     "close"
@@ -256,6 +283,13 @@ def _load_records(
                 clean_record[
                     "_source_line"
                 ] = line_number
+
+                if not clean_record[
+                    "isin"
+                ]:
+                    statistics[
+                        "missing_isin"
+                    ] += 1
 
                 records.append(
                     clean_record
@@ -295,6 +329,439 @@ def _clean_output_record(
         key: value
         for key, value in record.items()
         if not key.startswith("_")
+    }
+
+
+def _build_identity_index(
+    records: list[dict[str, Any]],
+) -> dict[
+    str,
+    dict[str, set[str]],
+]:
+    index: dict[
+        str,
+        dict[str, set[str]],
+    ] = {
+        field: defaultdict(set)
+        for field in IDENTITY_FIELDS
+    }
+
+    for record in records:
+        isin = _normalise_isin(
+            record.get("isin")
+        )
+
+        if not isin:
+            continue
+
+        for field in IDENTITY_FIELDS:
+            value = _normalise_identity_value(
+                field,
+                record.get(field),
+            )
+
+            if not value:
+                continue
+
+            index[
+                field
+            ][
+                value
+            ].add(
+                isin
+            )
+
+    return index
+
+
+def _resolve_missing_isin(
+    record: dict[str, Any],
+    identity_index: dict[
+        str,
+        dict[str, set[str]],
+    ],
+) -> dict[str, Any]:
+    evidence: dict[
+        str,
+        set[str],
+    ] = {}
+
+    for field in IDENTITY_FIELDS:
+        value = _normalise_identity_value(
+            field,
+            record.get(field),
+        )
+
+        if not value:
+            continue
+
+        known_isins = identity_index[
+            field
+        ].get(
+            value,
+            set(),
+        )
+
+        if known_isins:
+            evidence[
+                field
+            ] = set(
+                known_isins
+            )
+
+    all_candidates: set[str] = set()
+
+    for candidates in evidence.values():
+        all_candidates.update(
+            candidates
+        )
+
+    if not evidence:
+        status = "unresolved"
+        candidate_isins: set[str] = set()
+
+    else:
+        intersection: set[str] | None = None
+
+        for candidates in evidence.values():
+            if intersection is None:
+                intersection = set(
+                    candidates
+                )
+            else:
+                intersection &= candidates
+
+        if intersection:
+            candidate_isins = intersection
+
+            if len(
+                candidate_isins
+            ) == 1:
+                status = "unique"
+            else:
+                status = "ambiguous"
+
+        else:
+            candidate_isins = all_candidates
+            status = "conflict"
+
+    return {
+        "status": status,
+        "candidate_isins": sorted(
+            candidate_isins
+        ),
+        "evidence": {
+            field: sorted(
+                candidates
+            )
+            for field, candidates
+            in sorted(
+                evidence.items()
+            )
+        },
+    }
+
+
+def _analyse_missing_isins(
+    records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    identity_index = _build_identity_index(
+        records
+    )
+
+    statistics = {
+        "rows": 0,
+        "unique": 0,
+        "ambiguous": 0,
+        "conflict": 0,
+        "unresolved": 0,
+        "candidate_isins": 0,
+    }
+
+    by_status: dict[
+        str,
+        dict[str, int],
+    ] = defaultdict(
+        lambda: {
+            "rows": 0,
+            "unique_observations": 0,
+        }
+    )
+
+    unique_candidates: dict[
+        str,
+        int,
+    ] = defaultdict(int)
+
+    ambiguous_candidates: dict[
+        str,
+        int,
+    ] = defaultdict(int)
+
+    conflict_examples: list[
+        dict[str, Any]
+    ] = []
+
+    ambiguous_examples: list[
+        dict[str, Any]
+    ] = []
+
+    unresolved_examples: list[
+        dict[str, Any]
+    ] = []
+
+    seen_observations: dict[
+        str,
+        set[
+            tuple[
+                str,
+                str,
+            ]
+        ],
+    ] = defaultdict(set)
+
+    for record in records:
+        if _normalise_isin(
+            record.get("isin")
+        ):
+            continue
+
+        statistics[
+            "rows"
+        ] += 1
+
+        resolution = _resolve_missing_isin(
+            record,
+            identity_index,
+        )
+
+        status = resolution[
+            "status"
+        ]
+
+        statistics[
+            status
+        ] += 1
+
+        by_status[
+            status
+        ][
+            "rows"
+        ] += 1
+
+        observation_key = (
+            record.get("date", ""),
+            _normalise_identity_value(
+                "yahoo_symbol",
+                record.get(
+                    "yahoo_symbol"
+                ),
+            ),
+        )
+
+        seen_observations[
+            status
+        ].add(
+            observation_key
+        )
+
+        candidate_isins = resolution[
+            "candidate_isins"
+        ]
+
+        if status == "unique":
+            candidate_isin = (
+                candidate_isins[0]
+            )
+
+            unique_candidates[
+                candidate_isin
+            ] += 1
+
+            statistics[
+                "candidate_isins"
+            ] += 1
+
+        elif status == "ambiguous":
+            for isin in candidate_isins:
+                ambiguous_candidates[
+                    isin
+                ] += 1
+
+            if len(
+                ambiguous_examples
+            ) < 20:
+                ambiguous_examples.append(
+                    {
+                        "date": record.get(
+                            "date"
+                        ),
+                        "yahoo_symbol": _normalise_symbol(
+                            record.get(
+                                "yahoo_symbol"
+                            )
+                        ),
+                        "lei": _normalise_identity_value(
+                            "lei",
+                            record.get(
+                                "lei"
+                            ),
+                        ),
+                        "issuer": record.get(
+                            "issuer"
+                        ),
+                        "ticker": _normalise_identity_value(
+                            "ticker",
+                            record.get(
+                                "ticker"
+                            ),
+                        ),
+                        "candidate_isins": candidate_isins,
+                        "evidence": resolution[
+                            "evidence"
+                        ],
+                        "source_file": record.get(
+                            "_source_file"
+                        ),
+                        "source_line": record.get(
+                            "_source_line"
+                        ),
+                    }
+                )
+
+        elif status == "conflict":
+            if len(
+                conflict_examples
+            ) < 20:
+                conflict_examples.append(
+                    {
+                        "date": record.get(
+                            "date"
+                        ),
+                        "yahoo_symbol": _normalise_symbol(
+                            record.get(
+                                "yahoo_symbol"
+                            )
+                        ),
+                        "lei": _normalise_identity_value(
+                            "lei",
+                            record.get(
+                                "lei"
+                            ),
+                        ),
+                        "issuer": record.get(
+                            "issuer"
+                        ),
+                        "ticker": _normalise_identity_value(
+                            "ticker",
+                            record.get(
+                                "ticker"
+                            ),
+                        ),
+                        "candidate_isins": candidate_isins,
+                        "evidence": resolution[
+                            "evidence"
+                        ],
+                        "source_file": record.get(
+                            "_source_file"
+                        ),
+                        "source_line": record.get(
+                            "_source_line"
+                        ),
+                    }
+                )
+
+        elif status == "unresolved":
+            if len(
+                unresolved_examples
+            ) < 20:
+                unresolved_examples.append(
+                    {
+                        "date": record.get(
+                            "date"
+                        ),
+                        "yahoo_symbol": _normalise_symbol(
+                            record.get(
+                                "yahoo_symbol"
+                            )
+                        ),
+                        "lei": _normalise_identity_value(
+                            "lei",
+                            record.get(
+                                "lei"
+                            ),
+                        ),
+                        "issuer": record.get(
+                            "issuer"
+                        ),
+                        "ticker": _normalise_identity_value(
+                            "ticker",
+                            record.get(
+                                "ticker"
+                            ),
+                        ),
+                        "source_file": record.get(
+                            "_source_file"
+                        ),
+                        "source_line": record.get(
+                            "_source_line"
+                        ),
+                    }
+                )
+
+    for status in (
+        "unique",
+        "ambiguous",
+        "conflict",
+        "unresolved",
+    ):
+        by_status[
+            status
+        ][
+            "unique_observations"
+        ] = len(
+            seen_observations[
+                status
+            ]
+        )
+
+    return {
+        "rows": statistics[
+            "rows"
+        ],
+        "unique": statistics[
+            "unique"
+        ],
+        "ambiguous": statistics[
+            "ambiguous"
+        ],
+        "conflict": statistics[
+            "conflict"
+        ],
+        "unresolved": statistics[
+            "unresolved"
+        ],
+        "unique_candidate_rows": statistics[
+            "candidate_isins"
+        ],
+        "by_status": dict(
+            by_status
+        ),
+        "unique_candidate_isins": dict(
+            sorted(
+                unique_candidates.items()
+            )
+        ),
+        "ambiguous_candidate_isins": dict(
+            sorted(
+                ambiguous_candidates.items()
+            )
+        ),
+        "examples": {
+            "ambiguous": ambiguous_examples,
+            "conflict": conflict_examples,
+            "unresolved": unresolved_examples,
+        },
     }
 
 
@@ -590,8 +1057,30 @@ def main() -> None:
         )
     )
 
+    records_with_isin = [
+        record
+        for record in records
+        if _normalise_isin(
+            record.get("isin")
+        )
+    ]
+
+    records_without_isin = [
+        record
+        for record in records
+        if not _normalise_isin(
+            record.get("isin")
+        )
+    ]
+
     canonical, report = (
         _analyse_records(
+            records_with_isin
+        )
+    )
+
+    missing_isin_report = (
+        _analyse_missing_isins(
             records
         )
     )
@@ -618,6 +1107,18 @@ def main() -> None:
     print(
         "Giltiga prisrader: "
         f"{len(records):,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Med ISIN: "
+        f"{len(records_with_isin):,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Utan ISIN: "
+        f"{len(records_without_isin):,}"
         .replace(",", " ")
     )
 
@@ -746,6 +1247,203 @@ def main() -> None:
 
     print()
     print(
+        "ISIN-ANALYS"
+    )
+    print(
+        "-" * 70
+    )
+
+    print(
+        "ISIN-lösa rader: "
+        f"{missing_isin_report['rows']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Entydig ISIN-kandidat: "
+        f"{missing_isin_report['unique']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Flera möjliga ISIN: "
+        f"{missing_isin_report['ambiguous']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Motstridiga identiteter: "
+        f"{missing_isin_report['conflict']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Ingen identifiering: "
+        f"{missing_isin_report['unresolved']:,}"
+        .replace(",", " ")
+    )
+
+    print()
+    print(
+        "ISIN-ANALYS - UNIKA KANDIDATER"
+    )
+    print(
+        "-" * 70
+    )
+
+    unique_candidates = (
+        missing_isin_report[
+            "unique_candidate_isins"
+        ]
+    )
+
+    for isin, count in sorted(
+        unique_candidates.items(),
+        key=lambda item: (
+            -item[1],
+            item[0],
+        ),
+    )[:50]:
+        print(
+            f"{isin}: "
+            f"{count:,} rader"
+            .replace(",", " ")
+        )
+
+    if missing_isin_report[
+        "ambiguous"
+    ]:
+        print()
+        print(
+            "ISIN-ANALYS - FLERA MÖJLIGA"
+        )
+        print(
+            "-" * 70
+        )
+
+        for example in (
+            missing_isin_report[
+                "examples"
+            ][
+                "ambiguous"
+            ]
+        ):
+            print(
+                f"{example['date']} "
+                f"symbol={example['yahoo_symbol']} "
+                f"issuer={example['issuer']}"
+            )
+
+            print(
+                "  Kandidater: "
+                + ", ".join(
+                    example[
+                        "candidate_isins"
+                    ]
+                )
+            )
+
+            print(
+                "  Evidence: "
+                + json.dumps(
+                    example[
+                        "evidence"
+                    ],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+
+            print(
+                "  Källa: "
+                f"{example['source_file']}:"
+                f"{example['source_line']}"
+            )
+
+    if missing_isin_report[
+        "conflict"
+    ]:
+        print()
+        print(
+            "ISIN-ANALYS - MOTSTRIDIGA"
+        )
+        print(
+            "-" * 70
+        )
+
+        for example in (
+            missing_isin_report[
+                "examples"
+            ][
+                "conflict"
+            ]
+        ):
+            print(
+                f"{example['date']} "
+                f"symbol={example['yahoo_symbol']} "
+                f"issuer={example['issuer']}"
+            )
+
+            print(
+                "  Kandidater: "
+                + ", ".join(
+                    example[
+                        "candidate_isins"
+                    ]
+                )
+            )
+
+            print(
+                "  Evidence: "
+                + json.dumps(
+                    example[
+                        "evidence"
+                    ],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+
+            print(
+                "  Källa: "
+                f"{example['source_file']}:"
+                f"{example['source_line']}"
+            )
+
+    if missing_isin_report[
+        "unresolved"
+    ]:
+        print()
+        print(
+            "ISIN-ANALYS - EJ IDENTIFIERADE"
+        )
+        print(
+            "-" * 70
+        )
+
+        for example in (
+            missing_isin_report[
+                "examples"
+            ][
+                "unresolved"
+            ]
+        ):
+            print(
+                f"{example['date']} "
+                f"symbol={example['yahoo_symbol']} "
+                f"issuer={example['issuer']} "
+                f"lei={example['lei']} "
+                f"ticker={example['ticker']}"
+            )
+
+            print(
+                "  Källa: "
+                f"{example['source_file']}:"
+                f"{example['source_line']}"
+            )
+
+    print()
+    print(
         "PER INSTRUMENT"
     )
     print(
@@ -765,6 +1463,10 @@ def main() -> None:
             f"{statistics['conflict_groups']} konflikter"
             .replace(",", " ")
         )
+
+    report[
+        "missing_isin_analysis"
+    ] = missing_isin_report
 
     print()
     print(
@@ -793,8 +1495,8 @@ def main() -> None:
             "PASS - inga close-konflikter."
         )
         print(
-            "Dubbletter kan reduceras säkert "
-            "till en rad per date + ISIN."
+            "Dubbletter med ISIN kan reduceras "
+            "säkert till en rad per date + ISIN."
         )
 
         _write_jsonl(
