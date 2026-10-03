@@ -135,7 +135,7 @@ def test_persist_known_yahoo_mapping_appends_new_mapping(
 
     assert records == [
         {
-            "name": "axvik group",
+            "name": "axvik",
             "yahoo_symbol": "AXVIK.ST",
         }
     ]
@@ -198,7 +198,7 @@ def test_persist_known_yahoo_mapping_does_not_overwrite_conflict(
     path.write_text(
         json.dumps(
             {
-                "name": "axvik group",
+                "name": "axvik",
                 "yahoo_symbol": "AXVIK.ST",
             },
             separators=(",", ":"),
@@ -217,7 +217,7 @@ def test_persist_known_yahoo_mapping_does_not_overwrite_conflict(
         mapping_utils,
         "KNOWN_YAHOO_SYMBOLS",
         {
-            "axvik group": "AXVIK.ST",
+            "axvik": "AXVIK.ST",
         },
     )
 
@@ -240,7 +240,7 @@ def test_persist_known_yahoo_mapping_does_not_overwrite_conflict(
 
     assert records == [
         {
-            "name": "axvik group",
+            "name": "axvik",
             "yahoo_symbol": "AXVIK.ST",
         }
     ]
