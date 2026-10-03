@@ -11,6 +11,7 @@ from shared.entity_identity import (
     EntityRegistry,
 )
 from shared.instrument_identity import (
+    INSTRUMENT_ALIASES_PATH,
     normalize_isin,
     normalize_lei,
     normalize_text,
@@ -28,11 +29,7 @@ DISCOVERY_PATH = (
     / "instrument_entity_discovery.json"
 )
 
-ALIASES_PATH = (
-    PROJECT_ROOT
-    / "shared"
-    / "instrument_aliases.jsonl"
-)
+ALIASES_PATH = INSTRUMENT_ALIASES_PATH
 
 SOURCE = "GLEIF_ANNA"
 STATUS = "candidate"
@@ -560,6 +557,7 @@ def _build_import_plan(
                 "instrument_count": len(
                     instruments
                 ),
+                "observed_date": observed_date,
             }
         )
 
@@ -656,9 +654,7 @@ def _apply_import(
     for entity in entities:
         if entity.get(
             "status"
-        ) not in {
-            "new_entity_candidate",
-        }:
+        ) != "new_entity_candidate":
             continue
 
         registry.add(
@@ -668,8 +664,6 @@ def _apply_import(
             ),
             observed_date=entity.get(
                 "observed_date"
-            ) or entity.get(
-                "created_date"
             ) or "",
             source=SOURCE,
             status=STATUS,
