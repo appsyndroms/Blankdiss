@@ -269,17 +269,23 @@ def _candidate_records(
     list[dict[str, Any]],
 ]:
     """
-    Grupperar discovery-resultatet på LEI.
+    Grupperar discovery-resultatet på GLEIF-LEI.
 
-    Ett LEI representerar här discoveryns observerade
-    entity-kandidat.
+    Discovery sparar de klassificerade instrumenten under
+    top-level-fältet "instruments". "candidate_entities"
+    är endast en diagnostisk delmängd för LEI:n som ännu
+    saknar entity.
 
-    ISIN används därefter som identitetsbrygga mot
-    redan kända entities.
+    Importen måste därför läsa "instruments" och inte
+    "candidate_entities".
 
-    Alla observerade instrumentposter behålls eftersom
-    discovery kan innehålla historiska namn eller andra
-    identitetsförändringar.
+    Följande discovery-statusar kan importeras:
+
+        entity_resolved_by_gleif
+        gleif_lei_without_entity
+
+    Statusar utan en entydig GLEIF-koppling importeras inte
+    här och hanteras av discovery/identity-kontraktet.
     """
 
     groups: dict[
@@ -287,48 +293,103 @@ def _candidate_records(
         list[dict[str, Any]],
     ] = defaultdict(list)
 
-    for candidate in discovery.get(
-        "candidate_entities",
+    instruments = discovery.get(
+        "instruments",
         [],
+    )
+
+    if not isinstance(
+        instruments,
+        list,
     ):
-        lei = normalize_lei(
-            candidate.get("lei")
+        raise ValueError(
+            "Discovery-rapportens "
+            "'instruments' måste vara en lista."
         )
 
-        if not lei:
+    for instrument in instruments:
+        if not isinstance(
+            instrument,
+            dict,
+        ):
             continue
 
-        for instrument in candidate.get(
-            "instruments",
-            [],
-        ):
-            isin = normalize_isin(
-                instrument.get("isin")
+        status = instrument.get(
+            "status"
+        )
+
+        if status not in {
+            "entity_resolved_by_gleif",
+            "gleif_lei_without_entity",
+        }:
+            continue
+
+        isin = normalize_isin(
+            instrument.get("isin")
+        )
+
+        if not isin:
+            continue
+
+        gleif_leis = [
+            normalize_lei(lei)
+            for lei in instrument.get(
+                "gleif_leis",
+                [],
             )
+        ]
 
-            if not isin:
-                continue
+        gleif_leis = sorted(
+            {
+                lei
+                for lei in gleif_leis
+                if lei
+            }
+        )
 
-            groups[lei].append(
-                {
-                    "isin": isin,
-                    "issuer": normalize_text(
-                        instrument.get("issuer")
-                    ),
-                    "yahoo_symbol": normalize_text(
-                        instrument.get("yahoo_symbol")
-                    ),
-                    "instrument_lei": normalize_lei(
-                        instrument.get("instrument_lei")
-                    ),
-                }
-            )
+        if len(gleif_leis) != 1:
+            continue
 
-    return dict(
-        sorted(
+        lei = gleif_leis[0]
+
+        groups[lei].append(
+            {
+                "isin": isin,
+                "issuer": normalize_text(
+                    instrument.get("issuer")
+                ),
+                "yahoo_symbol": normalize_text(
+                    instrument.get("yahoo_symbol")
+                ),
+                "instrument_lei": normalize_lei(
+                    instrument.get("instrument_lei")
+                ),
+                "discovery_status": status,
+                "discovery_entity_ids": sorted(
+                    {
+                        str(entity_id)
+                        for entity_id in instrument.get(
+                            "entity_ids",
+                            [],
+                        )
+                        if entity_id
+                    }
+                ),
+            }
+        )
+
+    return {
+        lei: sorted(
+            instruments,
+            key=lambda instrument: (
+                instrument.get("isin") or "",
+                instrument.get("issuer") or "",
+            ),
+        )
+        for lei, instruments in sorted(
             groups.items()
         )
-    )
+    }
 
 
 def _migrate_entities_from_aliases(
