@@ -145,7 +145,6 @@ def _identity_values(
             _value(
                 record,
                 "lei",
-                "LEI",
             )
         ),
         "issuer": normalize_text(
@@ -327,6 +326,8 @@ def _classify_record(
         "source_line": record.get(
             "_source_line"
         ),
+        "instrument_isins": [],
+        "instrument_matches": [],
     }
 
     if not target_date:
@@ -344,6 +345,79 @@ def _classify_record(
         ] = "unresolved"
 
         return base_result
+
+    # --------------------------------------------------------------
+    # Instrumentnivå
+    #
+    # Detta använder både:
+    #
+    #   1. instrument_aliases.jsonl
+    #   2. instrument_map.json
+    #
+    # Map-träffar är instrument-evidens. De används inte som
+    # historisk giltighet eftersom instrument_map saknar tidsintervall.
+    # --------------------------------------------------------------
+
+    instrument_matches = identity.resolve_instrument(
+        isin=values[
+            "isin"
+        ] or None,
+        lei=values[
+            "lei"
+        ] or None,
+        issuer=values[
+            "issuer"
+        ] or None,
+        ticker=values[
+            "ticker"
+        ] or None,
+        yahoo_symbol=values[
+            "yahoo_symbol"
+        ] or None,
+        target_date=target_date,
+    )
+
+    instrument_isins = sorted(
+        {
+            match.isin
+            for match in instrument_matches
+            if match.isin
+        }
+    )
+
+    base_result[
+        "instrument_isins"
+    ] = instrument_isins
+
+    base_result[
+        "instrument_matches"
+    ] = [
+        {
+            "isin": match.isin,
+            "resolution": match.resolution,
+            "source": match.source,
+            "map_key": match.record.get(
+                "map_key"
+            ),
+            "issuer": match.record.get(
+                "issuer"
+            ),
+            "lei": match.record.get(
+                "lei"
+            ),
+            "yahoo_symbol": match.record.get(
+                "yahoo_symbol"
+            ),
+        }
+        for match in instrument_matches
+    ]
+
+    # --------------------------------------------------------------
+    # Entitynivå
+    #
+    # Entity löses fortfarande enbart från det tidsstämplade
+    # observationsregistret. instrument_map saknar entity_id.
+    # --------------------------------------------------------------
 
     match = identity.resolve(
         isin=values[
@@ -365,9 +439,25 @@ def _classify_record(
     )
 
     if match is None:
-        base_result[
-            "status"
-        ] = "unresolved"
+
+        if len(
+            instrument_isins
+        ) == 1:
+            base_result[
+                "status"
+            ] = "instrument_unique_no_entity"
+
+        elif len(
+            instrument_isins
+        ) > 1:
+            base_result[
+                "status"
+            ] = "multiple_instrument_candidates"
+
+        else:
+            base_result[
+                "status"
+            ] = "unresolved"
 
         return base_result
 
@@ -381,11 +471,19 @@ def _classify_record(
         "resolution"
     ] = match.resolution
 
+    # --------------------------------------------------------------
+    # Historiska instrument för entity
+    # --------------------------------------------------------------
+
     historical = _unique_instruments(
         identity.instruments_for_entity(
             entity_id
         )
     )
+
+    # --------------------------------------------------------------
+    # Instrument som enligt observationsregistret gäller på datumet
+    # --------------------------------------------------------------
 
     current = _unique_instruments(
         identity.instruments_for_entity(
@@ -443,6 +541,10 @@ def _classify_record(
     base_result[
         "current_isins"
     ] = current_isins
+
+    # --------------------------------------------------------------
+    # Slutlig klassificering
+    # --------------------------------------------------------------
 
     if not current:
         base_result[
@@ -541,11 +643,19 @@ def _print_samples(
             )
         ) or "-"
 
+        instrument_isins = ",".join(
+            value.get(
+                "instrument_isins",
+                [],
+            )
+        ) or "-"
+
         print(
             f"{date_value} | "
             f"{symbol} | "
             f"entity={entity} | "
             f"resolution={resolution} | "
+            f"instrument={instrument_isins} | "
             f"current={current_isins} | "
             f"historical={historical_isins}"
         )
@@ -577,6 +687,8 @@ def _print_status_summary(
         "multiple_current_instruments",
         "entity_only",
         "instrument_without_isin",
+        "instrument_unique_no_entity",
+        "multiple_instrument_candidates",
         "unresolved",
         "invalid_date",
     )
@@ -598,7 +710,7 @@ def _write_report(
 
     with REPORT_PATH.open(
         "w",
-        encoding="utf-8",
+        encoding="utf-8"
     ) as handle:
         json.dump(
             report,
@@ -759,6 +871,20 @@ def main() -> None:
         "INSTRUMENT HITTAT – MEN UTAN ISIN",
         examples[
             "instrument_without_isin"
+        ],
+    )
+
+    _print_samples(
+        "INSTRUMENT HITTAT – MEN ENTITY SAKNAS",
+        examples[
+            "instrument_unique_no_entity"
+        ],
+    )
+
+    _print_samples(
+        "FLERA INSTRUMENTKANDIDATER",
+        examples[
+            "multiple_instrument_candidates"
         ],
     )
 
