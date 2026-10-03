@@ -1,4 +1,4 @@
-name: Rebuild prices
+name: Rebuild instrument identities
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  cleanup:
+  rebuild:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,9 +17,8 @@ jobs:
           fetch-depth: 1
           filter: blob:none
           sparse-checkout: |
-            prices/
-            scripts/
-            data/raw/prices/
+            felsokning/
+            shared/
             data/analysis/
             requirements.txt
             .github/workflows/rebuild_prices.yml
@@ -35,31 +34,46 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Cleanup prices
+      - name: Importera instrument identities
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python -u prices/cleanup.py --apply
+          python -u felsokning/import_instrument_entities.py --apply
 
-      - name: Kontrollera price-data
+      - name: Kontrollera identity-data
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           echo
           echo "=========================================="
-          echo "KONTROLLERA PRICE-DATA"
+          echo "KONTROLLERA INSTRUMENT IDENTITY-DATA"
           echo "=========================================="
 
-          if ! compgen -G "data/raw/prices/*.jsonl" > /dev/null; then
-            echo "Inga prisfiler hittades efter cleanup."
+          test -f shared/data/instrument_entities.jsonl || {
+            echo "instrument_entities.jsonl saknas."
             exit 1
-          fi
+          }
+
+          test -f shared/data/instrument_aliases.jsonl || {
+            echo "instrument_aliases.jsonl saknas."
+            exit 1
+          }
 
           echo
-          echo "Nya price-filer:"
-          ls -lh data/raw/prices/*.jsonl
+          echo "Entity-register:"
+          ls -lh shared/data/instrument_entities.jsonl
 
           echo
-          echo "Antal rader:"
-          wc -l data/raw/prices/*.jsonl
+          echo "Alias-register:"
+          ls -lh shared/data/instrument_aliases.jsonl
+
+          echo
+          echo "Antal entities:"
+          wc -l shared/data/instrument_entities.jsonl
+
+          echo
+          echo "Antal alias/observationer:"
+          wc -l shared/data/instrument_aliases.jsonl
 
           echo
           echo "Git-status:"
@@ -69,13 +83,15 @@ jobs:
         run: |
           echo
           echo "=========================================="
-          echo "FÖRBERED PRICE-DATA-COMMIT"
+          echo "FÖRBERED IDENTITY-DATA-COMMIT"
           echo "=========================================="
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -A data/raw/prices/
+          git add -A \
+            shared/data/instrument_entities.jsonl \
+            shared/data/instrument_aliases.jsonl
 
           echo
           echo "Filer som kommer att committas:"
@@ -83,23 +99,25 @@ jobs:
 
           echo
           echo "Förändringsstatistik:"
-          git diff --cached --stat -- data/raw/prices
+          git diff --cached --stat -- \
+            shared/data/instrument_entities.jsonl \
+            shared/data/instrument_aliases.jsonl
 
       - name: Commit
         run: |
           if git diff --cached --quiet; then
             echo
-            echo "Inga price-förändringar att committa."
+            echo "Inga identity-förändringar att committa."
             exit 0
           fi
 
           git commit \
-            -m "Rebuild price data"
+            -m "Rebuild instrument identities"
 
       - name: Push
         run: |
           echo
-          echo "Pushar price-data..."
+          echo "Pushar identity-data..."
 
           bash scripts/git_push_with_retry.sh
 
@@ -107,7 +125,7 @@ jobs:
         run: |
           echo
           echo "=========================================="
-          echo "PRICE CLEANUP KLAR"
+          echo "IDENTITY REBUILD KLAR"
           echo "=========================================="
 
           git status --short
