@@ -23,8 +23,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run test files one by one
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python -m pytest -q tests --durations=20
+          set -e
+
+          find tests -type f -name "test_*.py" -print0 | sort -z | while IFS= read -r -d '' test_file
+          do
+            echo ""
+            echo "=========================================="
+            echo "RUNNING: $test_file"
+            echo "=========================================="
+
+            python -m pytest -q "$test_file"
+
+            echo ""
+            echo "PASSED: $test_file"
+          done
