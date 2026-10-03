@@ -195,6 +195,114 @@ def test_entity_resolved_by_gleif_reuses_existing_entity(
     )
 
 
+def test_multiple_instruments_with_same_lei_share_one_entity(
+    tmp_path,
+    monkeypatch,
+):
+    _patch_identity_paths(
+        monkeypatch,
+        tmp_path,
+    )
+
+    lei = "LEI000000000000000011"
+
+    existing_isin = "SE0000000011"
+    new_isin = "SE0000000012"
+
+    aliases = [
+        _alias(
+            entity_id="ENT-000001",
+            isin=existing_isin,
+            lei=lei,
+            issuer="Example AB",
+            yahoo_symbol="EXAMPLE-A.ST",
+            source="GLEIF_ANNA",
+            observed_date="2026-09-01",
+        )
+    ]
+
+    registry = _registry(
+        tmp_path
+    )
+
+    registry.add(
+        entity_id="ENT-000001",
+        legal_name="Example AB",
+        observed_date="2026-09-01",
+        source="test",
+    )
+
+    registry.save()
+
+    discovery = {
+        "source": {
+            "mapping_date": "2026-10-01",
+        },
+        "instruments": [
+            {
+                "isin": existing_isin,
+                "issuer": "Example AB",
+                "yahoo_symbol": "EXAMPLE-A.ST",
+                "gleif_leis": [lei],
+                "entity_ids": ["ENT-000001"],
+                "status": "entity_resolved_by_gleif",
+                "instrument_lei": lei,
+            },
+            {
+                "isin": new_isin,
+                "issuer": "Example AB",
+                "yahoo_symbol": "EXAMPLE-B.ST",
+                "gleif_leis": [lei],
+                "entity_ids": ["ENT-000001"],
+                "status": "entity_resolved_by_gleif",
+                "instrument_lei": lei,
+            },
+        ],
+    }
+
+    entities, import_records, summary = (
+        importer._build_import_plan(
+            discovery,
+            aliases,
+            registry,
+        )
+    )
+
+    # Två instrument med samma LEI ska ge EN entity-grupp.
+    assert len(entities) == 1
+
+    assert entities[0]["status"] == (
+        "existing_entity"
+    )
+    assert entities[0]["entity_id"] == (
+        "ENT-000001"
+    )
+    assert entities[0]["lei"] == lei
+    assert entities[0]["instrument_count"] == 2
+
+    # Första instrumentet finns redan.
+    # Det andra blir en ny observation på samma entity.
+    assert len(import_records) == 1
+    assert import_records[0]["entity_id"] == (
+        "ENT-000001"
+    )
+    assert import_records[0]["isin"] == new_isin
+    assert import_records[0]["lei"] == lei
+
+    assert summary["candidate_lei_groups"] == 1
+    assert summary["existing_entities_reused"] == 1
+    assert summary["new_entity_candidates"] == 0
+    assert summary["already_present"] == 1
+    assert summary["new_alias_records"] == 1
+    assert summary["conflicting_entities"] == 0
+
+    importer._validate_import_plan(
+        aliases,
+        entities,
+        import_records,
+    )
+
+
 def test_existing_isin_bridges_to_existing_entity(
     tmp_path,
     monkeypatch,
