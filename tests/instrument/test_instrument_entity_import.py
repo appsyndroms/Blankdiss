@@ -1,32 +1,39 @@
 from pathlib import Path
+
 import pytest
+
 from felsokning import import_instrument_entities as importer
 from shared.entity_identity import EntityRegistry
 from shared.instrument_identity import IdentityContractError
+
+
 def _discovery(
     *,
     lei: str = "LEI000000000000000001",
     isin: str = "SE0000000001",
     issuer: str = "Example AB",
     yahoo_symbol: str = "EXAMPLE.ST",
+    status: str = "gleif_lei_without_entity",
+    entity_ids: list[str] | None = None,
 ) -> dict:
     return {
         "source": {
             "mapping_date": "2026-10-01",
         },
-        "candidate_entities": [
+        "instruments": [
             {
-                "lei": lei,
-                "instruments": [
-                    {
-                        "isin": isin,
-                        "issuer": issuer,
-                        "yahoo_symbol": yahoo_symbol,
-                    }
-                ],
+                "isin": isin,
+                "issuer": issuer,
+                "yahoo_symbol": yahoo_symbol,
+                "gleif_leis": [lei],
+                "entity_ids": entity_ids or [],
+                "status": status,
+                "instrument_lei": lei,
             }
         ],
     }
+
+
 def _alias(
     *,
     entity_id: str,
@@ -50,12 +57,16 @@ def _alias(
         "status": "observed",
         "observed_date": observed_date,
     }
+
+
 def _registry(
     tmp_path: Path,
 ) -> EntityRegistry:
     return EntityRegistry(
         path=tmp_path / "instrument_entities.jsonl"
     )
+
+
 def _patch_identity_paths(
     monkeypatch,
     tmp_path: Path,
@@ -70,6 +81,8 @@ def _patch_identity_paths(
         "ENTITY_REGISTRY_PATH",
         tmp_path / "instrument_entities.jsonl",
     )
+
+
 def test_new_entity_candidate_passes_validation(
     tmp_path,
     monkeypatch,
@@ -78,10 +91,12 @@ def test_new_entity_candidate_passes_validation(
         monkeypatch,
         tmp_path,
     )
+
     aliases = []
     registry = _registry(
         tmp_path
     )
+
     entities, import_records, summary = (
         importer._build_import_plan(
             _discovery(),
@@ -89,6 +104,7 @@ def test_new_entity_candidate_passes_validation(
             registry,
         )
     )
+
     assert len(entities) == 1
     assert entities[0]["status"] == (
         "new_entity_candidate"
@@ -96,17 +112,89 @@ def test_new_entity_candidate_passes_validation(
     assert entities[0]["entity_id"] == (
         "ENT-000001"
     )
+
     assert len(import_records) == 1
     assert import_records[0]["entity_id"] == (
         "ENT-000001"
     )
+
     assert summary["new_entity_candidates"] == 1
     assert summary["conflicting_entities"] == 0
+
     importer._validate_import_plan(
         aliases,
         entities,
         import_records,
     )
+
+
+def test_entity_resolved_by_gleif_reuses_existing_entity(
+    tmp_path,
+    monkeypatch,
+):
+    _patch_identity_paths(
+        monkeypatch,
+        tmp_path,
+    )
+
+    lei = "LEI000000000000000010"
+    isin = "SE0000000010"
+
+    aliases = [
+        _alias(
+            entity_id="ENT-000001",
+            isin=isin,
+            lei=lei,
+            source="GLEIF_ANNA",
+            observed_date="2026-09-01",
+        )
+    ]
+
+    registry = _registry(
+        tmp_path
+    )
+
+    registry.add(
+        entity_id="ENT-000001",
+        legal_name="Example AB",
+        observed_date="2026-09-01",
+        source="test",
+    )
+
+    registry.save()
+
+    entities, import_records, summary = (
+        importer._build_import_plan(
+            _discovery(
+                lei=lei,
+                isin=isin,
+                status="entity_resolved_by_gleif",
+                entity_ids=["ENT-000001"],
+            ),
+            aliases,
+            registry,
+        )
+    )
+
+    assert len(entities) == 1
+    assert entities[0]["status"] == (
+        "existing_entity"
+    )
+    assert entities[0]["entity_id"] == (
+        "ENT-000001"
+    )
+
+    assert import_records == []
+    assert summary["existing_entities_reused"] == 1
+    assert summary["already_present"] == 1
+
+    importer._validate_import_plan(
+        aliases,
+        entities,
+        import_records,
+    )
+
+
 def test_existing_isin_bridges_to_existing_entity(
     tmp_path,
     monkeypatch,
@@ -115,6 +203,7 @@ def test_existing_isin_bridges_to_existing_entity(
         monkeypatch,
         tmp_path,
     )
+
     aliases = [
         _alias(
             entity_id="ENT-000001",
@@ -122,16 +211,20 @@ def test_existing_isin_bridges_to_existing_entity(
             lei="LEI000000000000000002",
         )
     ]
+
     registry = _registry(
         tmp_path
     )
+
     registry.add(
         entity_id="ENT-000001",
         legal_name="Example AB",
         observed_date="2026-09-01",
         source="test",
     )
+
     registry.save()
+
     entities, import_records, summary = (
         importer._build_import_plan(
             _discovery(
@@ -142,6 +235,7 @@ def test_existing_isin_bridges_to_existing_entity(
             registry,
         )
     )
+
     assert len(entities) == 1
     assert entities[0]["status"] == (
         "existing_entity_via_isin"
@@ -149,6 +243,7 @@ def test_existing_isin_bridges_to_existing_entity(
     assert entities[0]["entity_id"] == (
         "ENT-000001"
     )
+
     assert len(import_records) == 1
     assert import_records[0]["entity_id"] == (
         "ENT-000001"
@@ -156,12 +251,16 @@ def test_existing_isin_bridges_to_existing_entity(
     assert import_records[0]["lei"] == (
         "LEI000000000000000003"
     )
+
     assert summary["conflicting_entities"] == 0
+
     importer._validate_import_plan(
         aliases,
         entities,
         import_records,
     )
+
+
 def test_conflicting_isin_stops_import_validation(
     tmp_path,
     monkeypatch,
@@ -170,6 +269,7 @@ def test_conflicting_isin_stops_import_validation(
         monkeypatch,
         tmp_path,
     )
+
     aliases = [
         _alias(
             entity_id="ENT-000001",
@@ -182,22 +282,27 @@ def test_conflicting_isin_stops_import_validation(
             lei="LEI000000000000000005",
         ),
     ]
+
     registry = _registry(
         tmp_path
     )
+
     registry.add(
         entity_id="ENT-000001",
         legal_name="Example AB",
         observed_date="2026-09-01",
         source="test",
     )
+
     registry.add(
         entity_id="ENT-000002",
         legal_name="Another AB",
         observed_date="2026-09-01",
         source="test",
     )
+
     registry.save()
+
     entities, import_records, summary = (
         importer._build_import_plan(
             _discovery(
@@ -208,14 +313,17 @@ def test_conflicting_isin_stops_import_validation(
             registry,
         )
     )
+
     assert len(entities) == 1
     assert entities[0]["status"] == "conflict"
     assert entities[0]["entity_ids"] == [
         "ENT-000001",
         "ENT-000002",
     ]
+
     assert import_records == []
     assert summary["conflicting_entities"] == 1
+
     with pytest.raises(
         IdentityContractError,
         match="identity-konflikter",
@@ -225,6 +333,8 @@ def test_conflicting_isin_stops_import_validation(
             entities,
             import_records,
         )
+
+
 def test_conflicting_lei_stops_import_validation(
     tmp_path,
     monkeypatch,
@@ -233,6 +343,7 @@ def test_conflicting_lei_stops_import_validation(
         monkeypatch,
         tmp_path,
     )
+
     aliases = [
         _alias(
             entity_id="ENT-000001",
@@ -245,22 +356,27 @@ def test_conflicting_lei_stops_import_validation(
             lei="LEI000000000000000007",
         ),
     ]
+
     registry = _registry(
         tmp_path
     )
+
     registry.add(
         entity_id="ENT-000001",
         legal_name="Example AB",
         observed_date="2026-09-01",
         source="test",
     )
+
     registry.add(
         entity_id="ENT-000002",
         legal_name="Another AB",
         observed_date="2026-09-01",
         source="test",
     )
+
     registry.save()
+
     entities, import_records, summary = (
         importer._build_import_plan(
             _discovery(
@@ -271,14 +387,17 @@ def test_conflicting_lei_stops_import_validation(
             registry,
         )
     )
+
     assert len(entities) == 1
     assert entities[0]["status"] == "conflict"
     assert entities[0]["entity_ids"] == [
         "ENT-000001",
         "ENT-000002",
     ]
+
     assert import_records == []
     assert summary["conflicting_entities"] == 1
+
     with pytest.raises(
         IdentityContractError,
         match="identity-konflikter",
@@ -288,6 +407,8 @@ def test_conflicting_lei_stops_import_validation(
             entities,
             import_records,
         )
+
+
 def test_exact_duplicate_is_skipped(
     tmp_path,
     monkeypatch,
@@ -296,6 +417,7 @@ def test_exact_duplicate_is_skipped(
         monkeypatch,
         tmp_path,
     )
+
     aliases = [
         _alias(
             entity_id="ENT-000001",
@@ -307,16 +429,20 @@ def test_exact_duplicate_is_skipped(
             source="GLEIF_ANNA",
         )
     ]
+
     registry = _registry(
         tmp_path
     )
+
     registry.add(
         entity_id="ENT-000001",
         legal_name="Example AB",
         observed_date="2026-10-01",
         source="GLEIF_ANNA",
     )
+
     registry.save()
+
     entities, import_records, summary = (
         importer._build_import_plan(
             _discovery(
@@ -329,6 +455,7 @@ def test_exact_duplicate_is_skipped(
             registry,
         )
     )
+
     assert len(entities) == 1
     assert entities[0]["status"] == (
         "existing_entity"
@@ -336,9 +463,11 @@ def test_exact_duplicate_is_skipped(
     assert entities[0]["entity_id"] == (
         "ENT-000001"
     )
+
     assert import_records == []
     assert summary["conflicting_entities"] == 0
     assert summary["already_present"] == 1
+
     importer._validate_import_plan(
         aliases,
         entities,
