@@ -12,6 +12,8 @@ from shared.entity_identity import (
 )
 from shared.instrument_identity import (
     INSTRUMENT_ALIASES_PATH,
+    IdentityContractError,
+    InstrumentIdentity,
     normalize_isin,
     normalize_lei,
     normalize_text,
@@ -85,9 +87,7 @@ def _load_alias_records() -> list[dict[str, Any]]:
     if not ALIASES_PATH.exists():
         return []
 
-    records: list[
-        dict[str, Any]
-    ] = []
+    records: list[dict[str, Any]] = []
 
     with ALIASES_PATH.open(
         "r",
@@ -187,7 +187,7 @@ def _isin_to_entities(
 def _existing_observation_keys(
     records: list[dict[str, Any]],
 ) -> set[
-    tuple[str, str, str, str, str, str]
+    tuple[str, str, str, str, str, str, str]
 ]:
     """
     Importen är idempotent per observerad identitet:
@@ -198,15 +198,23 @@ def _existing_observation_keys(
         + Yahoo-symbol
         + issuer
         + source
+        + observed_date
 
-    Två olika issuer-namn för samma ISIN/LEI betraktas
-    därför som två olika observationer.
+    Viktigt:
 
-    Samma observation kan däremot inte importeras flera gånger.
+    Två observationer med samma entity + ISIN men
+    olika issuer-namn eller olika observed_date
+    är inte dubbletter.
+
+    De representerar historiska observationer och
+    ska därför kunna samexistera.
+
+    En exakt upprepad observation importeras däremot
+    inte två gånger.
     """
 
     keys: set[
-        tuple[str, str, str, str, str, str]
+        tuple[str, str, str, str, str, str, str]
     ] = set()
 
     for record in records:
@@ -234,6 +242,10 @@ def _existing_observation_keys(
             record.get("source")
         )
 
+        observed_date = normalize_text(
+            record.get("observed_date")
+        )
+
         if not entity_id or not isin:
             continue
 
@@ -245,6 +257,7 @@ def _existing_observation_keys(
                 yahoo_symbol,
                 issuer,
                 source,
+                observed_date,
             )
         )
 
@@ -261,8 +274,10 @@ def _candidate_records(
     Grupperar discovery-resultatet på LEI.
 
     Ett LEI representerar här discoveryns observerade
-    entity-kandidat. ISIN används därefter som viktig
-    identitetsbrygga mot redan kända entities.
+    entity-kandidat.
+
+    ISIN används därefter som identitetsbrygga mot
+    redan kända entities.
 
     Alla observerade instrumentposter behålls eftersom
     discovery kan innehålla historiska namn eller andra
@@ -328,8 +343,10 @@ def _migrate_entities_from_aliases(
 
     Returnerar True om registret behöver sparas.
 
-    Funktionen skriver inte själv. Det gör main() endast
-    när --apply används.
+    Funktionen skriver inte själv.
+
+    Detta är viktigt eftersom dry-run ska vara helt
+    utan sidoeffekter.
     """
 
     grouped: dict[
@@ -454,7 +471,7 @@ def _build_import_plan(
         )
 
         # --------------------------------------------------------------
-        # 1. Samma LEI finns redan
+        # 1. LEI är den starkaste externa entity-bryggan.
         # --------------------------------------------------------------
 
         if len(known_by_lei) > 1:
@@ -488,7 +505,7 @@ def _build_import_plan(
 
         else:
             # ----------------------------------------------------------
-            # 2. Försök hitta identitetsbrygga via ISIN
+            # 2. ISIN används som identitetsbrygga.
             # ----------------------------------------------------------
 
             isin_entity_ids: set[str] = set()
@@ -532,7 +549,9 @@ def _build_import_plan(
 
             else:
                 # ------------------------------------------------------
-                # 3. Ny persistent entity
+                # 3. Ingen identitetsbrygga.
+                #
+                #    Skapa ny persistent entity.
                 # ------------------------------------------------------
 
                 entity_id = (
@@ -605,6 +624,9 @@ def _build_import_plan(
                 yahoo_symbol,
                 issuer,
                 SOURCE,
+                normalize_text(
+                    observed_date
+                ),
             )
 
             if key in existing_keys:
@@ -673,6 +695,114 @@ def _build_import_plan(
     )
 
 
+def _validate_import_plan(
+    aliases: list[dict[str, Any]],
+    entities: list[dict[str, Any]],
+    import_records: list[dict[str, Any]],
+) -> None:
+    """
+    Validerar den kompletta importplanen innan något skrivs.
+
+    Detta är sista spärren mellan discovery och persistent data.
+
+    Reglerna kommer från det centrala identity-lagret:
+
+        entity_id -> måste finnas
+        ISIN      -> får bara peka på en entity
+        LEI       -> får bara peka på en entity
+
+    Skillnader i issuer, Yahoo-symbol eller observationstid
+    är däremot tillåtna och representerar historiska
+    observationer.
+    """
+
+    identity = InstrumentIdentity(
+        aliases_path=ALIASES_PATH,
+        entity_registry_path=ENTITY_REGISTRY_PATH,
+    )
+
+    # Nya entities finns ännu inte i det persistenta registret.
+    # Lägg därför till dem endast i minnet så att de kan
+    # valideras mot samma identity contract.
+    for entity in entities:
+        if entity.get(
+            "status"
+        ) != "new_entity_candidate":
+            continue
+
+        entity_id = entity.get(
+            "entity_id"
+        )
+
+        if not entity_id:
+            continue
+
+        if identity.entity_registry.contains(
+            str(entity_id)
+        ):
+            continue
+
+        identity.entity_registry.add(
+            entity_id=str(
+                entity_id
+            ),
+            legal_name=entity.get(
+                "legal_name"
+            ),
+            observed_date=entity.get(
+                "observed_date"
+            ) or "",
+            source=SOURCE,
+            status=STATUS,
+        )
+
+    planned_records = (
+        list(aliases)
+        + list(import_records)
+    )
+
+    conflicts: list[str] = []
+
+    for record in import_records:
+        record_conflicts = (
+            identity.validate_observation(
+                record,
+                existing_records=planned_records,
+            )
+        )
+
+        for conflict in record_conflicts:
+            conflicts.append(
+                conflict.message
+            )
+
+    if conflicts:
+        unique_conflicts = sorted(
+            set(conflicts)
+        )
+
+        message = (
+            "Importplanen bryter mot "
+            "identity contract:\n"
+            + "\n".join(
+                f"  - {conflict}"
+                for conflict in unique_conflicts
+            )
+        )
+
+        raise IdentityContractError(
+            message
+        )
+
+    # Slutlig kontroll av hela identity-datasetet.
+    #
+    # InstrumentIdentity.validate_identity_data()
+    # arbetar mot befintliga records, så ersätt records
+    # tillfälligt med den kompletta planen.
+    identity.records = planned_records
+    identity.validate_identity_data()
+
+
 def _apply_import(
     entities: list[dict[str, Any]],
     aliases: list[dict[str, Any]],
@@ -682,8 +812,8 @@ def _apply_import(
     """
     Skriver entity-registret och aliasregistret.
 
-    Entity-registret skrivs först eftersom aliasposter refererar
-    till entity_id.
+    Alla valideringar måste redan ha passerat innan denna
+    funktion anropas.
     """
 
     for entity in entities:
@@ -838,11 +968,11 @@ def main() -> None:
 
     registry = EntityRegistry()
 
-    # Första körningen migrerar befintliga ENT-ID:n från
-    # aliasregistret till det nya centrala registret.
+    # Första körningen kan behöva migrera befintliga
+    # entity-id:n från aliasregistret till det centrala
+    # registret.
     #
-    # Migrationen görs i minnet under dry-run.
-    # Den sparas först när --apply används.
+    # Migrationen sker endast i minnet under dry-run.
     migration_changed = (
         _migrate_entities_from_aliases(
             registry,
@@ -860,6 +990,20 @@ def main() -> None:
         registry,
     )
 
+    # --------------------------------------------------------------
+    # VIKTIGT:
+    #
+    # Discovery får aldrig direkt bli persistent data.
+    #
+    # Hela planen måste först passera identity contract.
+    # --------------------------------------------------------------
+
+    _validate_import_plan(
+        aliases,
+        entities,
+        import_records,
+    )
+
     _print_plan(
         entities,
         import_records,
@@ -873,10 +1017,16 @@ def main() -> None:
             "DRY-RUN"
         )
         print("=" * 70)
+
         print()
+        print(
+            "Identity contract : OK"
+        )
+
         print(
             "Inga filer ändrades."
         )
+
         print()
         print(
             "Entity-register:"
@@ -884,6 +1034,7 @@ def main() -> None:
         print(
             ENTITY_REGISTRY_PATH
         )
+
         print()
         print(
             "Alias-register:"
@@ -909,6 +1060,10 @@ def main() -> None:
     print("=" * 70)
 
     print()
+    print(
+        "Identity contract : OK"
+    )
+
     print(
         f"Nya entity-poster: "
         f"{summary['new_entity_candidates']:,}"
