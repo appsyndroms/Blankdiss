@@ -94,9 +94,16 @@ jobs:
           echo "Antal observationer:"
           wc -l shared/data/instrument_aliases.jsonl
 
+      - name: Ta bort temporär discovery-rapport
+        run: |
           echo
-          echo "Git-status:"
-          git status --short
+          echo "=========================================="
+          echo "STÄDAR TEMPORÄR DISCOVERY-RAPPORT"
+          echo "=========================================="
+
+          rm -f data/analysis/instrument_entity_discovery.json
+
+          echo "Discovery-rapporten används endast under körningen och committas inte."
 
       - name: Kontrollera ändrade filer
         run: |
@@ -107,8 +114,8 @@ jobs:
 
           git status --short
 
-          unexpected=$(git status --short | \
-            grep -vE '^( M|M |A |AM|MM| D|D )?(shared/data/instrument_entities\.jsonl|shared/data/instrument_aliases\.jsonl)$' || true)
+          unexpected="$(git status --short --untracked-files=all | \
+            grep -vE '^[[:space:]]*[MADRCU?]+[[:space:]]+(shared/data/instrument_entities\.jsonl|shared/data/instrument_aliases\.jsonl)$' || true)"
 
           if [ -n "$unexpected" ]; then
             echo
@@ -116,6 +123,9 @@ jobs:
             echo "$unexpected"
             exit 1
           fi
+
+          echo
+          echo "Endast förväntade identity-filer har ändrats."
 
       - name: Förbered commit
         run: |
@@ -127,7 +137,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -A \
+          git add \
             shared/data/instrument_entities.jsonl \
             shared/data/instrument_aliases.jsonl
 
