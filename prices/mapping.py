@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 import json
+from datetime import date
+from pathlib import Path
 from typing import Any
+
+from shared.instrument_identity import (
+    IdentityContractError,
+    InstrumentIdentity,
+    normalize_identifier,
+    normalize_isin,
+    normalize_lei,
+    normalize_text,
+)
 
 from prices.mapping_resolution import (
     mapping_status,
@@ -256,6 +267,22 @@ def build_instrument_map(
                     "other"
                 ] += 1
 
+    identity = InstrumentIdentity()
+
+    identity_sync_count = (
+        sync_identity_from_yahoo_mapping(
+            identity=identity,
+            fi_instruments=fi_instruments,
+            mapping=mapping,
+        )
+    )
+
+    print(
+        "Identity: "
+        f"{identity_sync_count} "
+        "nya/ändrade observationer."
+    )
+
     print(
         "Mappning diagnostik:"
     )
@@ -400,6 +427,218 @@ def print_mapping_diagnostic(
 
 
 # ---------------------------------------------------------------------------
+# Identity integration
+# ---------------------------------------------------------------------------
+
+def sync_identity_from_yahoo_mapping(
+    *,
+    identity: InstrumentIdentity,
+    fi_instruments: list[dict[str, Any]],
+    mapping: dict[str, dict[str, Any]],
+) -> int:
+    """
+    Synkroniserar FI-identitet med Yahoo-mappningen.
+
+    Yahoo-mappningen är den normala integrationspunkten för identity.
+    Endast nya eller förändrade identitetsobservationer skrivs.
+
+    Om en identity-konflikt uppstår återställs identity-filerna till
+    läget före synkningen så att en körning inte lämnar halv data.
+    """
+
+    aliases_path = identity.aliases_path
+    entities_path = identity.entity_registry.path
+
+    aliases_backup = (
+        aliases_path.read_bytes()
+        if aliases_path.exists()
+        else None
+    )
+
+    entities_backup = (
+        entities_path.read_bytes()
+        if entities_path.exists()
+        else None
+    )
+
+    changed = 0
+
+    try:
+        for instrument in fi_instruments:
+            key = instrument["map_key"]
+
+            mapped = mapping.get(
+                key
+            )
+
+            if not isinstance(
+                mapped,
+                dict,
+            ):
+                continue
+
+            yahoo_symbol = clean_value(
+                mapped.get(
+                    "yahoo_symbol"
+                )
+            )
+
+            if not yahoo_symbol:
+                continue
+
+            isin = clean_value(
+                mapped.get("isin")
+                or instrument.get("isin")
+            )
+
+            lei = clean_value(
+                mapped.get("lei")
+                or instrument.get("lei")
+            )
+
+            issuer = clean_value(
+                mapped.get("issuer")
+                or instrument.get("issuer")
+            )
+
+            ticker = clean_value(
+                mapped.get("ticker")
+                or instrument.get("ticker")
+            )
+
+            observed_date = (
+                instrument.get("date")
+                or date.today().isoformat()
+            )
+
+            existing = identity.resolve(
+                isin=isin,
+                lei=lei,
+                issuer=issuer,
+                ticker=ticker,
+                yahoo_symbol=yahoo_symbol,
+            )
+
+            if (
+                existing is not None
+                and _same_identity_observation(
+                    existing.record,
+                    isin=isin,
+                    lei=lei,
+                    issuer=issuer,
+                    ticker=ticker,
+                    yahoo_symbol=yahoo_symbol,
+                )
+            ):
+                continue
+
+            identity.discover(
+                isin=isin,
+                issuer=issuer,
+                lei=lei,
+                ticker=ticker,
+                yahoo_symbol=yahoo_symbol,
+                source="FI_YAHOO",
+                observed_date=observed_date,
+                relation="observed",
+                status="observed",
+            )
+
+            changed += 1
+
+    except IdentityContractError:
+        _restore_identity_file(
+            aliases_path,
+            aliases_backup,
+        )
+
+        _restore_identity_file(
+            entities_path,
+            entities_backup,
+        )
+
+        raise
+
+    except Exception:
+        _restore_identity_file(
+            aliases_path,
+            aliases_backup,
+        )
+
+        _restore_identity_file(
+            entities_path,
+            entities_backup,
+        )
+
+        raise
+
+    return changed
+
+
+def _same_identity_observation(
+    record: dict[str, Any],
+    *,
+    isin: str | None,
+    lei: str | None,
+    issuer: str | None,
+    ticker: str | None,
+    yahoo_symbol: str | None,
+) -> bool:
+    return (
+        normalize_isin(
+            record.get("isin")
+        )
+        == normalize_isin(
+            isin
+        )
+        and normalize_lei(
+            record.get("lei")
+        )
+        == normalize_lei(
+            lei
+        )
+        and normalize_text(
+            record.get("issuer")
+        )
+        == normalize_text(
+            issuer
+        )
+        and normalize_identifier(
+            record.get("ticker")
+        )
+        == normalize_identifier(
+            ticker
+        )
+        and normalize_identifier(
+            record.get("yahoo_symbol")
+        )
+        == normalize_identifier(
+            yahoo_symbol
+        )
+    )
+
+
+def _restore_identity_file(
+    path: Path,
+    backup: bytes | None,
+) -> None:
+    if backup is None:
+        if path.exists():
+            path.unlink()
+
+        return
+
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    path.write_bytes(
+        backup
+    )
+
+
+# ---------------------------------------------------------------------------
 # Yahoo symbols
 # ---------------------------------------------------------------------------
 
@@ -431,7 +670,9 @@ def get_yahoo_symbols(
         if not symbol:
             continue
 
-        instruments.append(item)
+        instruments.append(
+            item
+        )
 
     unique: dict[
         str,
@@ -464,4 +705,5 @@ __all__ = [
     "load_instrument_map",
     "read_all_fi_data",
     "save_instrument_map",
+    "sync_identity_from_yahoo_mapping",
 ]
