@@ -1566,18 +1566,13 @@ class InstrumentIdentity:
                 observed_text
             )
 
-        conflicts = self.validate_observation(
-            record
-        )
-
-        if conflicts:
-            raise IdentityContractError(
-                "\n".join(
-                    conflict.message
-                    for conflict in conflicts
-                )
-            )
-
+        # Entityn måste finnas innan observationen
+        # valideras eftersom validate_observation()
+        # kontrollerar att entity_id är registrerat.
+        #
+        # För ett nytt entity-id sker registreringen här.
+        # För ett befintligt entity-id är operationen
+        # oförändrad eftersom _register_entity() är idempotent.
         self._register_entity(
             entity_id=entity_id,
             legal_name=(
@@ -1589,6 +1584,18 @@ class InstrumentIdentity:
             source=source,
             status=status,
         )
+
+        conflicts = self.validate_observation(
+            record
+        )
+
+        if conflicts:
+            raise IdentityContractError(
+                "\n".join(
+                    conflict.message
+                    for conflict in conflicts
+                )
+            )
 
         if not self._observation_exists(
             record
@@ -1626,6 +1633,8 @@ class InstrumentIdentity:
             "isin",
             "issuer",
             "lei",
+            "ticker",
+            "yahoo_symbol",
             "valid_from",
             "valid_to",
             "relation",
