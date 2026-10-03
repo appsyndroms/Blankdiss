@@ -1,9 +1,15 @@
 name: Rebuild prices
+
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,53 +24,67 @@ jobs:
             requirements.txt
             .github/workflows/rebuild_prices.yml
           sparse-checkout-cone-mode: false
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Cleanup prices
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python -u prices/cleanup.py --apply
+
       - name: Kontrollera price-data
         run: |
           echo
           echo "=========================================="
           echo "KONTROLLERA PRICE-DATA"
           echo "=========================================="
+
           if ! compgen -G "data/raw/prices/*.jsonl" > /dev/null; then
             echo "Inga prisfiler hittades efter cleanup."
             exit 1
           fi
+
           echo
           echo "Nya price-filer:"
           ls -lh data/raw/prices/*.jsonl
+
           echo
           echo "Antal rader:"
           wc -l data/raw/prices/*.jsonl
+
           echo
           echo "Git-status:"
           git status --short
+
       - name: Förbered commit
         run: |
           echo
           echo "=========================================="
           echo "FÖRBERED PRICE-DATA-COMMIT"
           echo "=========================================="
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/raw/prices/*.jsonl
+
+          git add -A data/raw/prices/
+
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
+
           echo
           echo "Förändringsstatistik:"
           git diff --cached --stat -- data/raw/prices
+
       - name: Commit
         run: |
           if git diff --cached --quiet; then
@@ -72,17 +92,22 @@ jobs:
             echo "Inga price-förändringar att committa."
             exit 0
           fi
+
           git commit \
             -m "Rebuild price data"
+
       - name: Push
         run: |
           echo
           echo "Pushar price-data..."
+
           bash scripts/git_push_with_retry.sh
+
       - name: Slutlig kontroll
         run: |
           echo
           echo "=========================================="
           echo "PRICE CLEANUP KLAR"
           echo "=========================================="
+
           git status --short
