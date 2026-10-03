@@ -10,8 +10,6 @@ on:
         options:
           - yahoo_price
           - identity
-          - cleanup_prices
-          - cleanup_prices_apply
 
 jobs:
   debug:
@@ -57,17 +55,3 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python felsokning/debug_identity.py
-
-      - name: Run price cleanup - dry run
-        if: ${{ inputs.diagnostic == 'cleanup_prices' }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python prices/cleanup.py
-
-      - name: Run price cleanup - APPLY
-        if: ${{ inputs.diagnostic == 'cleanup_prices_apply' }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python prices/cleanup.py --apply
