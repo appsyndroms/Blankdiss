@@ -17,12 +17,12 @@ jobs:
           fetch-depth: 1
           filter: blob:none
           sparse-checkout: |
+            .github/workflows/rebuild_prices.yml
             felsokning/
             shared/
             scripts/
             data/analysis/
             requirements.txt
-            .github/workflows/rebuild_prices.yml
           sparse-checkout-cone-mode: false
 
       - name: Setup Python
@@ -35,25 +35,33 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Kör identity discovery
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python -u felsokning/import_instrument_entities.py
-
-      - name: Importera instrument identities
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python -u felsokning/import_instrument_entities.py --apply
-
-      - name: Kontrollera identity-data
+      - name: Kör instrument entity discovery
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           echo
           echo "=========================================="
-          echo "KONTROLLERA INSTRUMENT IDENTITY-DATA"
+          echo "INSTRUMENT -> ENTITY DISCOVERY"
+          echo "=========================================="
+
+          python -u felsokning/discover_instrument_entities.py
+
+      - name: Importera instrument identities
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          echo
+          echo "=========================================="
+          echo "INSTRUMENT -> ENTITY IMPORT"
+          echo "=========================================="
+
+          python -u felsokning/import_instrument_entities.py --apply
+
+      - name: Kontrollera identity-data
+        run: |
+          echo
+          echo "=========================================="
+          echo "KONTROLLERA IDENTITY-DATA"
           echo "=========================================="
 
           test -f shared/data/instrument_entities.jsonl || {
@@ -65,6 +73,10 @@ jobs:
             echo "instrument_aliases.jsonl saknas."
             exit 1
           }
+
+          echo
+          echo "Discovery-rapport:"
+          ls -lh data/analysis/instrument_entity_discovery.json
 
           echo
           echo "Entity-register:"
@@ -79,12 +91,31 @@ jobs:
           wc -l shared/data/instrument_entities.jsonl
 
           echo
-          echo "Antal alias/observationer:"
+          echo "Antal observationer:"
           wc -l shared/data/instrument_aliases.jsonl
 
           echo
           echo "Git-status:"
           git status --short
+
+      - name: Kontrollera ändrade filer
+        run: |
+          echo
+          echo "=========================================="
+          echo "KONTROLLERA ÄNDRADE FILER"
+          echo "=========================================="
+
+          git status --short
+
+          unexpected=$(git status --short | \
+            grep -vE '^( M|M |A |AM|MM| D|D )?(shared/data/instrument_entities\.jsonl|shared/data/instrument_aliases\.jsonl)$' || true)
+
+          if [ -n "$unexpected" ]; then
+            echo
+            echo "OVÄNTADE FILÄNDRINGAR:"
+            echo "$unexpected"
+            exit 1
+          fi
 
       - name: Förbered commit
         run: |
