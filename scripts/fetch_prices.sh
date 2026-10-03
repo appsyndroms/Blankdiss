@@ -79,7 +79,7 @@ fi
 
 echo
 echo "=========================================="
-echo "FÖRBERED PRICE-DATA/MAPPING-COMMIT"
+echo "FÖRBERED PRICE/MAPPING/IDENTITY-COMMIT"
 echo "=========================================="
 
 git config user.name "github-actions[bot]"
@@ -88,15 +88,17 @@ git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git add \
   data/raw/prices/*.jsonl \
   prices/known_yahoo_symbols.jsonl \
-  data/analysis/instrument_map.json
+  data/analysis/instrument_map.json \
+  shared/data/instrument_aliases.jsonl \
+  shared/data/instrument_entities.jsonl
 
 echo
-echo "Price-, Yahoo- och instrumentmappningar före commit:"
+echo "Price-, Yahoo-, instrument- och identitymappningar före commit:"
 git status --short
 
 if git diff --cached --quiet; then
     echo
-    echo "Inga price- eller mappingförändringar att committa."
+    echo "Inga price-, mapping- eller identityförändringar att committa."
     exit 0
 fi
 
@@ -109,20 +111,22 @@ echo "Förändringsstatistik:"
 git diff --cached --stat -- \
   data/raw/prices \
   prices/known_yahoo_symbols.jsonl \
-  data/analysis/instrument_map.json
+  data/analysis/instrument_map.json \
+  shared/data/instrument_aliases.jsonl \
+  shared/data/instrument_entities.jsonl
 
 git commit \
-  -m "Update price data and Yahoo symbol mappings"
+  -m "Update price data and instrument identity"
 
 echo
 echo "=========================================="
-echo "PRICE-DATA OCH MAPPNINGAR COMMITTADE"
+echo "PRICE-DATA, MAPPNINGAR OCH IDENTITY COMMITTADE"
 echo "=========================================="
 
 git status --short
 
 echo
-echo "Pushar price/mapping-data..."
+echo "Pushar price/mapping/identity-data..."
 
 bash scripts/git_push_with_retry.sh
 
