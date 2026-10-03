@@ -200,8 +200,6 @@ def _existing_observation_keys(
         + source
         + observed_date
 
-    Viktigt:
-
     Två observationer med samma entity + ISIN men
     olika issuer-namn eller olika observed_date
     är inte dubbletter.
@@ -714,7 +712,60 @@ def _validate_import_plan(
     Skillnader i issuer, Yahoo-symbol eller observationstid
     är däremot tillåtna och representerar historiska
     observationer.
+
+    En importplan som redan innehåller en upptäckt LEI- eller
+    ISIN-konflikt stoppas direkt. Konflikten får inte filtreras
+    bort bara för att själva konfliktgruppen saknar
+    import_records.
     """
+
+    planned_conflicts = [
+        entity
+        for entity in entities
+        if entity.get(
+            "status"
+        ) == "conflict"
+    ]
+
+    if planned_conflicts:
+        conflict_messages: list[str] = []
+
+        for entity in planned_conflicts:
+            lei = entity.get(
+                "lei"
+            )
+
+            entity_ids = ", ".join(
+                str(entity_id)
+                for entity_id in entity.get(
+                    "entity_ids",
+                    [],
+                )
+            )
+
+            if lei:
+                conflict_messages.append(
+                    "LEI "
+                    f"{lei} tillhör flera entities: "
+                    f"{entity_ids}"
+                )
+            else:
+                conflict_messages.append(
+                    "Identity-konflikt för "
+                    f"entities: {entity_ids}"
+                )
+
+        raise IdentityContractError(
+            "Importplanen innehåller identity-konflikter:\n"
+            + "\n".join(
+                f"  - {message}"
+                for message in sorted(
+                    set(
+                        conflict_messages
+                    )
+                )
+            )
+        )
 
     identity = InstrumentIdentity(
         aliases_path=ALIASES_PATH,
