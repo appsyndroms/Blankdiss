@@ -130,16 +130,6 @@ def _load_alias_records() -> list[dict[str, Any]]:
     return records
 
 
-def _entity_ids_from_records(
-    records: list[dict[str, Any]],
-) -> set[str]:
-    return {
-        str(record["entity_id"])
-        for record in records
-        if record.get("entity_id")
-    }
-
-
 def _lei_to_entities(
     records: list[dict[str, Any]],
 ) -> dict[str, set[str]]:
@@ -194,19 +184,29 @@ def _isin_to_entities(
     return dict(mapping)
 
 
-def _existing_alias_keys(
+def _existing_observation_keys(
     records: list[dict[str, Any]],
 ) -> set[
-    tuple[str, str, str]
+    tuple[str, str, str, str, str, str]
 ]:
     """
-    Importen är idempotent per:
+    Importen är idempotent per observerad identitet:
 
-        entity_id + ISIN + source
+        entity_id
+        + ISIN
+        + LEI
+        + Yahoo-symbol
+        + issuer
+        + source
+
+    Två olika issuer-namn för samma ISIN/LEI betraktas
+    därför som två olika observationer.
+
+    Samma observation kan däremot inte importeras flera gånger.
     """
 
     keys: set[
-        tuple[str, str, str]
+        tuple[str, str, str, str, str, str]
     ] = set()
 
     for record in records:
@@ -216,6 +216,18 @@ def _existing_alias_keys(
 
         isin = normalize_isin(
             record.get("isin")
+        )
+
+        lei = normalize_lei(
+            record.get("lei")
+        )
+
+        yahoo_symbol = normalize_text(
+            record.get("yahoo_symbol")
+        )
+
+        issuer = normalize_text(
+            record.get("issuer")
         )
 
         source = normalize_text(
@@ -229,6 +241,9 @@ def _existing_alias_keys(
             (
                 str(entity_id),
                 isin,
+                lei,
+                yahoo_symbol,
+                issuer,
                 source,
             )
         )
@@ -248,6 +263,10 @@ def _candidate_records(
     Ett LEI representerar här discoveryns observerade
     entity-kandidat. ISIN används därefter som viktig
     identitetsbrygga mot redan kända entities.
+
+    Alla observerade instrumentposter behålls eftersom
+    discovery kan innehålla historiska namn eller andra
+    identitetsförändringar.
     """
 
     groups: dict[
@@ -302,13 +321,15 @@ def _candidate_records(
 def _migrate_entities_from_aliases(
     registry: EntityRegistry,
     aliases: list[dict[str, Any]],
-) -> None:
+) -> bool:
     """
     Säkerställer att befintliga entity-id:n i aliasregistret
     också finns i det centrala entity-registret.
 
-    Detta behövs för den första migrationen från den tidigare
-    modellen där entity-id:t endast fanns i aliasregistret.
+    Returnerar True om registret behöver sparas.
+
+    Funktionen skriver inte själv. Det gör main() endast
+    när --apply används.
     """
 
     grouped: dict[
@@ -368,8 +389,7 @@ def _migrate_entities_from_aliases(
 
         changed = True
 
-    if changed:
-        registry.save()
+    return changed
 
 
 def _build_import_plan(
@@ -389,7 +409,7 @@ def _build_import_plan(
         aliases
     )
 
-    existing_keys = _existing_alias_keys(
+    existing_keys = _existing_observation_keys(
         aliases
     )
 
@@ -566,9 +586,24 @@ def _build_import_plan(
                 "isin"
             ]
 
+            yahoo_symbol = normalize_text(
+                instrument.get(
+                    "yahoo_symbol"
+                )
+            )
+
+            issuer = normalize_text(
+                instrument.get(
+                    "issuer"
+                )
+            )
+
             key = (
                 entity_id,
                 isin,
+                lei,
+                yahoo_symbol,
+                issuer,
                 SOURCE,
             )
 
@@ -579,9 +614,8 @@ def _build_import_plan(
             record = {
                 "entity_id": entity_id,
                 "isin": isin,
-                "issuer": instrument.get(
-                    "issuer"
-                ),
+                "issuer": issuer,
+                "yahoo_symbol": yahoo_symbol,
                 "lei": lei,
                 "valid_from": None,
                 "valid_to": None,
@@ -643,6 +677,7 @@ def _apply_import(
     entities: list[dict[str, Any]],
     aliases: list[dict[str, Any]],
     registry: EntityRegistry,
+    migration_changed: bool,
 ) -> None:
     """
     Skriver entity-registret och aliasregistret.
@@ -669,7 +704,8 @@ def _apply_import(
             status=STATUS,
         )
 
-    registry.save()
+    if migration_changed or entities:
+        registry.save()
 
     if not aliases:
         return
@@ -782,6 +818,7 @@ def _print_plan(
             f"{record['entity_id']} | "
             f"{record['isin']} | "
             f"{record['lei']} | "
+            f"{record.get('yahoo_symbol')} | "
             f"{record['issuer']}"
         )
 
@@ -803,9 +840,14 @@ def main() -> None:
 
     # Första körningen migrerar befintliga ENT-ID:n från
     # aliasregistret till det nya centrala registret.
-    _migrate_entities_from_aliases(
-        registry,
-        aliases,
+    #
+    # Migrationen görs i minnet under dry-run.
+    # Den sparas först när --apply används.
+    migration_changed = (
+        _migrate_entities_from_aliases(
+            registry,
+            aliases,
+        )
     )
 
     (
@@ -856,6 +898,7 @@ def main() -> None:
         entities,
         import_records,
         registry,
+        migration_changed,
     )
 
     print()
