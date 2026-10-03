@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import json
 import math
+import shutil
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +14,11 @@ PRICE_DIR = Path(
     "data/raw/prices"
 )
 
-OUTPUT_PATH = PRICE_DIR / (
-    "prices_deduplicated_dryrun.jsonl"
-)
+ARCHIVE_DIR = PRICE_DIR / "archive"
 
 REPORT_PATH = Path(
     "data/analysis/price_cleanup_report.json"
 )
-
 
 IDENTITY_FIELDS = (
     "yahoo_symbol",
@@ -151,8 +150,6 @@ def _load_price_files() -> list[Path]:
         for path in PRICE_DIR.glob(
             "prices_*.jsonl"
         )
-        if path.name
-        != OUTPUT_PATH.name
     )
 
 
@@ -765,7 +762,7 @@ def _analyse_missing_isins(
     }
 
 
-def _analyse_records(
+def _analyse_isin_records(
     records: list[dict[str, Any]],
 ) -> tuple[
     list[dict[str, Any]],
@@ -923,14 +920,6 @@ def _analyse_records(
 
     report = {
         "input": {
-            "files": len(
-                {
-                    record[
-                        "_source_file"
-                    ]
-                    for record in records
-                }
-            ),
             "rows": len(
                 records
             ),
@@ -968,6 +957,132 @@ def _analyse_records(
     return (
         canonical,
         report,
+    )
+
+
+def _build_canonical_dataset(
+    records: list[dict[str, Any]],
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, Any],
+]:
+    records_with_isin = [
+        record
+        for record in records
+        if _normalise_isin(
+            record.get("isin")
+        )
+    ]
+
+    records_without_isin = [
+        record
+        for record in records
+        if not _normalise_isin(
+            record.get("isin")
+        )
+    ]
+
+    deduplicated_isin_records, report = (
+        _analyse_isin_records(
+            records_with_isin
+        )
+    )
+
+    if report[
+        "conflicts"
+    ][
+        "groups"
+    ]:
+        return (
+            [],
+            report,
+        )
+
+    canonical = (
+        deduplicated_isin_records
+        + [
+            _clean_output_record(
+                record
+            )
+            for record in records_without_isin
+        ]
+    )
+
+    canonical.sort(
+        key=lambda record: (
+            record.get("date", ""),
+            _normalise_isin(
+                record.get("isin")
+            ),
+            _normalise_symbol(
+                record.get("yahoo_symbol")
+            ),
+        )
+    )
+
+    report[
+        "dataset"
+    ] = {
+        "input_rows": len(
+            records
+        ),
+        "input_rows_with_isin": len(
+            records_with_isin
+        ),
+        "input_rows_without_isin": len(
+            records_without_isin
+        ),
+        "output_rows": len(
+            canonical
+        ),
+        "output_rows_with_isin": len(
+            deduplicated_isin_records
+        ),
+        "output_rows_without_isin": len(
+            records_without_isin
+        ),
+    }
+
+    return (
+        canonical,
+        report,
+    )
+
+
+def _output_path(
+    records: list[dict[str, Any]],
+) -> Path:
+    dates = [
+        _parse_date(
+            record.get("date")
+        )
+        for record in records
+    ]
+
+    valid_dates = [
+        value
+        for value in dates
+        if value is not None
+    ]
+
+    if not valid_dates:
+        raise ValueError(
+            "Det finns inga giltiga datum "
+            "i canonical-datasetet."
+        )
+
+    first_date = min(
+        valid_dates
+    )
+
+    last_date = max(
+        valid_dates
+    )
+
+    return PRICE_DIR / (
+        "prices_"
+        f"{first_date.isoformat()}_"
+        f"{last_date.isoformat()}_cleaned.jsonl"
     )
 
 
@@ -1019,16 +1134,170 @@ def _write_report(
         )
 
 
+def _archive_original_files(
+    paths: list[Path],
+) -> Path:
+    timestamp = datetime.now().strftime(
+        "%Y%m%d_%H%M%S"
+    )
+
+    archive_path = (
+        ARCHIVE_DIR
+        / f"cleanup_{timestamp}"
+    )
+
+    archive_path.mkdir(
+        parents=True,
+        exist_ok=False,
+    )
+
+    for path in paths:
+        shutil.move(
+            str(path),
+            str(
+                archive_path
+                / path.name
+            ),
+        )
+
+    return archive_path
+
+
+def _print_conflicts(
+    conflicts: list[dict[str, Any]],
+) -> None:
+    if not conflicts:
+        return
+
+    print()
+    print(
+        "KONFLIKTER - FÖRSTA"
+    )
+    print(
+        "-" * 70
+    )
+
+    for conflict in conflicts[:20]:
+        print(
+            f"{conflict['date']} "
+            f"{conflict['isin']}"
+        )
+
+        for observation in conflict[
+            "observations"
+        ]:
+            print(
+                "  "
+                f"close={observation['close']} "
+                f"symbol={observation['yahoo_symbol']} "
+                f"file={observation['source_file']} "
+                f"line={observation['source_line']}"
+            )
+
+
+def _print_missing_isin_analysis(
+    report: dict[str, Any],
+) -> None:
+    print()
+    print(
+        "ISIN-ANALYS"
+    )
+    print(
+        "-" * 70
+    )
+
+    print(
+        "ISIN-lösa rader: "
+        f"{report['rows']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Entydig ISIN-kandidat: "
+        f"{report['unique']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Flera möjliga ISIN: "
+        f"{report['ambiguous']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Motstridiga identiteter: "
+        f"{report['conflict']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Ingen identifiering: "
+        f"{report['unresolved']:,}"
+        .replace(",", " ")
+    )
+
+    print()
+    print(
+        "ISIN-ANALYS - UNIKA KANDIDATER"
+    )
+    print(
+        "-" * 70
+    )
+
+    for isin, count in sorted(
+        report[
+            "unique_candidate_isins"
+        ].items(),
+        key=lambda item: (
+            -item[1],
+            item[0],
+        ),
+    )[:50]:
+        print(
+            f"{isin}: "
+            f"{count:,} rader"
+            .replace(",", " ")
+        )
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Deduplicerar price-filer på "
+            "date + ISIN. "
+            "ISIN-lösa rader lämnas orörda."
+        )
+    )
+
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help=(
+            "Arkivera originalfilerna och "
+            "ersätt dem med ett canonical dataset."
+        ),
+    )
+
+    args = parser.parse_args()
+
     print(
         "=" * 70
     )
     print(
-        "PRICE CLEANUP / DRY-RUN"
+        "PRICE CLEANUP"
     )
     print(
         "=" * 70
     )
+
+    if args.apply:
+        print(
+            "MODE: APPLY"
+        )
+    else:
+        print(
+            "MODE: DRY-RUN"
+        )
 
     paths = _load_price_files()
 
@@ -1057,25 +1326,9 @@ def main() -> None:
         )
     )
 
-    records_with_isin = [
-        record
-        for record in records
-        if _normalise_isin(
-            record.get("isin")
-        )
-    ]
-
-    records_without_isin = [
-        record
-        for record in records
-        if not _normalise_isin(
-            record.get("isin")
-        )
-    ]
-
     canonical, report = (
-        _analyse_records(
-            records_with_isin
+        _build_canonical_dataset(
+            records
         )
     )
 
@@ -1084,6 +1337,14 @@ def main() -> None:
             records
         )
     )
+
+    report[
+        "missing_isin_analysis"
+    ] = missing_isin_report
+
+    report[
+        "load_statistics"
+    ] = load_statistics
 
     print()
     print(
@@ -1112,19 +1373,14 @@ def main() -> None:
 
     print(
         "Med ISIN: "
-        f"{len(records_with_isin):,}"
+        f"{len([r for r in records if _normalise_isin(r.get('isin'))]):,}"
         .replace(",", " ")
     )
 
     print(
         "Utan ISIN: "
-        f"{len(records_without_isin):,}"
+        f"{len([r for r in records if not _normalise_isin(r.get('isin'))]):,}"
         .replace(",", " ")
-    )
-
-    print(
-        "Instrument/ISIN: "
-        f"{report['instruments']['count']}"
     )
 
     print()
@@ -1148,7 +1404,7 @@ def main() -> None:
     )
 
     print(
-        "Dubblettrader: "
+        "Dubblettrader som tas bort: "
         f"{report['deduplication']['duplicate_rows_removed']:,}"
         .replace(",", " ")
     )
@@ -1173,39 +1429,13 @@ def main() -> None:
         .replace(",", " ")
     )
 
-    if report[
-        "conflicts"
-    ][
-        "groups"
-    ]:
-        print()
-        print(
-            "KONFLIKTER - FÖRSTA"
-        )
-        print(
-            "-" * 70
-        )
-
-        for conflict in report[
+    _print_conflicts(
+        report[
             "conflicts"
         ][
             "details"
-        ][:20]:
-            print(
-                f"{conflict['date']} "
-                f"{conflict['isin']}"
-            )
-
-            for observation in conflict[
-                "observations"
-            ]:
-                print(
-                    "  "
-                    f"close={observation['close']} "
-                    f"symbol={observation['yahoo_symbol']} "
-                    f"file={observation['source_file']} "
-                    f"line={observation['source_line']}"
-                )
+        ]
+    )
 
     print()
     print(
@@ -1232,7 +1462,8 @@ def main() -> None:
 
     print(
         "Saknat ISIN: "
-        f"{load_statistics['missing_isin']}"
+        f"{load_statistics['missing_isin']:,}"
+        .replace(",", " ")
     )
 
     print(
@@ -1245,228 +1476,9 @@ def main() -> None:
         f"{load_statistics['invalid_close']}"
     )
 
-    print()
-    print(
-        "ISIN-ANALYS"
+    _print_missing_isin_analysis(
+        missing_isin_report
     )
-    print(
-        "-" * 70
-    )
-
-    print(
-        "ISIN-lösa rader: "
-        f"{missing_isin_report['rows']:,}"
-        .replace(",", " ")
-    )
-
-    print(
-        "Entydig ISIN-kandidat: "
-        f"{missing_isin_report['unique']:,}"
-        .replace(",", " ")
-    )
-
-    print(
-        "Flera möjliga ISIN: "
-        f"{missing_isin_report['ambiguous']:,}"
-        .replace(",", " ")
-    )
-
-    print(
-        "Motstridiga identiteter: "
-        f"{missing_isin_report['conflict']:,}"
-        .replace(",", " ")
-    )
-
-    print(
-        "Ingen identifiering: "
-        f"{missing_isin_report['unresolved']:,}"
-        .replace(",", " ")
-    )
-
-    print()
-    print(
-        "ISIN-ANALYS - UNIKA KANDIDATER"
-    )
-    print(
-        "-" * 70
-    )
-
-    unique_candidates = (
-        missing_isin_report[
-            "unique_candidate_isins"
-        ]
-    )
-
-    for isin, count in sorted(
-        unique_candidates.items(),
-        key=lambda item: (
-            -item[1],
-            item[0],
-        ),
-    )[:50]:
-        print(
-            f"{isin}: "
-            f"{count:,} rader"
-            .replace(",", " ")
-        )
-
-    if missing_isin_report[
-        "ambiguous"
-    ]:
-        print()
-        print(
-            "ISIN-ANALYS - FLERA MÖJLIGA"
-        )
-        print(
-            "-" * 70
-        )
-
-        for example in (
-            missing_isin_report[
-                "examples"
-            ][
-                "ambiguous"
-            ]
-        ):
-            print(
-                f"{example['date']} "
-                f"symbol={example['yahoo_symbol']} "
-                f"issuer={example['issuer']}"
-            )
-
-            print(
-                "  Kandidater: "
-                + ", ".join(
-                    example[
-                        "candidate_isins"
-                    ]
-                )
-            )
-
-            print(
-                "  Evidence: "
-                + json.dumps(
-                    example[
-                        "evidence"
-                    ],
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-            )
-
-            print(
-                "  Källa: "
-                f"{example['source_file']}:"
-                f"{example['source_line']}"
-            )
-
-    if missing_isin_report[
-        "conflict"
-    ]:
-        print()
-        print(
-            "ISIN-ANALYS - MOTSTRIDIGA"
-        )
-        print(
-            "-" * 70
-        )
-
-        for example in (
-            missing_isin_report[
-                "examples"
-            ][
-                "conflict"
-            ]
-        ):
-            print(
-                f"{example['date']} "
-                f"symbol={example['yahoo_symbol']} "
-                f"issuer={example['issuer']}"
-            )
-
-            print(
-                "  Kandidater: "
-                + ", ".join(
-                    example[
-                        "candidate_isins"
-                    ]
-                )
-            )
-
-            print(
-                "  Evidence: "
-                + json.dumps(
-                    example[
-                        "evidence"
-                    ],
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-            )
-
-            print(
-                "  Källa: "
-                f"{example['source_file']}:"
-                f"{example['source_line']}"
-            )
-
-    if missing_isin_report[
-        "unresolved"
-    ]:
-        print()
-        print(
-            "ISIN-ANALYS - EJ IDENTIFIERADE"
-        )
-        print(
-            "-" * 70
-        )
-
-        for example in (
-            missing_isin_report[
-                "examples"
-            ][
-                "unresolved"
-            ]
-        ):
-            print(
-                f"{example['date']} "
-                f"symbol={example['yahoo_symbol']} "
-                f"issuer={example['issuer']} "
-                f"lei={example['lei']} "
-                f"ticker={example['ticker']}"
-            )
-
-            print(
-                "  Källa: "
-                f"{example['source_file']}:"
-                f"{example['source_line']}"
-            )
-
-    print()
-    print(
-        "PER INSTRUMENT"
-    )
-    print(
-        "-" * 70
-    )
-
-    for isin, statistics in report[
-        "instruments"
-    ][
-        "by_isin"
-    ].items():
-        print(
-            f"{isin}: "
-            f"{statistics['rows']:,} rader, "
-            f"{statistics['unique_observations']:,} unika, "
-            f"{statistics['duplicate_rows']:,} dubbletter, "
-            f"{statistics['conflict_groups']} konflikter"
-            .replace(",", " ")
-        )
-
-    report[
-        "missing_isin_analysis"
-    ] = missing_isin_report
 
     print()
     print(
@@ -1482,63 +1494,189 @@ def main() -> None:
         "groups"
     ]:
         print(
-            "FAIL - konflikter hittades."
+            "FAIL - close-konflikter hittades."
         )
         print(
-            "Ingen konfliktobservation tas bort."
+            "Ingen fil ändras."
+        )
+
+        report[
+            "apply"
+        ] = {
+            "requested": args.apply,
+            "applied": False,
+            "reason": "close_conflicts",
+        }
+
+        _write_report(
+            REPORT_PATH,
+            report,
+        )
+
+        return
+
+    if not canonical:
+        print(
+            "FAIL - canonical dataset blev tomt."
         )
         print(
-            "Ingen slutlig fil ska användas."
+            "Ingen fil ändras."
         )
-    else:
-        print(
-            "PASS - inga close-konflikter."
+
+        report[
+            "apply"
+        ] = {
+            "requested": args.apply,
+            "applied": False,
+            "reason": "empty_output",
+        }
+
+        _write_report(
+            REPORT_PATH,
+            report,
         )
-        print(
-            "Dubbletter med ISIN kan reduceras "
-            "säkert till en rad per date + ISIN."
+
+        return
+
+    output_path = _output_path(
+        canonical
+    )
+
+    report[
+        "output_path"
+    ] = str(
+        output_path
+    )
+
+    report[
+        "output"
+    ][
+        "rows"
+    ] = len(
+        canonical
+    )
+
+    print(
+        "Canonical dataset: "
+        f"{len(canonical):,} rader"
+        .replace(",", " ")
+    )
+
+    print(
+        "Förväntat:"
+        " 256 685 deduplicerade ISIN-rader"
+        " + 282 208 ISIN-lösa rader"
+    )
+
+    if not args.apply:
+        dryrun_path = (
+            Path("data/analysis")
+            / "prices_canonical_dryrun.jsonl"
         )
 
         _write_jsonl(
-            OUTPUT_PATH,
+            dryrun_path,
             canonical,
+        )
+
+        report[
+            "apply"
+        ] = {
+            "requested": False,
+            "applied": False,
+            "reason": "dry_run",
+        }
+
+        report[
+            "dryrun_output_path"
+        ] = str(
+            dryrun_path
+        )
+
+        _write_report(
+            REPORT_PATH,
+            report,
         )
 
         print()
         print(
-            "DRY-RUN OUTPUT"
+            "DRY-RUN"
         )
         print(
             "-" * 70
         )
 
         print(
-            f"Föreslagen fil: "
-            f"{OUTPUT_PATH}"
+            f"Canonical testfil: "
+            f"{dryrun_path}"
         )
 
         print(
             "Originalfilerna har INTE ändrats."
         )
 
-    report[
-        "load_statistics"
-    ] = load_statistics
+    else:
+        print()
+        print(
+            "APPLY"
+        )
+        print(
+            "-" * 70
+        )
 
-    report[
-        "output_path"
-    ] = str(
-        OUTPUT_PATH
-    )
+        archive_path = _archive_original_files(
+            paths
+        )
 
-    report[
-        "dry_run"
-    ] = True
+        _write_jsonl(
+            output_path,
+            canonical,
+        )
 
-    _write_report(
-        REPORT_PATH,
-        report,
-    )
+        report[
+            "apply"
+        ] = {
+            "requested": True,
+            "applied": True,
+            "archive_path": str(
+                archive_path
+            ),
+            "output_path": str(
+                output_path
+            ),
+        }
+
+        report[
+            "archived_files"
+        ] = [
+            path.name
+            for path in paths
+        ]
+
+        _write_report(
+            REPORT_PATH,
+            report,
+        )
+
+        print(
+            "Originalfiler arkiverade:"
+        )
+        print(
+            f"  {archive_path}"
+        )
+
+        print()
+        print(
+            "Ny canonical prisfil:"
+        )
+        print(
+            f"  {output_path}"
+        )
+
+        print()
+        print(
+            "Dubblettstädningen är nu genomförd."
+        )
 
     print()
     print(
