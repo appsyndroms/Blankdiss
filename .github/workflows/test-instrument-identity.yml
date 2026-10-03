@@ -1,0 +1,92 @@
+name: Test instrument identity
+
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Identity-test"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - name
+          - yahoo
+          - lei
+          - bridge
+          - duplicate
+          - isin-conflict
+          - lei-conflict
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Identity test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            shared/
+            tests/
+            requirements.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run selected identity test
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          case "${{ inputs.test }}" in
+            all)
+              pytest -q tests/instrument/test_identity_future_changes.py
+              ;;
+
+            name)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_same_isin_with_new_name_keeps_same_entity
+              ;;
+
+            yahoo)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_same_isin_with_new_yahoo_symbol_keeps_same_entity_and_new_observation
+              ;;
+
+            lei)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_same_isin_with_new_lei_keeps_same_entity_and_new_observation
+              ;;
+
+            bridge)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_new_lei_with_existing_isin_bridges_to_existing_entity
+              ;;
+
+            duplicate)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_same_observation_is_idempotent
+              ;;
+
+            isin-conflict)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_same_isin_cannot_be_assigned_to_different_entity
+              ;;
+
+            lei-conflict)
+              pytest -q tests/instrument/test_identity_future_changes.py::test_same_lei_cannot_be_assigned_to_different_entity
+              ;;
+
+            *)
+              echo "Okänt identity-test: ${{ inputs.test }}"
+              exit 1
+              ;;
+          esac
