@@ -63,3 +63,10 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python felsokning/discover_instrument_entities.py
+
+      - name: Run instrument entity import dry-run
+        if: ${{ inputs.diagnostic == 'instrument_entity' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python felsokning/import_instrument_entities.py
