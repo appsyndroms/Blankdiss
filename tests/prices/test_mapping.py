@@ -1,45 +1,93 @@
 import json
 
 from prices import mapping
-from prices.mapping import _explicit_mapping
+from prices import mapping_resolution
 
 
-def test_explicit_isin_mapping_for_skf():
-    symbol, source = _explicit_mapping(
+def test_explicit_isin_mapping_for_skf(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        mapping_resolution,
+        "KNOWN_YAHOO_SYMBOLS_BY_ISIN",
         {
-            "isin": "SE0000108227",
-            "issuer": "Aktiebolaget SKF",
-            "ticker": None,
-            "exchange": None,
-        }
+            "SE0000108227": "SKF-B.ST",
+        },
+    )
+
+    symbol, source = (
+        mapping_resolution.explicit_mapping(
+            {
+                "isin": "SE0000108227",
+                "issuer": "Aktiebolaget SKF",
+                "ticker": None,
+                "exchange": None,
+            }
+        )
     )
 
     assert symbol == "SKF-B.ST"
     assert source == "known_isin"
 
 
-def test_explicit_isin_mapping_takes_priority_over_name():
-    symbol, source = _explicit_mapping(
+def test_explicit_isin_mapping_takes_priority_over_name(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        mapping_resolution,
+        "KNOWN_YAHOO_SYMBOLS_BY_ISIN",
         {
-            "isin": "SE0000108227",
-            "issuer": "Aktiebolaget SKF",
-            "ticker": None,
-            "exchange": None,
-        }
+            "SE0000108227": "SKF-B.ST",
+        },
+    )
+
+    monkeypatch.setattr(
+        mapping_resolution,
+        "KNOWN_YAHOO_SYMBOLS",
+        {
+            "aktiebolaget skf": "WRONG.ST",
+        },
+    )
+
+    symbol, source = (
+        mapping_resolution.explicit_mapping(
+            {
+                "isin": "SE0000108227",
+                "issuer": "Aktiebolaget SKF",
+                "ticker": None,
+                "exchange": None,
+            }
+        )
     )
 
     assert symbol == "SKF-B.ST"
     assert source == "known_isin"
 
 
-def test_unknown_isin_remains_unresolved():
-    symbol, source = _explicit_mapping(
-        {
-            "isin": "SE0099999999",
-            "issuer": "Ett Okänt Bolag",
-            "ticker": None,
-            "exchange": None,
-        }
+def test_unknown_isin_remains_unresolved(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        mapping_resolution,
+        "KNOWN_YAHOO_SYMBOLS_BY_ISIN",
+        {},
+    )
+
+    monkeypatch.setattr(
+        mapping_resolution,
+        "KNOWN_YAHOO_SYMBOLS",
+        {},
+    )
+
+    symbol, source = (
+        mapping_resolution.explicit_mapping(
+            {
+                "isin": "SE0099999999",
+                "issuer": "Ett Okänt Bolag",
+                "ticker": None,
+                "exchange": None,
+            }
+        )
     )
 
     assert symbol is None
