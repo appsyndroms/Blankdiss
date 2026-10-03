@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import json
 import math
@@ -7,65 +8,91 @@ from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+
+from shared.instrument_identity import (
+    load_identity,
+    normalize_isin,
+)
+
+
 PRICE_DIR = Path(
     "data/raw/prices"
 )
+
 ARCHIVE_DIR = PRICE_DIR / "archive"
+
 REPORT_PATH = Path(
     "data/analysis/price_cleanup_report.json"
 )
+
 IDENTITY_FIELDS = (
     "yahoo_symbol",
     "lei",
     "issuer",
     "ticker",
 )
+
+
 def _parse_date(
     value: Any,
 ) -> date | None:
     if isinstance(value, date):
         return value
+
     if not isinstance(
         value,
         str,
     ):
         return None
+
     try:
         return date.fromisoformat(
             value[:10]
         )
     except ValueError:
         return None
+
+
 def _normalise_isin(
     value: Any,
 ) -> str:
     if value is None:
         return ""
+
     return str(
         value
     ).strip().upper()
+
+
 def _normalise_identity_value(
     field: str,
     value: Any,
 ) -> str:
     if value is None:
         return ""
+
     value = str(
         value
     ).strip()
+
     if not value:
         return ""
+
     if field in (
         "yahoo_symbol",
         "lei",
         "ticker",
     ):
         return value.upper()
+
     if field == "issuer":
         return " ".join(
             value.upper().split()
         )
+
     return value
+
+
 def _normalise_symbol(
     value: Any,
 ) -> str:
@@ -73,11 +100,14 @@ def _normalise_symbol(
         "yahoo_symbol",
         value,
     )
+
+
 def _parse_close(
     value: Any,
 ) -> float | None:
     if value is None:
         return None
+
     try:
         numeric = float(
             value
@@ -87,28 +117,38 @@ def _parse_close(
         ValueError,
     ):
         return None
+
     if not math.isfinite(
         numeric
     ):
         return None
+
     return numeric
+
+
 def _observation_key(
     record: dict[str, Any],
 ) -> tuple[str, str] | None:
     record_date = _parse_date(
         record.get("date")
     )
+
     isin = _normalise_isin(
         record.get("isin")
     )
+
     if record_date is None:
         return None
+
     if not isin:
         return None
+
     return (
         record_date.isoformat(),
         isin,
     )
+
+
 def _load_price_files() -> list[Path]:
     return sorted(
         path
@@ -117,6 +157,8 @@ def _load_price_files() -> list[Path]:
         )
         if path.is_file()
     )
+
+
 def _load_records(
     paths: list[Path],
 ) -> tuple[
@@ -126,6 +168,7 @@ def _load_records(
     records: list[
         dict[str, Any]
     ] = []
+
     statistics = {
         "files": 0,
         "lines": 0,
@@ -137,10 +180,12 @@ def _load_records(
         "missing_close": 0,
         "invalid_close": 0,
     }
+
     for path in paths:
         statistics[
             "files"
         ] += 1
+
         with path.open(
             "r",
             encoding="utf-8",
@@ -152,12 +197,15 @@ def _load_records(
                 statistics[
                     "lines"
                 ] += 1
+
                 line = line.strip()
+
                 if not line:
                     statistics[
                         "blank_lines"
                     ] += 1
                     continue
+
                 try:
                     record = json.loads(
                         line
@@ -167,6 +215,7 @@ def _load_records(
                         "invalid_json"
                     ] += 1
                     continue
+
                 if not isinstance(
                     record,
                     dict,
@@ -175,68 +224,86 @@ def _load_records(
                         "invalid_json"
                     ] += 1
                     continue
+
                 raw_date = record.get(
                     "date"
                 )
+
                 if raw_date is None:
                     statistics[
                         "missing_date"
                     ] += 1
                     continue
+
                 parsed_date = _parse_date(
                     raw_date
                 )
+
                 if parsed_date is None:
                     statistics[
                         "invalid_date"
                     ] += 1
                     continue
+
                 close = _parse_close(
                     record.get("close")
                 )
+
                 if record.get("close") is None:
                     statistics[
                         "missing_close"
                     ] += 1
                     continue
+
                 if close is None:
                     statistics[
                         "invalid_close"
                     ] += 1
                     continue
+
                 clean_record = dict(
                     record
                 )
+
                 clean_record[
                     "date"
                 ] = parsed_date.isoformat()
+
                 clean_record[
                     "isin"
                 ] = _normalise_isin(
                     record.get("isin")
                 )
+
                 clean_record[
                     "close"
                 ] = close
+
                 clean_record[
                     "_source_file"
                 ] = path.name
+
                 clean_record[
                     "_source_line"
                 ] = line_number
+
                 if not clean_record[
                     "isin"
                 ]:
                     statistics[
                         "missing_isin"
                     ] += 1
+
                 records.append(
                     clean_record
                 )
+
     return (
         records,
         statistics,
     )
+
+
 def _records_conflict(
     first: dict[str, Any],
     second: dict[str, Any],
@@ -244,15 +311,20 @@ def _records_conflict(
     first_close = _parse_close(
         first.get("close")
     )
+
     second_close = _parse_close(
         second.get("close")
     )
+
     if (
         first_close is None
         or second_close is None
     ):
         return True
+
     return first_close != second_close
+
+
 def _clean_output_record(
     record: dict[str, Any],
 ) -> dict[str, Any]:
@@ -261,6 +333,8 @@ def _clean_output_record(
         for key, value in record.items()
         if not key.startswith("_")
     }
+
+
 def _build_identity_index(
     records: list[dict[str, Any]],
 ) -> dict[
@@ -274,19 +348,24 @@ def _build_identity_index(
         field: defaultdict(set)
         for field in IDENTITY_FIELDS
     }
+
     for record in records:
         isin = _normalise_isin(
             record.get("isin")
         )
+
         if not isin:
             continue
+
         for field in IDENTITY_FIELDS:
             value = _normalise_identity_value(
                 field,
                 record.get(field),
             )
+
             if not value:
                 continue
+
             index[
                 field
             ][
@@ -294,7 +373,10 @@ def _build_identity_index(
             ].add(
                 isin
             )
+
     return index
+
+
 def _resolve_missing_isin(
     record: dict[str, Any],
     identity_index: dict[
@@ -306,35 +388,44 @@ def _resolve_missing_isin(
         str,
         set[str],
     ] = {}
+
     for field in IDENTITY_FIELDS:
         value = _normalise_identity_value(
             field,
             record.get(field),
         )
+
         if not value:
             continue
+
         known_isins = identity_index[
             field
         ].get(
             value,
             set(),
         )
+
         if known_isins:
             evidence[
                 field
             ] = set(
                 known_isins
             )
+
     all_candidates: set[str] = set()
+
     for candidates in evidence.values():
         all_candidates.update(
             candidates
         )
+
     if not evidence:
         status = "unresolved"
         candidate_isins: set[str] = set()
+
     else:
         intersection: set[str] | None = None
+
         for candidates in evidence.values():
             if intersection is None:
                 intersection = set(
@@ -342,17 +433,21 @@ def _resolve_missing_isin(
                 )
             else:
                 intersection &= candidates
+
         if intersection:
             candidate_isins = intersection
+
             if len(
                 candidate_isins
             ) == 1:
                 status = "unique"
             else:
                 status = "ambiguous"
+
         else:
             candidate_isins = all_candidates
             status = "conflict"
+
     return {
         "status": status,
         "candidate_isins": sorted(
@@ -368,281 +463,519 @@ def _resolve_missing_isin(
             )
         },
     }
+
+
 def _analyse_missing_isins(
     records: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    identity_index = _build_identity_index(
-        records
-    )
+    """
+    Analyserar ISIN-lösa prisrader mot det centrala identitetslagret.
+
+    Funktionen skriver inte till identitetslagret och ändrar inte
+    prisraderna.
+
+    Analysen skiljer mellan:
+
+        unique_isin
+            En entity och exakt ett instrument med ISIN gäller på datumet.
+
+        multiple_current_instruments
+            En entity är identifierad men flera instrument gäller samtidigt.
+
+        current_instrument_without_isin
+            Ett instrument gäller på datumet men identitetslagret saknar ISIN.
+
+        entity_only
+            Entityn kan identifieras men inget instrument kan kopplas
+            entydigt till datumet.
+
+        multiple_entities
+            Identitetsuppgifterna pekar på flera möjliga entitys.
+
+        unresolved
+            Ingen central identitet kan hittas.
+
+    Dessutom rapporteras historiska ISIN för identifierade entitys.
+    """
+
+    identity = load_identity()
+
     statistics = {
         "rows": 0,
-        "unique": 0,
-        "ambiguous": 0,
-        "conflict": 0,
+        "unique_isin": 0,
+        "multiple_current_instruments": 0,
+        "current_instrument_without_isin": 0,
+        "entity_only": 0,
+        "multiple_entities": 0,
         "unresolved": 0,
-        "candidate_isins": 0,
+        "historical_multiple_isins": 0,
     }
-    by_status: dict[
+
+    examples: dict[
         str,
-        dict[str, int],
-    ] = defaultdict(
-        lambda: {
-            "rows": 0,
-            "unique_observations": 0,
-        }
-    )
-    unique_candidates: dict[
+        list[dict[str, Any]],
+    ] = defaultdict(list)
+
+    unique_candidate_isins: dict[
         str,
         int,
     ] = defaultdict(int)
-    ambiguous_candidates: dict[
-        str,
-        int,
-    ] = defaultdict(int)
-    conflict_examples: list[
-        dict[str, Any]
-    ] = []
-    ambiguous_examples: list[
-        dict[str, Any]
-    ] = []
-    unresolved_examples: list[
-        dict[str, Any]
-    ] = []
-    seen_observations: dict[
-        str,
-        set[
-            tuple[
-                str,
-                str,
-            ]
-        ],
-    ] = defaultdict(set)
+
+    def add_example(
+        status: str,
+        record: dict[str, Any],
+        details: dict[str, Any],
+    ) -> None:
+        if len(
+            examples[status]
+        ) >= 20:
+            return
+
+        examples[status].append(
+            {
+                "date": record.get(
+                    "date"
+                ),
+                "yahoo_symbol": _normalise_symbol(
+                    record.get(
+                        "yahoo_symbol"
+                    )
+                ),
+                "lei": _normalise_identity_value(
+                    "lei",
+                    record.get(
+                        "lei"
+                    ),
+                ),
+                "issuer": record.get(
+                    "issuer"
+                ),
+                "ticker": _normalise_identity_value(
+                    "ticker",
+                    record.get(
+                        "ticker"
+                    ),
+                ),
+                **details,
+                "source_file": record.get(
+                    "_source_file"
+                ),
+                "source_line": record.get(
+                    "_source_line"
+                ),
+            }
+        )
+
     for record in records:
         if _normalise_isin(
             record.get("isin")
         ):
             continue
+
         statistics[
             "rows"
         ] += 1
-        resolution = _resolve_missing_isin(
-            record,
-            identity_index,
+
+        target_date = _parse_date(
+            record.get("date")
         )
-        status = resolution[
-            "status"
-        ]
-        statistics[
-            status
-        ] += 1
-        by_status[
-            status
-        ][
-            "rows"
-        ] += 1
-        observation_key = (
-            record.get("date", ""),
-            _normalise_identity_value(
-                "yahoo_symbol",
-                record.get(
-                    "yahoo_symbol"
-                ),
+
+        matches = identity._matching_records(
+            lei=record.get(
+                "lei"
             ),
+            issuer=record.get(
+                "issuer"
+            ),
+            ticker=record.get(
+                "ticker"
+            ),
+            yahoo_symbol=record.get(
+                "yahoo_symbol"
+            ),
+            target_date=target_date,
         )
-        seen_observations[
-            status
-        ].add(
-            observation_key
-        )
-        candidate_isins = resolution[
-            "candidate_isins"
-        ]
-        if status == "unique":
-            candidate_isin = (
-                candidate_isins[0]
+
+        if not matches:
+            statistics[
+                "unresolved"
+            ] += 1
+
+            add_example(
+                "unresolved",
+                record,
+                {
+                    "status": "unresolved",
+                },
             )
-            unique_candidates[
+
+            continue
+
+        priority = {
+            "isin": 0,
+            "lei": 1,
+            "yahoo_symbol": 2,
+            "ticker": 3,
+            "issuer": 4,
+        }
+
+        best_priority = min(
+            priority[
+                match.resolution
+            ]
+            for match in matches
+        )
+
+        best_matches = [
+            match
+            for match in matches
+            if priority[
+                match.resolution
+            ]
+            == best_priority
+        ]
+
+        entity_ids = sorted(
+            {
+                match.entity_id
+                for match in best_matches
+            }
+        )
+
+        if len(
+            entity_ids
+        ) != 1:
+            statistics[
+                "multiple_entities"
+            ] += 1
+
+            add_example(
+                "multiple_entities",
+                record,
+                {
+                    "status": "multiple_entities",
+                    "entities": entity_ids,
+                    "matches": [
+                        {
+                            "entity_id": match.entity_id,
+                            "resolution": match.resolution,
+                            "isin": normalize_isin(
+                                match.record.get(
+                                    "isin"
+                                )
+                            ),
+                            "issuer": match.record.get(
+                                "issuer"
+                            ),
+                            "lei": match.record.get(
+                                "lei"
+                            ),
+                            "ticker": match.record.get(
+                                "ticker"
+                            ),
+                            "yahoo_symbol": match.record.get(
+                                "yahoo_symbol"
+                            ),
+                        }
+                        for match in best_matches
+                    ],
+                },
+            )
+
+            continue
+
+        entity_id = entity_ids[0]
+
+        all_instruments = (
+            identity.instruments_for_entity(
+                entity_id
+            )
+        )
+
+        historical_isins = sorted(
+            {
+                normalize_isin(
+                    instrument.get(
+                        "isin"
+                    )
+                )
+                for instrument
+                in all_instruments
+                if normalize_isin(
+                    instrument.get(
+                        "isin"
+                    )
+                )
+            }
+        )
+
+        if len(
+            historical_isins
+        ) > 1:
+            statistics[
+                "historical_multiple_isins"
+            ] += 1
+
+        current_instruments = (
+            identity.instruments_for_entity(
+                entity_id,
+                target_date,
+            )
+        )
+
+        current_isins = sorted(
+            {
+                normalize_isin(
+                    instrument.get(
+                        "isin"
+                    )
+                )
+                for instrument
+                in current_instruments
+                if normalize_isin(
+                    instrument.get(
+                        "isin"
+                    )
+                )
+            }
+        )
+
+        instruments_without_isin = [
+            instrument
+            for instrument
+            in current_instruments
+            if not normalize_isin(
+                instrument.get(
+                    "isin"
+                )
+            )
+        ]
+
+        if len(
+            current_isins
+        ) == 1:
+            candidate_isin = (
+                current_isins[0]
+            )
+
+            statistics[
+                "unique_isin"
+            ] += 1
+
+            unique_candidate_isins[
                 candidate_isin
             ] += 1
+
+            add_example(
+                "unique_isin",
+                record,
+                {
+                    "status": "unique_isin",
+                    "entity_id": entity_id,
+                    "candidate_isin": candidate_isin,
+                    "current_instruments": [
+                        {
+                            "isin": normalize_isin(
+                                instrument.get(
+                                    "isin"
+                                )
+                            ),
+                            "issuer": instrument.get(
+                                "issuer"
+                            ),
+                            "lei": instrument.get(
+                                "lei"
+                            ),
+                            "ticker": instrument.get(
+                                "ticker"
+                            ),
+                            "yahoo_symbol": instrument.get(
+                                "yahoo_symbol"
+                            ),
+                            "valid_from": instrument.get(
+                                "valid_from"
+                            ),
+                            "valid_to": instrument.get(
+                                "valid_to"
+                            ),
+                            "source": instrument.get(
+                                "source"
+                            ),
+                            "status": instrument.get(
+                                "status"
+                            ),
+                        }
+                        for instrument
+                        in current_instruments
+                    ],
+                    "historical_isins": historical_isins,
+                    "historical_isin_count": len(
+                        historical_isins
+                    ),
+                },
+            )
+
+            continue
+
+        if len(
+            current_isins
+        ) > 1:
             statistics[
-                "candidate_isins"
+                "multiple_current_instruments"
             ] += 1
-        elif status == "ambiguous":
-            for isin in candidate_isins:
-                ambiguous_candidates[
-                    isin
-                ] += 1
-            if len(
-                ambiguous_examples
-            ) < 20:
-                ambiguous_examples.append(
-                    {
-                        "date": record.get(
-                            "date"
-                        ),
-                        "yahoo_symbol": _normalise_symbol(
-                            record.get(
-                                "yahoo_symbol"
-                            )
-                        ),
-                        "lei": _normalise_identity_value(
-                            "lei",
-                            record.get(
-                                "lei"
+
+            add_example(
+                "multiple_current_instruments",
+                record,
+                {
+                    "status": "multiple_current_instruments",
+                    "entity_id": entity_id,
+                    "candidate_isins": current_isins,
+                    "historical_isins": historical_isins,
+                    "current_instruments": [
+                        {
+                            "isin": normalize_isin(
+                                instrument.get(
+                                    "isin"
+                                )
                             ),
-                        ),
-                        "issuer": record.get(
-                            "issuer"
-                        ),
-                        "ticker": _normalise_identity_value(
-                            "ticker",
-                            record.get(
+                            "issuer": instrument.get(
+                                "issuer"
+                            ),
+                            "ticker": instrument.get(
                                 "ticker"
                             ),
-                        ),
-                        "candidate_isins": candidate_isins,
-                        "evidence": resolution[
-                            "evidence"
-                        ],
-                        "source_file": record.get(
-                            "_source_file"
-                        ),
-                        "source_line": record.get(
-                            "_source_line"
-                        ),
-                    }
-                )
-        elif status == "conflict":
-            if len(
-                conflict_examples
-            ) < 20:
-                conflict_examples.append(
-                    {
-                        "date": record.get(
-                            "date"
-                        ),
-                        "yahoo_symbol": _normalise_symbol(
-                            record.get(
+                            "yahoo_symbol": instrument.get(
                                 "yahoo_symbol"
-                            )
-                        ),
-                        "lei": _normalise_identity_value(
-                            "lei",
-                            record.get(
+                            ),
+                            "valid_from": instrument.get(
+                                "valid_from"
+                            ),
+                            "valid_to": instrument.get(
+                                "valid_to"
+                            ),
+                            "source": instrument.get(
+                                "source"
+                            ),
+                            "status": instrument.get(
+                                "status"
+                            ),
+                        }
+                        for instrument
+                        in current_instruments
+                    ],
+                },
+            )
+
+            continue
+
+        if instruments_without_isin:
+            statistics[
+                "current_instrument_without_isin"
+            ] += 1
+
+            add_example(
+                "current_instrument_without_isin",
+                record,
+                {
+                    "status": (
+                        "current_instrument_without_isin"
+                    ),
+                    "entity_id": entity_id,
+                    "historical_isins": historical_isins,
+                    "current_instruments": [
+                        {
+                            "isin": normalize_isin(
+                                instrument.get(
+                                    "isin"
+                                )
+                            ),
+                            "issuer": instrument.get(
+                                "issuer"
+                            ),
+                            "lei": instrument.get(
                                 "lei"
                             ),
-                        ),
-                        "issuer": record.get(
-                            "issuer"
-                        ),
-                        "ticker": _normalise_identity_value(
-                            "ticker",
-                            record.get(
+                            "ticker": instrument.get(
                                 "ticker"
                             ),
-                        ),
-                        "candidate_isins": candidate_isins,
-                        "evidence": resolution[
-                            "evidence"
-                        ],
-                        "source_file": record.get(
-                            "_source_file"
-                        ),
-                        "source_line": record.get(
-                            "_source_line"
-                        ),
-                    }
-                )
-        elif status == "unresolved":
-            if len(
-                unresolved_examples
-            ) < 20:
-                unresolved_examples.append(
-                    {
-                        "date": record.get(
-                            "date"
-                        ),
-                        "yahoo_symbol": _normalise_symbol(
-                            record.get(
+                            "yahoo_symbol": instrument.get(
                                 "yahoo_symbol"
-                            )
-                        ),
-                        "lei": _normalise_identity_value(
-                            "lei",
-                            record.get(
-                                "lei"
                             ),
-                        ),
-                        "issuer": record.get(
-                            "issuer"
-                        ),
-                        "ticker": _normalise_identity_value(
-                            "ticker",
-                            record.get(
-                                "ticker"
+                            "valid_from": instrument.get(
+                                "valid_from"
                             ),
-                        ),
-                        "source_file": record.get(
-                            "_source_file"
-                        ),
-                        "source_line": record.get(
-                            "_source_line"
-                        ),
-                    }
-                )
-    for status in (
-        "unique",
-        "ambiguous",
-        "conflict",
-        "unresolved",
-    ):
-        by_status[
-            status
-        ][
-            "unique_observations"
-        ] = len(
-            seen_observations[
-                status
-            ]
+                            "valid_to": instrument.get(
+                                "valid_to"
+                            ),
+                            "source": instrument.get(
+                                "source"
+                            ),
+                            "status": instrument.get(
+                                "status"
+                            ),
+                        }
+                        for instrument
+                        in current_instruments
+                    ],
+                },
+            )
+
+            continue
+
+        statistics[
+            "entity_only"
+        ] += 1
+
+        add_example(
+            "entity_only",
+            record,
+            {
+                "status": "entity_only",
+                "entity_id": entity_id,
+                "historical_isins": historical_isins,
+                "historical_instrument_count": len(
+                    all_instruments
+                ),
+            },
         )
+
     return {
         "rows": statistics[
             "rows"
         ],
-        "unique": statistics[
-            "unique"
+        "unique_isin": statistics[
+            "unique_isin"
         ],
-        "ambiguous": statistics[
-            "ambiguous"
+        "multiple_current_instruments": statistics[
+            "multiple_current_instruments"
         ],
-        "conflict": statistics[
-            "conflict"
+        "current_instrument_without_isin": statistics[
+            "current_instrument_without_isin"
+        ],
+        "entity_only": statistics[
+            "entity_only"
+        ],
+        "multiple_entities": statistics[
+            "multiple_entities"
         ],
         "unresolved": statistics[
             "unresolved"
         ],
-        "unique_candidate_rows": statistics[
-            "candidate_isins"
+        "historical_multiple_isins": statistics[
+            "historical_multiple_isins"
         ],
-        "by_status": dict(
-            by_status
-        ),
         "unique_candidate_isins": dict(
             sorted(
-                unique_candidates.items()
+                unique_candidate_isins.items()
             )
         ),
-        "ambiguous_candidate_isins": dict(
-            sorted(
-                ambiguous_candidates.items()
-            )
+        "examples": dict(
+            examples
         ),
-        "examples": {
-            "ambiguous": ambiguous_examples,
-            "conflict": conflict_examples,
-            "unresolved": unresolved_examples,
-        },
     }
+
+
 def _analyse_isin_records(
     records: list[dict[str, Any]],
 ) -> tuple[
@@ -653,22 +986,28 @@ def _analyse_isin_records(
         tuple[str, str],
         list[dict[str, Any]],
     ] = defaultdict(list)
+
     for record in records:
         key = _observation_key(
             record
         )
+
         if key is None:
             continue
+
         grouped[key].append(
             record
         )
+
     canonical: list[
         dict[str, Any]
     ] = []
+
     duplicate_groups = 0
     duplicate_rows = 0
     conflict_groups = 0
     conflict_rows = 0
+
     by_isin: dict[
         str,
         dict[str, int],
@@ -680,9 +1019,11 @@ def _analyse_isin_records(
             "conflict_groups": 0,
         }
     )
+
     conflicts: list[
         dict[str, Any]
     ] = []
+
     for (
         key,
         observations,
@@ -690,18 +1031,23 @@ def _analyse_isin_records(
         grouped.items()
     ):
         observation_date, isin = key
+
         stats = by_isin[
             isin
         ]
+
         stats[
             "rows"
         ] += len(
             observations
         )
+
         stats[
             "unique_observations"
         ] += 1
+
         first = observations[0]
+
         if len(
             observations
         ) == 1:
@@ -711,16 +1057,21 @@ def _analyse_isin_records(
                 )
             )
             continue
+
         duplicate_groups += 1
+
         duplicate_count = (
             len(observations) - 1
         )
+
         duplicate_rows += (
             duplicate_count
         )
+
         stats[
             "duplicate_rows"
         ] += duplicate_count
+
         has_conflict = any(
             _records_conflict(
                 first,
@@ -730,14 +1081,18 @@ def _analyse_isin_records(
                 1:
             ]
         )
+
         if has_conflict:
             conflict_groups += 1
+
             conflict_rows += (
                 len(observations)
             )
+
             stats[
                 "conflict_groups"
             ] += 1
+
             conflicts.append(
                 {
                     "date": observation_date,
@@ -769,12 +1124,15 @@ def _analyse_isin_records(
                     ],
                 }
             )
+
             continue
+
         canonical.append(
             _clean_output_record(
                 first
             )
         )
+
     report = {
         "input": {
             "rows": len(
@@ -810,10 +1168,13 @@ def _analyse_isin_records(
             ),
         },
     }
+
     return (
         canonical,
         report,
     )
+
+
 def _build_canonical_dataset(
     records: list[dict[str, Any]],
 ) -> tuple[
@@ -827,6 +1188,7 @@ def _build_canonical_dataset(
             record.get("isin")
         )
     ]
+
     records_without_isin = [
         record
         for record in records
@@ -834,11 +1196,13 @@ def _build_canonical_dataset(
             record.get("isin")
         )
     ]
+
     deduplicated_isin_records, report = (
         _analyse_isin_records(
             records_with_isin
         )
     )
+
     if report[
         "conflicts"
     ][
@@ -848,6 +1212,7 @@ def _build_canonical_dataset(
             [],
             report,
         )
+
     canonical = (
         deduplicated_isin_records
         + [
@@ -857,6 +1222,7 @@ def _build_canonical_dataset(
             for record in records_without_isin
         ]
     )
+
     canonical.sort(
         key=lambda record: (
             record.get("date", ""),
@@ -868,6 +1234,7 @@ def _build_canonical_dataset(
             ),
         )
     )
+
     report[
         "dataset"
     ] = {
@@ -890,10 +1257,13 @@ def _build_canonical_dataset(
             records_without_isin
         ),
     }
+
     return (
         canonical,
         report,
     )
+
+
 def _output_path(
     records: list[dict[str, Any]],
 ) -> Path:
@@ -903,27 +1273,34 @@ def _output_path(
         )
         for record in records
     ]
+
     valid_dates = [
         value
         for value in dates
         if value is not None
     ]
+
     if not valid_dates:
         raise ValueError(
             "Det finns inga giltiga datum "
             "i canonical-datasetet."
         )
+
     first_date = min(
         valid_dates
     )
+
     last_date = max(
         valid_dates
     )
+
     return PRICE_DIR / (
         "prices_"
         f"{first_date.isoformat()}_"
         f"{last_date.isoformat()}_cleaned.jsonl"
     )
+
+
 def _write_jsonl(
     path: Path,
     records: list[dict[str, Any]],
@@ -932,6 +1309,7 @@ def _write_jsonl(
         parents=True,
         exist_ok=True,
     )
+
     with path.open(
         "w",
         encoding="utf-8",
@@ -948,6 +1326,8 @@ def _write_jsonl(
                 )
                 + "\n"
             )
+
+
 def _write_report(
     path: Path,
     report: dict[str, Any],
@@ -956,6 +1336,7 @@ def _write_report(
         parents=True,
         exist_ok=True,
     )
+
     with path.open(
         "w",
         encoding="utf-8",
@@ -966,20 +1347,25 @@ def _write_report(
             ensure_ascii=False,
             indent=2,
         )
+
+
 def _archive_original_files(
     paths: list[Path],
 ) -> Path:
     timestamp = datetime.now().strftime(
         "%Y%m%d_%H%M%S"
     )
+
     archive_path = (
         ARCHIVE_DIR
         / f"cleanup_{timestamp}"
     )
+
     archive_path.mkdir(
         parents=True,
         exist_ok=False,
     )
+
     for path in paths:
         shutil.move(
             str(path),
@@ -988,12 +1374,16 @@ def _archive_original_files(
                 / path.name
             ),
         )
+
     return archive_path
+
+
 def _print_conflicts(
     conflicts: list[dict[str, Any]],
 ) -> None:
     if not conflicts:
         return
+
     print()
     print(
         "KONFLIKTER - FÖRSTA"
@@ -1001,11 +1391,13 @@ def _print_conflicts(
     print(
         "-" * 70
     )
+
     for conflict in conflicts[:20]:
         print(
             f"{conflict['date']} "
             f"{conflict['isin']}"
         )
+
         for observation in conflict[
             "observations"
         ]:
@@ -1016,48 +1408,75 @@ def _print_conflicts(
                 f"file={observation['source_file']} "
                 f"line={observation['source_line']}"
             )
+
+
 def _print_missing_isin_analysis(
     report: dict[str, Any],
 ) -> None:
     print()
     print(
-        "ISIN-ANALYS"
+        "CENTRAL IDENTITETSANALYS"
     )
     print(
         "-" * 70
     )
+
     print(
         "ISIN-lösa rader: "
         f"{report['rows']:,}"
         .replace(",", " ")
     )
+
     print(
-        "Entydig ISIN-kandidat: "
-        f"{report['unique']:,}"
+        "Entydig ISIN för datumet: "
+        f"{report['unique_isin']:,}"
         .replace(",", " ")
     )
+
     print(
-        "Flera möjliga ISIN: "
-        f"{report['ambiguous']:,}"
+        "Flera aktuella instrument: "
+        f"{report['multiple_current_instruments']:,}"
         .replace(",", " ")
     )
+
     print(
-        "Motstridiga identiteter: "
-        f"{report['conflict']:,}"
+        "Aktuellt instrument utan ISIN: "
+        f"{report['current_instrument_without_isin']:,}"
         .replace(",", " ")
     )
+
+    print(
+        "Entity identifierad, inget instrument: "
+        f"{report['entity_only']:,}"
+        .replace(",", " ")
+    )
+
+    print(
+        "Flera möjliga entitys: "
+        f"{report['multiple_entities']:,}"
+        .replace(",", " ")
+    )
+
     print(
         "Ingen identifiering: "
         f"{report['unresolved']:,}"
         .replace(",", " ")
     )
+
+    print(
+        "Entity med flera historiska ISIN: "
+        f"{report['historical_multiple_isins']:,}"
+        .replace(",", " ")
+    )
+
     print()
     print(
-        "ISIN-ANALYS - UNIKA KANDIDATER"
+        "ENTYDIGA ISIN-KANDIDATER"
     )
     print(
         "-" * 70
     )
+
     for isin, count in sorted(
         report[
             "unique_candidate_isins"
@@ -1072,6 +1491,73 @@ def _print_missing_isin_analysis(
             f"{count:,} rader"
             .replace(",", " ")
         )
+
+    for status in (
+        "unique_isin",
+        "multiple_current_instruments",
+        "current_instrument_without_isin",
+        "entity_only",
+        "multiple_entities",
+        "unresolved",
+    ):
+        status_examples = report[
+            "examples"
+        ].get(
+            status,
+            [],
+        )
+
+        if not status_examples:
+            continue
+
+        print()
+        print(
+            f"EXEMPEL - {status.upper()}"
+        )
+        print(
+            "-" * 70
+        )
+
+        for example in status_examples:
+            print(
+                f"{example['date']} "
+                f"{example['yahoo_symbol']} "
+                f"entity={example.get('entity_id', '-')}"
+            )
+
+            if example.get(
+                "candidate_isin"
+            ):
+                print(
+                    "  kandidat ISIN: "
+                    f"{example['candidate_isin']}"
+                )
+
+            if example.get(
+                "candidate_isins"
+            ):
+                print(
+                    "  kandidat ISIN: "
+                    f"{', '.join(example['candidate_isins'])}"
+                )
+
+            if example.get(
+                "historical_isins"
+            ):
+                print(
+                    "  historiska ISIN: "
+                    f"{', '.join(example['historical_isins'])}"
+                )
+
+            if example.get(
+                "entities"
+            ):
+                print(
+                    "  entities: "
+                    f"{', '.join(example['entities'])}"
+                )
+
+
 def _verify_output(
     path: Path,
     expected_rows: int,
@@ -1080,7 +1566,9 @@ def _verify_output(
         raise RuntimeError(
             f"Canonical-filen skapades inte: {path}"
         )
+
     actual_rows = 0
+
     with path.open(
         "r",
         encoding="utf-8",
@@ -1090,8 +1578,10 @@ def _verify_output(
             start=1,
         ):
             line = line.strip()
+
             if not line:
                 continue
+
             try:
                 record = json.loads(
                     line
@@ -1101,6 +1591,7 @@ def _verify_output(
                     "Ogiltig JSON i canonical-filen "
                     f"på rad {line_number}: {exc}"
                 ) from exc
+
             if not isinstance(
                 record,
                 dict,
@@ -1109,13 +1600,17 @@ def _verify_output(
                     "Canonical-filen innehåller "
                     f"ett ogiltigt objekt på rad {line_number}."
                 )
+
             actual_rows += 1
+
     if actual_rows != expected_rows:
         raise RuntimeError(
             "Fel antal rader i canonical-filen: "
             f"förväntade {expected_rows}, "
             f"fick {actual_rows}."
         )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -1124,6 +1619,7 @@ def main() -> None:
             "ISIN-lösa rader lämnas orörda."
         )
     )
+
     parser.add_argument(
         "--apply",
         action="store_true",
@@ -1132,16 +1628,21 @@ def main() -> None:
             "ersätt dem med ett canonical dataset."
         ),
     )
+
     args = parser.parse_args()
+
     print(
         "=" * 70
     )
+
     print(
         "PRICE CLEANUP"
     )
+
     print(
         "=" * 70
     )
+
     if args.apply:
         print(
             "MODE: APPLY"
@@ -1150,7 +1651,9 @@ def main() -> None:
         print(
             "MODE: DRY-RUN"
         )
+
     paths = _load_price_files()
+
     print()
     print(
         "PRISFILER"
@@ -1158,36 +1661,44 @@ def main() -> None:
     print(
         "-" * 70
     )
+
     for path in paths:
         print(
             f"  {path.name}"
         )
+
     if not paths:
         print(
             "Inga prices_*.jsonl hittades."
         )
         return
+
     records, load_statistics = (
         _load_records(
             paths
         )
     )
+
     canonical, report = (
         _build_canonical_dataset(
             records
         )
     )
+
     missing_isin_report = (
         _analyse_missing_isins(
             records
         )
     )
+
     report[
         "missing_isin_analysis"
     ] = missing_isin_report
+
     report[
         "load_statistics"
     ] = load_statistics
+
     print()
     print(
         "DATASET"
@@ -1195,30 +1706,36 @@ def main() -> None:
     print(
         "-" * 70
     )
+
     print(
         "Filer: "
         f"{load_statistics['files']}"
     )
+
     print(
         "Rader: "
         f"{load_statistics['lines']:,}"
         .replace(",", " ")
     )
+
     print(
         "Giltiga prisrader: "
         f"{len(records):,}"
         .replace(",", " ")
     )
+
     print(
         "Med ISIN: "
         f"{len([r for r in records if _normalise_isin(r.get('isin'))]):,}"
         .replace(",", " ")
     )
+
     print(
         "Utan ISIN: "
         f"{len([r for r in records if not _normalise_isin(r.get('isin'))]):,}"
         .replace(",", " ")
     )
+
     print()
     print(
         "DEDUPE"
@@ -1226,21 +1743,25 @@ def main() -> None:
     print(
         "-" * 70
     )
+
     print(
         "Unika date + ISIN: "
         f"{report['output']['unique_observations']:,}"
         .replace(",", " ")
     )
+
     print(
         "Dubblettgrupper: "
         f"{report['deduplication']['duplicate_groups']:,}"
         .replace(",", " ")
     )
+
     print(
         "Dubblettrader som tas bort: "
         f"{report['deduplication']['duplicate_rows_removed']:,}"
         .replace(",", " ")
     )
+
     print()
     print(
         "KONFLIKTER"
@@ -1248,16 +1769,19 @@ def main() -> None:
     print(
         "-" * 70
     )
+
     print(
         "Konfliktgrupper: "
         f"{report['conflicts']['groups']:,}"
         .replace(",", " ")
     )
+
     print(
         "Konfliktrader: "
         f"{report['conflicts']['rows']:,}"
         .replace(",", " ")
     )
+
     _print_conflicts(
         report[
             "conflicts"
@@ -1265,6 +1789,7 @@ def main() -> None:
             "details"
         ]
     )
+
     print()
     print(
         "INVALIDA RADER"
@@ -1272,34 +1797,42 @@ def main() -> None:
     print(
         "-" * 70
     )
+
     print(
         "Ogiltig JSON: "
         f"{load_statistics['invalid_json']}"
     )
+
     print(
         "Saknat datum: "
         f"{load_statistics['missing_date']}"
     )
+
     print(
         "Ogiltigt datum: "
         f"{load_statistics['invalid_date']}"
     )
+
     print(
         "Saknat ISIN: "
         f"{load_statistics['missing_isin']:,}"
         .replace(",", " ")
     )
+
     print(
         "Saknat close: "
         f"{load_statistics['missing_close']}"
     )
+
     print(
         "Ogiltigt close: "
         f"{load_statistics['invalid_close']}"
     )
+
     _print_missing_isin_analysis(
         missing_isin_report
     )
+
     print()
     print(
         "RESULTAT"
@@ -1307,6 +1840,7 @@ def main() -> None:
     print(
         "-" * 70
     )
+
     if report[
         "conflicts"
     ][
@@ -1315,9 +1849,11 @@ def main() -> None:
         print(
             "FAIL - close-konflikter hittades."
         )
+
         print(
             "Ingen fil ändras."
         )
+
         report[
             "apply"
         ] = {
@@ -1325,18 +1861,23 @@ def main() -> None:
             "applied": False,
             "reason": "close_conflicts",
         }
+
         _write_report(
             REPORT_PATH,
             report,
         )
+
         raise SystemExit(1)
+
     if not canonical:
         print(
             "FAIL - canonical dataset blev tomt."
         )
+
         print(
             "Ingen fil ändras."
         )
+
         report[
             "apply"
         ] = {
@@ -1344,19 +1885,24 @@ def main() -> None:
             "applied": False,
             "reason": "empty_output",
         }
+
         _write_report(
             REPORT_PATH,
             report,
         )
+
         raise SystemExit(1)
+
     output_path = _output_path(
         canonical
     )
+
     report[
         "output_path"
     ] = str(
         output_path
     )
+
     report[
         "output"
     ][
@@ -1364,20 +1910,24 @@ def main() -> None:
     ] = len(
         canonical
     )
+
     print(
         "Canonical dataset: "
         f"{len(canonical):,} rader"
         .replace(",", " ")
     )
+
     if not args.apply:
         dryrun_path = (
             Path("data/analysis")
             / "prices_canonical_dryrun.jsonl"
         )
+
         _write_jsonl(
             dryrun_path,
             canonical,
         )
+
         report[
             "apply"
         ] = {
@@ -1385,15 +1935,18 @@ def main() -> None:
             "applied": False,
             "reason": "dry_run",
         }
+
         report[
             "dryrun_output_path"
         ] = str(
             dryrun_path
         )
+
         _write_report(
             REPORT_PATH,
             report,
         )
+
         print()
         print(
             "DRY-RUN"
@@ -1401,14 +1954,18 @@ def main() -> None:
         print(
             "-" * 70
         )
+
         print(
             f"Canonical testfil: "
             f"{dryrun_path}"
         )
+
         print(
             "Originalfilerna har INTE ändrats."
         )
+
         return
+
     print()
     print(
         "APPLY"
@@ -1416,29 +1973,30 @@ def main() -> None:
     print(
         "-" * 70
     )
-    # Skapa den nya filen först.
-    # Originalfilerna rörs inte om skrivning eller
-    # verifiering av den nya filen misslyckas.
+
     temporary_output = (
         PRICE_DIR
         / f".{output_path.name}.tmp"
     )
+
     _write_jsonl(
         temporary_output,
         canonical,
     )
+
     _verify_output(
         temporary_output,
         len(canonical),
     )
+
     print(
         "Ny canonical-fil verifierad."
     )
-    # Originalfilerna flyttas bort från själva
-    # price-datasetet först när den nya filen är verifierad.
+
     archive_path = _archive_original_files(
         paths
     )
+
     try:
         temporary_output.replace(
             output_path
@@ -1449,13 +2007,17 @@ def main() -> None:
             "FAIL - kunde inte installera "
             "den nya canonical-filen."
         )
+
         print(
             "Originalfilerna finns i arkivet:"
         )
+
         print(
             f"  {archive_path}"
         )
+
         raise
+
     report[
         "apply"
     ] = {
@@ -1468,50 +2030,64 @@ def main() -> None:
             output_path
         ),
     }
+
     report[
         "archived_files"
     ] = [
         path.name
         for path in paths
     ]
+
     _write_report(
         REPORT_PATH,
         report,
     )
+
     print()
     print(
         "Originalfiler arkiverade:"
     )
+
     print(
         f"  {archive_path}"
     )
+
     print()
     print(
         "Ny canonical prisfil:"
     )
+
     print(
         f"  {output_path}"
     )
+
     print()
     print(
         "Dubblettstädningen är genomförd."
     )
+
     print()
     print(
         "Rapport:"
     )
+
     print(
         f"{REPORT_PATH}"
     )
+
     print()
     print(
         "=" * 70
     )
+
     print(
         "KLAR"
     )
+
     print(
         "=" * 70
     )
+
+
 if __name__ == "__main__":
     main()
