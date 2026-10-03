@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from shared.entity_identity import (
+    ENTITY_REGISTRY_PATH,
+    EntityRegistry,
+)
 from shared.instrument_identity import (
     normalize_isin,
     normalize_lei,
@@ -27,18 +30,13 @@ DISCOVERY_PATH = (
 
 ALIASES_PATH = (
     PROJECT_ROOT
-    / "data"
-    / "analysis"
+    / "shared"
     / "instrument_aliases.jsonl"
 )
-
 
 SOURCE = "GLEIF_ANNA"
 STATUS = "candidate"
 RELATION = "observed"
-
-ENTITY_ID_PREFIX = "ENT-"
-ENTITY_ID_HASH_LENGTH = 12
 
 
 def _parse_args() -> argparse.Namespace:
@@ -53,8 +51,7 @@ def _parse_args() -> argparse.Namespace:
         "--apply",
         action="store_true",
         help=(
-            "Skriv kandidater till "
-            "instrument_aliases.jsonl. "
+            "Skriver nya entities och aliasposter. "
             "Utan --apply körs endast dry-run."
         ),
     )
@@ -65,7 +62,7 @@ def _parse_args() -> argparse.Namespace:
 def _load_discovery() -> dict[str, Any]:
     if not DISCOVERY_PATH.exists():
         raise FileNotFoundError(
-            f"Discovery-rapport saknas: "
+            "Discovery-rapport saknas: "
             f"{DISCOVERY_PATH}"
         )
 
@@ -73,7 +70,18 @@ def _load_discovery() -> dict[str, Any]:
         "r",
         encoding="utf-8",
     ) as handle:
-        return json.load(handle)
+        data = json.load(handle)
+
+    if not isinstance(
+        data,
+        dict,
+    ):
+        raise ValueError(
+            "Discovery-rapporten måste vara ett "
+            "JSON-objekt."
+        )
+
+    return data
 
 
 def _load_alias_records() -> list[dict[str, Any]]:
@@ -104,7 +112,7 @@ def _load_alias_records() -> list[dict[str, Any]]:
 
             except json.JSONDecodeError as exc:
                 raise ValueError(
-                    f"Ogiltig JSON i "
+                    "Ogiltig JSON i "
                     f"{ALIASES_PATH} "
                     f"rad {line_number}."
                 ) from exc
@@ -114,7 +122,7 @@ def _load_alias_records() -> list[dict[str, Any]]:
                 dict,
             ):
                 raise ValueError(
-                    f"Aliaspost på rad "
+                    "Aliaspost på rad "
                     f"{line_number} är inte ett objekt."
                 )
 
@@ -128,145 +136,14 @@ def _load_alias_records() -> list[dict[str, Any]]:
 def _entity_ids_from_records(
     records: list[dict[str, Any]],
 ) -> set[str]:
-    entity_ids: set[str] = set()
-
-    for record in records:
-        entity_id = record.get(
-            "entity_id"
-        )
-
-        if entity_id:
-            entity_ids.add(
-                str(entity_id)
-            )
-
-    return entity_ids
+    return {
+        str(record["entity_id"])
+        for record in records
+        if record.get("entity_id")
+    }
 
 
-def _deterministic_entity_id(
-    lei: str,
-) -> str:
-    """
-    Skapar ett stabilt internt entity-id från LEI.
-
-    Samma LEI ger alltid samma entity-id.
-    ID:t påverkas inte av discovery-ordningen eller
-    av vilka andra LEI:n som upptäcks senare.
-
-    LEI används endast som input till hashningen.
-    Själva LEI:t lagras separat i aliasposten.
-    """
-
-    normalized_lei = normalize_lei(
-        lei
-    )
-
-    if not normalized_lei:
-        raise ValueError(
-            "Kan inte skapa entity-id utan LEI."
-        )
-
-    digest = hashlib.sha256(
-        normalized_lei.encode(
-            "utf-8"
-        )
-    ).hexdigest()
-
-    return (
-        f"{ENTITY_ID_PREFIX}"
-        f"{digest[:ENTITY_ID_HASH_LENGTH]}"
-    )
-
-
-def _validate_deterministic_ids(
-    leis: list[str],
-    existing_ids: set[str],
-) -> dict[str, str]:
-    """
-    Skapar LEI -> entity-id och säkerställer att
-    deterministiska ID:n inte kolliderar med befintliga
-    entity-id:n.
-
-    En hashkollision mellan två olika LEI:n stoppas
-    explicit i stället för att försöka lösa den genom
-    att ändra ID:t beroende på importordning.
-    """
-
-    mapping: dict[str, str] = {}
-
-    generated_ids: dict[str, str] = {}
-
-    for lei in sorted(
-        set(
-            normalize_lei(value)
-            for value in leis
-            if normalize_lei(value)
-        )
-    ):
-        entity_id = _deterministic_entity_id(
-            lei
-        )
-
-        previous_lei = generated_ids.get(
-            entity_id
-        )
-
-        if (
-            previous_lei is not None
-            and previous_lei != lei
-        ):
-            raise ValueError(
-                "Deterministisk entity-id-kollision: "
-                f"{entity_id} används av både "
-                f"{previous_lei} och {lei}."
-            )
-
-        generated_ids[
-            entity_id
-        ] = lei
-
-        if (
-            entity_id in existing_ids
-            and not _entity_id_belongs_to_lei(
-                entity_id,
-                lei,
-            )
-        ):
-            raise ValueError(
-                "Deterministiskt entity-id kolliderar "
-                "med befintligt entity-id: "
-                f"{entity_id} för LEI {lei}."
-            )
-
-        mapping[
-            lei
-        ] = entity_id
-
-    return mapping
-
-
-def _entity_id_belongs_to_lei(
-    entity_id: str,
-    lei: str,
-) -> bool:
-    """
-    Returnerar True om entity-id:t är det deterministiska
-    ID:t för LEI:n.
-
-    Befintliga äldre numeriska ENT-ID:n betraktas inte
-    som deterministiska och kan därför inte automatiskt
-    återanvändas här.
-    """
-
-    return (
-        entity_id
-        == _deterministic_entity_id(
-            lei
-        )
-    )
-
-
-def _lei_to_existing_entities(
+def _lei_to_entities(
     records: list[dict[str, Any]],
 ) -> dict[str, set[str]]:
     mapping: dict[
@@ -276,9 +153,7 @@ def _lei_to_existing_entities(
 
     for record in records:
         lei = normalize_lei(
-            record.get(
-                "lei"
-            )
+            record.get("lei")
         )
 
         entity_id = record.get(
@@ -288,15 +163,38 @@ def _lei_to_existing_entities(
         if not lei or not entity_id:
             continue
 
-        mapping[
-            lei
-        ].add(
+        mapping[lei].add(
             str(entity_id)
         )
 
-    return dict(
-        mapping
-    )
+    return dict(mapping)
+
+
+def _isin_to_entities(
+    records: list[dict[str, Any]],
+) -> dict[str, set[str]]:
+    mapping: dict[
+        str,
+        set[str],
+    ] = defaultdict(set)
+
+    for record in records:
+        isin = normalize_isin(
+            record.get("isin")
+        )
+
+        entity_id = record.get(
+            "entity_id"
+        )
+
+        if not isin or not entity_id:
+            continue
+
+        mapping[isin].add(
+            str(entity_id)
+        )
+
+    return dict(mapping)
 
 
 def _existing_alias_keys(
@@ -305,11 +203,9 @@ def _existing_alias_keys(
     tuple[str, str, str]
 ]:
     """
-    Returnerar nycklar för redan importerade
-    observationer.
+    Importen är idempotent per:
 
-    Kombinationen entity + ISIN + source gör
-    importen idempotent.
+        entity_id + ISIN + source
     """
 
     keys: set[
@@ -322,15 +218,11 @@ def _existing_alias_keys(
         )
 
         isin = normalize_isin(
-            record.get(
-                "isin"
-            )
+            record.get("isin")
         )
 
         source = normalize_text(
-            record.get(
-                "source"
-            )
+            record.get("source")
         )
 
         if not entity_id or not isin:
@@ -349,12 +241,16 @@ def _existing_alias_keys(
 
 def _candidate_records(
     discovery: dict[str, Any],
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[
+    str,
+    list[dict[str, Any]],
+]:
     """
     Grupperar discovery-resultatet på LEI.
 
-    Endast GLEIF-poster som ännu saknar
-    entity inkluderas.
+    Ett LEI representerar här discoveryns observerade
+    entity-kandidat. ISIN används därefter som viktig
+    identitetsbrygga mot redan kända entities.
     """
 
     groups: dict[
@@ -367,9 +263,7 @@ def _candidate_records(
         [],
     ):
         lei = normalize_lei(
-            candidate.get(
-                "lei"
-            )
+            candidate.get("lei")
         )
 
         if not lei:
@@ -380,69 +274,126 @@ def _candidate_records(
             [],
         ):
             isin = normalize_isin(
-                instrument.get(
-                    "isin"
-                )
+                instrument.get("isin")
             )
 
             if not isin:
                 continue
 
-            groups[
-                lei
-            ].append(
+            groups[lei].append(
                 {
                     "isin": isin,
                     "issuer": normalize_text(
-                        instrument.get(
-                            "issuer"
-                        )
+                        instrument.get("issuer")
                     ),
                     "yahoo_symbol": normalize_text(
-                        instrument.get(
-                            "yahoo_symbol"
-                        )
+                        instrument.get("yahoo_symbol")
                     ),
                     "instrument_lei": normalize_lei(
-                        instrument.get(
-                            "instrument_lei"
-                        )
+                        instrument.get("instrument_lei")
                     ),
                 }
             )
 
-    return {
-        lei: instruments
-        for lei, instruments
-        in sorted(
+    return dict(
+        sorted(
             groups.items()
         )
-    }
+    )
+
+
+def _migrate_entities_from_aliases(
+    registry: EntityRegistry,
+    aliases: list[dict[str, Any]],
+) -> None:
+    """
+    Säkerställer att befintliga entity-id:n i aliasregistret
+    också finns i det centrala entity-registret.
+
+    Detta behövs för den första migrationen från den tidigare
+    modellen där entity-id:t endast fanns i aliasregistret.
+    """
+
+    grouped: dict[
+        str,
+        list[dict[str, Any]],
+    ] = defaultdict(list)
+
+    for record in aliases:
+        entity_id = record.get(
+            "entity_id"
+        )
+
+        if entity_id:
+            grouped[
+                str(entity_id)
+            ].append(
+                record
+            )
+
+    changed = False
+
+    for entity_id, records in grouped.items():
+        if registry.contains(
+            entity_id
+        ):
+            continue
+
+        first = records[0]
+
+        observed_dates = sorted(
+            record.get(
+                "observed_date"
+            )
+            for record in records
+            if record.get(
+                "observed_date"
+            )
+        )
+
+        created_date = (
+            observed_dates[0]
+            if observed_dates
+            else "unknown"
+        )
+
+        registry.add(
+            entity_id=entity_id,
+            legal_name=first.get(
+                "issuer"
+            ),
+            observed_date=created_date,
+            source=first.get(
+                "source"
+            ) or "migration",
+            status="active",
+        )
+
+        changed = True
+
+    if changed:
+        registry.save()
 
 
 def _build_import_plan(
     discovery: dict[str, Any],
-    existing_records: list[dict[str, Any]],
+    aliases: list[dict[str, Any]],
+    registry: EntityRegistry,
 ) -> tuple[
+    list[dict[str, Any]],
     list[dict[str, Any]],
     dict[str, Any],
 ]:
-    existing_entities = (
-        _entity_ids_from_records(
-            existing_records
-        )
+    lei_entities = _lei_to_entities(
+        aliases
     )
 
-    lei_entities = (
-        _lei_to_existing_entities(
-            existing_records
-        )
+    isin_entities = _isin_to_entities(
+        aliases
     )
 
-    existing_keys = (
-        _existing_alias_keys(
-            existing_records
-        )
+    existing_keys = _existing_alias_keys(
+        aliases
     )
 
     groups = _candidate_records(
@@ -464,45 +415,40 @@ def _build_import_plan(
             "source.mapping_date."
         )
 
-    candidate_leis = list(
-        groups.keys()
-    )
-
-    deterministic_ids = (
-        _validate_deterministic_ids(
-            candidate_leis,
-            existing_entities,
-        )
-    )
+    planned_entities: list[
+        dict[str, Any]
+    ] = []
 
     import_records: list[
         dict[str, Any]
     ] = []
 
-    entity_plan: list[
-        dict[str, Any]
-    ] = []
+    planned_entity_ids: set[str] = set(
+        registry.ids()
+    )
 
     skipped_existing = 0
-    skipped_conflict = 0
+    conflicts = 0
 
     for lei, instruments in groups.items():
-        known_entities = lei_entities.get(
+        known_by_lei = lei_entities.get(
             lei,
             set(),
         )
 
-        if len(
-            known_entities
-        ) > 1:
-            skipped_conflict += 1
+        # --------------------------------------------------------------
+        # 1. Samma LEI finns redan
+        # --------------------------------------------------------------
 
-            entity_plan.append(
+        if len(known_by_lei) > 1:
+            conflicts += 1
+
+            planned_entities.append(
                 {
                     "lei": lei,
                     "status": "conflict",
                     "entity_ids": sorted(
-                        known_entities
+                        known_by_lei
                     ),
                     "instrument_count": len(
                         instruments
@@ -512,12 +458,10 @@ def _build_import_plan(
 
             continue
 
-        if len(
-            known_entities
-        ) == 1:
+        if len(known_by_lei) == 1:
             entity_id = next(
                 iter(
-                    known_entities
+                    known_by_lei
                 )
             )
 
@@ -526,38 +470,92 @@ def _build_import_plan(
             )
 
         else:
-            entity_id = deterministic_ids[
-                lei
-            ]
+            # ----------------------------------------------------------
+            # 2. Försök hitta identitetsbrygga via ISIN
+            # ----------------------------------------------------------
 
-            if (
-                entity_id
-                in existing_entities
-            ):
-                raise ValueError(
-                    "Entity-id används redan men "
-                    "LEI saknar befintlig koppling: "
-                    f"{entity_id} -> {lei}"
+            isin_entity_ids: set[str] = set()
+
+            for instrument in instruments:
+                isin_entity_ids.update(
+                    isin_entities.get(
+                        instrument["isin"],
+                        set(),
+                    )
                 )
 
-            existing_entities.add(
-                entity_id
-            )
+            if len(isin_entity_ids) > 1:
+                conflicts += 1
 
-            lei_entities[
-                lei
-            ] = {
-                entity_id
-            }
+                planned_entities.append(
+                    {
+                        "lei": lei,
+                        "status": "conflict",
+                        "entity_ids": sorted(
+                            isin_entity_ids
+                        ),
+                        "instrument_count": len(
+                            instruments
+                        ),
+                    }
+                )
 
-            entity_status = (
-                "new_entity_candidate"
-            )
+                continue
 
-        entity_plan.append(
+            if len(isin_entity_ids) == 1:
+                entity_id = next(
+                    iter(
+                        isin_entity_ids
+                    )
+                )
+
+                entity_status = (
+                    "existing_entity_via_isin"
+                )
+
+            else:
+                # ------------------------------------------------------
+                # 3. Ny persistent entity
+                # ------------------------------------------------------
+
+                entity_id = (
+                    registry.next_entity_id()
+                )
+
+                while entity_id in planned_entity_ids:
+                    numeric = int(
+                        entity_id.split(
+                            "-",
+                            1,
+                        )[1]
+                    )
+
+                    entity_id = (
+                        f"ENT-{numeric + 1:06d}"
+                    )
+
+                planned_entity_ids.add(
+                    entity_id
+                )
+
+                entity_status = (
+                    "new_entity_candidate"
+                )
+
+        legal_name = next(
+            (
+                instrument["issuer"]
+                for instrument in instruments
+                if instrument.get("issuer")
+            ),
+            None,
+        )
+
+        planned_entities.append(
             {
                 "lei": lei,
                 "entity_id": entity_id,
+                "legal_name": legal_name,
                 "status": entity_status,
                 "instrument_count": len(
                     instruments
@@ -603,28 +601,33 @@ def _build_import_plan(
                 key
             )
 
+    new_entity_count = sum(
+        1
+        for entity in planned_entities
+        if entity.get(
+            "status"
+        ) == "new_entity_candidate"
+    )
+
+    reused_count = sum(
+        1
+        for entity in planned_entities
+        if entity.get(
+            "status"
+        ) in {
+            "existing_entity",
+            "existing_entity_via_isin",
+        }
+    )
+
     summary = {
         "discovery_mapping_date": observed_date,
         "candidate_lei_groups": len(
             groups
         ),
-        "new_entity_candidates": sum(
-            1
-            for item in entity_plan
-            if item.get(
-                "status"
-            )
-            == "new_entity_candidate"
-        ),
-        "existing_entities_reused": sum(
-            1
-            for item in entity_plan
-            if item.get(
-                "status"
-            )
-            == "existing_entity"
-        ),
-        "conflicting_entities": skipped_conflict,
+        "new_entity_candidates": new_entity_count,
+        "existing_entities_reused": reused_count,
+        "conflicting_entities": conflicts,
         "new_alias_records": len(
             import_records
         ),
@@ -632,18 +635,49 @@ def _build_import_plan(
     }
 
     return (
+        planned_entities,
         import_records,
-        {
-            "summary": summary,
-            "entity_plan": entity_plan,
-        },
+        summary,
     )
 
 
-def _append_records(
-    records: list[dict[str, Any]],
+def _apply_import(
+    entities: list[dict[str, Any]],
+    aliases: list[dict[str, Any]],
+    registry: EntityRegistry,
 ) -> None:
-    if not records:
+    """
+    Skriver entity-registret och aliasregistret.
+
+    Entity-registret skrivs först eftersom aliasposter refererar
+    till entity_id.
+    """
+
+    for entity in entities:
+        if entity.get(
+            "status"
+        ) not in {
+            "new_entity_candidate",
+        }:
+            continue
+
+        registry.add(
+            entity_id=entity["entity_id"],
+            legal_name=entity.get(
+                "legal_name"
+            ),
+            observed_date=entity.get(
+                "observed_date"
+            ) or entity.get(
+                "created_date"
+            ) or "",
+            source=SOURCE,
+            status=STATUS,
+        )
+
+    registry.save()
+
+    if not aliases:
         return
 
     ALIASES_PATH.parent.mkdir(
@@ -655,7 +689,7 @@ def _append_records(
         "a",
         encoding="utf-8",
     ) as handle:
-        for record in records:
+        for record in aliases:
             handle.write(
                 json.dumps(
                     record,
@@ -666,20 +700,14 @@ def _append_records(
                     ),
                 )
             )
-
-            handle.write(
-                "\n"
-            )
+            handle.write("\n")
 
 
 def _print_plan(
-    plan: dict[str, Any],
-    records: list[dict[str, Any]],
+    entities: list[dict[str, Any]],
+    aliases: list[dict[str, Any]],
+    summary: dict[str, Any],
 ) -> None:
-    summary = plan[
-        "summary"
-    ]
-
     print()
     print("=" * 70)
     print(
@@ -725,24 +753,23 @@ def _print_plan(
 
     print()
     print(
-        "EXEMPEL PÅ NYA ENTITY-KANDIDATER"
+        "EXEMPEL PÅ ENTITY-KANDIDATER"
     )
     print("-" * 70)
 
     count = 0
 
-    for item in plan[
-        "entity_plan"
-    ]:
-        if item.get(
+    for entity in entities:
+        if entity.get(
             "status"
         ) != "new_entity_candidate":
             continue
 
         print(
-            f"{item['entity_id']} | "
-            f"LEI={item['lei']} | "
-            f"{item['instrument_count']} instrument"
+            f"{entity['entity_id']} | "
+            f"LEI={entity['lei']} | "
+            f"{entity.get('legal_name')} | "
+            f"{entity['instrument_count']} instrument"
         )
 
         count += 1
@@ -756,9 +783,7 @@ def _print_plan(
     )
     print("-" * 70)
 
-    for record in records[
-        :30
-    ]:
+    for record in aliases[:30]:
         print(
             f"{record['entity_id']} | "
             f"{record['isin']} | "
@@ -778,41 +803,54 @@ def main() -> None:
     )
 
     discovery = _load_discovery()
-    existing_records = (
-        _load_alias_records()
+    aliases = _load_alias_records()
+
+    registry = EntityRegistry()
+
+    # Första körningen migrerar befintliga ENT-ID:n från
+    # aliasregistret till det nya centrala registret.
+    _migrate_entities_from_aliases(
+        registry,
+        aliases,
     )
 
-    import_records, plan = (
-        _build_import_plan(
-            discovery,
-            existing_records,
-        )
+    (
+        entities,
+        import_records,
+        summary,
+    ) = _build_import_plan(
+        discovery,
+        aliases,
+        registry,
     )
 
     _print_plan(
-        plan,
+        entities,
         import_records,
+        summary,
     )
 
     if not args.apply:
         print()
-        print(
-            "=" * 70
-        )
+        print("=" * 70)
         print(
             "DRY-RUN"
         )
-        print(
-            "=" * 70
-        )
+        print("=" * 70)
         print()
         print(
             "Inga filer ändrades."
         )
         print()
         print(
-            "Kör med --apply för att "
-            "skriva kandidaterna till:"
+            "Entity-register:"
+        )
+        print(
+            ENTITY_REGISTRY_PATH
+        )
+        print()
+        print(
+            "Alias-register:"
         )
         print(
             ALIASES_PATH
@@ -820,50 +858,47 @@ def main() -> None:
 
         return
 
-    _append_records(
-        import_records
+    _apply_import(
+        entities,
+        import_records,
+        registry,
     )
 
     print()
-    print(
-        "=" * 70
-    )
+    print("=" * 70)
     print(
         "IMPORT KLAR"
     )
-    print(
-        "=" * 70
-    )
+    print("=" * 70)
 
     print()
     print(
-        f"Tillagda aliasposter: "
+        f"Nya entity-poster: "
+        f"{summary['new_entity_candidates']:,}"
+    )
+
+    print(
+        f"Nya aliasposter: "
         f"{len(import_records):,}"
     )
 
+    print()
     print(
-        f"Fil: {ALIASES_PATH}"
+        "Entity-register:"
+    )
+    print(
+        ENTITY_REGISTRY_PATH
     )
 
     print()
     print(
-        "Alla importerade poster har:"
+        "Alias-register:"
     )
     print(
-        f"  source = {SOURCE}"
-    )
-    print(
-        f"  status = {STATUS}"
-    )
-    print(
-        f"  relation = {RELATION}"
+        ALIASES_PATH
     )
 
     print()
-    print(
-        "Inga price-data har ändrats."
-    )
-
     print(
         "instrument_map.json har inte ändrats."
     )
