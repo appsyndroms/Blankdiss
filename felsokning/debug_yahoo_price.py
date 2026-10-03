@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from collections import defaultdict
 from datetime import date, timedelta
 from itertools import combinations
 from pathlib import Path
@@ -196,6 +195,193 @@ def _print_value_distribution(
             f"  värden: "
             f"{sorted(non_empty.unique())}"
         )
+
+
+def _normalise_comparison_value(
+    value,
+):
+    """
+    Normaliserar ett värde inför jämförelse mellan prisfiler.
+
+    Datum och numeriska close-värden normaliseras så att exempelvis
+    pandas Timestamp och Python date inte skapar falska skillnader.
+    """
+
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, pd.Timestamp):
+        return value.date().isoformat()
+
+    if isinstance(value, date):
+        return value.isoformat()
+
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+
+        return value
+
+    return str(value).strip()
+
+
+def _compare_overlapping_files(
+    frame: pd.DataFrame,
+    file_a: str,
+    file_b: str,
+    overlap_start: date,
+    overlap_end: date,
+) -> tuple[
+    int,
+    int,
+    dict[str, int],
+    list[tuple[date, dict[str, tuple[object, object]]]],
+]:
+    """
+    Jämför hela prisrader mellan två överlappande filer.
+
+    Jämförelsen görs på datum.
+
+    Returnerar:
+
+        antal gemensamma datum
+        antal identiska datum
+        antal skillnader per kolumn
+        exempel på datum med skillnader
+    """
+
+    columns = [
+        column
+        for column in frame.columns
+        if column not in {
+            "_source_file",
+            "_date",
+            "_close_numeric",
+        }
+    ]
+
+    data = frame.loc[
+        frame["_source_file"].isin(
+            [
+                file_a,
+                file_b,
+            ]
+        )
+        & frame["_date"].between(
+            overlap_start,
+            overlap_end,
+        )
+    ].copy()
+
+    first = data.loc[
+        data["_source_file"] == file_a
+    ].copy()
+
+    second = data.loc[
+        data["_source_file"] == file_b
+    ].copy()
+
+    first = (
+        first
+        .drop_duplicates(
+            subset=["_date"],
+            keep="first",
+        )
+        .set_index("_date")
+    )
+
+    second = (
+        second
+        .drop_duplicates(
+            subset=["_date"],
+            keep="first",
+        )
+        .set_index("_date")
+    )
+
+    common_dates = sorted(
+        set(first.index)
+        & set(second.index)
+    )
+
+    identical_dates = 0
+    differences_per_column: dict[
+        str,
+        int,
+    ] = {}
+
+    examples: list[
+        tuple[
+            date,
+            dict[
+                str,
+                tuple[object, object],
+            ],
+        ]
+    ] = []
+
+    for current_date in common_dates:
+        row_a = first.loc[
+            current_date
+        ]
+
+        row_b = second.loc[
+            current_date
+        ]
+
+        differences: dict[
+            str,
+            tuple[object, object],
+        ] = {}
+
+        for column in columns:
+            value_a = (
+                _normalise_comparison_value(
+                    row_a.get(column)
+                )
+            )
+
+            value_b = (
+                _normalise_comparison_value(
+                    row_b.get(column)
+                )
+            )
+
+            if value_a != value_b:
+                differences[
+                    column
+                ] = (
+                    value_a,
+                    value_b,
+                )
+
+                differences_per_column[
+                    column
+                ] = (
+                    differences_per_column.get(
+                        column,
+                        0,
+                    )
+                    + 1
+                )
+
+        if not differences:
+            identical_dates += 1
+
+        elif len(examples) < 20:
+            examples.append(
+                (
+                    current_date,
+                    differences,
+                )
+            )
+
+    return (
+        len(common_dates),
+        identical_dates,
+        differences_per_column,
+        examples,
+    )
 
 
 def inspect_local_price_data(
@@ -741,6 +927,173 @@ def inspect_local_price_data(
             f"    {overlap_start} -> "
             f"{overlap_end} "
             f"({overlap_dates:,} gemensamma datum)"
+        )
+
+    # ---------------------------------------------------------
+    # Jämförelse av hela rader i överlapp
+    # ---------------------------------------------------------
+
+    print()
+    print("KONTROLL AV HELA RADER I FILÖVERLAPP")
+    print("-" * 70)
+
+    total_common_dates = 0
+    total_identical_dates = 0
+    total_different_dates = 0
+
+    all_difference_columns: dict[
+        str,
+        int,
+    ] = {}
+
+    for (
+        file_a,
+        file_b,
+        overlap_start,
+        overlap_end,
+        overlap_dates,
+    ) in overlaps:
+        (
+            common_dates,
+            identical_dates,
+            differences_per_column,
+            examples,
+        ) = _compare_overlapping_files(
+            frame=frame,
+            file_a=file_a,
+            file_b=file_b,
+            overlap_start=overlap_start,
+            overlap_end=overlap_end,
+        )
+
+        different_dates = (
+            common_dates
+            - identical_dates
+        )
+
+        total_common_dates += (
+            common_dates
+        )
+
+        total_identical_dates += (
+            identical_dates
+        )
+
+        total_different_dates += (
+            different_dates
+        )
+
+        for column, count in (
+            differences_per_column.items()
+        ):
+            all_difference_columns[
+                column
+            ] = (
+                all_difference_columns.get(
+                    column,
+                    0,
+                )
+                + count
+            )
+
+        print()
+        print(
+            f"{file_a}"
+        )
+        print(
+            f"  <-> {file_b}"
+        )
+        print(
+            f"  Gemensamma datum: "
+            f"{common_dates:,}"
+        )
+        print(
+            f"  Helt identiska rader: "
+            f"{identical_dates:,}"
+        )
+        print(
+            f"  Datum med skillnader: "
+            f"{different_dates:,}"
+        )
+
+        if differences_per_column:
+            print(
+                "  Skillnader per kolumn:"
+            )
+
+            for column, count in sorted(
+                differences_per_column.items()
+            ):
+                print(
+                    f"    {column}: "
+                    f"{count:,}"
+                )
+
+        if examples:
+            print(
+                "  Första exempel på skillnader:"
+            )
+
+            for (
+                example_date,
+                differences,
+            ) in examples:
+                print()
+                print(
+                    f"    {example_date.isoformat()}"
+                )
+
+                for column, (
+                    value_a,
+                    value_b,
+                ) in differences.items():
+                    print(
+                        f"      {column}: "
+                        f"{value_a!r} "
+                        f"<-> "
+                        f"{value_b!r}"
+                    )
+
+        else:
+            print(
+                "  Alla jämförda rader är "
+                "identiska."
+            )
+
+    print()
+    print("TOTAL JÄMFÖRELSE")
+    print("-" * 70)
+    print(
+        f"Gemensamma datum: "
+        f"{total_common_dates:,}"
+    )
+    print(
+        f"Helt identiska rader: "
+        f"{total_identical_dates:,}"
+    )
+    print(
+        f"Datum med skillnader: "
+        f"{total_different_dates:,}"
+    )
+
+    if all_difference_columns:
+        print()
+        print(
+            "Totala skillnader per kolumn:"
+        )
+
+        for column, count in sorted(
+            all_difference_columns.items()
+        ):
+            print(
+                f"  {column}: "
+                f"{count:,}"
+            )
+    else:
+        print()
+        print(
+            "Alla överlappande prisrader är "
+            "identiska."
         )
 
     # ---------------------------------------------------------
