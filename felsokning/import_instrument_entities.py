@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -35,6 +36,9 @@ ALIASES_PATH = (
 SOURCE = "GLEIF_ANNA"
 STATUS = "candidate"
 RELATION = "observed"
+
+ENTITY_ID_PREFIX = "ENT-"
+ENTITY_ID_HASH_LENGTH = 12
 
 
 def _parse_args() -> argparse.Namespace:
@@ -139,31 +143,126 @@ def _entity_ids_from_records(
     return entity_ids
 
 
-def _next_entity_id(
-    existing_ids: set[str],
+def _deterministic_entity_id(
+    lei: str,
 ) -> str:
-    highest = 0
+    """
+    Skapar ett stabilt internt entity-id från LEI.
 
-    for entity_id in existing_ids:
-        if not entity_id.startswith(
-            "ENT-"
-        ):
-            continue
+    Samma LEI ger alltid samma entity-id.
+    ID:t påverkas inte av discovery-ordningen eller
+    av vilka andra LEI:n som upptäcks senare.
 
-        suffix = entity_id[
-            4:
-        ]
+    LEI används endast som input till hashningen.
+    Själva LEI:t lagras separat i aliasposten.
+    """
 
-        if not suffix.isdigit():
-            continue
+    normalized_lei = normalize_lei(
+        lei
+    )
 
-        highest = max(
-            highest,
-            int(suffix),
+    if not normalized_lei:
+        raise ValueError(
+            "Kan inte skapa entity-id utan LEI."
         )
 
+    digest = hashlib.sha256(
+        normalized_lei.encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
     return (
-        f"ENT-{highest + 1:06d}"
+        f"{ENTITY_ID_PREFIX}"
+        f"{digest[:ENTITY_ID_HASH_LENGTH]}"
+    )
+
+
+def _validate_deterministic_ids(
+    leis: list[str],
+    existing_ids: set[str],
+) -> dict[str, str]:
+    """
+    Skapar LEI -> entity-id och säkerställer att
+    deterministiska ID:n inte kolliderar med befintliga
+    entity-id:n.
+
+    En hashkollision mellan två olika LEI:n stoppas
+    explicit i stället för att försöka lösa den genom
+    att ändra ID:t beroende på importordning.
+    """
+
+    mapping: dict[str, str] = {}
+
+    generated_ids: dict[str, str] = {}
+
+    for lei in sorted(
+        set(
+            normalize_lei(value)
+            for value in leis
+            if normalize_lei(value)
+        )
+    ):
+        entity_id = _deterministic_entity_id(
+            lei
+        )
+
+        previous_lei = generated_ids.get(
+            entity_id
+        )
+
+        if (
+            previous_lei is not None
+            and previous_lei != lei
+        ):
+            raise ValueError(
+                "Deterministisk entity-id-kollision: "
+                f"{entity_id} används av både "
+                f"{previous_lei} och {lei}."
+            )
+
+        generated_ids[
+            entity_id
+        ] = lei
+
+        if (
+            entity_id in existing_ids
+            and not _entity_id_belongs_to_lei(
+                entity_id,
+                lei,
+            )
+        ):
+            raise ValueError(
+                "Deterministiskt entity-id kolliderar "
+                "med befintligt entity-id: "
+                f"{entity_id} för LEI {lei}."
+            )
+
+        mapping[
+            lei
+        ] = entity_id
+
+    return mapping
+
+
+def _entity_id_belongs_to_lei(
+    entity_id: str,
+    lei: str,
+) -> bool:
+    """
+    Returnerar True om entity-id:t är det deterministiska
+    ID:t för LEI:n.
+
+    Befintliga äldre numeriska ENT-ID:n betraktas inte
+    som deterministiska och kan därför inte automatiskt
+    återanvändas här.
+    """
+
+    return (
+        entity_id
+        == _deterministic_entity_id(
+            lei
+        )
     )
 
 
@@ -365,6 +464,17 @@ def _build_import_plan(
             "source.mapping_date."
         )
 
+    candidate_leis = list(
+        groups.keys()
+    )
+
+    deterministic_ids = (
+        _validate_deterministic_ids(
+            candidate_leis,
+            existing_entities,
+        )
+    )
+
     import_records: list[
         dict[str, Any]
     ] = []
@@ -416,9 +526,19 @@ def _build_import_plan(
             )
 
         else:
-            entity_id = _next_entity_id(
-                existing_entities
-            )
+            entity_id = deterministic_ids[
+                lei
+            ]
+
+            if (
+                entity_id
+                in existing_entities
+            ):
+                raise ValueError(
+                    "Entity-id används redan men "
+                    "LEI saknar befintlig koppling: "
+                    f"{entity_id} -> {lei}"
+                )
 
             existing_entities.add(
                 entity_id
