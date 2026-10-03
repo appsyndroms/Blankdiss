@@ -10,6 +10,7 @@ on:
         options:
           - yahoo_price
           - identity
+          - instrument_entity
 
 jobs:
   debug:
@@ -55,3 +56,10 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python felsokning/debug_identity.py
+
+      - name: Run instrument entity discovery
+        if: ${{ inputs.diagnostic == 'instrument_entity' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python felsokning/discover_instrument_entities.py
