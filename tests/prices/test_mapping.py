@@ -2,6 +2,7 @@ import json
 
 from prices import mapping
 from prices import mapping_resolution
+from prices import mapping_utils
 
 
 def test_explicit_isin_mapping_for_skf(
@@ -104,19 +105,19 @@ def test_persist_known_yahoo_mapping_appends_new_mapping(
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS_PATH",
         path,
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS",
         {},
     )
 
     persisted = (
-        mapping._persist_known_yahoo_mapping(
+        mapping_utils._persist_known_yahoo_mapping(
             "Axvik Group AB",
             "AXVIK.ST",
         )
@@ -134,7 +135,7 @@ def test_persist_known_yahoo_mapping_appends_new_mapping(
 
     assert records == [
         {
-            "name": "axvik",
+            "name": "axvik group",
             "yahoo_symbol": "AXVIK.ST",
         }
     ]
@@ -150,26 +151,26 @@ def test_persist_known_yahoo_mapping_is_idempotent(
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS_PATH",
         path,
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS",
         {},
     )
 
     first = (
-        mapping._persist_known_yahoo_mapping(
+        mapping_utils._persist_known_yahoo_mapping(
             "Axvik Group AB",
             "AXVIK.ST",
         )
     )
 
     second = (
-        mapping._persist_known_yahoo_mapping(
+        mapping_utils._persist_known_yahoo_mapping(
             "Axvik Group AB",
             "AXVIK.ST",
         )
@@ -197,7 +198,7 @@ def test_persist_known_yahoo_mapping_does_not_overwrite_conflict(
     path.write_text(
         json.dumps(
             {
-                "name": "axvik",
+                "name": "axvik group",
                 "yahoo_symbol": "AXVIK.ST",
             },
             separators=(",", ":"),
@@ -207,21 +208,21 @@ def test_persist_known_yahoo_mapping_does_not_overwrite_conflict(
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS_PATH",
         path,
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS",
         {
-            "axvik": "AXVIK.ST",
+            "axvik group": "AXVIK.ST",
         },
     )
 
     persisted = (
-        mapping._persist_known_yahoo_mapping(
+        mapping_utils._persist_known_yahoo_mapping(
             "Axvik Group AB",
             "WRONG.ST",
         )
@@ -239,7 +240,7 @@ def test_persist_known_yahoo_mapping_does_not_overwrite_conflict(
 
     assert records == [
         {
-            "name": "axvik",
+            "name": "axvik group",
             "yahoo_symbol": "AXVIK.ST",
         }
     ]
@@ -255,19 +256,19 @@ def test_persist_known_yahoo_mapping_uses_normalized_name(
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS_PATH",
         path,
     )
 
     monkeypatch.setattr(
-        mapping,
+        mapping_utils,
         "KNOWN_YAHOO_SYMBOLS",
         {},
     )
 
     persisted = (
-        mapping._persist_known_yahoo_mapping(
+        mapping_utils._persist_known_yahoo_mapping(
             "Nordic Iron Ore AB",
             "NIO.ST",
         )
