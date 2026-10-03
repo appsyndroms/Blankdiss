@@ -1,463 +1,856 @@
 from __future__ import annotations
+
 import json
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 from typing import Any
+
 from shared.instrument_identity import (
     InstrumentIdentity,
     normalize_identifier,
     normalize_isin,
     normalize_lei,
     normalize_text,
+    parse_date,
 )
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-FI_PATH = (
+
+
+PROJECT_ROOT = Path(
+    __file__
+).resolve().parents[1]
+
+PRICE_DIR = (
     PROJECT_ROOT
     / "data"
-    / "processed"
-    / "fi"
-    / "aggregate"
-    / "reconstructed.jsonl"
+    / "raw"
+    / "prices"
 )
+
+REPORT_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "analysis"
+    / "identity_price_diagnostic.json"
+)
+
 SAMPLE_LIMIT = 50
-def _read_fi_records() -> list[dict[str, Any]]:
-    if not FI_PATH.exists():
-        raise FileNotFoundError(
-            f"FI-filen finns inte: {FI_PATH}"
+
+
+def _parse_price_date(
+    value: Any,
+) -> date | None:
+    return parse_date(
+        value
+    )
+
+
+def _load_price_files() -> list[Path]:
+    return sorted(
+        path
+        for path in PRICE_DIR.glob(
+            "prices_*.jsonl"
         )
-    records: list[dict[str, Any]] = []
-    with FI_PATH.open(
-        encoding="utf-8"
-    ) as handle:
-        for line_number, line in enumerate(
-            handle,
-            start=1,
-        ):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Ogiltig JSON på rad {line_number}: "
-                    f"{FI_PATH}"
-                ) from exc
-            if isinstance(record, dict):
-                records.append(record)
+        if path.is_file()
+    )
+
+
+def _read_price_records() -> list[dict[str, Any]]:
+    paths = _load_price_files()
+
+    if not paths:
+        raise FileNotFoundError(
+            f"Inga price-filer hittades i: {PRICE_DIR}"
+        )
+
+    records: list[
+        dict[str, Any]
+    ] = []
+
+    for path in paths:
+        with path.open(
+            encoding="utf-8"
+        ) as handle:
+            for line_number, line in enumerate(
+                handle,
+                start=1,
+            ):
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                try:
+                    record = json.loads(
+                        line
+                    )
+
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"Ogiltig JSON på rad "
+                        f"{line_number}: {path}"
+                    ) from exc
+
+                if not isinstance(
+                    record,
+                    dict,
+                ):
+                    continue
+
+                clean_record = dict(
+                    record
+                )
+
+                clean_record[
+                    "_source_file"
+                ] = path.name
+
+                clean_record[
+                    "_source_line"
+                ] = line_number
+
+                records.append(
+                    clean_record
+                )
+
     return records
+
+
 def _value(
     record: dict[str, Any],
     *keys: str,
 ) -> Any:
     for key in keys:
-        value = record.get(key)
+        value = record.get(
+            key
+        )
+
         if value is not None:
             return value
+
     return None
-def _identity_key(
+
+
+def _identity_values(
     record: dict[str, Any],
-) -> tuple[str, str, str]:
-    return (
-        normalize_isin(
-            _value(record, "isin")
+) -> dict[str, str]:
+    return {
+        "isin": normalize_isin(
+            _value(
+                record,
+                "isin",
+            )
         ),
-        normalize_lei(
-            _value(record, "lei", "LEI")
+        "lei": normalize_lei(
+            _value(
+                record,
+                "lei",
+                "LEI",
+            )
         ),
-        normalize_text(
-            _value(record, "issuer")
+        "issuer": normalize_text(
+            _value(
+                record,
+                "issuer",
+            )
         ),
-    )
-def _has_identity(
-    key: tuple[str, str, str],
-) -> bool:
-    isin, lei, issuer = key
-    return bool(
-        isin
-        or lei
-        or issuer
-    )
-def _describe_key(
-    key: tuple[str, str, str],
-) -> str:
-    isin, lei, issuer = key
-    return (
-        f"isin={isin or '-'} "
-        f"lei={lei or '-'} "
-        f"issuer={issuer or '-'}"
-    )
-def _entity_resolution(
-    identity: InstrumentIdentity,
-    key: tuple[str, str, str],
-) -> tuple[
-    str,
-    str | None,
-    list[str],
-]:
-    """
-    Klassificerar en identity-observation utan att skriva.
-    Returnerar:
-        status
-        entity_id
-        matching_entity_ids
-    Status:
-        existing_entity
-        safe_new_entity
-        ambiguous
-        insufficient_identity
-    """
-    isin, lei, issuer = key
-    if not _has_identity(key):
-        return (
-            "insufficient_identity",
-            None,
-            [],
-        )
-    matches = identity._matching_records(
-        isin=isin or None,
-        lei=lei or None,
-        issuer=issuer or None,
-    )
-    if not matches:
-        return (
-            "safe_new_entity",
-            None,
-            [],
-        )
-    priority = {
-        "isin": 0,
-        "lei": 1,
-        "yahoo_symbol": 2,
-        "ticker": 3,
-        "issuer": 4,
+        "ticker": normalize_identifier(
+            _value(
+                record,
+                "ticker",
+            )
+        ),
+        "yahoo_symbol": normalize_identifier(
+            _value(
+                record,
+                "yahoo_symbol",
+            )
+        ),
     }
-    matches.sort(
-        key=lambda match: priority[
-            match.resolution
-        ]
+
+
+def _has_identity(
+    values: dict[str, str],
+) -> bool:
+    return any(
+        values[field]
+        for field in (
+            "isin",
+            "lei",
+            "issuer",
+            "ticker",
+            "yahoo_symbol",
+        )
     )
-    best_priority = priority[
-        matches[0].resolution
-    ]
-    best = [
-        match
-        for match in matches
-        if priority[
-            match.resolution
-        ]
-        == best_priority
-    ]
-    entity_ids = sorted(
+
+
+def _instrument_isin(
+    record: dict[str, Any],
+) -> str:
+    return normalize_isin(
+        record.get("isin")
+    )
+
+
+def _instrument_key(
+    record: dict[str, Any],
+) -> str:
+    isin = _instrument_isin(
+        record
+    )
+
+    if isin:
+        return isin
+
+    return (
+        "NO_ISIN:"
+        + normalize_text(
+            record.get(
+                "issuer"
+            )
+        )
+    )
+
+
+def _instrument_description(
+    record: dict[str, Any],
+) -> str:
+    isin = _instrument_isin(
+        record
+    )
+
+    issuer = normalize_text(
+        record.get(
+            "issuer"
+        )
+    )
+
+    yahoo_symbol = normalize_identifier(
+        record.get(
+            "yahoo_symbol"
+        )
+    )
+
+    ticker = normalize_identifier(
+        record.get(
+            "ticker"
+        )
+    )
+
+    parts: list[str] = []
+
+    if isin:
+        parts.append(
+            f"ISIN={isin}"
+        )
+
+    if issuer:
+        parts.append(
+            f"issuer={issuer}"
+        )
+
+    if yahoo_symbol:
+        parts.append(
+            f"yahoo={yahoo_symbol}"
+        )
+
+    if ticker:
+        parts.append(
+            f"ticker={ticker}"
+        )
+
+    if not parts:
+        return "-"
+
+    return " ".join(
+        parts
+    )
+
+
+def _unique_instruments(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    result: dict[
+        str,
+        dict[str, Any],
+    ] = {}
+
+    for record in records:
+        result.setdefault(
+            _instrument_key(
+                record
+            ),
+            record,
+        )
+
+    return list(
+        result.values()
+    )
+
+
+def _classify_record(
+    identity: InstrumentIdentity,
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    values = _identity_values(
+        record
+    )
+
+    target_date = _parse_price_date(
+        record.get("date")
+    )
+
+    base_result: dict[
+        str,
+        Any,
+    ] = {
+        "date": (
+            target_date.isoformat()
+            if target_date
+            else None
+        ),
+        "yahoo_symbol": values[
+            "yahoo_symbol"
+        ],
+        "lei": values[
+            "lei"
+        ],
+        "issuer": values[
+            "issuer"
+        ],
+        "ticker": values[
+            "ticker"
+        ],
+        "source_file": record.get(
+            "_source_file"
+        ),
+        "source_line": record.get(
+            "_source_line"
+        ),
+    }
+
+    if not target_date:
+        base_result[
+            "status"
+        ] = "invalid_date"
+
+        return base_result
+
+    if not _has_identity(
+        values
+    ):
+        base_result[
+            "status"
+        ] = "unresolved"
+
+        return base_result
+
+    match = identity.resolve(
+        isin=values[
+            "isin"
+        ] or None,
+        lei=values[
+            "lei"
+        ] or None,
+        issuer=values[
+            "issuer"
+        ] or None,
+        ticker=values[
+            "ticker"
+        ] or None,
+        yahoo_symbol=values[
+            "yahoo_symbol"
+        ] or None,
+        target_date=target_date,
+    )
+
+    if match is None:
+        base_result[
+            "status"
+        ] = "unresolved"
+
+        return base_result
+
+    entity_id = match.entity_id
+
+    base_result[
+        "entity_id"
+    ] = entity_id
+
+    base_result[
+        "resolution"
+    ] = match.resolution
+
+    historical = _unique_instruments(
+        identity.instruments_for_entity(
+            entity_id
+        )
+    )
+
+    current = _unique_instruments(
+        identity.instruments_for_entity(
+            entity_id,
+            target_date,
+        )
+    )
+
+    historical_isins = sorted(
         {
-            match.entity_id
-            for match in best
+            _instrument_isin(
+                instrument
+            )
+            for instrument in historical
+            if _instrument_isin(
+                instrument
+            )
         }
     )
-    if len(entity_ids) == 1:
-        return (
-            "existing_entity",
-            entity_ids[0],
-            entity_ids,
-        )
-    return (
-        "ambiguous",
-        None,
-        entity_ids,
+
+    current_isins = sorted(
+        {
+            _instrument_isin(
+                instrument
+            )
+            for instrument in current
+            if _instrument_isin(
+                instrument
+            )
+        }
     )
-def _source_conflicts(
-    records: list[dict[str, Any]],
-) -> dict[str, dict[str, set[str]]]:
-    """
-    Letar efter konflikter i FI-källan.
-    Vi letar särskilt efter:
-        samma ISIN -> flera issuer
-        samma LEI  -> flera issuer
-        samma issuer -> flera LEI
-    Detta är viktigt innan discovery får börja skriva till registret.
-    """
-    isin_to_issuer: dict[str, set[str]] = defaultdict(set)
-    lei_to_issuer: dict[str, set[str]] = defaultdict(set)
-    issuer_to_lei: dict[str, set[str]] = defaultdict(set)
-    for record in records:
-        isin = normalize_isin(
-            _value(record, "isin")
+
+    base_result[
+        "historical_instruments"
+    ] = [
+        _instrument_description(
+            instrument
         )
-        lei = normalize_lei(
-            _value(record, "lei", "LEI")
+        for instrument in historical
+    ]
+
+    base_result[
+        "historical_isins"
+    ] = historical_isins
+
+    base_result[
+        "current_instruments"
+    ] = [
+        _instrument_description(
+            instrument
         )
-        issuer = normalize_text(
-            _value(record, "issuer")
+        for instrument in current
+    ]
+
+    base_result[
+        "current_isins"
+    ] = current_isins
+
+    if not current:
+        base_result[
+            "status"
+        ] = "entity_only"
+
+    elif len(current) > 1:
+        base_result[
+            "status"
+        ] = "multiple_current_instruments"
+
+    elif len(current) == 1:
+        current_instrument = current[
+            0
+        ]
+
+        current_isin = _instrument_isin(
+            current_instrument
         )
-        if isin and issuer:
-            isin_to_issuer[isin].add(
-                issuer
-            )
-        if lei and issuer:
-            lei_to_issuer[lei].add(
-                issuer
-            )
-        if issuer and lei:
-            issuer_to_lei[issuer].add(
-                lei
-            )
-    return {
-        "same_isin_multiple_issuers": {
-            key: values
-            for key, values in isin_to_issuer.items()
-            if len(values) > 1
-        },
-        "same_lei_multiple_issuers": {
-            key: values
-            for key, values in lei_to_issuer.items()
-            if len(values) > 1
-        },
-        "same_issuer_multiple_lei": {
-            key: values
-            for key, values in issuer_to_lei.items()
-            if len(values) > 1
-        },
-    }
-def _print_conflicts(
-    conflicts: dict[str, dict[str, set[str]]],
-) -> None:
-    print()
-    print("=" * 70)
-    print("KONFLIKTER I FI-KÄLLAN")
-    print("=" * 70)
-    total = 0
-    for name, values in conflicts.items():
-        print()
-        print(name)
-        print("-" * 70)
-        if not values:
-            print("Inga konflikter.")
-            continue
-        total += len(values)
-        for key, related in sorted(values.items()):
-            print(
-                f"{key}: "
-                + ", ".join(sorted(related))
-            )
-    print()
-    print(
-        f"Totalt antal konfliktgrupper: {total}"
-    )
+
+        if not current_isin:
+            base_result[
+                "status"
+            ] = "instrument_without_isin"
+
+        elif len(
+            historical_isins
+        ) > 1:
+            base_result[
+                "status"
+            ] = "multiple_historical_isins"
+
+        else:
+            base_result[
+                "status"
+            ] = "unique_isin"
+
+    return base_result
+
+
 def _print_samples(
     title: str,
-    values: list[tuple[Any, ...]],
+    values: list[dict[str, Any]],
 ) -> None:
     print()
     print(title)
     print("-" * 70)
+
     if not values:
         print("Inga.")
+
         return
-    for value in values[:SAMPLE_LIMIT]:
-        print(" | ".join(str(part) for part in value))
-    if len(values) > SAMPLE_LIMIT:
+
+    for value in values[
+        :SAMPLE_LIMIT
+    ]:
+        date_value = (
+            value.get(
+                "date"
+            )
+            or "-"
+        )
+
+        symbol = (
+            value.get(
+                "yahoo_symbol"
+            )
+            or "-"
+        )
+
+        entity = (
+            value.get(
+                "entity_id"
+            )
+            or "-"
+        )
+
+        resolution = (
+            value.get(
+                "resolution"
+            )
+            or "-"
+        )
+
+        current_isins = ",".join(
+            value.get(
+                "current_isins",
+                [],
+            )
+        ) or "-"
+
+        historical_isins = ",".join(
+            value.get(
+                "historical_isins",
+                [],
+            )
+        ) or "-"
+
+        print(
+            f"{date_value} | "
+            f"{symbol} | "
+            f"entity={entity} | "
+            f"resolution={resolution} | "
+            f"current={current_isins} | "
+            f"historical={historical_isins}"
+        )
+
+    if len(
+        values
+    ) > SAMPLE_LIMIT:
         print()
         print(
-            f"... {len(values) - SAMPLE_LIMIT:,} "
+            f"... "
+            f"{len(values) - SAMPLE_LIMIT:,} "
             "ytterligare poster."
         )
+
+
+def _print_status_summary(
+    counts: dict[str, int],
+) -> None:
+    print()
+    print("=" * 70)
+    print(
+        "IDENTITETSSTATUS"
+    )
+    print("=" * 70)
+
+    statuses = (
+        "unique_isin",
+        "multiple_historical_isins",
+        "multiple_current_instruments",
+        "entity_only",
+        "instrument_without_isin",
+        "unresolved",
+        "invalid_date",
+    )
+
+    for status in statuses:
+        print(
+            f"{status:30}: "
+            f"{counts[status]:,}"
+        )
+
+
+def _write_report(
+    report: dict[str, Any],
+) -> None:
+    REPORT_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    with REPORT_PATH.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        json.dump(
+            report,
+            handle,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
 def main() -> None:
     print("=" * 70)
-    print("IDENTITY / DISCOVERY FELSÖKNING")
-    print("=" * 70)
-    print()
-    print(f"FI: {FI_PATH}")
-    identity = InstrumentIdentity()
-    print()
-    print("BEFINTLIGT IDENTITY-REGISTER")
-    print("-" * 70)
     print(
-        f"Observationer : {len(identity.records):,}"
+        "PRICE / IDENTITY FELSÖKNING"
     )
+    print("=" * 70)
+
+    identity = InstrumentIdentity()
+
+    print()
+    print(
+        "BEFINTLIGT IDENTITY-REGISTER"
+    )
+    print("-" * 70)
+
+    print(
+        f"Observationer : "
+        f"{len(identity.records):,}"
+    )
+
     print(
         f"Entity-id:n   : "
         f"{len(identity._entity_ids()):,}"
     )
+
     print(
         f"Instrument map: "
         f"{len(identity.instrument_map):,}"
     )
-    records = _read_fi_records()
+
+    paths = _load_price_files()
+
     print()
-    print("FI-KÄLLA")
+    print(
+        "PRISFILER"
+    )
     print("-" * 70)
+
+    for path in paths:
+        print(
+            f"  {path.name}"
+        )
+
+    if not paths:
+        raise SystemExit(
+            "Inga price-filer hittades."
+        )
+
+    records = _read_price_records()
+
+    print()
     print(
-        f"Rader: {len(records):,}"
+        "PRISKÄLLA"
     )
-    unique_keys = {
-        _identity_key(record)
+    print("-" * 70)
+
+    print(
+        f"Rader: "
+        f"{len(records):,}"
+    )
+
+    missing_isin = [
+        record
         for record in records
+        if not normalize_isin(
+            record.get("isin")
+        )
+    ]
+
+    print(
+        f"ISIN-lösa rader: "
+        f"{len(missing_isin):,}"
+    )
+
+    results: list[
+        dict[str, Any]
+    ] = []
+
+    counts: dict[
+        str,
+        int,
+    ] = defaultdict(int)
+
+    examples: dict[
+        str,
+        list[dict[str, Any]],
+    ] = defaultdict(list)
+
+    for record in missing_isin:
+        result = _classify_record(
+            identity,
+            record,
+        )
+
+        results.append(
+            result
+        )
+
+        status = result[
+            "status"
+        ]
+
+        counts[
+            status
+        ] += 1
+
+        if len(
+            examples[status]
+        ) < SAMPLE_LIMIT:
+            examples[
+                status
+            ].append(
+                result
+            )
+
+    _print_status_summary(
+        counts
+    )
+
+    _print_samples(
+        "UNIK ISIN",
+        examples[
+            "unique_isin"
+        ],
+    )
+
+    _print_samples(
+        "FLERA HISTORISKA ISIN",
+        examples[
+            "multiple_historical_isins"
+        ],
+    )
+
+    _print_samples(
+        "FLERA AKTUELLA INSTRUMENT",
+        examples[
+            "multiple_current_instruments"
+        ],
+    )
+
+    _print_samples(
+        "ENTITY HITTAD – MEN INGET INSTRUMENT",
+        examples[
+            "entity_only"
+        ],
+    )
+
+    _print_samples(
+        "INSTRUMENT HITTAT – MEN UTAN ISIN",
+        examples[
+            "instrument_without_isin"
+        ],
+    )
+
+    _print_samples(
+        "EJ LÖST",
+        examples[
+            "unresolved"
+        ],
+    )
+
+    _print_samples(
+        "OGILTIGT DATUM",
+        examples[
+            "invalid_date"
+        ],
+    )
+
+    report = {
+        "source": {
+            "price_dir": str(
+                PRICE_DIR
+            ),
+            "files": [
+                path.name
+                for path in paths
+            ],
+            "rows": len(
+                records
+            ),
+            "rows_without_isin": len(
+                missing_isin
+            ),
+        },
+        "identity": {
+            "observation_count": len(
+                identity.records
+            ),
+            "entity_count": len(
+                identity._entity_ids()
+            ),
+            "instrument_map_count": len(
+                identity.instrument_map
+            ),
+        },
+        "classification": {
+            "rows": len(
+                results
+            ),
+            "counts": dict(
+                sorted(
+                    counts.items()
+                )
+            ),
+        },
+        "examples": {
+            status: values
+            for status, values
+            in sorted(
+                examples.items()
+            )
+        },
     }
-    print(
-        f"Unika identity-observationer: "
-        f"{len(unique_keys):,}"
+
+    _write_report(
+        report
     )
-    # ---------------------------------------------------------
-    # 1. Klassificera varje unik identity-observation
-    # ---------------------------------------------------------
-    counts = defaultdict(int)
-    existing: list[
-        tuple[str, str, str, str]
-    ] = []
-    new_candidates: list[
-        tuple[str, str, str]
-    ] = []
-    ambiguous: list[
-        tuple[str, str, str, str]
-    ] = []
-    insufficient: list[
-        tuple[str, str, str]
-    ] = []
-    for key in sorted(unique_keys):
-        status, entity_id, matching_entities = (
-            _entity_resolution(
-                identity,
-                key,
-            )
-        )
-        counts[status] += 1
-        isin, lei, issuer = key
-        if status == "existing_entity":
-            existing.append(
-                (
-                    entity_id or "-",
-                    isin or "-",
-                    lei or "-",
-                    issuer or "-",
-                )
-            )
-        elif status == "safe_new_entity":
-            new_candidates.append(
-                (
-                    isin or "-",
-                    lei or "-",
-                    issuer or "-",
-                )
-            )
-        elif status == "ambiguous":
-            ambiguous.append(
-                (
-                    ",".join(matching_entities),
-                    isin or "-",
-                    lei or "-",
-                    issuer or "-",
-                )
-            )
-        else:
-            insufficient.append(
-                (
-                    isin or "-",
-                    lei or "-",
-                    issuer or "-",
-                )
-            )
-    # ---------------------------------------------------------
-    # 2. Sammanfattning
-    # ---------------------------------------------------------
+
     print()
     print("=" * 70)
-    print("DISCOVERY DRY-RUN")
+    print(
+        "SLUTSATS"
+    )
     print("=" * 70)
+
     print()
     print(
-        f"existing_entity     : "
-        f"{counts['existing_entity']:,}"
+        "Detta var endast diagnostik."
     )
+
     print(
-        f"safe_new_entity     : "
-        f"{counts['safe_new_entity']:,}"
+        "Inga prisrader har ändrats."
     )
+
     print(
-        f"ambiguous           : "
-        f"{counts['ambiguous']:,}"
+        "instrument_aliases.jsonl har inte ändrats."
     )
-    print(
-        f"insufficient_identity: "
-        f"{counts['insufficient_identity']:,}"
-    )
+
     print()
     print(
-        "VIKTIGT: Detta är endast analys. "
-        "Ingen discovery körs och inget skrivs."
+        f"Rapport: {REPORT_PATH}"
     )
-    # ---------------------------------------------------------
-    # 3. Existerande entity-matchningar
-    # ---------------------------------------------------------
-    _print_samples(
-        "BEFINTLIGA ENTITY-MATCHNINGAR",
-        existing,
-    )
-    # ---------------------------------------------------------
-    # 4. Kandidater för nya entitys
-    # ---------------------------------------------------------
-    _print_samples(
-        "KANDIDATER FÖR NYA ENTITYS",
-        new_candidates,
-    )
-    # ---------------------------------------------------------
-    # 5. Ambiguous
-    # ---------------------------------------------------------
-    _print_samples(
-        "AMBIGUA MATCHNINGAR",
-        ambiguous,
-    )
-    # ---------------------------------------------------------
-    # 6. Otillräcklig identitet
-    # ---------------------------------------------------------
-    _print_samples(
-        "OTILLRÄCKLIG IDENTITET",
-        insufficient,
-    )
-    # ---------------------------------------------------------
-    # 7. Konflikter i själva FI-källan
-    # ---------------------------------------------------------
-    conflicts = _source_conflicts(
-        records
-    )
-    _print_conflicts(
-        conflicts
-    )
-    # ---------------------------------------------------------
-    # 8. Slutsats
-    # ---------------------------------------------------------
-    print()
-    print("=" * 70)
-    print("SLUTSATS")
-    print("=" * 70)
-    if counts["ambiguous"]:
-        print()
-        print(
-            "Det finns ambiguösa identiteter som måste "
-            "hanteras innan discovery kan köras säkert."
-        )
-    if counts["insufficient_identity"]:
-        print()
-        print(
-            "Det finns FI-poster utan tillräcklig identitet "
-            "och de ska inte få en entity automatiskt."
-        )
-    if (
-        not counts["ambiguous"]
-        and not counts["insufficient_identity"]
-    ):
-        print()
-        print(
-            "Inga identity-matchningar blockerar en "
-            "försiktig discovery-bootstrap."
-        )
-    print()
-    print(
-        "Nästa steg efter denna felsökning är att använda "
-        "resultatet för den riktiga bootstrapen."
-    )
-    print()
-    print(
-        "instrument_aliases.jsonl har INTE ändrats."
-    )
+
+
 if __name__ == "__main__":
     main()
