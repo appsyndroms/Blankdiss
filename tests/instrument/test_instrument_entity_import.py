@@ -146,7 +146,7 @@ def test_entity_resolved_by_gleif_reuses_existing_entity(
             isin=isin,
             lei=lei,
             source="GLEIF_ANNA",
-            observed_date="2026-09-01",
+            observed_date="2026-10-01",
         )
     ]
 
@@ -157,7 +157,7 @@ def test_entity_resolved_by_gleif_reuses_existing_entity(
     registry.add(
         entity_id="ENT-000001",
         legal_name="Example AB",
-        observed_date="2026-09-01",
+        observed_date="2026-10-01",
         source="test",
     )
 
@@ -217,7 +217,7 @@ def test_multiple_instruments_with_same_lei_share_one_entity(
             issuer="Example AB",
             yahoo_symbol="EXAMPLE-A.ST",
             source="GLEIF_ANNA",
-            observed_date="2026-09-01",
+            observed_date="2026-10-01",
         )
     ]
 
@@ -228,7 +228,7 @@ def test_multiple_instruments_with_same_lei_share_one_entity(
     registry.add(
         entity_id="ENT-000001",
         legal_name="Example AB",
-        observed_date="2026-09-01",
+        observed_date="2026-10-01",
         source="test",
     )
 
