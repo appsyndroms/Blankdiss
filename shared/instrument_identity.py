@@ -212,6 +212,20 @@ class InstrumentIdentity:
             self._load_aliases()
         )
 
+        # instrument_map är statisk under en körning.
+        #
+        # Tidigare gick _matching_instrument_map() igenom hela
+        # instrument_map för varje resolve_instrument()-anrop.
+        #
+        # Prisdiagnostiken kan göra hundratusentals sådana anrop,
+        # vilket gjorde att 282 000+ prisrader i praktiken gav
+        # hundratals miljoner jämförelser.
+        #
+        # Indexen byggs därför en gång här.
+        self._instrument_map_indexes = (
+            self._build_instrument_map_indexes()
+        )
+
     # ------------------------------------------------------------------
     # Läsning
     # ------------------------------------------------------------------
@@ -306,6 +320,74 @@ class InstrumentIdentity:
 
         return records
 
+    def _build_instrument_map_indexes(
+        self,
+    ) -> dict[str, dict[str, list[str]]]:
+        """
+        Bygger uppslagstabeller för instrument_map.
+
+        Varje index mappar en normaliserad identifierare till en lista
+        med map_key-värden.
+
+        Exempel:
+
+            yahoo_symbol["ABB.ST"]
+                -> ["SE..."]
+
+        Indexen används endast för att hitta kandidater. Den befintliga
+        prioriterings- och matchningslogiken avgör fortfarande vilken
+        identifierare som faktiskt gav träffen.
+        """
+
+        indexes: dict[
+            str,
+            dict[str, list[str]],
+        ] = {
+            "isin": {},
+            "lei": {},
+            "issuer": {},
+            "ticker": {},
+            "yahoo_symbol": {},
+        }
+
+        fields = (
+            "isin",
+            "lei",
+            "issuer",
+            "ticker",
+            "yahoo_symbol",
+        )
+
+        normalizers = {
+            "isin": normalize_isin,
+            "lei": normalize_lei,
+            "issuer": normalize_text,
+            "ticker": normalize_identifier,
+            "yahoo_symbol": normalize_identifier,
+        }
+
+        for map_key, record in self.instrument_map.items():
+            for field in fields:
+                normalized = normalizers[field](
+                    record.get(field)
+                )
+
+                if not normalized:
+                    continue
+
+                index = indexes[field]
+
+                candidates = index.setdefault(
+                    normalized,
+                    [],
+                )
+
+                candidates.append(
+                    map_key
+                )
+
+        return indexes
+
     # ------------------------------------------------------------------
     # Entity
     # ------------------------------------------------------------------
@@ -336,8 +418,7 @@ class InstrumentIdentity:
 
             if match:
                 numbers.append(
-                    int(match.group(1)
-                    )
+                    int(match.group(1))
                 )
 
         next_number = (
@@ -492,31 +573,20 @@ class InstrumentIdentity:
         instrument_map är inte tidsstämplad. Träffarna representerar
         därför känd instrumentidentitet, men inte historisk giltighet
         på ett specifikt datum.
+
+        Matchningen använder förbyggda index. Hela instrument_map
+        skannas alltså inte för varje anrop.
         """
 
-        normalized_isin = normalize_isin(
-            isin
-        )
-
-        normalized_lei = normalize_lei(
-            lei
-        )
-
-        normalized_issuer = normalize_text(
-            issuer
-        )
-
-        normalized_ticker = normalize_identifier(
-            ticker
-        )
-
-        normalized_yahoo = normalize_identifier(
-            yahoo_symbol
-        )
-
-        matches: list[
-            InstrumentMatch
-        ] = []
+        normalized_values = {
+            "isin": normalize_isin(isin),
+            "lei": normalize_lei(lei),
+            "yahoo_symbol": normalize_identifier(
+                yahoo_symbol
+            ),
+            "ticker": normalize_identifier(ticker),
+            "issuer": normalize_text(issuer),
+        }
 
         priority = {
             "isin": 0,
@@ -526,74 +596,67 @@ class InstrumentIdentity:
             "issuer": 4,
         }
 
-        for map_key, record in self.instrument_map.items():
-            record_isin = normalize_isin(
-                record.get("isin")
-            )
+        # map_key -> bästa identifieringsmetod för den kandidaten.
+        candidate_resolutions: dict[
+            str,
+            str,
+        ] = {}
 
-            record_lei = normalize_lei(
-                record.get("lei")
-            )
+        for resolution in (
+            "isin",
+            "lei",
+            "yahoo_symbol",
+            "ticker",
+            "issuer",
+        ):
+            normalized = normalized_values[
+                resolution
+            ]
 
-            record_issuer = normalize_text(
-                record.get("issuer")
-            )
-
-            record_ticker = normalize_identifier(
-                record.get("ticker")
-            )
-
-            record_yahoo = normalize_identifier(
-                record.get("yahoo_symbol")
-            )
-
-            resolution: str | None = None
-
-            if (
-                normalized_isin
-                and record_isin
-                and normalized_isin
-                == record_isin
-            ):
-                resolution = "isin"
-
-            elif (
-                normalized_lei
-                and record_lei
-                and normalized_lei
-                == record_lei
-            ):
-                resolution = "lei"
-
-            elif (
-                normalized_yahoo
-                and record_yahoo
-                and normalized_yahoo
-                == record_yahoo
-            ):
-                resolution = "yahoo_symbol"
-
-            elif (
-                normalized_ticker
-                and record_ticker
-                and normalized_ticker
-                == record_ticker
-            ):
-                resolution = "ticker"
-
-            elif (
-                normalized_issuer
-                and record_issuer
-                and normalized_issuer
-                == record_issuer
-            ):
-                resolution = "issuer"
-
-            if resolution is None:
+            if not normalized:
                 continue
 
-            instrument_isin = (
-                record_isin
+            map_keys = (
+                self._instrument_map_indexes[
+                    resolution
+                ].get(
+                    normalized,
+                    []
+                )
+            )
+
+            for map_key in map_keys:
+                existing = (
+                    candidate_resolutions.get(
+                        map_key
+                    )
+                )
+
+                if (
+                    existing is None
+                    or priority[resolution]
+                    < priority[existing]
+                ):
+                    candidate_resolutions[
+                        map_key
+                    ] = resolution
+
+        matches: list[
+            InstrumentMatch
+        ] = []
+
+        for map_key, resolution in (
+            candidate_resolutions.items()
+        ):
+            record = self.instrument_map.get(
+                map_key
+            )
+
+            if record is None:
+                continue
+
+            instrument_isin = normalize_isin(
+                record.get("isin")
             )
 
             if not instrument_isin:
