@@ -226,6 +226,18 @@ class InstrumentIdentity:
             self._build_instrument_map_indexes()
         )
 
+        # Aliasregistret används även för att gå från ett känt
+        # instrument/ISIN till dess historiskt observerade entity.
+        #
+        # Detta är separat från instrument_map eftersom instrument_map
+        # inte är ett historiskt observationsregister.
+        #
+        # Indexet används endast som kandidatindex. valid_from /
+        # valid_to kontrolleras fortfarande på själva observationen.
+        self._alias_instrument_indexes = (
+            self._build_alias_instrument_indexes()
+        )
+
     # ------------------------------------------------------------------
     # Läsning
     # ------------------------------------------------------------------
@@ -385,6 +397,49 @@ class InstrumentIdentity:
                 candidates.append(
                     map_key
                 )
+
+        return indexes
+
+    def _build_alias_instrument_indexes(
+        self,
+    ) -> dict[str, list[int]]:
+        """
+        Bygger ett ISIN-index för alias-/observationsregistret.
+
+        Indexet mappar normaliserat ISIN till positionerna i
+        self.records.
+
+        Exempel:
+
+            SE0007439112
+                -> [0, 7, 12]
+
+        Indexet används för att snabbt hitta entity-observationer för
+        ett känt instrument. Historisk giltighet kontrolleras därefter
+        med date_is_valid().
+        """
+
+        indexes: dict[
+            str,
+            list[int],
+        ] = {}
+
+        for index, record in enumerate(
+            self.records
+        ):
+            isin = normalize_isin(
+                record.get("isin")
+            )
+
+            if not isin:
+                continue
+
+            indexes.setdefault(
+                isin,
+                [],
+            ).append(
+                index
+            )
 
         return indexes
 
@@ -810,6 +865,187 @@ class InstrumentIdentity:
         )
 
     # ------------------------------------------------------------------
+    # Instrument → entity
+    # ------------------------------------------------------------------
+
+    def entities_for_instrument(
+        self,
+        isin: str,
+        target_date: date | str | None = None,
+    ) -> list[IdentityMatch]:
+        """
+        Returnerar entity-observationer för ett specifikt instrument.
+
+        Detta är den explicita bron:
+
+            instrument / ISIN
+                ↓
+            historisk observation
+                ↓
+            entity
+
+        Endast alias-/observationsregistret används.
+
+        instrument_map används inte här eftersom det registret saknar
+        entity_id och inte beskriver historisk giltighet.
+
+        Om samma ISIN har observationer för flera entity-id:n returneras
+        samtliga. Metoden väljer aldrig godtyckligt mellan dem.
+
+        target_date används för att respektera valid_from / valid_to.
+        """
+
+        normalized_isin = normalize_isin(
+            isin
+        )
+
+        if not normalized_isin:
+            return []
+
+        parsed_date = parse_date(
+            target_date
+        )
+
+        result: list[
+            IdentityMatch
+        ] = []
+
+        seen: set[
+            tuple[str, int]
+        ] = set()
+
+        record_indexes = (
+            self._alias_instrument_indexes.get(
+                normalized_isin,
+                []
+            )
+        )
+
+        for record_index in record_indexes:
+            if record_index < 0:
+                continue
+
+            if record_index >= len(
+                self.records
+            ):
+                continue
+
+            record = self.records[
+                record_index
+            ]
+
+            if not date_is_valid(
+                record,
+                parsed_date,
+            ):
+                continue
+
+            entity_id = record.get(
+                "entity_id"
+            )
+
+            if not entity_id:
+                continue
+
+            key = (
+                str(entity_id),
+                record_index,
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            result.append(
+                IdentityMatch(
+                    entity_id=str(
+                        entity_id
+                    ),
+                    record=record,
+                    resolution="isin",
+                )
+            )
+
+        return result
+
+    def unique_entities_for_instrument(
+        self,
+        isin: str,
+        target_date: date | str | None = None,
+    ) -> list[str]:
+        """
+        Returnerar unika entity-id:n för ett instrument.
+
+        Ordningen följer observationsregistret.
+
+        Resultatet kan innehålla:
+
+            []          ingen entity känd
+            ["ENT-..."] exakt en entity
+            ["ENT-...", "ENT-..."] flera entity-kandidater
+        """
+
+        matches = self.entities_for_instrument(
+            isin,
+            target_date,
+        )
+
+        result: list[str] = []
+        seen: set[str] = set()
+
+        for match in matches:
+            if match.entity_id in seen:
+                continue
+
+            seen.add(
+                match.entity_id
+            )
+
+            result.append(
+                match.entity_id
+            )
+
+        return result
+
+    def entity_for_instrument(
+        self,
+        isin: str,
+        target_date: date | str | None = None,
+    ) -> IdentityMatch | None:
+        """
+        Returnerar entity för ett instrument när den är entydig.
+
+        Om ingen entity eller flera entity-kandidater finns returneras
+        None. Metoden gör alltså inget godtyckligt val.
+        """
+
+        matches = (
+            self.entities_for_instrument(
+                isin,
+                target_date,
+            )
+        )
+
+        unique: dict[
+            str,
+            IdentityMatch,
+        ] = {}
+
+        for match in matches:
+            unique.setdefault(
+                match.entity_id,
+                match,
+            )
+
+        if len(unique) != 1:
+            return None
+
+        return next(
+            iter(unique.values())
+        )
+
+    # ------------------------------------------------------------------
     # Publika entity-resolve-metoder
     # ------------------------------------------------------------------
 
@@ -1042,6 +1278,31 @@ class InstrumentIdentity:
         return None
 
     # ------------------------------------------------------------------
+    # Hjälpmetoder
+    # ------------------------------------------------------------------
+
+    def _unique_entities(
+        self,
+        matches: Iterable[IdentityMatch],
+    ) -> list[IdentityMatch]:
+        """Tar bort dubbletter per entity_id."""
+
+        result: dict[
+            str,
+            IdentityMatch,
+        ] = {}
+
+        for match in matches:
+            result.setdefault(
+                match.entity_id,
+                match,
+            )
+
+        return list(
+            result.values()
+        )
+
+    # ------------------------------------------------------------------
     # Discovery
     # ------------------------------------------------------------------
 
@@ -1237,6 +1498,22 @@ class InstrumentIdentity:
             self.records.append(
                 record
             )
+
+            # Håll det nya ISIN-indexet aktuellt även när discovery
+            # används flera gånger inom samma körning.
+            normalized_record_isin = (
+                normalize_isin(
+                    record.get("isin")
+                )
+            )
+
+            if normalized_record_isin:
+                self._alias_instrument_indexes.setdefault(
+                    normalized_record_isin,
+                    [],
+                ).append(
+                    len(self.records) - 1
+                )
 
         return record
 
