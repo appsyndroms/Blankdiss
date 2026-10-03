@@ -157,27 +157,110 @@ def _extract_close(
     return None
 
 
+def _instrument_key(
+    instrument: dict[str, Any],
+) -> str:
+    """
+    Returnerar den lokala identiteten för ett instrument.
+
+    ISIN är den primära nyckeln eftersom ett entity kan ha
+    flera instrument över tid. Yahoo-symbol är en extern
+    identifierare och får därför inte användas som instrument-
+    identitet.
+
+    Om ISIN saknas används LEI + Yahoo-symbol som fallback.
+    Detta är främst för instrument där ISIN ännu inte är känt.
+    """
+    isin = instrument.get(
+        "isin"
+    )
+
+    if isin is not None:
+        value = str(
+            isin
+        ).strip()
+
+        if value:
+            return f"isin:{value}"
+
+    lei = instrument.get(
+        "lei"
+    )
+
+    yahoo_symbol = instrument.get(
+        "yahoo_symbol"
+    )
+
+    lei_value = (
+        str(lei).strip()
+        if lei is not None
+        else ""
+    )
+
+    symbol_value = (
+        str(yahoo_symbol).strip()
+        if yahoo_symbol is not None
+        else ""
+    )
+
+    if lei_value or symbol_value:
+        return (
+            "fallback:"
+            f"{lei_value}|"
+            f"{symbol_value}"
+        )
+
+    issuer = instrument.get(
+        "issuer"
+    )
+
+    issuer_value = (
+        str(issuer).strip()
+        if issuer is not None
+        else ""
+    )
+
+    if issuer_value:
+        return (
+            "issuer:"
+            f"{issuer_value}"
+        )
+
+    return ""
+
+
 def _existing_price_bounds(
     price_dir: Path,
 ) -> dict[str, dict[str, date]]:
     """
     Läs befintliga prisfiler och hitta både första
-    och senaste sparade datum per Yahoo-symbol.
+    och senaste sparade datum per instrument.
 
-    Detta är viktigt för inkrementell hämtning.
+    Täckningen baseras på instrumentets identitet, i första hand
+    ISIN, inte på Yahoo-symbol.
 
-    Om exempelvis FING-B.ST endast finns från
-    2026-07-16 men användaren begär historik från
-    2022-01-01 måste vi upptäcka att historiken
-    saknas bakåt.
+    Detta är viktigt eftersom samma Yahoo-symbol kan användas
+    av flera instrument över tid.
+
+    Exempel:
+
+        SE0007439112 -> SINCH.ST
+        SE0016101844 -> SINCH.ST
+
+    Dessa ska behandlas som två separata instrument även om
+    Yahoo-symbolen är densamma.
 
     Resultat:
 
         {
-            "FING-B.ST": {
+            "isin:SE0007439112": {
                 "first": date(...),
                 "last": date(...),
-            }
+            },
+            "isin:SE0016101844": {
+                "first": date(...),
+                "last": date(...),
+            },
         }
     """
     bounds: dict[
@@ -204,14 +287,7 @@ def _existing_price_bounds(
         ):
             continue
 
-        required = {
-            "date",
-            "yahoo_symbol",
-        }
-
-        if not required.issubset(
-            frame.columns
-        ):
+        if "date" not in frame.columns:
             continue
 
         frame["date"] = pd.to_datetime(
@@ -219,63 +295,111 @@ def _existing_price_bounds(
             errors="coerce",
         )
 
-        frame["yahoo_symbol"] = (
-            frame["yahoo_symbol"]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-        )
+        if "isin" in frame.columns:
+            frame["isin"] = (
+                frame["isin"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+
+        else:
+            frame["isin"] = ""
+
+        if "lei" in frame.columns:
+            frame["lei"] = (
+                frame["lei"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+
+        else:
+            frame["lei"] = ""
+
+        if "yahoo_symbol" in frame.columns:
+            frame["yahoo_symbol"] = (
+                frame["yahoo_symbol"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+
+        else:
+            frame["yahoo_symbol"] = ""
 
         frame = frame.loc[
             frame["date"].notna()
-            & frame["yahoo_symbol"].ne("")
         ]
 
-        for symbol, group in frame.groupby(
-            "yahoo_symbol",
-            sort=False,
+        if frame.empty:
+            continue
+
+        for row in frame.itertuples(
+            index=False
         ):
-            first_timestamp = group[
-                "date"
-            ].min()
-
-            last_timestamp = group[
-                "date"
-            ].max()
-
-            first_date = (
-                first_timestamp.date()
+            row_date = (
+                pd.Timestamp(
+                    row.date
+                ).date()
             )
 
-            last_date = (
-                last_timestamp.date()
+            isin = getattr(
+                row,
+                "isin",
+                "",
             )
+
+            lei = getattr(
+                row,
+                "lei",
+                "",
+            )
+
+            yahoo_symbol = getattr(
+                row,
+                "yahoo_symbol",
+                "",
+            )
+
+            instrument = {
+                "isin": isin,
+                "lei": lei,
+                "yahoo_symbol": yahoo_symbol,
+            }
+
+            key = _instrument_key(
+                instrument
+            )
+
+            if not key:
+                continue
 
             existing = bounds.get(
-                symbol
+                key
             )
 
             if existing is None:
-                bounds[symbol] = {
-                    "first": first_date,
-                    "last": last_date,
+                bounds[key] = {
+                    "first": row_date,
+                    "last": row_date,
                 }
                 continue
 
             if (
-                first_date
+                row_date
                 < existing["first"]
             ):
                 existing["first"] = (
-                    first_date
+                    row_date
                 )
 
             if (
-                last_date
+                row_date
                 > existing["last"]
             ):
                 existing["last"] = (
-                    last_date
+                    row_date
                 )
 
     return bounds
@@ -473,6 +597,9 @@ def _build_fetch_intervals(
     Bestämmer vilka datumintervall som faktiskt behöver
     hämtas för ett instrument.
 
+    Täckningen baseras på instrumentets identitet, inte
+    Yahoo-symbolen.
+
     Möjliga situationer:
 
     1. Ingen lokal historik
@@ -491,12 +618,15 @@ def _build_fetch_intervals(
     hämtas: "initial", "backfill" eller "incremental".
     """
 
-    symbol = instrument[
-        "yahoo_symbol"
-    ]
+    key = _instrument_key(
+        instrument
+    )
+
+    if not key:
+        return []
 
     bounds = existing_bounds.get(
-        symbol
+        key
     )
 
     if bounds is None:
@@ -597,24 +727,22 @@ def fetch_prices(
     För varje instrument kontrolleras både första och senaste
     lokala observation.
 
+    Instrumentets identitet baseras på ISIN. Yahoo-symbolen
+    används endast för att hämta pris från Yahoo.
+
     Exempel:
 
         Lokal historik:
-            FING-B.ST: 2026-07-16
+            SE0007439112: 2022-01-03 -> 2026-09-30
+            SE0016101844: saknas
+
+        Båda kan använda:
+            SINCH.ST
 
         Begärd historik:
             2022-01-01 -> 2026-10-01
 
-    Då görs:
-
-        2022-01-01 -> 2026-07-15
-            BACKFILL
-
-        2026-07-17 -> 2026-09-30
-            INCREMENTAL
-
-    På så sätt blir en sent introducerad Yahoo-symbol inte
-    automatiskt utan historik.
+    Då behandlas instrumenten separat.
 
     Yahoo använder slutdatum exklusivt i sin API-hämtning.
     Därför begränsas den effektiva slutdagen till senaste
@@ -807,6 +935,10 @@ def fetch_prices(
             job[2],
             job[3].get(
                 "yahoo_symbol",
+                "",
+            ),
+            job[3].get(
+                "isin",
                 "",
             ),
         ),
