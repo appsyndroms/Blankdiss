@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       test:
-        description: "Identity-test"
+        description: "Identity/import-test"
         required: true
         default: all
         type: choice
@@ -17,6 +17,12 @@ on:
           - duplicate
           - isin-conflict
           - lei-conflict
+          - import-all
+          - import-new
+          - import-bridge
+          - import-isin-conflict
+          - import-lei-conflict
+          - import-duplicate
 
 permissions:
   contents: read
@@ -35,6 +41,7 @@ jobs:
           sparse-checkout: |
             shared/
             tests/
+            felsokning/
             requirements.txt
           sparse-checkout-cone-mode: false
 
@@ -48,13 +55,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run selected identity test
+      - name: Run selected identity/import test
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           case "${{ inputs.test }}" in
             all)
-              pytest -q tests/instrument/test_identity_future_changes.py
+              pytest -q \
+                tests/instrument/test_identity_future_changes.py \
+                tests/instrument/test_instrument_entity_import.py
               ;;
 
             name)
@@ -85,8 +94,32 @@ jobs:
               pytest -q tests/instrument/test_identity_future_changes.py::test_same_lei_cannot_be_assigned_to_different_entity
               ;;
 
+            import-all)
+              pytest -q tests/instrument/test_instrument_entity_import.py
+              ;;
+
+            import-new)
+              pytest -q tests/instrument/test_instrument_entity_import.py::test_new_entity_candidate_passes_validation
+              ;;
+
+            import-bridge)
+              pytest -q tests/instrument/test_instrument_entity_import.py::test_existing_isin_bridges_to_existing_entity
+              ;;
+
+            import-isin-conflict)
+              pytest -q tests/instrument/test_instrument_entity_import.py::test_conflicting_isin_stops_import_validation
+              ;;
+
+            import-lei-conflict)
+              pytest -q tests/instrument/test_instrument_entity_import.py::test_conflicting_lei_stops_import_validation
+              ;;
+
+            import-duplicate)
+              pytest -q tests/instrument/test_instrument_entity_import.py::test_exact_duplicate_is_skipped
+              ;;
+
             *)
-              echo "Okänt identity-test: ${{ inputs.test }}"
+              echo "Okänt identity/import-test: ${{ inputs.test }}"
               exit 1
               ;;
           esac
