@@ -40,10 +40,10 @@
       }
     ]
   },
-  "fi_rows": 206180,
+  "fi_rows": 206181,
   "price_rows": 455739,
-  "feature_rows": 206180,
-  "matched_fi_rows": 167620,
+  "feature_rows": 206181,
+  "matched_fi_rows": 167621,
   "unmatched_fi_rows": 38560,
   "matched_by_isin": 132947,
   "matched_by_issuer": 370,
@@ -221,7 +221,7 @@
     {
       "path": "data/processed/analysis/features_0008.jsonl",
       "rows": 7500,
-      "size_bytes": 20286269
+      "size_bytes": 20286267
     },
     {
       "path": "data/processed/analysis/features_0009.jsonl",
@@ -320,8 +320,8 @@
     },
     {
       "path": "data/processed/analysis/features_0028.jsonl",
-      "rows": 3680,
-      "size_bytes": 10114787
+      "rows": 3681,
+      "size_bytes": 10117554
     }
   ]
 }

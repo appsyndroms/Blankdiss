@@ -35,7 +35,7 @@
     "data/raw/prices/prices_2022-01-03_2026-10-01_cleaned.jsonl",
     "data/raw/prices/prices_2022-01-03_2026-10-02.jsonl"
   ],
-  "rows": 206180,
+  "rows": 206181,
   "symbols": 315,
   "fi_period": {
     "start": "2019-12-19",
@@ -55,8 +55,8 @@
     },
     "match_distances": {
       "status": "PASS",
-      "matched_rows": 167620,
-      "same_day": 161140,
+      "matched_rows": 167621,
+      "same_day": 161141,
       "one_day": 1649,
       "two_days": 831,
       "three_days": 475,
@@ -84,7 +84,7 @@
       "sources": {
         "isin": 132947,
         "unmatched": 38560,
-        "entity": 34303,
+        "entity": 34304,
         "issuer": 370
       },
       "unexpected_sources": []
@@ -109,26 +109,26 @@
       "status": "PASS",
       "windows": {
         "forward_return_1d": {
-          "non_null": 165191,
+          "non_null": 165192,
           "null": 40989,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_5d": {
-          "non_null": 163228,
+          "non_null": 163229,
           "null": 42952,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_20d": {
           "non_null": 160143,
-          "null": 46037,
+          "null": 46038,
           "nonfinite": 0,
           "invalid_with_price": 0
         },
         "forward_return_60d": {
           "non_null": 152526,
-          "null": 53654,
+          "null": 53655,
           "nonfinite": 0,
           "invalid_with_price": 0
         }
@@ -136,8 +136,8 @@
     },
     "forward_return_alignment": {
       "status": "PASS",
-      "verified_match": 641088,
-      "not_yet_verifiable": 29392,
+      "verified_match": 641090,
+      "not_yet_verifiable": 29394,
       "value_mismatch": 0,
       "price_date_not_found": 0,
       "missing_forward_return": 0,
@@ -295,8 +295,8 @@
     },
     "unmatched_rows": {
       "status": "WARN",
-      "total_rows": 206180,
-      "rows_with_price": 167620,
+      "total_rows": 206181,
+      "rows_with_price": 167621,
       "rows_without_price": 38560,
       "match_rate_pct": 81.3,
       "symbols_without_price": 0,
