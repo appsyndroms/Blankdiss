@@ -1,15 +1,11 @@
 name: Rebuild instrument identities
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   rebuild:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,24 +13,20 @@ jobs:
           fetch-depth: 1
           filter: blob:none
           sparse-checkout: |
-            .github/workflows/rebuild_prices.yml
             felsokning/
             shared/
             scripts/
             data/analysis/
             requirements.txt
           sparse-checkout-cone-mode: false
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Kör instrument entity discovery
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -43,9 +35,7 @@ jobs:
           echo "=========================================="
           echo "INSTRUMENT -> ENTITY DISCOVERY"
           echo "=========================================="
-
           python -u felsokning/discover_instrument_entities.py
-
       - name: Importera instrument identities
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -54,103 +44,80 @@ jobs:
           echo "=========================================="
           echo "INSTRUMENT -> ENTITY IMPORT"
           echo "=========================================="
-
           python -u felsokning/import_instrument_entities.py --apply
-
       - name: Kontrollera identity-data
         run: |
           echo
           echo "=========================================="
           echo "KONTROLLERA IDENTITY-DATA"
           echo "=========================================="
-
           test -f shared/data/instrument_entities.jsonl || {
             echo "instrument_entities.jsonl saknas."
             exit 1
           }
-
           test -f shared/data/instrument_aliases.jsonl || {
             echo "instrument_aliases.jsonl saknas."
             exit 1
           }
-
           echo
           echo "Discovery-rapport:"
           ls -lh data/analysis/instrument_entity_discovery.json
-
           echo
           echo "Entity-register:"
           ls -lh shared/data/instrument_entities.jsonl
-
           echo
           echo "Alias-register:"
           ls -lh shared/data/instrument_aliases.jsonl
-
           echo
           echo "Antal entities:"
           wc -l shared/data/instrument_entities.jsonl
-
           echo
           echo "Antal observationer:"
           wc -l shared/data/instrument_aliases.jsonl
-
       - name: Ta bort temporär discovery-rapport
         run: |
           echo
           echo "=========================================="
           echo "STÄDAR TEMPORÄR DISCOVERY-RAPPORT"
           echo "=========================================="
-
           rm -f data/analysis/instrument_entity_discovery.json
-
           echo "Discovery-rapporten används endast under körningen och committas inte."
-
       - name: Kontrollera ändrade filer
         run: |
           echo
           echo "=========================================="
           echo "KONTROLLERA ÄNDRADE FILER"
           echo "=========================================="
-
           git status --short
-
           unexpected="$(git status --short --untracked-files=all | \
             grep -vE '^[[:space:]]*[MADRCU?]+[[:space:]]+(shared/data/instrument_entities\.jsonl|shared/data/instrument_aliases\.jsonl)$' || true)"
-
           if [ -n "$unexpected" ]; then
             echo
             echo "OVÄNTADE FILÄNDRINGAR:"
             echo "$unexpected"
             exit 1
           fi
-
           echo
           echo "Endast förväntade identity-filer har ändrats."
-
       - name: Förbered commit
         run: |
           echo
           echo "=========================================="
           echo "FÖRBERED IDENTITY-DATA-COMMIT"
           echo "=========================================="
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add \
             shared/data/instrument_entities.jsonl \
             shared/data/instrument_aliases.jsonl
-
           echo
           echo "Filer som kommer att committas:"
           git diff --cached --name-status
-
           echo
           echo "Förändringsstatistik:"
           git diff --cached --stat -- \
             shared/data/instrument_entities.jsonl \
             shared/data/instrument_aliases.jsonl
-
       - name: Commit
         run: |
           if git diff --cached --quiet; then
@@ -158,22 +125,17 @@ jobs:
             echo "Inga identity-förändringar att committa."
             exit 0
           fi
-
           git commit \
             -m "Rebuild instrument identities"
-
       - name: Push
         run: |
           echo
           echo "Pushar identity-data..."
-
           bash scripts/git_push_with_retry.sh
-
       - name: Slutlig kontroll
         run: |
           echo
           echo "=========================================="
           echo "IDENTITY REBUILD KLAR"
           echo "=========================================="
-
           git status --short
