@@ -48,6 +48,9 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          echo "=========================================="
+          echo "YAHOO PRICE DIAGNOSTIC"
+          echo "=========================================="
           python felsokning/debug_yahoo_price.py
 
       - name: Run identity diagnostic
@@ -55,6 +58,9 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          echo "=========================================="
+          echo "IDENTITY DIAGNOSTIC"
+          echo "=========================================="
           python felsokning/debug_identity.py
 
       - name: Run instrument entity discovery
@@ -62,6 +68,9 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          echo "=========================================="
+          echo "INSTRUMENT -> ENTITY DISCOVERY"
+          echo "=========================================="
           python felsokning/discover_instrument_entities.py
 
       - name: Run instrument entity import dry-run
@@ -69,4 +78,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          echo "=========================================="
+          echo "INSTRUMENT -> ENTITY IMPORT DRY-RUN"
+          echo "=========================================="
           python felsokning/import_instrument_entities.py
