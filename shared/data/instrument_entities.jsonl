@@ -197,3 +197,276 @@
 {"entity_id":"ENT-000197","legal_name":"SKANDINAVISKA ENSKILDA BANKEN AB","status":"candidate","created_date":"2026-10-03","source":"GLEIF_ANNA"}
 {"entity_id":"ENT-000198","legal_name":"SWEDBANK AB","status":"candidate","created_date":"2026-10-03","source":"GLEIF_ANNA"}
 {"entity_id":"ENT-000199","legal_name":"SVENSKA HANDELSBANKEN AB","status":"candidate","created_date":"2026-10-03","source":"GLEIF_ANNA"}
+{"entity_id":"ENT-000200","legal_name":"2cureX AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000201","legal_name":"ABB Ltd","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000202","legal_name":"ALELION ENERGY SYSTEMS AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000203","legal_name":"ALM EQUITY AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000204","legal_name":"ALVOTECH","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000205","legal_name":"AQ Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000206","legal_name":"ASTRAZENECA PLC","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000207","legal_name":"AUTOLIV, INC.","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000208","legal_name":"AVTECH Sweden AB (publ)","status":"observed","created_date":"2026-09-29","source":"FI_YAHOO"}
+{"entity_id":"ENT-000209","legal_name":"Abliva AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000210","legal_name":"Acarix AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000211","legal_name":"Actic Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000212","legal_name":"Active Biotech AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000213","legal_name":"Acuvi AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000214","legal_name":"Adapteo Oyj","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000215","legal_name":"AddLife AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000216","legal_name":"Advenica AB (publ)","status":"observed","created_date":"2026-10-01","source":"FI_YAHOO"}
+{"entity_id":"ENT-000217","legal_name":"AegirBio AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000218","legal_name":"Africa Oil Corp.","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000219","legal_name":"Aktiebolaget Electrolux","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000220","legal_name":"Aktiebolaget Volvo","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000221","legal_name":"Alcadon Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000222","legal_name":"Alligator Bioscience AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000223","legal_name":"Annehem Fastigheter AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000224","legal_name":"Annexin Pharmaceuticals AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000225","legal_name":"ArcAroma AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000226","legal_name":"Arise AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000227","legal_name":"Artificial Solutions International AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000228","legal_name":"Atlas Copco Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000229","legal_name":"Atrium Ljungberg AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000230","legal_name":"Avanza Bank Holding AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000231","legal_name":"Awardit AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000232","legal_name":"Axfood AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000233","legal_name":"Axvik Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000234","legal_name":"Azelio AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000235","legal_name":"B3 Consulting Group AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000236","legal_name":"BE Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000237","legal_name":"BIMobject AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000238","legal_name":"BINERO GROUP","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000239","legal_name":"BTS Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000240","legal_name":"Bactiguard Holding AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000241","legal_name":"Bahnhof AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000242","legal_name":"Balco Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000243","legal_name":"Bambuser AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000244","legal_name":"Beijer Electronics Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000245","legal_name":"Bergman & Beving Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000246","legal_name":"Berner Industrier AB","status":"observed","created_date":"2026-09-19","source":"FI_YAHOO"}
+{"entity_id":"ENT-000247","legal_name":"Betsson AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000248","legal_name":"Bio-Works Technologies AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000249","legal_name":"BioInvent International Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000250","legal_name":"Biotage AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000251","legal_name":"Biovica International AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000252","legal_name":"Björn Borg AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000253","legal_name":"Boliden AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000254","legal_name":"Botnia Gold AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000255","legal_name":"Boule Diagnostics AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000256","legal_name":"BrainCool AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000257","legal_name":"Brighter AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000258","legal_name":"Bufab AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000259","legal_name":"Bulten AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000260","legal_name":"CDON AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000261","legal_name":"CTEK AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000262","legal_name":"CTT Systems AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000263","legal_name":"Calliditas Therapeutics AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000264","legal_name":"Candles Scandinavia AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000265","legal_name":"Catella AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000266","legal_name":"Cell Impact AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000267","legal_name":"Cereno Scientific AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000268","legal_name":"Cint Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000269","legal_name":"Clemondo Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000270","legal_name":"Climeon AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000271","legal_name":"Clinical Laserthermia Systems AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000272","legal_name":"Collector AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000273","legal_name":"CombiGene AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000274","legal_name":"Cortus Energy AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000275","legal_name":"Creades AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000276","legal_name":"Crunchfish AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000277","legal_name":"Cyxone AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000278","legal_name":"Desenio Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000279","legal_name":"Diamyd Medical Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000280","legal_name":"DistIT AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000281","legal_name":"Divio Technologies AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000282","legal_name":"Doxa Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000283","legal_name":"Duni AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000284","legal_name":"ETRION CORPORATION","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000285","legal_name":"Eastnine AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000286","legal_name":"Egetis Therapeutics AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000287","legal_name":"Embracer Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000288","legal_name":"Enad Global 7 AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000289","legal_name":"Eniro Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000290","legal_name":"Enity Holding AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000291","legal_name":"Enorama Pharma AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000292","legal_name":"Enzymatica AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000293","legal_name":"Epiroc Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000294","legal_name":"Episurf Medical AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000295","legal_name":"Ework Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000296","legal_name":"Expres2ion Biotech Holding AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000297","legal_name":"Fabege AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000298","legal_name":"Fastighets AB Balder","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000299","legal_name":"Fastpartner AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000300","legal_name":"Ferroamp AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000301","legal_name":"Fingerprint Cards AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000302","legal_name":"Fluicell AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000303","legal_name":"Fortnox Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000304","legal_name":"Freja eID Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000305","legal_name":"GARO Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000306","legal_name":"Gaming Corps AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000307","legal_name":"Genovis Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000308","legal_name":"Glycorex Transplantation AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000309","legal_name":"Goobit Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000310","legal_name":"Goodbye Kansas Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000311","legal_name":"Green Landscaping Group AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000312","legal_name":"HEXICON AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000313","legal_name":"Haldex Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000314","legal_name":"Hexagon Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000315","legal_name":"Hexatronic Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000316","legal_name":"HiQ International AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000317","legal_name":"Holmen Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000318","legal_name":"Humana AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000319","legal_name":"Humble Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000320","legal_name":"Hövding Sverige AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000321","legal_name":"I-Tech AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000322","legal_name":"ICA Gruppen Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000323","legal_name":"IMPLANTICA AG","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000324","legal_name":"INQ Group AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000325","legal_name":"INTERNATIONAL PETROLEUM CORPORATION","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000326","legal_name":"ITAB Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000327","legal_name":"Iconovo AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000328","legal_name":"Image Systems AB","status":"observed","created_date":"2026-09-19","source":"FI_YAHOO"}
+{"entity_id":"ENT-000329","legal_name":"Impact Coatings AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000330","legal_name":"InDex Pharmaceuticals Holding AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000331","legal_name":"Instalco AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000332","legal_name":"Intea Fastigheter AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000333","legal_name":"Integrum AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000334","legal_name":"Intervacc AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000335","legal_name":"Investor Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000336","legal_name":"Inzile AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000337","legal_name":"Irisity AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000338","legal_name":"Isofol Medical AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000339","legal_name":"K-Fast Holding AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000340","legal_name":"KINDRED GROUP PLC","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000341","legal_name":"Kancera AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000342","legal_name":"Karolinska Development AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000343","legal_name":"KebNi AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000344","legal_name":"Kinnevik AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000345","legal_name":"Kjell Group AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000346","legal_name":"Klövern AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000347","legal_name":"Kungsleden Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000348","legal_name":"L E Lundbergföretagen Aktiebolag (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000349","legal_name":"LMK Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000350","legal_name":"Lagercrantz Group Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000351","legal_name":"LeoVegas AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000352","legal_name":"Logistea AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000353","legal_name":"Loomis AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000354","legal_name":"Lumito AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000355","legal_name":"Lundin Mining Corporation","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000356","legal_name":"Lyko Group AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000357","legal_name":"MOMENT GROUP AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000358","legal_name":"Mantex Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000359","legal_name":"Mavshack AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000360","legal_name":"MedCap AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000361","legal_name":"Medicover AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000362","legal_name":"Medivir Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000363","legal_name":"Mendus AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000364","legal_name":"Micro Systemation AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000365","legal_name":"Millicom International Cellular S.A.","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000366","legal_name":"Minesto AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000367","legal_name":"Modern Times Group MTG AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000368","legal_name":"Mycronic AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000369","legal_name":"NIBE Industrier AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000370","legal_name":"NOBA Bank Group AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000371","legal_name":"NP3 Fastigheter AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000372","legal_name":"Nanexa AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000373","legal_name":"Nederman Holding Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000374","legal_name":"NetEnt AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000375","legal_name":"New Wave Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000376","legal_name":"Nexam Chemical Holding AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000377","legal_name":"NextCell Pharma AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000378","legal_name":"Nilörngruppen Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000379","legal_name":"Nobina AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000380","legal_name":"Nolato Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000381","legal_name":"Nordea Bank Abp","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000382","legal_name":"Nordic Iron Ore AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000383","legal_name":"Nordic Paper Holding AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000384","legal_name":"Nordic Waterproofing Holding AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000385","legal_name":"Nordrest Holding AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000386","legal_name":"OEM International Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000387","legal_name":"OX2 AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000388","legal_name":"OXE Marine AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000389","legal_name":"Offentliga Hus i Norden AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000390","legal_name":"OptiCept Technologies AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000391","legal_name":"Ortivus Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000392","legal_name":"Oscar Properties Holding AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000393","legal_name":"PPI Public Property Invest AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000394","legal_name":"PROBI Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000395","legal_name":"Papilly AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000396","legal_name":"Pierce Group AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000397","legal_name":"Platzer Fastigheter Holding AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000398","legal_name":"PolyPlank Aktiebolag (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000399","legal_name":"Polygiene Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000400","legal_name":"Precise Biometrics AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000401","legal_name":"Prevas Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000402","legal_name":"Pricer Aktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000403","legal_name":"ProstaLund AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000404","legal_name":"Prostatype Genomics AB","status":"observed","created_date":"2026-09-29","source":"FI_YAHOO"}
+{"entity_id":"ENT-000405","legal_name":"Q-linea AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000406","legal_name":"Qben Infra AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000407","legal_name":"Qiiwi Games AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000408","legal_name":"Qlife Holding AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000409","legal_name":"Qliro AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000410","legal_name":"Quickbit eu AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000411","legal_name":"RLS Global AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000412","legal_name":"Raketech Group Holding Limited","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000413","legal_name":"Realfiction Holding AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000414","legal_name":"Recipharm AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000415","legal_name":"Rottneros AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000416","legal_name":"SAAB Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000417","legal_name":"SAS AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000418","legal_name":"SECTRA Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000419","legal_name":"SWECO AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000420","legal_name":"SaltX Technology Holding AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000421","legal_name":"Savosolar Oyj","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000422","legal_name":"Saxlund Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000423","legal_name":"Scandi Standard AB (publ)","status":"observed","created_date":"2026-09-30","source":"FI_YAHOO"}
+{"entity_id":"ENT-000424","legal_name":"Scandinavian Enviro Systems AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000425","legal_name":"SciBase Holding AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000426","legal_name":"Sensys Gatso Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000427","legal_name":"Senzime AB (publ.)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000428","legal_name":"Serstech AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000429","legal_name":"Sileon AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000430","legal_name":"Silex Microsystems AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000431","legal_name":"SinterCast Aktiebolag","status":"observed","created_date":"2026-09-19","source":"FI_YAHOO"}
+{"entity_id":"ENT-000432","legal_name":"SkiStar Aktiebolag","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000433","legal_name":"Solid Försäkringsaktiebolag","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000434","legal_name":"SpectraCure AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000435","legal_name":"Spectrumone AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000436","legal_name":"Spintso International","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000437","legal_name":"Sportamore AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000438","legal_name":"Sprint Bioscience AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000439","legal_name":"Starbreeze AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000440","legal_name":"Stendörren Fastigheter AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000441","legal_name":"Stockwik Förvaltning AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000442","legal_name":"Stora Enso ser. R","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000443","legal_name":"Strax AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000444","legal_name":"Sveafastigheter AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000445","legal_name":"Svedbergs Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000446","legal_name":"Swedish Logistic Property AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000447","legal_name":"Swedish Match AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000448","legal_name":"Swedol AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000449","legal_name":"TF Bank AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000450","legal_name":"Tethys Oil AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000451","legal_name":"Thunderful Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000452","legal_name":"Toleranzia AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000453","legal_name":"Transtema Group AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000454","legal_name":"Unibap Space Solutions AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000455","legal_name":"VBG GROUP AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000456","legal_name":"VEF AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000457","legal_name":"VEONEER, INC.","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000458","legal_name":"Veg of Lund AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000459","legal_name":"Viking Supply Ships AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000460","legal_name":"Vimian Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000461","legal_name":"Vivesto AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000462","legal_name":"Volvo Car AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000463","legal_name":"W5 Solutions AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000464","legal_name":"Waystream Holding AB (publ)","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000465","legal_name":"WeSports Scandinavia AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000466","legal_name":"White Pearl Technology Group AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000467","legal_name":"Wyld Networks AB","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000468","legal_name":"Xbrane Biopharma AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000469","legal_name":"Xintela AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000470","legal_name":"Xspray Pharma AB (publ)","status":"observed","created_date":"2026-10-03","source":"FI_YAHOO"}
+{"entity_id":"ENT-000471","legal_name":"Ziccum AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
+{"entity_id":"ENT-000472","legal_name":"ZignSec AB","status":"observed","created_date":"2026-09-17","source":"FI_YAHOO"}
